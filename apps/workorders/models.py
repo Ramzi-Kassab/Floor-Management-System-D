@@ -12,6 +12,8 @@ Tables:
 - bit_evaluations (P1)
 """
 
+from decimal import Decimal
+
 from django.db import models
 from django.conf import settings
 
@@ -277,7 +279,13 @@ class WorkOrder(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Work Order'
         verbose_name_plural = 'Work Orders'
-    
+        indexes = [
+            models.Index(fields=['status', 'priority']),
+            models.Index(fields=['customer', 'status']),
+            models.Index(fields=['due_date']),
+            models.Index(fields=['wo_number']),
+        ]
+
     def __str__(self):
         return f"{self.wo_number}"
 
@@ -444,7 +452,9 @@ class WorkOrderTimeLog(models.Model):
             delta = self.end_time - self.start_time
             self.duration_minutes = int(delta.total_seconds() / 60)
             if self.hourly_rate:
-                self.total_cost = (self.duration_minutes / 60) * float(self.hourly_rate)
+                # Use Decimal for accurate currency calculations
+                hours = Decimal(self.duration_minutes) / Decimal(60)
+                self.total_cost = hours * self.hourly_rate
         super().save(*args, **kwargs)
 
 

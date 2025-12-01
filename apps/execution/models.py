@@ -98,7 +98,12 @@ class ProcedureExecution(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Procedure Execution'
         verbose_name_plural = 'Procedure Executions'
-    
+        indexes = [
+            models.Index(fields=['work_order', 'status']),
+            models.Index(fields=['procedure', 'status']),
+            models.Index(fields=['status', 'started_at']),
+        ]
+
     def __str__(self):
         return f"{self.work_order.wo_number} - {self.procedure.code}"
     

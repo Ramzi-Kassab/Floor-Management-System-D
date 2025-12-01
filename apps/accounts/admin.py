@@ -5,8 +5,9 @@ from .models import User, Role, Permission, RolePermission, UserRole, UserPrefer
 
 class UserRoleInline(admin.TabularInline):
     model = UserRole
+    fk_name = 'user'  # Specify which FK to User to use
     extra = 1
-    autocomplete_fields = ['role']
+    autocomplete_fields = ['role', 'assigned_by']
 
 
 @admin.register(User)
@@ -31,12 +32,18 @@ class UserAdmin(BaseUserAdmin):
     inlines = [UserRoleInline]
 
 
+class RolePermissionInline(admin.TabularInline):
+    model = RolePermission
+    extra = 1
+    autocomplete_fields = ['permission', 'granted_by']
+
+
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
     list_display = ['code', 'name', 'level', 'is_system', 'is_active']
     list_filter = ['is_system', 'is_active', 'level']
     search_fields = ['code', 'name']
-    filter_horizontal = ['permissions']
+    inlines = [RolePermissionInline]  # Use inline instead of filter_horizontal
 
 
 @admin.register(Permission)

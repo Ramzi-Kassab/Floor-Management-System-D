@@ -116,6 +116,7 @@ class User(AbstractUser):
     roles = models.ManyToManyField(
         'Role',
         through='UserRole',
+        through_fields=('user', 'role'),
         related_name='users'
     )
     

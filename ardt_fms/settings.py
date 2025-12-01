@@ -55,36 +55,39 @@ THIRD_PARTY_APPS = [
     'django_extensions',
 ]
 
-# P1 Core Apps (19 apps)
+# P1 Core Apps (22 apps including dashboard)
 LOCAL_APPS = [
     # Organization & Auth
     'apps.organization',
     'apps.accounts',
-    
+
+    # Dashboard
+    'apps.dashboard',
+
     # Procedure Engine
     'apps.procedures',
     'apps.forms_engine',
     'apps.execution',
-    
+
     # Operations
     'apps.drss',
     'apps.sales',
     'apps.workorders',
     'apps.technology',
-    
+
     # Quality & Inventory
     'apps.quality',
     'apps.inventory',
-    
+
     # Support Systems
     'apps.scancodes',
     'apps.notifications',
     'apps.maintenance',
     'apps.documents',
-    
+
     # Planning (NEW in v5.4)
     'apps.planning',
-    
+
     # Future Phases (skeleton only)
     'apps.supplychain',
     'apps.dispatch',

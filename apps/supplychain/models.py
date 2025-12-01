@@ -82,6 +82,9 @@ class PurchaseRequisition(models.Model):
         verbose_name = 'Purchase Requisition'
         verbose_name_plural = 'Purchase Requisitions'
 
+    def __str__(self):
+        return self.pr_number
+
 
 class PRLine(models.Model):
     """🟡 P2: Purchase Requisition Lines."""
@@ -95,6 +98,9 @@ class PRLine(models.Model):
     class Meta:
         db_table = 'pr_lines'
         unique_together = ['pr', 'line_number']
+
+    def __str__(self):
+        return f"{self.pr.pr_number} - Line {self.line_number}"
 
 
 class PurchaseOrder(models.Model):
@@ -125,6 +131,9 @@ class PurchaseOrder(models.Model):
         verbose_name = 'Purchase Order'
         verbose_name_plural = 'Purchase Orders'
 
+    def __str__(self):
+        return self.po_number
+
 
 class POLine(models.Model):
     """🟡 P2: Purchase Order Lines."""
@@ -139,6 +148,9 @@ class POLine(models.Model):
     class Meta:
         db_table = 'po_lines'
         unique_together = ['po', 'line_number']
+
+    def __str__(self):
+        return f"{self.po.po_number} - Line {self.line_number}"
 
 
 class GoodsReceipt(models.Model):
@@ -157,6 +169,9 @@ class GoodsReceipt(models.Model):
         verbose_name = 'Goods Receipt'
         verbose_name_plural = 'Goods Receipts'
 
+    def __str__(self):
+        return self.grn_number
+
 
 class GRNLine(models.Model):
     """🟡 P2: Goods Receipt Lines."""
@@ -168,6 +183,9 @@ class GRNLine(models.Model):
     
     class Meta:
         db_table = 'grn_lines'
+
+    def __str__(self):
+        return f"{self.grn.grn_number} - {self.po_line}"
 
 
 class CAPA(models.Model):
@@ -197,3 +215,6 @@ class CAPA(models.Model):
         db_table = 'capas'
         verbose_name = 'CAPA'
         verbose_name_plural = 'CAPAs'
+
+    def __str__(self):
+        return f"{self.capa_number} - {self.title}"
