@@ -2,42 +2,18 @@
 *.py[cod]
 *$py.class
 *.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+__pycache__/
+*.pyc
 
 # Django
 *.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-/media
-/staticfiles
 
 # Environment variables
 .env
-.venv
-env/
 venv/
-ENV/
-env.bak/
-venv.bak/
 
 # IDE
 .vscode/
@@ -46,38 +22,3 @@ venv.bak/
 *.swo
 *~
 .DS_Store
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
-
-# MyPy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre
-.pyre/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# Backup files
-*.bak
-*.old
