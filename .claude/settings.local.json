@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Get-ChildItem -Path .\\ardt_fms -Exclude ardt_fms | ForEach-Object { Move-Item -Path $_FullName -Destination . -Force }\")",
+      "Bash(powershell -Command \"Move-Item -Path .\\ardt_fms\\ardt_fms -Destination .\\ardt_fms_temp -Force; Remove-Item -Path .\\ardt_fms -Force; Move-Item -Path .\\ardt_fms_temp -Destination .\\ardt_fms -Force\")",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
