@@ -1777,6 +1777,24 @@ urlpatterns = [
 {% endblock %}
 ```
 
+**Update:** `ardt_fms/settings.py` - Fix LOGIN_REDIRECT_URL
+
+Since we're using a namespaced dashboard URL (`dashboard:home`), update the LOGIN_REDIRECT_URL in settings:
+
+```python
+# Around line 163 in settings.py
+# Change from:
+# LOGIN_REDIRECT_URL = 'dashboard'  # This won't work with namespace
+
+# To:
+LOGIN_REDIRECT_URL = 'dashboard:home'  # Correct - uses namespace
+
+# Alternative (also valid):
+# LOGIN_REDIRECT_URL = '/dashboard/'  # Using path instead of named URL
+```
+
+**Why this matters:** After successful login, Django will redirect using this setting. With the namespaced URL configuration (`app_name = 'dashboard'`), it must be `'dashboard:home'` not just `'dashboard'`.
+
 ---
 
 ### Task 1.6: Test Authentication System (15 min)
@@ -3364,14 +3382,15 @@ class Command(BaseCommand):
         # Create drill bit design
         self.stdout.write('Creating drill bit design...')
         design, _ = Design.objects.get_or_create(
-            name='IADC 537',
+            code='IADC-537',  # CORRECT: code is the unique field for lookup
             defaults={
+                'name': 'IADC 537',
                 'description': 'Tri-cone roller bit for medium-hard formations',
-                # Note: 'manufacturer' field doesn't exist in Design model
-                'size': Decimal('12.25'),  # Correct: use 'size' not 'bit_size'
+                'bit_type': 'RC',  # REQUIRED field (Roller Cone)
+                'size': Decimal('12.25'),
                 'iadc_code': '537',
                 'connection_type': 'API REG',
-                'is_active': True
+                'status': 'ACTIVE',  # CORRECT: use 'status' not 'is_active'
             }
         )
         self.stdout.write(self.style.SUCCESS('✓ Design created'))

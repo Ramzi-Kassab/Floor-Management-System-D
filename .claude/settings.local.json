@@ -11,7 +11,9 @@
       "Bash(git fetch:*)",
       "Bash(git merge:*)",
       "Bash(git rev-parse:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git remote:*)"
     ],
     "deny": [],
     "ask": []
