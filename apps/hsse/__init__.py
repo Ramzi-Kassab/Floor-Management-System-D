@@ -1,1 +1,1 @@
-default_app_config = 'apps.hsse.apps.HsseConfig'
+default_app_config = "apps.hsse.apps.HsseConfig"

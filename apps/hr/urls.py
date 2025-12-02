@@ -1,5 +1,5 @@
 from django.urls import path
 
-app_name = 'hr'
+app_name = "hr"
 
 urlpatterns = []

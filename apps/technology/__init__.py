@@ -1,1 +1,1 @@
-default_app_config = 'apps.technology.apps.TechnologyConfig'
+default_app_config = "apps.technology.apps.TechnologyConfig"

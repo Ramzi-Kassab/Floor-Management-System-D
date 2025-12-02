@@ -29,7 +29,7 @@ def has_role(user, role):
         return True
 
     # Use the model's has_role method if available
-    if hasattr(user, 'has_role'):
+    if hasattr(user, "has_role"):
         return user.has_role(role)
 
     return False
@@ -52,9 +52,9 @@ def has_any_role(user, roles):
     if user.is_superuser:
         return True
 
-    role_list = [r.strip() for r in roles.split(',')]
+    role_list = [r.strip() for r in roles.split(",")]
 
-    if hasattr(user, 'has_role'):
+    if hasattr(user, "has_role"):
         return any(user.has_role(role) for role in role_list)
 
     return False
@@ -77,9 +77,9 @@ def has_all_roles(user, roles):
     if user.is_superuser:
         return True
 
-    role_list = [r.strip() for r in roles.split(',')]
+    role_list = [r.strip() for r in roles.split(",")]
 
-    if hasattr(user, 'has_role'):
+    if hasattr(user, "has_role"):
         return all(user.has_role(role) for role in role_list)
 
     return False
@@ -98,7 +98,7 @@ def user_roles(user):
     if not user or not user.is_authenticated:
         return ""
 
-    if hasattr(user, 'role_codes'):
+    if hasattr(user, "role_codes"):
         roles = user.role_codes
         if roles:
             return ", ".join(roles)
@@ -109,41 +109,41 @@ def user_roles(user):
 @register.filter
 def is_technician(user):
     """Shortcut filter for technician role check."""
-    return has_role(user, 'TECHNICIAN')
+    return has_role(user, "TECHNICIAN")
 
 
 @register.filter
 def is_manager(user):
     """Shortcut filter for manager role check."""
-    return has_any_role(user, 'ADMIN,MANAGER')
+    return has_any_role(user, "ADMIN,MANAGER")
 
 
 @register.filter
 def is_planner(user):
     """Shortcut filter for planner role check."""
-    return has_role(user, 'PLANNER')
+    return has_role(user, "PLANNER")
 
 
 @register.filter
 def is_qc(user):
     """Shortcut filter for QC role check."""
-    return has_role(user, 'QC')
+    return has_role(user, "QC")
 
 
 @register.filter
 def can_edit_workorder(user):
     """Check if user can edit work orders."""
-    return has_any_role(user, 'ADMIN,MANAGER,PLANNER')
+    return has_any_role(user, "ADMIN,MANAGER,PLANNER")
 
 
 @register.filter
 def can_view_reports(user):
     """Check if user can view reports."""
-    return has_any_role(user, 'ADMIN,MANAGER,PLANNER,QC')
+    return has_any_role(user, "ADMIN,MANAGER,PLANNER,QC")
 
 
-@register.inclusion_tag('components/user_avatar.html')
-def show_avatar(user, size='md', show_name=False, show_role=False):
+@register.inclusion_tag("components/user_avatar.html")
+def show_avatar(user, size="md", show_name=False, show_role=False):
     """
     Render user avatar component.
 
@@ -153,14 +153,14 @@ def show_avatar(user, size='md', show_name=False, show_role=False):
         {% show_avatar user "lg" True %}
     """
     return {
-        'user': user,
-        'size': size,
-        'show_name': show_name,
-        'show_role': show_role,
+        "user": user,
+        "size": size,
+        "show_name": show_name,
+        "show_role": show_role,
     }
 
 
-@register.inclusion_tag('components/status_badge.html')
+@register.inclusion_tag("components/status_badge.html")
 def status_badge(status, status_display=None):
     """
     Render status badge component.
@@ -170,12 +170,12 @@ def status_badge(status, status_display=None):
         {% status_badge work_order.status work_order.get_status_display %}
     """
     return {
-        'status': status,
-        'status_display': status_display or status,
+        "status": status,
+        "status_display": status_display or status,
     }
 
 
-@register.inclusion_tag('components/priority_badge.html')
+@register.inclusion_tag("components/priority_badge.html")
 def priority_badge(priority, priority_display=None):
     """
     Render priority badge component.
@@ -185,6 +185,6 @@ def priority_badge(priority, priority_display=None):
         {% priority_badge work_order.priority work_order.get_priority_display %}
     """
     return {
-        'priority': priority,
-        'priority_display': priority_display or priority,
+        "priority": priority,
+        "priority_display": priority_display or priority,
     }

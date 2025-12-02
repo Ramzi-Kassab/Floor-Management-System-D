@@ -1,1 +1,1 @@
-default_app_config = 'apps.quality.apps.QualityConfig'
+default_app_config = "apps.quality.apps.QualityConfig"

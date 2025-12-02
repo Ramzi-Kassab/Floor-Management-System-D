@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 
+
 class DRSSConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.drss'
-    verbose_name = 'DRSS'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.drss"
+    verbose_name = "DRSS"

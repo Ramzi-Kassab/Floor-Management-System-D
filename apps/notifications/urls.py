@@ -1,5 +1,5 @@
 from django.urls import path
 
-app_name = 'notifications'
+app_name = "notifications"
 
 urlpatterns = []

@@ -1,1 +1,1 @@
-default_app_config = 'apps.scancodes.apps.ScancodesConfig'
+default_app_config = "apps.scancodes.apps.ScancodesConfig"

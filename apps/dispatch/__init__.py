@@ -1,1 +1,1 @@
-default_app_config = 'apps.dispatch.apps.DispatchConfig'
+default_app_config = "apps.dispatch.apps.DispatchConfig"

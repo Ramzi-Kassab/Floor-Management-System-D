@@ -1,5 +1,5 @@
 from django.urls import path
 
-app_name = 'supplychain'
+app_name = "supplychain"
 
 urlpatterns = []

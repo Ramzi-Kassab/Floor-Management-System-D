@@ -1,1 +1,1 @@
-default_app_config = 'apps.supplychain.apps.SupplychainConfig'
+default_app_config = "apps.supplychain.apps.SupplychainConfig"

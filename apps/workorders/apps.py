@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 
+
 class WorkOrdersConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.workorders'
-    verbose_name = 'Work Orders'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.workorders"
+    verbose_name = "Work Orders"
