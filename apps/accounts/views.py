@@ -85,9 +85,7 @@ def profile_view(request):
     roles = user.roles.all().order_by('-level')
 
     # Get user's recent work orders (if technician)
-    recent_work_orders = []
-    if hasattr(user, 'assigned_work_orders'):
-        recent_work_orders = user.assigned_work_orders.all().order_by('-created_at')[:5]
+    recent_work_orders = user.assigned_work_orders.all().order_by('-created_at')[:5]
 
     context = {
         'profile_user': user,

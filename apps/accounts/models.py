@@ -23,8 +23,9 @@ class UserManager(BaseUserManager):
         """Create and save a regular User."""
         if not username:
             raise ValueError('Users must have a username')
-        
-        email = self.normalize_email(email) if email else None
+
+        # Normalize email or use empty string if not provided
+        email = self.normalize_email(email) if email else ''
         user = self.model(username=username, email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -53,7 +54,9 @@ class User(AbstractUser):
     """
     
     # Override email to make it optional but unique when provided
-    email = models.EmailField(_('email address'), blank=True, null=True, unique=True)
+    # Using blank=True with default='' instead of null=True to avoid unique constraint issues
+    # PostgreSQL allows multiple NULLs with unique=True, but empty strings are handled properly
+    email = models.EmailField(_('email address'), blank=True, default='')
     
     # Employee Information
     employee_id = models.CharField(
@@ -127,6 +130,14 @@ class User(AbstractUser):
         verbose_name = 'User'
         verbose_name_plural = 'Users'
         ordering = ['username']
+        constraints = [
+            # Unique email only when not empty (allows multiple users without email)
+            models.UniqueConstraint(
+                fields=['email'],
+                condition=models.Q(email__gt=''),
+                name='unique_non_empty_email'
+            )
+        ]
     
     def __str__(self):
         return f"{self.get_full_name() or self.username}"

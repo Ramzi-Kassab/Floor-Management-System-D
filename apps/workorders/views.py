@@ -347,8 +347,6 @@ def update_status_htmx(request, pk):
     HTMX endpoint for updating work order status.
     Returns partial HTML for the status badge.
     """
-    from django.http import HttpResponse
-
     work_order = get_object_or_404(WorkOrder, pk=pk)
 
     if request.method == 'POST':
