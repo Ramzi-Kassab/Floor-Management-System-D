@@ -9,7 +9,9 @@
       "Bash(git push:*)",
       "Bash(git rm:*)",
       "Bash(git fetch:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git mv:*)"
     ],
     "deny": [],
     "ask": []
