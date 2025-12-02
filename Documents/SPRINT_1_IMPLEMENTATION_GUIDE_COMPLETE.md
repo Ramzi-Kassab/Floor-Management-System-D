@@ -165,6 +165,10 @@ pip install -r requirements.txt
 
 ### Task 1.1: Fix Critical Issues from Code Review (30 min)
 
+> **📌 IMPORTANT NOTE:** These fixes were already completed in Phase 0 (commit `4e06a2e`). 
+> You can **SKIP this task** if you've already applied Phase 0 fixes.
+> This section is kept for reference and for those who haven't applied Phase 0 yet.
+
 Based on the Phase 0 code review, we need to fix 4 critical issues:
 
 #### Fix 1: Add dashboard to INSTALLED_APPS
@@ -1964,7 +1968,7 @@ from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncDate
 from datetime import datetime, timedelta
 
-from apps.workorders.models import WorkOrder, DrillBit
+from apps.workorders.models import WorkOrder, DrillBit  # DrillBit is in workorders
 from apps.quality.models import NCR
 from apps.execution.models import ProcedureExecution
 
@@ -2010,7 +2014,7 @@ def manager_dashboard(request, context):
     
     # Drill bits in shop
     context['drill_bits_in_shop'] = DrillBit.objects.filter(
-        status='IN_SHOP'
+        status='IN_STOCK'  # Correct status value
     ).count()
     
     # On-time delivery percentage (mock for now)
@@ -2079,7 +2083,7 @@ def planner_dashboard(request, context):
     
     # Available drill bits for assignment
     context['available_bits'] = DrillBit.objects.filter(
-        status__in=['IN_SHOP', 'READY']
+        status__in=['IN_STOCK', 'READY']  # Correct status values
     ).count()
     
     return render(request, 'dashboard/planner_dashboard.html', context)
@@ -2860,8 +2864,7 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.core.paginator import Paginator
 
-from .models import WorkOrder, WorkOrderTimeLog
-from apps.drillbits.models import DrillBit
+from .models import WorkOrder, WorkOrderTimeLog, DrillBit  # DrillBit is in workorders app
 from apps.quality.models import NCR
 
 
@@ -2939,7 +2942,7 @@ class WorkOrderListView(LoginRequiredMixin, ListView):
         context['selected_assigned_to'] = self.request.GET.get('assigned_to', '')
         
         # Get available customers for filter dropdown
-        from apps.customers.models import Customer
+        from apps.sales.models import Customer  # Correct: Customer is in sales app
         context['customers'] = Customer.objects.filter(is_active=True).order_by('name')
         
         # Get available technicians for assignment filter (managers/planners only)
@@ -3310,10 +3313,10 @@ from datetime import timedelta
 from decimal import Decimal
 import random
 
-from apps.core.models import Department
-from apps.customers.models import Customer
-from apps.drillbits.models import Design, DrillBit
-from apps.workorders.models import WorkOrder
+from apps.organization.models import Department  # Correct: Department is in organization app
+from apps.sales.models import Customer  # Correct: Customer is in sales app
+from apps.technology.models import Design  # Correct: Design is in technology app
+from apps.workorders.models import WorkOrder, DrillBit  # Correct: Both in workorders app
 from apps.accounts.models import Role
 
 User = get_user_model()
@@ -3349,7 +3352,7 @@ class Command(BaseCommand):
             code='ARAMCO',
             defaults={
                 'name': 'Saudi Aramco',
-                'contact_name': 'Ahmed Al-Rashid',
+                # Note: contact_name doesn't exist - use CustomerContact model for contacts
                 'email': 'ahmed.rashid@aramco.com',
                 'phone': '+966-13-8760000',
                 'address': 'Dhahran, Eastern Province',
@@ -3364,8 +3367,8 @@ class Command(BaseCommand):
             name='IADC 537',
             defaults={
                 'description': 'Tri-cone roller bit for medium-hard formations',
-                'manufacturer': 'ARDT',
-                'bit_size': '12.25',
+                # Note: 'manufacturer' field doesn't exist in Design model
+                'size': Decimal('12.25'),  # Correct: use 'size' not 'bit_size'
                 'iadc_code': '537',
                 'connection_type': 'API REG',
                 'is_active': True
@@ -3375,8 +3378,9 @@ class Command(BaseCommand):
         
         # Create drill bits
         self.stdout.write('Creating drill bits...')
-        statuses = ['IN_SHOP', 'READY', 'IN_WORK', 'IN_SHOP', 'READY', 
-                    'IN_WORK', 'IN_SHOP', 'READY', 'IN_SHOP', 'READY']
+        # Using correct status values: IN_STOCK, READY, IN_PRODUCTION (not IN_SHOP or IN_WORK)
+        statuses = ['IN_STOCK', 'READY', 'IN_PRODUCTION', 'IN_STOCK', 'READY', 
+                    'IN_PRODUCTION', 'IN_STOCK', 'READY', 'IN_STOCK', 'READY']
         drill_bits = []
         for i in range(1, 11):
             serial = f'ARDT-{2024}-{i:04d}'
@@ -3386,11 +3390,9 @@ class Command(BaseCommand):
                     'design': design,
                     'customer': customer,
                     'status': statuses[i-1],
-                    'condition': random.choice(['GOOD', 'FAIR', 'POOR']),
+                    # Note: Removed non-existent fields: condition, last_inspection_date, notes
                     'total_hours': Decimal(str(random.uniform(50, 500))),
                     'total_footage': Decimal(str(random.uniform(1000, 10000))),
-                    'last_inspection_date': timezone.now().date() - timedelta(days=random.randint(1, 90)),
-                    'notes': f'Drill bit {serial} ready for service'
                 }
             )
             drill_bits.append(db)
@@ -4437,10 +4439,9 @@ from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
 
-from .models import WorkOrder
-from apps.drillbits.models import DrillBit
-from apps.customers.models import Customer
-from apps.core.models import Department
+from .models import WorkOrder, DrillBit  # DrillBit is in workorders app
+from apps.sales.models import Customer  # Correct: Customer is in sales app
+from apps.organization.models import Department  # Correct: Department is in organization app
 from apps.procedures.models import Procedure
 from apps.accounts.models import User
 
@@ -4513,7 +4514,7 @@ class WorkOrderCreateForm(forms.ModelForm):
         
         # Filter drill bits to only show available ones
         self.fields['drill_bit'].queryset = DrillBit.objects.filter(
-            status__in=['IN_SHOP', 'READY']
+            status__in=['IN_STOCK', 'READY']  # Correct status values
         ).select_related('design', 'customer').order_by('serial_number')
         
         # Filter active customers
@@ -4558,7 +4559,7 @@ class WorkOrderCreateForm(forms.ModelForm):
         
         # Check if drill bit is available
         if drill_bit and not self.instance.pk:  # Only for new work orders
-            if drill_bit.status not in ['IN_SHOP', 'READY']:
+            if drill_bit.status not in ['IN_STOCK', 'READY']:  # Correct status values
                 raise forms.ValidationError(
                     f'Drill bit {drill_bit.serial_number} is not available. '
                     f'Current status: {drill_bit.get_status_display()}'
@@ -5175,10 +5176,7 @@ class DrillBitListView(LoginRequiredMixin, ListView):
         if customer_id:
             queryset = queryset.filter(customer_id=customer_id)
         
-        # Condition filter
-        condition = self.request.GET.get('condition', '').strip()
-        if condition:
-            queryset = queryset.filter(condition=condition)
+        # Note: Removed 'condition' filter - field doesn't exist in DrillBit model
         
         return queryset
     
@@ -5190,21 +5188,21 @@ class DrillBitListView(LoginRequiredMixin, ListView):
         context['selected_status'] = self.request.GET.get('status', '')
         context['selected_design'] = self.request.GET.get('design', '')
         context['selected_customer'] = self.request.GET.get('customer', '')
-        context['selected_condition'] = self.request.GET.get('condition', '')
+        # Note: Removed 'selected_condition' - field doesn't exist
         
         # Filter options
-        from apps.customers.models import Customer
+        from apps.sales.models import Customer  # Correct: Customer is in sales app
         context['designs'] = Design.objects.filter(is_active=True).order_by('name')
         context['customers'] = Customer.objects.filter(is_active=True).order_by('name')
         context['status_choices'] = DrillBit.STATUS_CHOICES
-        context['condition_choices'] = DrillBit.CONDITION_CHOICES
+        # Note: Removed 'condition_choices' - field doesn't exist
         
         # Quick stats
         all_bits = DrillBit.objects.all()
         context['total_count'] = all_bits.count()
-        context['in_shop_count'] = all_bits.filter(status='IN_SHOP').count()
+        context['in_shop_count'] = all_bits.filter(status='IN_STOCK').count()  # Correct: IN_STOCK
         context['in_field_count'] = all_bits.filter(status='IN_FIELD').count()
-        context['in_work_count'] = all_bits.filter(status='IN_WORK').count()
+        context['in_work_count'] = all_bits.filter(status='IN_PRODUCTION').count()  # Correct: IN_PRODUCTION
         
         return context
 ```
@@ -5275,7 +5273,7 @@ class DrillBitListView(LoginRequiredMixin, ListView):
             </div>
             
             <!-- Filters -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 
                 <!-- Status Filter -->
                 <div>
@@ -5316,18 +5314,7 @@ class DrillBitListView(LoginRequiredMixin, ListView):
                     </select>
                 </div>
                 
-                <!-- Condition Filter -->
-                <div>
-                    <select name="condition" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                        <option value="">All Conditions</option>
-                        {% for value, label in condition_choices %}
-                        <option value="{{ value }}" {% if value == selected_condition %}selected{% endif %}>
-                            {{ label }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
+                <!-- Note: Removed 'condition' filter - field doesn't exist in DrillBit model -->
                 
             </div>
             
@@ -5355,9 +5342,9 @@ class DrillBitListView(LoginRequiredMixin, ListView):
                         <p class="text-sm text-gray-600">{{ bit.design.name }}</p>
                     </div>
                     <span class="px-2 py-1 text-xs rounded-full
-                        {% if bit.status == 'IN_SHOP' %}bg-green-100 text-green-800
+                        {% if bit.status == 'IN_STOCK' %}bg-green-100 text-green-800
                         {% elif bit.status == 'IN_FIELD' %}bg-blue-100 text-blue-800
-                        {% elif bit.status == 'IN_WORK' %}bg-orange-100 text-orange-800
+                        {% elif bit.status == 'IN_PRODUCTION' %}bg-orange-100 text-orange-800
                         {% elif bit.status == 'RETIRED' %}bg-gray-100 text-gray-800
                         {% else %}bg-yellow-100 text-yellow-800{% endif %}">
                         {{ bit.get_status_display }}
@@ -5370,15 +5357,7 @@ class DrillBitListView(LoginRequiredMixin, ListView):
                         <span class="text-gray-600">Customer:</span>
                         <span class="font-medium">{{ bit.customer.name }}</span>
                     </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Condition:</span>
-                        <span class="font-medium
-                            {% if bit.condition == 'GOOD' %}text-green-600
-                            {% elif bit.condition == 'FAIR' %}text-yellow-600
-                            {% else %}text-red-600{% endif %}">
-                            {{ bit.get_condition_display }}
-                        </span>
-                    </div>
+                    <!-- Note: Removed 'condition' field - doesn't exist in DrillBit model -->
                     {% if bit.total_hours %}
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-600">Total Hours:</span>
@@ -5866,10 +5845,10 @@ from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
 
-from apps.workorders.models import WorkOrder, WorkOrderTimeLog
-from apps.drillbits.models import DrillBit, Design
-from apps.customers.models import Customer
-from apps.core.models import Department
+from apps.workorders.models import WorkOrder, WorkOrderTimeLog, DrillBit  # DrillBit is in workorders
+from apps.technology.models import Design  # Correct: Design is in technology app
+from apps.sales.models import Customer  # Correct: Customer is in sales app
+from apps.organization.models import Department  # Correct: Department is in organization app
 from apps.accounts.models import Role
 
 User = get_user_model()
@@ -6016,7 +5995,7 @@ class DrillBitTests(TestCase):
             serial_number='TEST-001',
             design=self.design,
             customer=self.customer,
-            status='IN_SHOP',
+            status='IN_STOCK',  # Correct status value
             total_hours=Decimal('100'),
             total_footage=Decimal('5000')
         )
@@ -6024,7 +6003,7 @@ class DrillBitTests(TestCase):
     def test_drill_bit_creation(self):
         """Test drill bit is created correctly"""
         self.assertEqual(self.drill_bit.serial_number, 'TEST-001')
-        self.assertEqual(self.drill_bit.status, 'IN_SHOP')
+        self.assertEqual(self.drill_bit.status, 'IN_STOCK')  # Correct status value
     
     def test_drill_bit_str(self):
         """Test string representation"""
