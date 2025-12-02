@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ well.name }}</h1>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="text-sm text-gray-500 dark:text-gray-400">{{ well.code }}</span>
+                {% if well.is_active %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Active</span>
+                {% else %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:well_list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
+            </a>
+            <a href="{% url 'sales:well_update' well.pk %}" class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit Well
+            </a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Well Information -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Well Information</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Customer</p>
+                        <p class="mt-1 text-sm text-gray-900">
+                            {% if well.customer %}
+                            <a href="{% url 'sales:customer_detail' well.customer.pk %}" class="hover:text-ardt-blue">{{ well.customer.name }}</a>
+                            {% else %}-{% endif %}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Rig</p>
+                        <p class="mt-1 text-sm text-gray-900">
+                            {% if well.rig %}
+                            <a href="{% url 'sales:rig_detail' well.rig.pk %}" class="hover:text-ardt-blue">{{ well.rig.name }}</a>
+                            {% else %}-{% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Oil Field</p>
+                    <p class="mt-1 text-sm text-gray-900">{{ well.field_name|default:"-" }}</p>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Spud Date</p>
+                        <p class="mt-1 text-sm text-gray-900">{% if well.spud_date %}{{ well.spud_date|date:"M d, Y" }}{% else %}-{% endif %}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Target Depth</p>
+                        <p class="mt-1 text-sm text-gray-900">{% if well.target_depth %}{{ well.target_depth|floatformat:0 }} ft{% else %}-{% endif %}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">System Information</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Created</p>
+                    <p class="mt-1 text-sm text-gray-900">{{ well.created_at|date:"M d, Y H:i" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Last Updated</p>
+                    <p class="mt-1 text-sm text-gray-900">{{ well.updated_at|date:"M d, Y H:i" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

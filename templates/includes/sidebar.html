@@ -39,9 +39,11 @@
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">DRSS Requests</a>
-                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Sales Orders</a>
-                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Customers</a>
+                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">DRSS Requests <span class="ml-1 text-xs text-gray-400">Sprint 2</span></a>
+                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Sales Orders <span class="ml-1 text-xs text-gray-400">Sprint 2</span></a>
+                <a href="{% url 'sales:customer_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'customer' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Customers</a>
+                <a href="{% url 'sales:rig_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'rig' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Rigs</a>
+                <a href="{% url 'sales:well_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'well' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Wells</a>
             </div>
         </div>
         
@@ -56,9 +58,9 @@
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">All Work Orders</a>
-                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Drill Bits</a>
-                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Bit Evaluations</a>
+                <a href="{% url 'workorders:workorder_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'work-order' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">All Work Orders</a>
+                <a href="{% url 'workorders:drillbit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'drillbit' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Drill Bits</a>
+                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Bit Evaluations <span class="ml-1 text-xs text-gray-400">Sprint 3</span></a>
             </div>
         </div>
         
