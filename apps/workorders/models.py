@@ -289,6 +289,84 @@ class WorkOrder(models.Model):
     def __str__(self):
         return f"{self.wo_number}"
 
+    @property
+    def is_overdue(self):
+        """Check if work order is overdue."""
+        from django.utils import timezone
+        if not self.due_date:
+            return False
+        if self.status in ['COMPLETED', 'CANCELLED']:
+            return False
+        return self.due_date < timezone.now().date()
+
+    @property
+    def days_overdue(self):
+        """Get number of days overdue (negative if not yet due)."""
+        from django.utils import timezone
+        if not self.due_date:
+            return 0
+        delta = timezone.now().date() - self.due_date
+        return delta.days
+
+    @property
+    def can_start(self):
+        """Check if work order can be started."""
+        return self.status in ['PLANNED', 'RELEASED']
+
+    @property
+    def can_complete(self):
+        """Check if work order can be marked complete."""
+        return self.status in ['IN_PROGRESS', 'QC_PASSED']
+
+    def start_work(self, user=None):
+        """
+        Start work on this work order.
+        Sets status to IN_PROGRESS and records actual_start time.
+        """
+        from django.utils import timezone
+        if not self.can_start:
+            raise ValueError(f"Cannot start work order in status {self.status}")
+
+        self.status = self.Status.IN_PROGRESS
+        self.actual_start = timezone.now()
+        self.save(update_fields=['status', 'actual_start', 'updated_at'])
+        return True
+
+    def complete_work(self, user=None):
+        """
+        Complete this work order.
+        Sets status to COMPLETED and records actual_end time.
+        """
+        from django.utils import timezone
+        if not self.can_complete:
+            raise ValueError(f"Cannot complete work order in status {self.status}")
+
+        self.status = self.Status.COMPLETED
+        self.actual_end = timezone.now()
+        self.progress_percent = 100
+        self.save(update_fields=['status', 'actual_end', 'progress_percent', 'updated_at'])
+        return True
+
+    def put_on_hold(self, reason=None):
+        """Put work order on hold."""
+        if self.status not in ['IN_PROGRESS', 'PLANNED', 'RELEASED']:
+            raise ValueError(f"Cannot put work order on hold in status {self.status}")
+
+        self.status = self.Status.ON_HOLD
+        if reason:
+            self.notes = f"{self.notes}\n[ON HOLD] {reason}".strip()
+        self.save(update_fields=['status', 'notes', 'updated_at'])
+        return True
+
+    def submit_for_qc(self):
+        """Submit work order for QC inspection."""
+        if self.status != 'IN_PROGRESS':
+            raise ValueError("Only in-progress work orders can be submitted for QC")
+
+        self.status = self.Status.QC_PENDING
+        self.save(update_fields=['status', 'updated_at'])
+        return True
+
 
 class WorkOrderDocument(models.Model):
     """

@@ -318,3 +318,64 @@ def drillbit_qr_view(request, pk):
         'drill_bit': drill_bit,
         'page_title': f'QR Code - {drill_bit.serial_number}'
     })
+
+
+# =============================================================================
+# HTMX VIEWS
+# =============================================================================
+
+@login_required
+def update_status_htmx(request, pk):
+    """
+    HTMX endpoint for updating work order status.
+    Returns partial HTML for the status badge.
+    """
+    from django.http import HttpResponse
+
+    work_order = get_object_or_404(WorkOrder, pk=pk)
+
+    if request.method == 'POST':
+        new_status = request.POST.get('status')
+        if new_status and new_status in dict(WorkOrder.Status.choices):
+            old_status = work_order.status
+            work_order.status = new_status
+
+            # Update timestamps based on status change
+            if new_status == 'IN_PROGRESS' and old_status in ['PLANNED', 'RELEASED']:
+                work_order.actual_start = timezone.now()
+            elif new_status == 'COMPLETED':
+                work_order.actual_end = timezone.now()
+                work_order.progress_percent = 100
+
+            work_order.save()
+
+            # Return the partial template for HTMX swap
+            return render(request, 'partials/status_badge.html', {
+                'object_id': work_order.pk,
+                'status': work_order.status,
+                'status_display': work_order.get_status_display(),
+            })
+
+    # GET request - return current status badge
+    return render(request, 'partials/status_badge.html', {
+        'object_id': work_order.pk,
+        'status': work_order.status,
+        'status_display': work_order.get_status_display(),
+    })
+
+
+@login_required
+def workorder_row_htmx(request, pk):
+    """
+    HTMX endpoint for returning a single work order row.
+    Used for refreshing a row after updates.
+    """
+    work_order = get_object_or_404(
+        WorkOrder.objects.select_related(
+            'customer', 'drill_bit', 'assigned_to'
+        ),
+        pk=pk
+    )
+    return render(request, 'partials/workorder_row.html', {
+        'work_order': work_order,
+    })
