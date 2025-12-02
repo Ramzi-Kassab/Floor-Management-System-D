@@ -297,3 +297,6 @@ class MaintenancePartsUsed(models.Model):
         db_table = 'maintenance_parts_used'
         verbose_name = 'Maintenance Part Used'
         verbose_name_plural = 'Maintenance Parts Used'
+
+    def __str__(self):
+        return f"{self.mwo.mwo_number} - {self.inventory_item.name}"

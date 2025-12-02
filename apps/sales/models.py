@@ -133,6 +133,9 @@ class CustomerDocumentRequirement(models.Model):
         verbose_name = 'Customer Document Requirement'
         verbose_name_plural = 'Customer Document Requirements'
 
+    def __str__(self):
+        return f"{self.customer.code} - {self.document_type}"
+
 
 class Rig(models.Model):
     """
