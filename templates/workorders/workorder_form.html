@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        <li><a href="{% url 'dashboard:home' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Dashboard</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'workorders:list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Work Orders</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li class="text-gray-900 dark:text-white font-medium">{{ page_title }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            {% if object %}Edit work order details{% else %}Create a new work order{% endif %}
+        </p>
+    </div>
+    <a href="{% if object %}{% url 'workorders:detail' object.pk %}{% else %}{% url 'workorders:list' %}{% endif %}"
+       class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+        <i data-lucide="x" class="w-4 h-4 mr-2"></i>
+        Cancel
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- Form Errors -->
+    {% if form.errors %}
+    <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+        <div class="flex items-start">
+            <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 mr-3"></i>
+            <div>
+                <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Please correct the following errors:</h3>
+                <ul class="mt-2 text-sm text-red-700 dark:text-red-300 list-disc list-inside">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                        <li>{{ field.label }}: {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Form -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Basic Information -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- WO Type -->
+                    <div>
+                        <label for="id_wo_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Work Order Type <span class="text-red-500">*</span>
+                        </label>
+                        <select name="wo_type" id="id_wo_type" required
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select type...</option>
+                            {% for value, label in form.fields.wo_type.choices %}
+                            <option value="{{ value }}" {% if form.wo_type.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Priority -->
+                    <div>
+                        <label for="id_priority" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Priority
+                        </label>
+                        <select name="priority" id="id_priority"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            {% for value, label in form.fields.priority.choices %}
+                            <option value="{{ value }}" {% if form.priority.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {% if object %}
+                    <!-- Status (only for edit) -->
+                    <div>
+                        <label for="id_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Status
+                        </label>
+                        <select name="status" id="id_status"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            {% for value, label in form.fields.status.choices %}
+                            <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Product -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Product</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Drill Bit -->
+                    <div>
+                        <label for="id_drill_bit" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Drill Bit
+                        </label>
+                        <select name="drill_bit" id="id_drill_bit"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select drill bit...</option>
+                            {% for choice in form.fields.drill_bit.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.drill_bit.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.serial_number }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Design -->
+                    <div>
+                        <label for="id_design" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Design
+                        </label>
+                        <select name="design" id="id_design"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select design...</option>
+                            {% for choice in form.fields.design.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.design.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.code }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer & Destination -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Customer & Destination</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Customer -->
+                    <div>
+                        <label for="id_customer" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Customer
+                        </label>
+                        <select name="customer" id="id_customer"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select customer...</option>
+                            {% for choice in form.fields.customer.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.customer.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Sales Order -->
+                    <div>
+                        <label for="id_sales_order" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Sales Order
+                        </label>
+                        <select name="sales_order" id="id_sales_order"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select sales order...</option>
+                            {% for choice in form.fields.sales_order.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.sales_order.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Rig -->
+                    <div>
+                        <label for="id_rig" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Rig
+                        </label>
+                        <select name="rig" id="id_rig"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select rig...</option>
+                            {% for choice in form.fields.rig.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.rig.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Well -->
+                    <div>
+                        <label for="id_well" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Well
+                        </label>
+                        <select name="well" id="id_well"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select well...</option>
+                            {% for choice in form.fields.well.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.well.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description & Notes</h2>
+
+                <div class="space-y-4">
+                    <!-- Description -->
+                    <div>
+                        <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Description
+                        </label>
+                        <textarea name="description" id="id_description" rows="3"
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  placeholder="Enter work order description...">{{ form.description.value|default:"" }}</textarea>
+                    </div>
+
+                    <!-- Notes -->
+                    <div>
+                        <label for="id_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Notes
+                        </label>
+                        <textarea name="notes" id="id_notes" rows="3"
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  placeholder="Enter additional notes...">{{ form.notes.value|default:"" }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="space-y-6">
+            <!-- Schedule -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Schedule</h2>
+
+                <div class="space-y-4">
+                    <!-- Due Date -->
+                    <div>
+                        <label for="id_due_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Due Date
+                        </label>
+                        <input type="date" name="due_date" id="id_due_date"
+                               value="{{ form.due_date.value|date:'Y-m-d' }}"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <!-- Planned Start -->
+                    <div>
+                        <label for="id_planned_start" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Planned Start
+                        </label>
+                        <input type="date" name="planned_start" id="id_planned_start"
+                               value="{{ form.planned_start.value|date:'Y-m-d' }}"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <!-- Planned End -->
+                    <div>
+                        <label for="id_planned_end" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Planned End
+                        </label>
+                        <input type="date" name="planned_end" id="id_planned_end"
+                               value="{{ form.planned_end.value|date:'Y-m-d' }}"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assignment -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Assignment</h2>
+
+                <div class="space-y-4">
+                    <!-- Assigned To -->
+                    <div>
+                        <label for="id_assigned_to" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Assigned To
+                        </label>
+                        <select name="assigned_to" id="id_assigned_to"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Not assigned</option>
+                            {% for choice in form.fields.assigned_to.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.assigned_to.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.get_full_name|default:choice.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Department -->
+                    <div>
+                        <label for="id_department" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Department
+                        </label>
+                        <select name="department" id="id_department"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select department...</option>
+                            {% for choice in form.fields.department.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.department.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                    {% if object %}Update Work Order{% else %}Create Work Order{% endif %}
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
