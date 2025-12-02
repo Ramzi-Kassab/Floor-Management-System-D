@@ -39,8 +39,12 @@ class Attendance(models.Model):
     class Meta:
         db_table = 'attendance'
         unique_together = ['user', 'date']
+        ordering = ['-date', 'user']
         verbose_name = 'Attendance'
         verbose_name_plural = 'Attendance Records'
+
+    def __str__(self):
+        return f"{self.user.username} - {self.date}"
 
 
 class AttendancePunch(models.Model):
@@ -57,6 +61,10 @@ class AttendancePunch(models.Model):
     
     class Meta:
         db_table = 'attendance_punches'
+        ordering = ['attendance', 'punch_time']
+
+    def __str__(self):
+        return f"{self.attendance.user.username} - {self.get_punch_type_display()} at {self.punch_time}"
 
 
 class LeaveType(models.Model):
@@ -71,8 +79,12 @@ class LeaveType(models.Model):
     
     class Meta:
         db_table = 'leave_types'
+        ordering = ['name']
         verbose_name = 'Leave Type'
         verbose_name_plural = 'Leave Types'
+
+    def __str__(self):
+        return self.name
 
 
 class LeaveRequest(models.Model):
@@ -101,9 +113,17 @@ class LeaveRequest(models.Model):
     )
     
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'leave_requests'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['start_date', 'end_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.leave_type.name} ({self.start_date} to {self.end_date})"
 
 
 class OvertimeRequest(models.Model):
@@ -129,6 +149,14 @@ class OvertimeRequest(models.Model):
     )
     
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'overtime_requests'
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['date']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.date} ({self.hours}h)"

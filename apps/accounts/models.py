@@ -252,8 +252,12 @@ class RolePermission(models.Model):
     class Meta:
         db_table = 'role_permissions'
         unique_together = ['role', 'permission']
+        ordering = ['role', 'permission']
         verbose_name = 'Role Permission'
         verbose_name_plural = 'Role Permissions'
+
+    def __str__(self):
+        return f"{self.role.code} - {self.permission.code}"
 
 
 class UserRole(models.Model):
@@ -284,8 +288,12 @@ class UserRole(models.Model):
     class Meta:
         db_table = 'user_roles'
         unique_together = ['user', 'role']
+        ordering = ['user', 'role']
         verbose_name = 'User Role'
         verbose_name_plural = 'User Roles'
+
+    def __str__(self):
+        return f"{self.user.username} - {self.role.code}"
 
 
 class UserPreference(models.Model):

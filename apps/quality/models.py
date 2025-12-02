@@ -304,3 +304,9 @@ class NCRPhoto(models.Model):
         ordering = ['ncr', '-taken_at']
         verbose_name = 'NCR Photo'
         verbose_name_plural = 'NCR Photos'
+        indexes = [
+            models.Index(fields=['ncr']),
+        ]
+
+    def __str__(self):
+        return f"{self.ncr.ncr_number} - Photo {self.pk}"

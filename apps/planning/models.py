@@ -321,14 +321,17 @@ class PlanningItemLabel(models.Model):
     """
     🟢 P1: Many-to-many between items and labels.
     """
-    
-    item = models.ForeignKey(PlanningItem, on_delete=models.CASCADE)
-    label = models.ForeignKey(PlanningLabel, on_delete=models.CASCADE)
+
+    item = models.ForeignKey(PlanningItem, on_delete=models.CASCADE, related_name='item_labels')
+    label = models.ForeignKey(PlanningLabel, on_delete=models.CASCADE, related_name='label_items')
     added_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'planning_item_labels'
         unique_together = ['item', 'label']
+
+    def __str__(self):
+        return f"{self.item.code} - {self.label.name}"
 
 
 class PlanningItemWatcher(models.Model):
@@ -347,10 +350,13 @@ class PlanningItemWatcher(models.Model):
         related_name='watched_items'
     )
     added_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'planning_item_watchers'
         unique_together = ['item', 'user']
+
+    def __str__(self):
+        return f"{self.user.username} watching {self.item.code}"
 
 
 class WikiSpace(models.Model):

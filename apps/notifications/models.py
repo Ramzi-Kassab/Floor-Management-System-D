@@ -123,6 +123,10 @@ class NotificationLog(models.Model):
         verbose_name = 'Notification Log'
         verbose_name_plural = 'Notification Logs'
 
+    def __str__(self):
+        status = 'Delivered' if self.is_delivered else 'Pending'
+        return f"{self.channel} - {status} at {self.sent_at}"
+
 
 class Task(models.Model):
     """
@@ -321,3 +325,6 @@ class CommentAttachment(models.Model):
         db_table = 'comment_attachments'
         verbose_name = 'Comment Attachment'
         verbose_name_plural = 'Comment Attachments'
+
+    def __str__(self):
+        return f"Attachment: {self.filename}"

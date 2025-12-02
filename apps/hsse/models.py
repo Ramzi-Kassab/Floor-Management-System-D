@@ -40,8 +40,16 @@ class HOCReport(models.Model):
     
     class Meta:
         db_table = 'hoc_reports'
+        ordering = ['-reported_at']
         verbose_name = 'HOC Report'
         verbose_name_plural = 'HOC Reports'
+        indexes = [
+            models.Index(fields=['status', 'reported_by']),
+            models.Index(fields=['category']),
+        ]
+
+    def __str__(self):
+        return f"{self.hoc_number} - {self.get_category_display()}"
 
 
 class Incident(models.Model):
@@ -83,11 +91,20 @@ class Incident(models.Model):
     
     reported_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'incidents'
+        ordering = ['-occurred_at']
         verbose_name = 'Incident'
         verbose_name_plural = 'Incidents'
+        indexes = [
+            models.Index(fields=['status', 'reported_by']),
+            models.Index(fields=['severity']),
+            models.Index(fields=['occurred_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.incident_number} - {self.get_severity_display()}"
 
 
 class Journey(models.Model):
@@ -125,8 +142,13 @@ class Journey(models.Model):
     )
     
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'journeys'
+        ordering = ['-planned_departure']
         verbose_name = 'Journey'
         verbose_name_plural = 'Journeys'
+
+    def __str__(self):
+        driver_name = self.driver.get_full_name() if self.driver else 'Unknown'
+        return f"{self.journey_number} - {driver_name}"

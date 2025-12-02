@@ -258,6 +258,14 @@ class CheckpointResult(models.Model):
         ordering = ['step_execution', 'checkpoint__sequence']
         verbose_name = 'Checkpoint Result'
         verbose_name_plural = 'Checkpoint Results'
+        indexes = [
+            models.Index(fields=['step_execution', 'checkpoint']),
+            models.Index(fields=['result']),
+        ]
+
+    def __str__(self):
+        checkpoint_name = self.checkpoint.name if self.checkpoint else 'Unknown'
+        return f"{checkpoint_name} - {self.result}"
 
 
 class BranchEvaluation(models.Model):
@@ -286,6 +294,13 @@ class BranchEvaluation(models.Model):
         db_table = 'branch_evaluations'
         verbose_name = 'Branch Evaluation'
         verbose_name_plural = 'Branch Evaluations'
+        indexes = [
+            models.Index(fields=['step_execution', 'branch']),
+        ]
+
+    def __str__(self):
+        taken = 'Taken' if self.condition_met else 'Skipped'
+        return f"Branch {self.branch_id} - {taken}"
 
 
 class FormSubmission(models.Model):
@@ -357,3 +372,11 @@ class FormFieldValue(models.Model):
         db_table = 'form_field_values'
         verbose_name = 'Form Field Value'
         verbose_name_plural = 'Form Field Values'
+        indexes = [
+            models.Index(fields=['submission', 'field']),
+        ]
+
+    def __str__(self):
+        field_label = self.field.label if self.field else 'Unknown'
+        value_preview = str(self.value)[:50] + '...' if len(str(self.value)) > 50 else self.value
+        return f"{field_label}: {value_preview}"

@@ -78,8 +78,17 @@ class Dispatch(models.Model):
     
     class Meta:
         db_table = 'dispatches'
+        ordering = ['-planned_date', 'dispatch_number']
         verbose_name = 'Dispatch'
         verbose_name_plural = 'Dispatches'
+        indexes = [
+            models.Index(fields=['status', 'vehicle']),
+            models.Index(fields=['planned_date']),
+        ]
+
+    def __str__(self):
+        dest = self.destination.name if self.destination else self.customer.name
+        return f"{self.dispatch_number} - {dest}"
 
 
 class DispatchItem(models.Model):
@@ -92,6 +101,11 @@ class DispatchItem(models.Model):
     
     class Meta:
         db_table = 'dispatch_items'
+        ordering = ['dispatch', 'id']
+
+    def __str__(self):
+        bit_sn = self.drill_bit.serial_number if self.drill_bit else 'N/A'
+        return f"{self.dispatch.dispatch_number} - {bit_sn} (×{self.quantity})"
 
 
 class InventoryReservation(models.Model):
@@ -109,6 +123,11 @@ class InventoryReservation(models.Model):
     
     reserved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     reserved_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'inventory_reservations'
+        ordering = ['-reserved_at']
+
+    def __str__(self):
+        item_name = self.inventory_item.name if self.inventory_item else 'Unknown'
+        return f"{item_name} - Reserved {self.quantity} for {self.work_order.wo_number}"

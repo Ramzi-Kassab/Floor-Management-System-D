@@ -40,6 +40,9 @@ class ERPMapping(models.Model):
         verbose_name = 'ERP Mapping'
         verbose_name_plural = 'ERP Mappings'
 
+    def __str__(self):
+        return f"{self.get_entity_type_display()}: {self.ardt_id} → {self.erp_id}"
+
 
 class ERPSyncLog(models.Model):
     """⚪ FUTURE: Log of ERP synchronization attempts."""
@@ -73,3 +76,6 @@ class ERPSyncLog(models.Model):
         ordering = ['-started_at']
         verbose_name = 'ERP Sync Log'
         verbose_name_plural = 'ERP Sync Logs'
+
+    def __str__(self):
+        return f"{self.entity_type} - {self.get_status_display()} at {self.started_at}"

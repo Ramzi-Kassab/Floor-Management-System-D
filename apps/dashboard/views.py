@@ -106,12 +106,28 @@ def manager_dashboard(request):
 def planner_dashboard(request):
     """
     Planner dashboard focused on scheduling and planning.
+    Optimized to avoid N+1 queries.
     """
     from apps.workorders.models import WorkOrder
 
     today = timezone.now().date()
+    week_end = today + timedelta(days=7)
 
-    # Work order categories
+    # Get all counts in a single query using aggregate
+    status_counts = WorkOrder.objects.aggregate(
+        pending=Count('id', filter=Q(status__in=['DRAFT', 'PLANNED'])),
+        in_progress=Count('id', filter=Q(status='IN_PROGRESS')),
+        overdue=Count('id', filter=Q(
+            due_date__lt=today,
+            status__in=['PLANNED', 'IN_PROGRESS', 'ON_HOLD']
+        )),
+        due_this_week=Count('id', filter=Q(
+            due_date__range=[today, week_end],
+            status__in=['PLANNED', 'IN_PROGRESS']
+        )),
+    )
+
+    # Work order lists (separate queries for display)
     pending_work_orders = WorkOrder.objects.filter(
         status__in=['DRAFT', 'PLANNED']
     ).select_related('customer', 'drill_bit').order_by('due_date')[:20]
@@ -125,22 +141,15 @@ def planner_dashboard(request):
         status__in=['PLANNED', 'IN_PROGRESS', 'ON_HOLD']
     ).select_related('customer', 'assigned_to').order_by('due_date')[:10]
 
-    # Due this week
-    week_end = today + timedelta(days=7)
-    due_this_week = WorkOrder.objects.filter(
-        due_date__range=[today, week_end],
-        status__in=['PLANNED', 'IN_PROGRESS']
-    ).count()
-
     context = {
         'page_title': 'Planner Dashboard',
         'pending_work_orders': pending_work_orders,
         'in_progress_work_orders': in_progress_work_orders,
         'overdue_work_orders': overdue_work_orders,
-        'pending_count': pending_work_orders.count(),
-        'in_progress_count': WorkOrder.objects.filter(status='IN_PROGRESS').count(),
-        'overdue_count': overdue_work_orders.count(),
-        'due_this_week': due_this_week,
+        'pending_count': status_counts['pending'],
+        'in_progress_count': status_counts['in_progress'],
+        'overdue_count': status_counts['overdue'],
+        'due_this_week': status_counts['due_this_week'],
     }
     return render(request, 'dashboard/planner.html', context)
 

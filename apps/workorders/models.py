@@ -415,6 +415,9 @@ class WorkOrderDocument(models.Model):
         verbose_name = 'Work Order Document'
         verbose_name_plural = 'Work Order Documents'
 
+    def __str__(self):
+        return f"{self.work_order.wo_number} - {self.name}"
+
 
 class WorkOrderPhoto(models.Model):
     """
@@ -442,6 +445,9 @@ class WorkOrderPhoto(models.Model):
         ordering = ['work_order', '-taken_at']
         verbose_name = 'Work Order Photo'
         verbose_name_plural = 'Work Order Photos'
+
+    def __str__(self):
+        return f"{self.work_order.wo_number} - Photo {self.pk}"
 
 
 class WorkOrderMaterial(models.Model):
@@ -489,6 +495,10 @@ class WorkOrderMaterial(models.Model):
         verbose_name = 'Work Order Material'
         verbose_name_plural = 'Work Order Materials'
 
+    def __str__(self):
+        item_name = self.inventory_item.name if self.inventory_item else 'Unknown'
+        return f"{self.work_order.wo_number} - {item_name} (×{self.consumed_quantity})"
+
 
 class WorkOrderTimeLog(models.Model):
     """
@@ -533,7 +543,12 @@ class WorkOrderTimeLog(models.Model):
         ordering = ['work_order', '-start_time']
         verbose_name = 'Work Order Time Log'
         verbose_name_plural = 'Work Order Time Logs'
-    
+
+    def __str__(self):
+        username = self.user.username if self.user else 'Unknown'
+        duration = f"{self.duration_minutes}m" if self.duration_minutes else 'In progress'
+        return f"{self.work_order.wo_number} - {username} ({duration})"
+
     def save(self, *args, **kwargs):
         if self.start_time and self.end_time:
             delta = self.end_time - self.start_time
@@ -652,3 +667,6 @@ class BitEvaluation(models.Model):
         ordering = ['-evaluation_date']
         verbose_name = 'Bit Evaluation'
         verbose_name_plural = 'Bit Evaluations'
+
+    def __str__(self):
+        return f"{self.drill_bit.serial_number} - {self.evaluation_date}"
