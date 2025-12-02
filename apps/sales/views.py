@@ -526,6 +526,127 @@ class WellUpdateView(ManagerRequiredMixin, UpdateView):
 
 
 # =============================================================================
+# WAREHOUSE VIEWS
+# =============================================================================
+
+
+class WarehouseListView(LoginRequiredMixin, ListView):
+    """
+    List all warehouses with search and filtering.
+    """
+
+    model = Warehouse
+    template_name = "sales/warehouse_list.html"
+    context_object_name = "warehouses"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = Warehouse.objects.select_related("customer")
+
+        # Search
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search)
+                | Q(name__icontains=search)
+                | Q(city__icontains=search)
+                | Q(customer__name__icontains=search)
+            )
+
+        # Filter by type
+        warehouse_type = self.request.GET.get("type")
+        if warehouse_type:
+            queryset = queryset.filter(warehouse_type=warehouse_type)
+
+        # Filter by status
+        status = self.request.GET.get("status")
+        if status == "active":
+            queryset = queryset.filter(is_active=True)
+        elif status == "inactive":
+            queryset = queryset.filter(is_active=False)
+
+        return queryset.order_by("code")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Warehouses"
+        context["warehouse_types"] = Warehouse.WarehouseType.choices
+        context["total_warehouses"] = Warehouse.objects.count()
+        context["active_warehouses"] = Warehouse.objects.filter(is_active=True).count()
+        context["search_query"] = self.request.GET.get("q", "")
+        context["current_type"] = self.request.GET.get("type", "")
+        context["current_status"] = self.request.GET.get("status", "")
+        return context
+
+
+class WarehouseDetailView(LoginRequiredMixin, DetailView):
+    """
+    View warehouse details.
+    """
+
+    model = Warehouse
+    template_name = "sales/warehouse_detail.html"
+    context_object_name = "warehouse"
+
+    def get_queryset(self):
+        return Warehouse.objects.select_related("customer")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Warehouse: {self.object.name}"
+        # Placeholder for Sprint 4 inventory integration
+        context["total_locations"] = 0
+        context["total_stock_items"] = 0
+        return context
+
+
+class WarehouseCreateView(ManagerRequiredMixin, CreateView):
+    """
+    Create a new warehouse.
+    """
+
+    model = Warehouse
+    form_class = WarehouseForm
+    template_name = "sales/warehouse_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Warehouse"
+        context["submit_text"] = "Create Warehouse"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Warehouse "{form.instance.name}" created successfully.')
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:warehouse_detail", kwargs={"pk": self.object.pk})
+
+
+class WarehouseUpdateView(ManagerRequiredMixin, UpdateView):
+    """
+    Update an existing warehouse.
+    """
+
+    model = Warehouse
+    form_class = WarehouseForm
+    template_name = "sales/warehouse_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Warehouse: {self.object.name}"
+        context["submit_text"] = "Update Warehouse"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Warehouse "{form.instance.name}" updated successfully.')
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:warehouse_detail", kwargs={"pk": self.object.pk})
+
+
+# =============================================================================
 # EXPORT VIEWS
 # =============================================================================
 

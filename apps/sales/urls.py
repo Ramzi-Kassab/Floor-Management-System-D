@@ -39,4 +39,11 @@ urlpatterns = [
     path("wells/create/", views.WellCreateView.as_view(), name="well_create"),
     path("wells/<int:pk>/", views.WellDetailView.as_view(), name="well_detail"),
     path("wells/<int:pk>/edit/", views.WellUpdateView.as_view(), name="well_update"),
+    # ==========================================================================
+    # WAREHOUSE URLS
+    # ==========================================================================
+    path("warehouses/", views.WarehouseListView.as_view(), name="warehouse_list"),
+    path("warehouses/create/", views.WarehouseCreateView.as_view(), name="warehouse_create"),
+    path("warehouses/<int:pk>/", views.WarehouseDetailView.as_view(), name="warehouse_detail"),
+    path("warehouses/<int:pk>/edit/", views.WarehouseUpdateView.as_view(), name="warehouse_update"),
 ]
