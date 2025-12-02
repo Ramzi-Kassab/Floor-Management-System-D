@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Planner Dashboard - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+    <p class="text-gray-600 dark:text-gray-400">Production planning and scheduling</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- KPI Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Pending -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Pending Planning</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">{{ pending_count }}</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="clock" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-gray-500 dark:text-gray-400">awaiting scheduling</span>
+        </div>
+    </div>
+
+    <!-- In Progress -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">In Progress</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">{{ in_progress_count }}</p>
+            </div>
+            <div class="w-12 h-12 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="loader" class="w-6 h-6 text-yellow-600 dark:text-yellow-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-gray-500 dark:text-gray-400">currently active</span>
+        </div>
+    </div>
+
+    <!-- Overdue -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Overdue</p>
+                <p class="text-3xl font-bold {% if overdue_count > 0 %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %} mt-1">{{ overdue_count }}</p>
+            </div>
+            <div class="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="alert-circle" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-gray-500 dark:text-gray-400">needs attention</span>
+        </div>
+    </div>
+
+    <!-- Due This Week -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Due This Week</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">{{ due_this_week }}</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="calendar" class="w-6 h-6 text-purple-600 dark:text-purple-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-gray-500 dark:text-gray-400">upcoming deadlines</span>
+        </div>
+    </div>
+</div>
+
+<!-- Work Order Lists -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <!-- Pending Work Orders -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Pending Work Orders</h2>
+            <span class="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded-full">{{ pending_count }}</span>
+        </div>
+
+        {% if pending_work_orders %}
+        <div class="space-y-3 max-h-96 overflow-y-auto">
+            {% for wo in pending_work_orders %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                <div class="flex items-center space-x-3">
+                    <div class="w-2 h-2 rounded-full {% if wo.status == 'DRAFT' %}bg-gray-400{% else %}bg-blue-400{% endif %}"></div>
+                    <div>
+                        <a href="{% url 'workorders:detail' wo.pk %}" class="text-sm font-medium text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400">
+                            {{ wo.wo_number }}
+                        </a>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ wo.customer.name|default:"No customer" }}</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Due</p>
+                    <p class="text-sm {% if wo.due_date %}{% if wo.is_overdue %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %}{% else %}text-gray-400{% endif %}">
+                        {{ wo.due_date|date:"M d"|default:"Not set" }}
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+            <i data-lucide="check-circle" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+            <p>No pending work orders</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- In Progress Work Orders -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">In Progress</h2>
+            <span class="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 text-xs font-medium px-2.5 py-0.5 rounded-full">{{ in_progress_count }}</span>
+        </div>
+
+        {% if in_progress_work_orders %}
+        <div class="space-y-3 max-h-96 overflow-y-auto">
+            {% for wo in in_progress_work_orders %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                <div class="flex items-center space-x-3">
+                    <div class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></div>
+                    <div>
+                        <a href="{% url 'workorders:detail' wo.pk %}" class="text-sm font-medium text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400">
+                            {{ wo.wo_number }}
+                        </a>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ wo.assigned_to.get_full_name|default:"Unassigned" }}</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Due</p>
+                    <p class="text-sm {% if wo.due_date %}{% if wo.is_overdue %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %}{% else %}text-gray-400{% endif %}">
+                        {{ wo.due_date|date:"M d"|default:"Not set" }}
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+            <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+            <p>No work orders in progress</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Overdue Work Orders -->
+{% if overdue_work_orders %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border-l-4 border-red-500">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center">
+            <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500 mr-2"></i>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Overdue Work Orders</h2>
+        </div>
+        <span class="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-xs font-medium px-2.5 py-0.5 rounded-full">{{ overdue_count }}</span>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+                    <th class="pb-3 font-medium">WO #</th>
+                    <th class="pb-3 font-medium">Customer</th>
+                    <th class="pb-3 font-medium">Due Date</th>
+                    <th class="pb-3 font-medium">Days Overdue</th>
+                    <th class="pb-3 font-medium">Assigned To</th>
+                    <th class="pb-3 font-medium">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y dark:divide-gray-700">
+                {% for wo in overdue_work_orders %}
+                <tr class="hover:bg-red-50 dark:hover:bg-red-900/20">
+                    <td class="py-3">
+                        <a href="{% url 'workorders:detail' wo.pk %}" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                            {{ wo.wo_number }}
+                        </a>
+                    </td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ wo.customer.name|default:"--" }}</td>
+                    <td class="py-3 text-red-600 dark:text-red-400 font-medium">{{ wo.due_date|date:"M d, Y" }}</td>
+                    <td class="py-3 text-red-600 dark:text-red-400 font-medium">{{ wo.days_overdue }} days</td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ wo.assigned_to.get_full_name|default:"Unassigned" }}</td>
+                    <td class="py-3">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if wo.status == 'PLANNED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                            {% elif wo.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                            {% elif wo.status == 'ON_HOLD' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ wo.get_status_display }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

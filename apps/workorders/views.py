@@ -1,0 +1,185 @@
+"""
+ARDT FMS - Work Orders Views
+Version: 5.4 - Sprint 1
+
+Work order management views.
+"""
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib import messages
+from django.views.generic import ListView, DetailView, CreateView, UpdateView
+from django.urls import reverse_lazy
+from django.utils import timezone
+from django.db.models import Q
+
+from .models import WorkOrder, DrillBit
+
+
+class WorkOrderListView(LoginRequiredMixin, ListView):
+    """
+    List all work orders with filtering and pagination.
+    """
+    model = WorkOrder
+    template_name = 'workorders/workorder_list.html'
+    context_object_name = 'work_orders'
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = WorkOrder.objects.select_related(
+            'customer', 'drill_bit', 'assigned_to', 'design'
+        ).order_by('-created_at')
+
+        # Filter by status
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+
+        # Filter by priority
+        priority = self.request.GET.get('priority')
+        if priority:
+            queryset = queryset.filter(priority=priority)
+
+        # Search
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(
+                Q(wo_number__icontains=search) |
+                Q(customer__name__icontains=search) |
+                Q(drill_bit__serial_number__icontains=search)
+            )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Work Orders'
+        context['status_choices'] = WorkOrder.Status.choices
+        context['priority_choices'] = WorkOrder.Priority.choices
+        context['current_status'] = self.request.GET.get('status', '')
+        context['current_priority'] = self.request.GET.get('priority', '')
+        context['search_query'] = self.request.GET.get('q', '')
+        return context
+
+
+class WorkOrderDetailView(LoginRequiredMixin, DetailView):
+    """
+    View work order details.
+    """
+    model = WorkOrder
+    template_name = 'workorders/workorder_detail.html'
+    context_object_name = 'work_order'
+
+    def get_queryset(self):
+        return WorkOrder.objects.select_related(
+            'customer', 'drill_bit', 'assigned_to', 'design',
+            'sales_order', 'rig', 'well', 'procedure', 'department', 'created_by'
+        ).prefetch_related(
+            'documents', 'photos', 'materials', 'time_logs'
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = f'Work Order {self.object.wo_number}'
+        return context
+
+
+class WorkOrderCreateView(LoginRequiredMixin, CreateView):
+    """
+    Create a new work order.
+    """
+    model = WorkOrder
+    template_name = 'workorders/workorder_form.html'
+    fields = [
+        'wo_type', 'drill_bit', 'design', 'customer', 'sales_order',
+        'rig', 'well', 'priority', 'planned_start', 'planned_end',
+        'due_date', 'assigned_to', 'department', 'description', 'notes'
+    ]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'New Work Order'
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        form.instance.wo_number = self.generate_wo_number()
+        messages.success(self.request, f'Work order {form.instance.wo_number} created successfully.')
+        return super().form_valid(form)
+
+    def generate_wo_number(self):
+        """Generate unique work order number."""
+        from django.conf import settings
+        prefix = getattr(settings, 'ARDT_WO_NUMBER_PREFIX', 'WO')
+        padding = getattr(settings, 'ARDT_WO_NUMBER_PADDING', 6)
+
+        last_wo = WorkOrder.objects.order_by('-id').first()
+        next_number = (last_wo.id + 1) if last_wo else 1
+
+        return f"{prefix}-{str(next_number).zfill(padding)}"
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:detail', kwargs={'pk': self.object.pk})
+
+
+class WorkOrderUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Update an existing work order.
+    """
+    model = WorkOrder
+    template_name = 'workorders/workorder_form.html'
+    fields = [
+        'wo_type', 'drill_bit', 'design', 'customer', 'sales_order',
+        'rig', 'well', 'priority', 'planned_start', 'planned_end',
+        'due_date', 'status', 'assigned_to', 'department', 'description', 'notes'
+    ]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = f'Edit Work Order {self.object.wo_number}'
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Work order {form.instance.wo_number} updated successfully.')
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:detail', kwargs={'pk': self.object.pk})
+
+
+@login_required
+def start_work_view(request, pk):
+    """
+    Start working on a work order.
+    """
+    work_order = get_object_or_404(WorkOrder, pk=pk)
+
+    if request.method == 'POST':
+        if work_order.status in ['RELEASED', 'PLANNED']:
+            work_order.status = 'IN_PROGRESS'
+            work_order.actual_start = timezone.now()
+            work_order.save()
+            messages.success(request, f'Started working on {work_order.wo_number}.')
+        else:
+            messages.error(request, f'Cannot start work order with status {work_order.get_status_display()}.')
+
+    return redirect('workorders:detail', pk=pk)
+
+
+@login_required
+def complete_work_view(request, pk):
+    """
+    Complete a work order (send to QC).
+    """
+    work_order = get_object_or_404(WorkOrder, pk=pk)
+
+    if request.method == 'POST':
+        if work_order.status == 'IN_PROGRESS':
+            work_order.status = 'QC_PENDING'
+            work_order.save()
+            messages.success(request, f'{work_order.wo_number} sent to QC for inspection.')
+        else:
+            messages.error(request, f'Cannot complete work order with status {work_order.get_status_display()}.')
+
+    return redirect('workorders:detail', pk=pk)

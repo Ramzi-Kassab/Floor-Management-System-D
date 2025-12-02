@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile - {{ profile_user.get_full_name }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:home' %}" class="text-gray-700 hover:text-blue-600 inline-flex items-center">
+                <i data-lucide="home" class="w-4 h-4 mr-2"></i>
+                Home
+            </a>
+        </li>
+        <li>
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 mx-2 text-gray-400"></i>
+                <span class="text-sm font-medium text-gray-500">Profile</span>
+            </div>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Page Header -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-start justify-between">
+            <div class="flex items-center space-x-4">
+                <!-- Profile Photo -->
+                <div class="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-bold">
+                    {% if profile_user.profile_photo %}
+                        <img src="{{ profile_user.profile_photo.url }}"
+                             alt="{{ profile_user.get_full_name }}"
+                             class="w-full h-full rounded-full object-cover">
+                    {% else %}
+                        {{ profile_user.first_name.0|default:'U'|upper }}{{ profile_user.last_name.0|default:'N'|upper }}
+                    {% endif %}
+                </div>
+
+                <!-- User Info -->
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">
+                        {{ profile_user.get_full_name|default:profile_user.username }}
+                    </h1>
+                    <p class="text-gray-600">
+                        {% if profile_user.position %}{{ profile_user.position.title }}{% else %}Staff{% endif %}
+                        {% if profile_user.department %}
+                        • {{ profile_user.department.name }}
+                        {% endif %}
+                    </p>
+                    <p class="text-sm text-gray-500 mt-1">
+                        Employee ID: {{ profile_user.employee_id|default:"N/A" }}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div>
+                <a href="{% url 'accounts:settings' %}"
+                   class="inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    <span>Settings</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left Column: Info -->
+        <div class="lg:col-span-2 space-y-6">
+
+            <!-- Contact Information -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Contact Information</h2>
+
+                <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <dt class="text-sm text-gray-600">Email</dt>
+                        <dd class="text-sm text-gray-900 font-medium mt-1">
+                            {{ profile_user.email|default:"Not provided" }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt class="text-sm text-gray-600">Phone</dt>
+                        <dd class="text-sm text-gray-900 font-medium mt-1">
+                            {{ profile_user.phone|default:"Not provided" }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt class="text-sm text-gray-600">Mobile</dt>
+                        <dd class="text-sm text-gray-900 font-medium mt-1">
+                            {{ profile_user.mobile|default:"Not provided" }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt class="text-sm text-gray-600">Department</dt>
+                        <dd class="text-sm text-gray-900 font-medium mt-1">
+                            {{ profile_user.department.name|default:"Not assigned" }}
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+
+            <!-- Recent Activity -->
+            {% if recent_work_orders %}
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Work Orders</h2>
+
+                <div class="space-y-3">
+                    {% for wo in recent_work_orders %}
+                    <a href="{% url 'workorders:detail' wo.pk %}"
+                       class="block p-3 rounded-lg border hover:bg-gray-50 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="font-medium text-gray-900">{{ wo.wo_number }}</p>
+                                <p class="text-sm text-gray-600">{{ wo.description|truncatewords:10 }}</p>
+                            </div>
+                            <span class="px-2 py-1 text-xs rounded-full
+                                {% if wo.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800
+                                {% elif wo.status == 'COMPLETED' %}bg-green-100 text-green-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ wo.get_status_display }}
+                            </span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right Column: Roles & Stats -->
+        <div class="space-y-6">
+
+            <!-- Roles -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Roles</h2>
+
+                {% if roles %}
+                <div class="space-y-2">
+                    {% for role in roles %}
+                    <div class="flex items-center p-2 bg-gray-50 rounded-lg">
+                        <i data-lucide="shield" class="w-4 h-4 text-blue-600 mr-2"></i>
+                        <span class="text-sm text-gray-900">{{ role.name }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-sm text-gray-500">No roles assigned</p>
+                {% endif %}
+            </div>
+
+            <!-- Account Info -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Account Info</h2>
+
+                <dl class="space-y-3">
+                    <div>
+                        <dt class="text-sm text-gray-600">Username</dt>
+                        <dd class="text-sm text-gray-900 font-medium">{{ profile_user.username }}</dd>
+                    </div>
+
+                    <div>
+                        <dt class="text-sm text-gray-600">Member Since</dt>
+                        <dd class="text-sm text-gray-900 font-medium">{{ profile_user.date_joined|date:"M d, Y" }}</dd>
+                    </div>
+
+                    <div>
+                        <dt class="text-sm text-gray-600">Last Login</dt>
+                        <dd class="text-sm text-gray-900 font-medium">
+                            {% if profile_user.last_login %}
+                            {{ profile_user.last_login|date:"M d, Y H:i" }}
+                            {% else %}
+                            Never
+                            {% endif %}
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

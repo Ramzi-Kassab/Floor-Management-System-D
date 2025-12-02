@@ -1,18 +1,29 @@
+"""
+ARDT FMS - Account URLs
+Version: 5.4 - Sprint 1
+"""
+
 from django.urls import path
-from django.contrib.auth import views as auth_views
+from . import views
 
 app_name = 'accounts'
 
 urlpatterns = [
-    # Authentication (built-in Django views)
-    path('login/', auth_views.LoginView.as_view(template_name='accounts/login.html'), name='login'),
-    path('logout/', auth_views.LogoutView.as_view(), name='logout'),
-    path('password-change/', auth_views.PasswordChangeView.as_view(
-        template_name='accounts/password_change.html'
-    ), name='password_change'),
-    path('password-change/done/', auth_views.PasswordChangeDoneView.as_view(
-        template_name='accounts/password_change_done.html'
-    ), name='password_change_done'),
-    
-    # Profile and user management URLs will be added in Sprint 1
+    # Authentication
+    path('login/', views.CustomLoginView.as_view(), name='login'),
+    path('logout/', views.CustomLogoutView.as_view(), name='logout'),
+
+    # Profile & Settings
+    path('profile/', views.profile_view, name='profile'),
+    path('settings/', views.settings_view, name='settings'),
+
+    # Password Change
+    path('password-change/', views.CustomPasswordChangeView.as_view(), name='password_change'),
+    path('password-change/done/', views.CustomPasswordChangeDoneView.as_view(), name='password_change_done'),
+
+    # Password Reset
+    path('password-reset/', views.CustomPasswordResetView.as_view(), name='password_reset'),
+    path('password-reset/done/', views.CustomPasswordResetDoneView.as_view(), name='password_reset_done'),
+    path('password-reset/<uidb64>/<token>/', views.CustomPasswordResetConfirmView.as_view(), name='password_reset_confirm'),
+    path('password-reset/complete/', views.CustomPasswordResetCompleteView.as_view(), name='password_reset_complete'),
 ]
