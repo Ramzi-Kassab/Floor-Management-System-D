@@ -122,14 +122,44 @@ def format_duration(minutes):
 
 
 def calculate_progress(work_order):
-    """Calculate work order progress based on completed steps."""
-    # If using procedure execution, calculate based on steps
-    if hasattr(work_order, 'procedure_execution') and work_order.procedure_execution:
-        execution = work_order.procedure_execution
-        total_steps = execution.procedure.steps.count()
-        if total_steps > 0:
-            completed = execution.completed_steps.count()
-            return int((completed / total_steps) * 100)
+    """
+    Calculate work order progress based on completed steps.
 
-    # Otherwise return stored progress
-    return work_order.progress_percent or 0
+    Priority:
+    1. Manual progress_percent if set
+    2. Procedure execution completion
+    3. Status-based progress
+
+    Returns:
+        int: Progress percentage (0-100)
+    """
+    # 1. Default to manual progress if set
+    if work_order.progress_percent is not None and work_order.progress_percent > 0:
+        return work_order.progress_percent
+
+    # 2. Calculate from procedure execution (if any)
+    if hasattr(work_order, 'procedure_executions'):
+        execution = work_order.procedure_executions.first()
+        if execution and execution.procedure:
+            total_steps = execution.procedure.steps.count()
+            if total_steps > 0:
+                # Use step_executions relationship and filter by COMPLETED status
+                completed_steps = execution.step_executions.filter(
+                    status='COMPLETED'
+                ).count()
+                return int((completed_steps / total_steps) * 100)
+
+    # 3. No procedure - base on status
+    status_progress = {
+        'DRAFT': 0,
+        'PLANNED': 10,
+        'RELEASED': 15,
+        'IN_PROGRESS': 50,
+        'ON_HOLD': 50,
+        'QC_PENDING': 85,
+        'QC_PASSED': 95,
+        'QC_FAILED': 80,
+        'COMPLETED': 100,
+        'CANCELLED': 0,
+    }
+    return status_progress.get(work_order.status, 0)

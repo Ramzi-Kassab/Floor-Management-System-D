@@ -304,7 +304,7 @@ class WorkOrder(models.Model):
         from django.utils import timezone
         if not self.due_date:
             return False
-        if self.status in ['COMPLETED', 'CANCELLED']:
+        if self.status in [self.Status.COMPLETED, self.Status.CANCELLED]:
             return False
         return self.due_date < timezone.now().date()
 
@@ -320,12 +320,12 @@ class WorkOrder(models.Model):
     @property
     def can_start(self):
         """Check if work order can be started."""
-        return self.status in ['PLANNED', 'RELEASED']
+        return self.status in [self.Status.PLANNED, self.Status.RELEASED]
 
     @property
     def can_complete(self):
         """Check if work order can be marked complete."""
-        return self.status in ['IN_PROGRESS', 'QC_PASSED']
+        return self.status in [self.Status.IN_PROGRESS, self.Status.QC_PASSED]
 
     def start_work(self, user=None):
         """
@@ -358,7 +358,7 @@ class WorkOrder(models.Model):
 
     def put_on_hold(self, reason=None):
         """Put work order on hold."""
-        if self.status not in ['IN_PROGRESS', 'PLANNED', 'RELEASED']:
+        if self.status not in [self.Status.IN_PROGRESS, self.Status.PLANNED, self.Status.RELEASED]:
             raise ValueError(f"Cannot put work order on hold in status {self.status}")
 
         self.status = self.Status.ON_HOLD
@@ -369,7 +369,7 @@ class WorkOrder(models.Model):
 
     def submit_for_qc(self):
         """Submit work order for QC inspection."""
-        if self.status != 'IN_PROGRESS':
+        if self.status != self.Status.IN_PROGRESS:
             raise ValueError("Only in-progress work orders can be submitted for QC")
 
         self.status = self.Status.QC_PENDING

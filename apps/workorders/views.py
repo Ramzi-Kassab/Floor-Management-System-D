@@ -20,6 +20,7 @@ from django.conf import settings
 from django.http import HttpResponse
 
 from .models import WorkOrder, DrillBit
+from .forms import WorkOrderForm, DrillBitForm
 from .utils import generate_work_order_qr, generate_drill_bit_qr
 
 
@@ -99,12 +100,8 @@ class WorkOrderCreateView(LoginRequiredMixin, CreateView):
     Create a new work order.
     """
     model = WorkOrder
+    form_class = WorkOrderForm
     template_name = 'workorders/workorder_form.html'
-    fields = [
-        'wo_type', 'drill_bit', 'design', 'customer', 'sales_order',
-        'rig', 'well', 'priority', 'planned_start', 'planned_end',
-        'due_date', 'assigned_to', 'department', 'description', 'notes'
-    ]
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -136,12 +133,21 @@ class WorkOrderUpdateView(LoginRequiredMixin, UpdateView):
     Update an existing work order.
     """
     model = WorkOrder
+    form_class = WorkOrderForm
     template_name = 'workorders/workorder_form.html'
-    fields = [
-        'wo_type', 'drill_bit', 'design', 'customer', 'sales_order',
-        'rig', 'well', 'priority', 'planned_start', 'planned_end',
-        'due_date', 'status', 'assigned_to', 'department', 'description', 'notes'
-    ]
+
+    def get_form(self, form_class=None):
+        """Add status field for updates."""
+        form = super().get_form(form_class)
+        # Add status field for updates (not in create form)
+        from django import forms as django_forms
+        form.fields['status'] = django_forms.ChoiceField(
+            choices=WorkOrder.Status.choices,
+            widget=django_forms.Select(attrs={
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white'
+            })
+        )
+        return form
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -274,11 +280,8 @@ class DrillBitCreateView(LoginRequiredMixin, CreateView):
     Register a new drill bit.
     """
     model = DrillBit
+    form_class = DrillBitForm
     template_name = 'drillbits/drillbit_form.html'
-    fields = [
-        'serial_number', 'bit_type', 'design', 'size', 'iadc_code',
-        'status', 'current_location', 'customer', 'rig', 'well'
-    ]
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -299,12 +302,15 @@ class DrillBitUpdateView(LoginRequiredMixin, UpdateView):
     Update drill bit information.
     """
     model = DrillBit
+    form_class = DrillBitForm
     template_name = 'drillbits/drillbit_form.html'
-    fields = [
-        'bit_type', 'design', 'size', 'iadc_code',
-        'status', 'current_location', 'customer', 'rig', 'well',
-        'total_hours', 'total_footage', 'run_count'
-    ]
+
+    def get_form(self, form_class=None):
+        """Make serial_number read-only for updates."""
+        form = super().get_form(form_class)
+        form.fields['serial_number'].widget.attrs['readonly'] = True
+        form.fields['serial_number'].help_text = 'Serial number cannot be changed after creation'
+        return form
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
