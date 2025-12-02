@@ -113,6 +113,11 @@ class Inspection(models.Model):
         ordering = ['-scheduled_date']
         verbose_name = 'Inspection'
         verbose_name_plural = 'Inspections'
+        indexes = [
+            models.Index(fields=['inspection_number'], name='insp_number_idx'),
+            models.Index(fields=['status'], name='insp_status_idx'),
+            models.Index(fields=['work_order', 'status'], name='insp_wo_status_idx'),
+        ]
     
     def __str__(self):
         return f"{self.inspection_number}"
@@ -263,6 +268,12 @@ class NCR(models.Model):
         ordering = ['-detected_at']
         verbose_name = 'NCR'
         verbose_name_plural = 'NCRs'
+        indexes = [
+            models.Index(fields=['ncr_number'], name='ncr_number_idx'),
+            models.Index(fields=['status'], name='ncr_status_idx'),
+            models.Index(fields=['severity'], name='ncr_severity_idx'),
+            models.Index(fields=['work_order', 'status'], name='ncr_wo_status_idx'),
+        ]
     
     def __str__(self):
         return f"{self.ncr_number} - {self.title}"

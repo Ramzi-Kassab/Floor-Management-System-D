@@ -1,9 +1,12 @@
 """
 ARDT FMS - Work Orders Views
-Version: 5.4 - Sprint 1
+Version: 5.4 - Sprint 1.5
 
-Work order management views.
+Work order management views with optimized queries and exports.
 """
+
+import csv
+from datetime import datetime
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -14,8 +17,10 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from django.db.models import Q
 from django.conf import settings
+from django.http import HttpResponse
 
 from .models import WorkOrder, DrillBit
+from .utils import generate_work_order_qr, generate_drill_bit_qr
 
 
 class WorkOrderListView(LoginRequiredMixin, ListView):
@@ -83,6 +88,9 @@ class WorkOrderDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['page_title'] = f'Work Order {self.object.wo_number}'
+        # Generate QR code for the work order
+        base_url = getattr(settings, 'SITE_URL', None)
+        context['qr_code'] = generate_work_order_qr(self.object, base_url)
         return context
 
 
@@ -255,6 +263,9 @@ class DrillBitDetailView(LoginRequiredMixin, DetailView):
         context['page_title'] = f'Drill Bit {self.object.serial_number}'
         # Get recent work orders for this drill bit
         context['recent_work_orders'] = self.object.work_orders.order_by('-created_at')[:5]
+        # Generate QR code for the drill bit
+        base_url = getattr(settings, 'SITE_URL', None)
+        context['qr_code'] = generate_drill_bit_qr(self.object, base_url)
         return context
 
 
@@ -379,3 +390,115 @@ def workorder_row_htmx(request, pk):
     return render(request, 'partials/workorder_row.html', {
         'work_order': work_order,
     })
+
+
+# =============================================================================
+# EXPORT VIEWS
+# =============================================================================
+
+@login_required
+def export_work_orders_csv(request):
+    """
+    Export work orders to CSV file.
+    Preserves any active filters from the list view.
+    """
+    response = HttpResponse(content_type='text/csv')
+    filename = f'workorders_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'WO Number', 'Type', 'Customer', 'Drill Bit', 'Status', 'Priority',
+        'Due Date', 'Assigned To', 'Progress %', 'Created At'
+    ])
+
+    # Build queryset with same filters as list view
+    queryset = WorkOrder.objects.select_related(
+        'customer', 'drill_bit', 'assigned_to'
+    ).order_by('-created_at')
+
+    # Apply filters from request
+    status = request.GET.get('status')
+    if status:
+        queryset = queryset.filter(status=status)
+
+    priority = request.GET.get('priority')
+    if priority:
+        queryset = queryset.filter(priority=priority)
+
+    search = request.GET.get('q')
+    if search:
+        queryset = queryset.filter(
+            Q(wo_number__icontains=search) |
+            Q(customer__name__icontains=search)
+        )
+
+    for wo in queryset:
+        writer.writerow([
+            wo.wo_number,
+            wo.get_wo_type_display(),
+            wo.customer.name if wo.customer else '',
+            wo.drill_bit.serial_number if wo.drill_bit else '',
+            wo.get_status_display(),
+            wo.get_priority_display(),
+            wo.due_date.strftime('%Y-%m-%d') if wo.due_date else '',
+            wo.assigned_to.get_full_name() if wo.assigned_to else '',
+            wo.progress_percent,
+            wo.created_at.strftime('%Y-%m-%d %H:%M'),
+        ])
+
+    return response
+
+
+@login_required
+def export_drill_bits_csv(request):
+    """
+    Export drill bits to CSV file.
+    Preserves any active filters from the list view.
+    """
+    response = HttpResponse(content_type='text/csv')
+    filename = f'drillbits_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'Serial Number', 'Type', 'Size', 'IADC Code', 'Status',
+        'Customer', 'Location', 'Total Hours', 'Total Footage', 'Run Count'
+    ])
+
+    # Build queryset with same filters as list view
+    queryset = DrillBit.objects.select_related(
+        'customer', 'current_location'
+    ).order_by('-created_at')
+
+    # Apply filters from request
+    status = request.GET.get('status')
+    if status:
+        queryset = queryset.filter(status=status)
+
+    bit_type = request.GET.get('type')
+    if bit_type:
+        queryset = queryset.filter(bit_type=bit_type)
+
+    search = request.GET.get('q')
+    if search:
+        queryset = queryset.filter(
+            Q(serial_number__icontains=search) |
+            Q(iadc_code__icontains=search)
+        )
+
+    for bit in queryset:
+        writer.writerow([
+            bit.serial_number,
+            bit.get_bit_type_display(),
+            str(bit.size),
+            bit.iadc_code,
+            bit.get_status_display(),
+            bit.customer.name if bit.customer else '',
+            bit.current_location.name if bit.current_location else '',
+            str(bit.total_hours),
+            bit.total_footage,
+            bit.run_count,
+        ])
+
+    return response

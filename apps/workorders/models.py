@@ -113,6 +113,12 @@ class DrillBit(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Drill Bit'
         verbose_name_plural = 'Drill Bits'
+        indexes = [
+            models.Index(fields=['serial_number'], name='db_serial_idx'),
+            models.Index(fields=['status'], name='db_status_idx'),
+            models.Index(fields=['bit_type'], name='db_type_idx'),
+            models.Index(fields=['customer', 'status'], name='db_customer_status_idx'),
+        ]
     
     def __str__(self):
         return f"{self.serial_number} ({self.bit_type})"
@@ -280,10 +286,13 @@ class WorkOrder(models.Model):
         verbose_name = 'Work Order'
         verbose_name_plural = 'Work Orders'
         indexes = [
-            models.Index(fields=['status', 'priority']),
-            models.Index(fields=['customer', 'status']),
-            models.Index(fields=['due_date']),
-            models.Index(fields=['wo_number']),
+            models.Index(fields=['wo_number'], name='wo_wo_number_idx'),
+            models.Index(fields=['status'], name='wo_status_idx'),
+            models.Index(fields=['status', 'priority'], name='wo_status_priority_idx'),
+            models.Index(fields=['status', 'due_date'], name='wo_status_due_idx'),
+            models.Index(fields=['customer', 'status'], name='wo_customer_status_idx'),
+            models.Index(fields=['assigned_to', 'status'], name='wo_assigned_status_idx'),
+            models.Index(fields=['due_date'], name='wo_due_date_idx'),
         ]
 
     def __str__(self):

@@ -43,6 +43,34 @@
     
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+    <script>
+        // HTMX CSRF Token Fix - Automatically include CSRF token in all HTMX requests
+        document.addEventListener('DOMContentLoaded', function() {
+            document.body.addEventListener('htmx:configRequest', function(event) {
+                // Get CSRF token from cookie
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                    || getCookie('csrftoken');
+                if (csrfToken) {
+                    event.detail.headers['X-CSRFToken'] = csrfToken;
+                }
+            });
+        });
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
     
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
@@ -125,18 +153,25 @@
         </main>
     </div>
     
-    <!-- Toast Container -->
-    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
-    
+    <!-- Toast Notifications -->
+    {% include "components/toast.html" %}
+
     <!-- Modal Container -->
-    <div id="modal-container"></div>
-    
+    {% include "components/modals.html" %}
+
     <!-- Initialize Lucide Icons -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             lucide.createIcons();
+
+            // Convert Django messages to toasts
+            {% if messages %}
+            {% for message in messages %}
+            window.showToast('{{ message|escapejs }}', '{{ message.tags|default:"info" }}');
+            {% endfor %}
+            {% endif %}
         });
-        
+
         // Re-initialize icons after HTMX swaps
         document.body.addEventListener('htmx:afterSwap', function() {
             lucide.createIcons();
