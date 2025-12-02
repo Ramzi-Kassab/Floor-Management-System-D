@@ -3790,8 +3790,8 @@ class WorkOrderDetailView(LoginRequiredMixin, DetailView):
             'department',
             'assigned_to',
             'procedure',
-            'created_by',
-            'updated_by'
+            'created_by'
+            # Note: removed 'updated_by' - field doesn't exist
         ).prefetch_related(
             'materials',
             'materials__material',
@@ -4424,8 +4424,9 @@ Now create the comprehensive detail template:
                         <div class="flex-1">
                             <p class="font-medium text-gray-900">Last updated</p>
                             <p class="text-sm text-gray-600">
-                                by {{ work_order.updated_by.get_full_name|default:"System" }} on {{ work_order.updated_at|date:"M d, Y H:i" }}
+                                {{ work_order.updated_at|date:"M d, Y H:i" }}
                             </p>
+                            <!-- Note: updated_by field doesn't exist - only updated_at (auto_now) -->
                         </div>
                     </div>
                 </div>
@@ -4659,7 +4660,7 @@ class WorkOrderCreateView(LoginRequiredMixin, CreateView):
     
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-        form.instance.updated_by = self.request.user
+        # Note: updated_by field doesn't exist - only updated_at (auto_now)
         messages.success(self.request, f'Work order {form.instance.wo_number} created successfully')
         return super().form_valid(form)
     
@@ -4681,7 +4682,7 @@ class WorkOrderUpdateView(LoginRequiredMixin, UpdateView):
         return super().dispatch(request, *args, **kwargs)
     
     def form_valid(self, form):
-        form.instance.updated_by = self.request.user
+        # Note: updated_by field doesn't exist - only updated_at (auto_now) which updates automatically
         messages.success(self.request, f'Work order {form.instance.wo_number} updated successfully')
         return super().form_valid(form)
     
@@ -4709,7 +4710,7 @@ def start_work_view(request, pk):
     work_order.status = 'IN_PROGRESS'
     if not work_order.actual_start_date:
         work_order.actual_start_date = timezone.now()
-    work_order.updated_by = request.user
+    # Note: updated_by field doesn't exist - updated_at will auto-update on save()
     work_order.save()
     
     messages.success(request, f'Work started on {work_order.wo_number}')
@@ -4736,7 +4737,7 @@ def complete_work_view(request, pk):
     work_order.status = 'COMPLETED'
     if not work_order.actual_end_date:
         work_order.actual_end_date = timezone.now()
-    work_order.updated_by = request.user
+    # Note: updated_by field doesn't exist - updated_at will auto-update on save()
     work_order.save()
     
     messages.success(request, f'Work order {work_order.wo_number} completed!')
@@ -5557,8 +5558,8 @@ class DrillBitDetailView(LoginRequiredMixin, DetailView):
             'design',
             'customer',
             'current_location',
-            'created_by',
-            'updated_by'
+            'created_by'
+            # Note: removed 'updated_by' - field doesn't exist
         ).prefetch_related(
             'workorder_set',
             'workorder_set__assigned_to',
@@ -5589,10 +5590,11 @@ class DrillBitRegisterView(LoginRequiredMixin, CreateView):
     model = DrillBit
     template_name = 'drillbits/drillbit_form.html'
     fields = [
-        'serial_number', 'design', 'customer', 'status', 'condition',
-        'manufacture_date', 'last_inspection_date', 'total_hours',
-        'total_footage', 'current_location', 'notes'
+        'serial_number', 'bit_type', 'design', 'size', 'iadc_code',
+        'status', 'current_location', 'customer', 'rig', 'well',
+        'total_hours', 'total_footage', 'run_count'
     ]
+    # Note: Removed non-existent fields: condition, manufacture_date, last_inspection_date, notes
     
     def dispatch(self, request, *args, **kwargs):
         if not request.user.has_any_role('MANAGER', 'ADMIN'):
@@ -5602,7 +5604,7 @@ class DrillBitRegisterView(LoginRequiredMixin, CreateView):
     
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-        form.instance.updated_by = self.request.user
+        # Note: updated_by field doesn't exist - only updated_at (auto_now)
         messages.success(self.request, f'Drill bit {form.instance.serial_number} registered successfully')
         return super().form_valid(form)
     
@@ -5626,7 +5628,7 @@ def update_status_view(request, pk):
         return JsonResponse({'error': 'Invalid status'}, status=400)
     
     drill_bit.status = new_status
-    drill_bit.updated_by = request.user
+    # Note: updated_by field doesn't exist - updated_at will auto-update on save()
     drill_bit.save()
     
     messages.success(request, f'Drill bit status updated to {drill_bit.get_status_display()}')
@@ -5728,7 +5730,7 @@ class WorkOrder(models.Model):
         self.status = 'IN_PROGRESS'
         if not self.actual_start_date:
             self.actual_start_date = datetime.now()
-        self.updated_by = user
+        # Note: updated_by field doesn't exist - updated_at will auto-update on save()
         self.save()
         return True
     
@@ -5739,7 +5741,7 @@ class WorkOrder(models.Model):
         self.status = 'COMPLETED'
         if not self.actual_end_date:
             self.actual_end_date = datetime.now()
-        self.updated_by = user
+        # Note: updated_by field doesn't exist - updated_at will auto-update on save()
         self.save()
         return True
 ```
