@@ -5211,7 +5211,7 @@ class DrillBitListView(LoginRequiredMixin, ListView):
         
         # Filter options
         from apps.sales.models import Customer  # Correct: Customer is in sales app
-        context['designs'] = Design.objects.filter(is_active=True).order_by('name')
+        context['designs'] = Design.objects.filter(status='ACTIVE').order_by('name')  # Correct: Design uses 'status' field
         context['customers'] = Customer.objects.filter(is_active=True).order_by('name')
         context['status_choices'] = DrillBit.STATUS_CHOICES
         # Note: Removed 'condition_choices' - field doesn't exist
