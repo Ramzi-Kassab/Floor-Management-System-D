@@ -13,13 +13,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Count, Q, Sum
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
-from apps.core.mixins import ManagerRequiredMixin, PlannerRequiredMixin
+from apps.core.mixins import PlannerRequiredMixin
 from apps.sales.models import Customer
 
 from .forms import (

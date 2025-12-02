@@ -62,3 +62,10 @@ class SalesOrderAdmin(admin.ModelAdmin):
 class SalesOrderLineAdmin(admin.ModelAdmin):
     list_display = ["sales_order", "line_number", "description", "quantity", "status"]
     list_filter = ["status"]
+
+
+@admin.register(CustomerDocumentRequirement)
+class CustomerDocumentRequirementAdmin(admin.ModelAdmin):
+    list_display = ["customer", "document_type", "is_required"]
+    list_filter = ["is_required", "customer"]
+    search_fields = ["document_type", "customer__name"]
