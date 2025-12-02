@@ -183,3 +183,138 @@ def complete_work_view(request, pk):
             messages.error(request, f'Cannot complete work order with status {work_order.get_status_display()}.')
 
     return redirect('workorders:detail', pk=pk)
+
+
+# =============================================================================
+# DRILL BIT VIEWS
+# =============================================================================
+
+class DrillBitListView(LoginRequiredMixin, ListView):
+    """
+    List all drill bits with filtering and pagination.
+    """
+    model = DrillBit
+    template_name = 'drillbits/drillbit_list.html'
+    context_object_name = 'drill_bits'
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = DrillBit.objects.select_related(
+            'design', 'customer', 'current_location', 'created_by'
+        ).order_by('-created_at')
+
+        # Filter by status
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+
+        # Filter by type
+        bit_type = self.request.GET.get('type')
+        if bit_type:
+            queryset = queryset.filter(bit_type=bit_type)
+
+        # Search
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(
+                Q(serial_number__icontains=search) |
+                Q(iadc_code__icontains=search) |
+                Q(customer__name__icontains=search)
+            )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Drill Bits'
+        context['status_choices'] = DrillBit.Status.choices
+        context['type_choices'] = DrillBit.BitType.choices
+        context['current_status'] = self.request.GET.get('status', '')
+        context['current_type'] = self.request.GET.get('type', '')
+        context['search_query'] = self.request.GET.get('q', '')
+        return context
+
+
+class DrillBitDetailView(LoginRequiredMixin, DetailView):
+    """
+    View drill bit details with QR code.
+    """
+    model = DrillBit
+    template_name = 'drillbits/drillbit_detail.html'
+    context_object_name = 'drill_bit'
+
+    def get_queryset(self):
+        return DrillBit.objects.select_related(
+            'design', 'customer', 'current_location', 'rig', 'well', 'created_by'
+        ).prefetch_related(
+            'work_orders', 'evaluations'
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = f'Drill Bit {self.object.serial_number}'
+        # Get recent work orders for this drill bit
+        context['recent_work_orders'] = self.object.work_orders.order_by('-created_at')[:5]
+        return context
+
+
+class DrillBitCreateView(LoginRequiredMixin, CreateView):
+    """
+    Register a new drill bit.
+    """
+    model = DrillBit
+    template_name = 'drillbits/drillbit_form.html'
+    fields = [
+        'serial_number', 'bit_type', 'design', 'size', 'iadc_code',
+        'status', 'current_location', 'customer', 'rig', 'well'
+    ]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Register Drill Bit'
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f'Drill bit {form.instance.serial_number} registered successfully.')
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:drillbit_detail', kwargs={'pk': self.object.pk})
+
+
+class DrillBitUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Update drill bit information.
+    """
+    model = DrillBit
+    template_name = 'drillbits/drillbit_form.html'
+    fields = [
+        'bit_type', 'design', 'size', 'iadc_code',
+        'status', 'current_location', 'customer', 'rig', 'well',
+        'total_hours', 'total_footage', 'run_count'
+    ]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = f'Edit Drill Bit {self.object.serial_number}'
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Drill bit {form.instance.serial_number} updated successfully.')
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:drillbit_detail', kwargs={'pk': self.object.pk})
+
+
+@login_required
+def drillbit_qr_view(request, pk):
+    """
+    Display QR code for a drill bit.
+    """
+    drill_bit = get_object_or_404(DrillBit, pk=pk)
+    return render(request, 'drillbits/drillbit_qr.html', {
+        'drill_bit': drill_bit,
+        'page_title': f'QR Code - {drill_bit.serial_number}'
+    })

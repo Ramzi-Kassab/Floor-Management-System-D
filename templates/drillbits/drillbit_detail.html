@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ drill_bit.serial_number }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        <li><a href="{% url 'dashboard:home' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Dashboard</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'workorders:drillbit_list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Drill Bits</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li class="text-gray-900 dark:text-white font-medium">{{ drill_bit.serial_number }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ drill_bit.serial_number }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if drill_bit.status == 'NEW' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                {% elif drill_bit.status == 'IN_STOCK' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                {% elif drill_bit.status == 'ASSIGNED' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                {% elif drill_bit.status == 'IN_PRODUCTION' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                {% elif drill_bit.status == 'QC_PENDING' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                {% elif drill_bit.status == 'READY' %}bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200
+                {% elif drill_bit.status == 'DISPATCHED' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200
+                {% elif drill_bit.status == 'IN_FIELD' %}bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200
+                {% elif drill_bit.status == 'RETURNED' %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
+                {% elif drill_bit.status == 'SCRAPPED' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                {{ drill_bit.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ drill_bit.get_bit_type_display }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'workorders:drillbit_qr' drill_bit.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <i data-lucide="qr-code" class="w-4 h-4 mr-2"></i>
+            View QR Code
+        </a>
+        <a href="{% url 'workorders:drillbit_update' drill_bit.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
+            Edit
+        </a>
+        <a href="{% url 'workorders:drillbit_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Content -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Specifications -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Specifications</h2>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Serial Number</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ drill_bit.serial_number }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ drill_bit.get_bit_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Size</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ drill_bit.size }}"</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">IADC Code</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ drill_bit.iadc_code|default:"--" }}</dd>
+                </div>
+                {% if drill_bit.design %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Design</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ drill_bit.design.code }}</dd>
+                </div>
+                {% endif %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">QR Code</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono text-xs">{{ drill_bit.qr_code }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Usage Statistics -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Usage Statistics</h2>
+            <div class="grid grid-cols-3 gap-4">
+                <div class="text-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ drill_bit.run_count }}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Total Runs</p>
+                </div>
+                <div class="text-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ drill_bit.total_hours|floatformat:1 }}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Total Hours</p>
+                </div>
+                <div class="text-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ drill_bit.total_footage|intcomma }}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Total Footage (ft)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Work Order History -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Work Order History</h2>
+            </div>
+
+            {% if recent_work_orders %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+                            <th class="pb-3 font-medium">WO #</th>
+                            <th class="pb-3 font-medium">Type</th>
+                            <th class="pb-3 font-medium">Status</th>
+                            <th class="pb-3 font-medium">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y dark:divide-gray-700">
+                        {% for wo in recent_work_orders %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                            <td class="py-3">
+                                <a href="{% url 'workorders:detail' wo.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                                    {{ wo.wo_number }}
+                                </a>
+                            </td>
+                            <td class="py-3 text-gray-600 dark:text-gray-400">{{ wo.get_wo_type_display }}</td>
+                            <td class="py-3">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                    {% if wo.status == 'COMPLETED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                    {% elif wo.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                    {{ wo.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="py-3 text-gray-600 dark:text-gray-400">{{ wo.created_at|date:"M d, Y" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                <i data-lucide="clipboard-list" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+                <p>No work orders for this drill bit yet</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="space-y-6">
+        <!-- QR Code Preview -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">QR Code</h2>
+            <div class="bg-white p-4 rounded-lg inline-block mb-4">
+                <!-- QR Code placeholder - would be generated dynamically -->
+                <div class="w-32 h-32 bg-gray-100 dark:bg-gray-200 rounded flex items-center justify-center mx-auto">
+                    <i data-lucide="qr-code" class="w-16 h-16 text-gray-400"></i>
+                </div>
+            </div>
+            <p class="text-sm text-gray-500 dark:text-gray-400 font-mono mb-4">{{ drill_bit.qr_code }}</p>
+            <a href="{% url 'workorders:drillbit_qr' drill_bit.pk %}" class="inline-flex items-center text-blue-600 dark:text-blue-400 hover:underline text-sm">
+                <i data-lucide="printer" class="w-4 h-4 mr-1"></i>
+                Print QR Code
+            </a>
+        </div>
+
+        <!-- Customer Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Assignment</h2>
+            {% if drill_bit.customer %}
+            <div class="flex items-center mb-4">
+                <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mr-3">
+                    <i data-lucide="building" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                </div>
+                <div>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.customer.name }}</p>
+                </div>
+            </div>
+            {% if drill_bit.rig %}
+            <div class="text-sm mb-1">
+                <span class="text-gray-500 dark:text-gray-400">Rig:</span>
+                <span class="text-gray-900 dark:text-white ml-1">{{ drill_bit.rig.name }}</span>
+            </div>
+            {% endif %}
+            {% if drill_bit.well %}
+            <div class="text-sm">
+                <span class="text-gray-500 dark:text-gray-400">Well:</span>
+                <span class="text-gray-900 dark:text-white ml-1">{{ drill_bit.well.name }}</span>
+            </div>
+            {% endif %}
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">Not assigned to a customer</p>
+            {% endif %}
+        </div>
+
+        <!-- Location -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Location</h2>
+            {% if drill_bit.current_location %}
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mr-3">
+                    <i data-lucide="warehouse" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
+                </div>
+                <div>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.current_location.name }}</p>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">Location not specified</p>
+            {% endif %}
+        </div>
+
+        <!-- Audit Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Audit</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Registered</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ drill_bit.created_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% if drill_bit.created_by %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Registered By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ drill_bit.created_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Last Updated</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ drill_bit.updated_at|date:"M d, Y H:i" }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

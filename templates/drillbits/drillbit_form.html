@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        <li><a href="{% url 'dashboard:home' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Dashboard</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'workorders:drillbit_list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Drill Bits</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li class="text-gray-900 dark:text-white font-medium">{{ page_title }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            {% if object %}Edit drill bit information{% else %}Register a new drill bit{% endif %}
+        </p>
+    </div>
+    <a href="{% if object %}{% url 'workorders:drillbit_detail' object.pk %}{% else %}{% url 'workorders:drillbit_list' %}{% endif %}"
+       class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+        <i data-lucide="x" class="w-4 h-4 mr-2"></i>
+        Cancel
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- Form Errors -->
+    {% if form.errors %}
+    <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+        <div class="flex items-start">
+            <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 mr-3"></i>
+            <div>
+                <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Please correct the following errors:</h3>
+                <ul class="mt-2 text-sm text-red-700 dark:text-red-300 list-disc list-inside">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                        <li>{{ field.label }}: {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Form -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Identification -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Identification</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Serial Number -->
+                    {% if not object %}
+                    <div>
+                        <label for="id_serial_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Serial Number <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="serial_number" id="id_serial_number"
+                               value="{{ form.serial_number.value|default:'' }}"
+                               required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                               placeholder="e.g., BIT-2024-001">
+                    </div>
+                    {% endif %}
+
+                    <!-- Bit Type -->
+                    <div>
+                        <label for="id_bit_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Bit Type <span class="text-red-500">*</span>
+                        </label>
+                        <select name="bit_type" id="id_bit_type" required
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select type...</option>
+                            {% for value, label in form.fields.bit_type.choices %}
+                            <option value="{{ value }}" {% if form.bit_type.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Size -->
+                    <div>
+                        <label for="id_size" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Size (inches) <span class="text-red-500">*</span>
+                        </label>
+                        <input type="number" name="size" id="id_size"
+                               value="{{ form.size.value|default:'' }}"
+                               required step="0.001" min="0"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="e.g., 8.5">
+                    </div>
+
+                    <!-- IADC Code -->
+                    <div>
+                        <label for="id_iadc_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            IADC Code
+                        </label>
+                        <input type="text" name="iadc_code" id="id_iadc_code"
+                               value="{{ form.iadc_code.value|default:'' }}"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                               placeholder="e.g., M442">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Specifications -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Specifications</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Design -->
+                    <div>
+                        <label for="id_design" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Design
+                        </label>
+                        <select name="design" id="id_design"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select design...</option>
+                            {% for choice in form.fields.design.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.design.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.code }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Status -->
+                    <div>
+                        <label for="id_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Status
+                        </label>
+                        <select name="status" id="id_status"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            {% for value, label in form.fields.status.choices %}
+                            <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assignment -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Assignment</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Customer -->
+                    <div>
+                        <label for="id_customer" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Customer
+                        </label>
+                        <select name="customer" id="id_customer"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select customer...</option>
+                            {% for choice in form.fields.customer.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.customer.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Location -->
+                    <div>
+                        <label for="id_current_location" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Current Location
+                        </label>
+                        <select name="current_location" id="id_current_location"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select location...</option>
+                            {% for choice in form.fields.current_location.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.current_location.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Rig -->
+                    <div>
+                        <label for="id_rig" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Rig
+                        </label>
+                        <select name="rig" id="id_rig"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select rig...</option>
+                            {% for choice in form.fields.rig.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.rig.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Well -->
+                    <div>
+                        <label for="id_well" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Well
+                        </label>
+                        <select name="well" id="id_well"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select well...</option>
+                            {% for choice in form.fields.well.queryset %}
+                            <option value="{{ choice.pk }}" {% if form.well.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Usage Statistics (Edit only) -->
+            {% if object %}
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Usage Statistics</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Total Hours -->
+                    <div>
+                        <label for="id_total_hours" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Total Hours
+                        </label>
+                        <input type="number" name="total_hours" id="id_total_hours"
+                               value="{{ form.total_hours.value|default:'0' }}"
+                               step="0.01" min="0"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <!-- Total Footage -->
+                    <div>
+                        <label for="id_total_footage" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Total Footage (ft)
+                        </label>
+                        <input type="number" name="total_footage" id="id_total_footage"
+                               value="{{ form.total_footage.value|default:'0' }}"
+                               min="0"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <!-- Run Count -->
+                    <div>
+                        <label for="id_run_count" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Run Count
+                        </label>
+                        <input type="number" name="run_count" id="id_run_count"
+                               value="{{ form.run_count.value|default:'0' }}"
+                               min="0"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="space-y-6">
+            <!-- Actions -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                    {% if object %}Update Drill Bit{% else %}Register Drill Bit{% endif %}
+                </button>
+            </div>
+
+            <!-- Help -->
+            <div class="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-6">
+                <h3 class="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">
+                    <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                    Tips
+                </h3>
+                <ul class="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                    <li>Serial numbers must be unique</li>
+                    <li>QR code is auto-generated</li>
+                    <li>IADC codes follow standard format</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
