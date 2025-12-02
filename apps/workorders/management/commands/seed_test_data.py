@@ -124,9 +124,14 @@ class Command(BaseCommand):
                 user.set_password('testpass123')
                 user.save()
 
-                # Add role if the user model supports it
-                if hasattr(user, 'add_role'):
-                    user.add_role(role)
+                # Add role using UserRole model
+                try:
+                    from apps.accounts.models import Role, UserRole
+                    role_obj = Role.objects.get(code=role)
+                    UserRole.objects.get_or_create(user=user, role=role_obj)
+                    self.stdout.write(f'    Assigned role: {role}')
+                except Role.DoesNotExist:
+                    self.stdout.write(self.style.WARNING(f'    Role {role} not found - skipping role assignment'))
 
                 created_count += 1
                 self.stdout.write(f'  Created user: {user.username} ({role})')

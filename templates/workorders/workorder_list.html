@@ -144,7 +144,7 @@
                     </td>
                     <td class="px-6 py-4">
                         {% if wo.due_date %}
-                        <span class="{% if wo.due_date < today %}text-red-600 dark:text-red-400 font-medium{% else %}text-gray-600 dark:text-gray-400{% endif %}">
+                        <span class="{% if wo.is_overdue %}text-red-600 dark:text-red-400 font-medium{% else %}text-gray-600 dark:text-gray-400{% endif %}">
                             {{ wo.due_date|date:"M d, Y" }}
                         </span>
                         {% else %}

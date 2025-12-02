@@ -98,8 +98,8 @@ def user_roles(user):
     if not user or not user.is_authenticated:
         return ""
 
-    if hasattr(user, 'get_roles'):
-        roles = user.get_roles()
+    if hasattr(user, 'role_codes'):
+        roles = user.role_codes
         if roles:
             return ", ".join(roles)
 

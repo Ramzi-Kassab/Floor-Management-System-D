@@ -38,7 +38,7 @@ class RoleRequiredMixin(LoginRequiredMixin):
             return True
 
         if hasattr(user, 'has_any_role'):
-            return user.has_any_role(*self.required_roles)
+            return user.has_any_role(self.required_roles)
 
         if hasattr(user, 'has_role'):
             return any(user.has_role(role) for role in self.required_roles)
