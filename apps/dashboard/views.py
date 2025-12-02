@@ -137,9 +137,9 @@ def planner_dashboard(request):
         'pending_work_orders': pending_work_orders,
         'in_progress_work_orders': in_progress_work_orders,
         'overdue_work_orders': overdue_work_orders,
-        'pending_count': pending_work_orders.count() if hasattr(pending_work_orders, 'count') else len(pending_work_orders),
+        'pending_count': pending_work_orders.count(),
         'in_progress_count': WorkOrder.objects.filter(status='IN_PROGRESS').count(),
-        'overdue_count': overdue_work_orders.count() if hasattr(overdue_work_orders, 'count') else len(overdue_work_orders),
+        'overdue_count': overdue_work_orders.count(),
         'due_this_week': due_this_week,
     }
     return render(request, 'dashboard/planner.html', context)
@@ -200,12 +200,12 @@ def qc_dashboard(request):
 
     # Recent NCRs
     recent_ncrs = NCR.objects.select_related(
-        'work_order', 'raised_by'
+        'work_order', 'detected_by'
     ).order_by('-created_at')[:10]
 
     # Statistics
     open_ncrs = NCR.objects.filter(
-        status__in=['OPEN', 'IN_PROGRESS']
+        status__in=['OPEN', 'INVESTIGATING', 'PENDING_DISPOSITION', 'IN_REWORK']
     ).count()
 
     context = {

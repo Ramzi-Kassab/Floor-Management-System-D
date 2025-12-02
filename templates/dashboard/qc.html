@@ -131,7 +131,7 @@
                     <th class="pb-3 font-medium">NCR #</th>
                     <th class="pb-3 font-medium">Work Order</th>
                     <th class="pb-3 font-medium">Description</th>
-                    <th class="pb-3 font-medium">Raised By</th>
+                    <th class="pb-3 font-medium">Detected By</th>
                     <th class="pb-3 font-medium">Status</th>
                     <th class="pb-3 font-medium">Created</th>
                 </tr>
@@ -154,11 +154,11 @@
                         {% endif %}
                     </td>
                     <td class="py-3 text-gray-600 dark:text-gray-400 max-w-xs truncate">{{ ncr.description|truncatechars:50 }}</td>
-                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ ncr.raised_by.get_full_name|default:"--" }}</td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ ncr.detected_by.get_full_name|default:"--" }}</td>
                     <td class="py-3">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                             {% if ncr.status == 'OPEN' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
-                            {% elif ncr.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                            {% elif ncr.status == 'INVESTIGATING' or ncr.status == 'PENDING_DISPOSITION' or ncr.status == 'IN_REWORK' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
                             {% elif ncr.status == 'CLOSED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
                             {% else %}bg-gray-100 text-gray-800{% endif %}">
                             {{ ncr.get_status_display }}

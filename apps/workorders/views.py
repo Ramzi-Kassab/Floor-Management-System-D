@@ -13,6 +13,7 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.db.models import Q
+from django.conf import settings
 
 from .models import WorkOrder, DrillBit
 
@@ -110,7 +111,6 @@ class WorkOrderCreateView(LoginRequiredMixin, CreateView):
 
     def generate_wo_number(self):
         """Generate unique work order number."""
-        from django.conf import settings
         prefix = getattr(settings, 'ARDT_WO_NUMBER_PREFIX', 'WO')
         padding = getattr(settings, 'ARDT_WO_NUMBER_PADDING', 6)
 
