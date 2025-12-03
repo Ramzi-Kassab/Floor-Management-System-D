@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Bills of Materials - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Material lists for drill bit designs</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'technology:bom_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New BOM
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1">
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" name="q" value="{{ search_query }}" placeholder="Search BOMs..."
+                       class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            </div>
+        </div>
+        <div class="w-full md:w-40">
+            <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Statuses</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">Filter</button>
+    </form>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if boms %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">BOM Code</th>
+                    <th class="px-6 py-3 font-medium">Name</th>
+                    <th class="px-6 py-3 font-medium">Design</th>
+                    <th class="px-6 py-3 font-medium">Rev</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for bom in boms %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4">
+                        <a href="{% url 'technology:bom_detail' bom.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                            {{ bom.code }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white">{{ bom.name }}</td>
+                    <td class="px-6 py-4">
+                        <a href="{% url 'technology:design_detail' bom.design.pk %}" class="text-gray-600 dark:text-gray-400 hover:underline font-mono">
+                            {{ bom.design.code }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ bom.revision }}</td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% elif bom.status == 'DRAFT' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ bom.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex items-center justify-end space-x-2">
+                            <a href="{% url 'technology:bom_detail' bom.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'technology:bom_update' bom.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="list" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No BOMs found</h3>
+        <a href="{% url 'technology:bom_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create BOM
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
