@@ -57,13 +57,16 @@
                         No new notifications
                     </div>
                 </div>
+                <div class="p-2 border-t dark:border-gray-700">
+                    <a href="{% url 'notifications:notification_list' %}" class="block text-center text-sm text-blue-600 hover:underline">View All Notifications</a>
+                </div>
             </div>
         </div>
-        
+
         <!-- Tasks -->
-        <button class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+        <a href="{% url 'notifications:task_list' %}" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
             <i data-lucide="check-square" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
-        </button>
+        </a>
         
         <!-- User Menu -->
         <div x-data="{ open: false }" class="relative">

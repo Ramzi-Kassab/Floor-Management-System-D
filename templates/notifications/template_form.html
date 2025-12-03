@@ -57,7 +57,7 @@
                     {% if form.body_template.errors %}
                     <p class="text-red-600 text-sm mt-1">{{ form.body_template.errors.0 }}</p>
                     {% endif %}
-                    <p class="text-xs text-gray-500 mt-1">Use {{ "{{variable}}" }} for dynamic content</p>
+                    <p class="text-xs text-gray-500 mt-1">Use {% templatetag openvariable %}variable{% templatetag closevariable %} for dynamic content</p>
                 </div>
 
                 <div class="flex items-center">
