@@ -5163,3 +5163,2305 @@ class FieldIncident(models.Model):
         self.closed_by = None
         self.closure_notes = f"REOPENED: {reason}\n\nPrevious notes: {self.closure_notes}"
         self.save()
+
+
+# =============================================================================
+# SPRINT 5 - WEEK 3: FIELD DATA CAPTURE & INTEGRATION
+# =============================================================================
+
+
+class FieldDataEntry(models.Model):
+    """
+    Capture structured field data entries from technicians.
+
+    This model provides a flexible mechanism for capturing various types
+    of field data including measurements, observations, readings, and
+    custom data points. Supports validation rules and data templates.
+
+    Features:
+    - Multiple data types (numeric, text, boolean, date, selection)
+    - Validation rules per entry type
+    - Template-based data collection
+    - Batch entry support
+    - GPS location tagging
+    - Photo attachments
+
+    Integrates with:
+    - SiteVisit: Visit during which data was collected
+    - FieldDrillStringRun: Associated drilling run
+    - FieldTechnician: Technician who entered data
+    - ServiceSite: Location of data collection
+
+    ISO 9001 References:
+    - Clause 7.1.5: Monitoring and Measuring Resources
+    - Clause 8.5.1: Control of Production and Service Provision
+
+    Author: Sprint 5 Week 3 Implementation
+    Date: December 2024
+    """
+
+    class DataType(models.TextChoices):
+        """Type of data being captured"""
+        NUMERIC = "NUMERIC", "Numeric Value"
+        TEXT = "TEXT", "Text/String"
+        BOOLEAN = "BOOLEAN", "Yes/No"
+        DATE = "DATE", "Date"
+        DATETIME = "DATETIME", "Date and Time"
+        SELECTION = "SELECTION", "Selection from List"
+        MEASUREMENT = "MEASUREMENT", "Measurement with Unit"
+        COORDINATES = "COORDINATES", "GPS Coordinates"
+        PERCENTAGE = "PERCENTAGE", "Percentage"
+        CURRENCY = "CURRENCY", "Currency Amount"
+
+    class EntryCategory(models.TextChoices):
+        """Category of data entry"""
+        OPERATIONAL = "OPERATIONAL", "Operational Data"
+        SAFETY = "SAFETY", "Safety Observation"
+        QUALITY = "QUALITY", "Quality Check"
+        ENVIRONMENTAL = "ENVIRONMENTAL", "Environmental Data"
+        EQUIPMENT = "EQUIPMENT", "Equipment Reading"
+        INSPECTION = "INSPECTION", "Inspection Finding"
+        MEASUREMENT = "MEASUREMENT", "Measurement"
+        OBSERVATION = "OBSERVATION", "General Observation"
+        CUSTOMER = "CUSTOMER", "Customer Feedback"
+        OTHER = "OTHER", "Other"
+
+    class Status(models.TextChoices):
+        """Entry status"""
+        DRAFT = "DRAFT", "Draft"
+        SUBMITTED = "SUBMITTED", "Submitted"
+        VALIDATED = "VALIDATED", "Validated"
+        REJECTED = "REJECTED", "Rejected"
+        ARCHIVED = "ARCHIVED", "Archived"
+
+    # ===== IDENTIFICATION =====
+
+    entry_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique entry identifier (auto-generated: DATA-YYYY-####)"
+    )
+
+    # ===== RELATIONSHIPS =====
+
+    site_visit = models.ForeignKey(
+        'SiteVisit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='data_entries',
+        help_text="Site visit during which data was collected"
+    )
+
+    field_run = models.ForeignKey(
+        'FieldDrillStringRun',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='data_entries',
+        help_text="Associated drilling run"
+    )
+
+    service_site = models.ForeignKey(
+        'ServiceSite',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='data_entries',
+        help_text="Location where data was collected"
+    )
+
+    entered_by = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='data_entries',
+        help_text="Technician who entered the data"
+    )
+
+    validated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='validated_data_entries',
+        help_text="User who validated the entry"
+    )
+
+    # ===== ENTRY DETAILS =====
+
+    data_type = models.CharField(
+        max_length=20,
+        choices=DataType.choices,
+        default=DataType.TEXT,
+        help_text="Type of data"
+    )
+
+    category = models.CharField(
+        max_length=20,
+        choices=EntryCategory.choices,
+        default=EntryCategory.OBSERVATION,
+        help_text="Category of entry"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+        help_text="Entry status"
+    )
+
+    # ===== DATA DEFINITION =====
+
+    field_name = models.CharField(
+        max_length=200,
+        help_text="Name/label of the data field"
+    )
+
+    field_code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Short code for the field"
+    )
+
+    description = models.TextField(
+        blank=True,
+        help_text="Description of what this data represents"
+    )
+
+    # ===== DATA VALUES =====
+
+    value_text = models.TextField(
+        blank=True,
+        help_text="Text value"
+    )
+
+    value_numeric = models.DecimalField(
+        max_digits=15,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Numeric value"
+    )
+
+    value_boolean = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text="Boolean value"
+    )
+
+    value_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date value"
+    )
+
+    value_datetime = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="DateTime value"
+    )
+
+    # ===== MEASUREMENT DETAILS =====
+
+    unit_of_measure = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Unit of measurement (e.g., ft, psi, rpm)"
+    )
+
+    min_value = models.DecimalField(
+        max_digits=15,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Minimum acceptable value"
+    )
+
+    max_value = models.DecimalField(
+        max_digits=15,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Maximum acceptable value"
+    )
+
+    target_value = models.DecimalField(
+        max_digits=15,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Target/expected value"
+    )
+
+    # ===== LOCATION =====
+
+    latitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        help_text="GPS latitude"
+    )
+
+    longitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        help_text="GPS longitude"
+    )
+
+    location_accuracy = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="GPS accuracy in meters"
+    )
+
+    # ===== TIMING =====
+
+    entry_date = models.DateField(
+        help_text="Date data was collected"
+    )
+
+    entry_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Time data was collected"
+    )
+
+    # ===== VALIDATION =====
+
+    is_validated = models.BooleanField(
+        default=False,
+        help_text="Entry has been validated"
+    )
+
+    validated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When entry was validated"
+    )
+
+    validation_notes = models.TextField(
+        blank=True,
+        help_text="Notes from validation"
+    )
+
+    is_out_of_range = models.BooleanField(
+        default=False,
+        help_text="Value is outside acceptable range"
+    )
+
+    out_of_range_reason = models.TextField(
+        blank=True,
+        help_text="Explanation for out-of-range value"
+    )
+
+    # ===== NOTES =====
+
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes"
+    )
+
+    # ===== AUDIT =====
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this entry was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this entry was last updated"
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_data_entries',
+        help_text="User who created this entry"
+    )
+
+    class Meta:
+        db_table = "field_data_entries"
+        ordering = ['-entry_date', '-entry_time']
+        verbose_name = "Field Data Entry"
+        verbose_name_plural = "Field Data Entries"
+        indexes = [
+            models.Index(fields=['entry_number']),
+            models.Index(fields=['site_visit', 'entry_date']),
+            models.Index(fields=['category', 'status']),
+            models.Index(fields=['field_name']),
+        ]
+        permissions = [
+            ("can_enter_field_data", "Can enter field data"),
+            ("can_validate_field_data", "Can validate field data"),
+        ]
+
+    def __str__(self):
+        return f"{self.entry_number} - {self.field_name}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate entry number and check ranges"""
+        if not self.entry_number:
+            self.entry_number = self._generate_entry_number()
+
+        # Check if value is out of range
+        self._check_range()
+
+        super().save(*args, **kwargs)
+
+    def _generate_entry_number(self):
+        """Generate unique entry number: DATA-YYYY-####"""
+        year = timezone.now().year
+
+        last_entry = FieldDataEntry.objects.filter(
+            entry_number__startswith=f"DATA-{year}-"
+        ).order_by('-entry_number').first()
+
+        if last_entry:
+            try:
+                last_num = int(last_entry.entry_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"DATA-{year}-{new_num:04d}"
+
+    def _check_range(self):
+        """Check if numeric value is within acceptable range"""
+        if self.value_numeric is not None:
+            if self.min_value is not None and self.value_numeric < self.min_value:
+                self.is_out_of_range = True
+            elif self.max_value is not None and self.value_numeric > self.max_value:
+                self.is_out_of_range = True
+            else:
+                self.is_out_of_range = False
+
+    @property
+    def display_value(self):
+        """Get the appropriate display value based on data type"""
+        if self.data_type == self.DataType.NUMERIC:
+            if self.value_numeric is not None:
+                if self.unit_of_measure:
+                    return f"{self.value_numeric} {self.unit_of_measure}"
+                return str(self.value_numeric)
+        elif self.data_type == self.DataType.BOOLEAN:
+            if self.value_boolean is not None:
+                return "Yes" if self.value_boolean else "No"
+        elif self.data_type == self.DataType.DATE:
+            if self.value_date:
+                return self.value_date.strftime("%Y-%m-%d")
+        elif self.data_type == self.DataType.DATETIME:
+            if self.value_datetime:
+                return self.value_datetime.strftime("%Y-%m-%d %H:%M")
+        return self.value_text or ""
+
+    @property
+    def variance_from_target(self):
+        """Calculate variance from target value"""
+        if self.target_value and self.value_numeric:
+            return float(self.value_numeric) - float(self.target_value)
+        return None
+
+    def validate_entry(self, user, notes=None):
+        """Validate the data entry"""
+        if self.status != self.Status.SUBMITTED:
+            raise ValidationError("Can only validate submitted entries")
+
+        self.status = self.Status.VALIDATED
+        self.is_validated = True
+        self.validated_by = user
+        self.validated_at = timezone.now()
+        if notes:
+            self.validation_notes = notes
+        self.save()
+
+    def reject_entry(self, user, reason):
+        """Reject the data entry"""
+        if self.status != self.Status.SUBMITTED:
+            raise ValidationError("Can only reject submitted entries")
+
+        self.status = self.Status.REJECTED
+        self.validated_by = user
+        self.validated_at = timezone.now()
+        self.validation_notes = f"REJECTED: {reason}"
+        self.save()
+
+
+class FieldPhoto(models.Model):
+    """
+    Manage photos captured during field operations.
+
+    This model stores metadata about photos taken in the field,
+    including location, subject, and categorization. Supports
+    linking to various field entities.
+
+    Features:
+    - GPS location tagging
+    - Multiple category support
+    - Linking to field entities
+    - Annotation support
+    - Thumbnail management
+
+    Integrates with:
+    - SiteVisit: Visit during which photo was taken
+    - FieldInspection: Inspection documentation
+    - FieldIncident: Incident documentation
+    - DrillBit: Equipment photos
+    - FieldTechnician: Photographer
+
+    ISO 9001 References:
+    - Clause 7.5: Documented Information
+    - Clause 8.5.2: Identification and Traceability
+
+    Author: Sprint 5 Week 3 Implementation
+    Date: December 2024
+    """
+
+    class PhotoCategory(models.TextChoices):
+        """Category of photo"""
+        EQUIPMENT = "EQUIPMENT", "Equipment"
+        BIT_CONDITION = "BIT_CONDITION", "Bit Condition"
+        DULL_GRADE = "DULL_GRADE", "Dull Grade Documentation"
+        DAMAGE = "DAMAGE", "Damage Documentation"
+        SITE = "SITE", "Site/Location"
+        SAFETY = "SAFETY", "Safety Related"
+        INCIDENT = "INCIDENT", "Incident Documentation"
+        BEFORE_AFTER = "BEFORE_AFTER", "Before/After Comparison"
+        MEASUREMENT = "MEASUREMENT", "Measurement/Reading"
+        GENERAL = "GENERAL", "General"
+        CUSTOMER_SIGN = "CUSTOMER_SIGN", "Customer Signature"
+        OTHER = "OTHER", "Other"
+
+    class PhotoStatus(models.TextChoices):
+        """Photo status"""
+        PENDING = "PENDING", "Pending Upload"
+        UPLOADED = "UPLOADED", "Uploaded"
+        PROCESSED = "PROCESSED", "Processed"
+        ARCHIVED = "ARCHIVED", "Archived"
+        DELETED = "DELETED", "Marked for Deletion"
+
+    # ===== IDENTIFICATION =====
+
+    photo_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique photo identifier (auto-generated: PHOTO-YYYY-####)"
+    )
+
+    # ===== RELATIONSHIPS =====
+
+    site_visit = models.ForeignKey(
+        'SiteVisit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='photos',
+        help_text="Site visit during which photo was taken"
+    )
+
+    field_inspection = models.ForeignKey(
+        'FieldInspection',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='photos',
+        help_text="Associated inspection"
+    )
+
+    field_incident = models.ForeignKey(
+        'FieldIncident',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='photos',
+        help_text="Associated incident"
+    )
+
+    drill_bit = models.ForeignKey(
+        'workorders.DrillBit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='field_photos',
+        help_text="Drill bit in photo"
+    )
+
+    service_site = models.ForeignKey(
+        'ServiceSite',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='photos',
+        help_text="Location where photo was taken"
+    )
+
+    taken_by = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='photos_taken',
+        help_text="Technician who took the photo"
+    )
+
+    # ===== PHOTO DETAILS =====
+
+    category = models.CharField(
+        max_length=20,
+        choices=PhotoCategory.choices,
+        default=PhotoCategory.GENERAL,
+        help_text="Photo category"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=PhotoStatus.choices,
+        default=PhotoStatus.PENDING,
+        db_index=True,
+        help_text="Photo status"
+    )
+
+    title = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Photo title"
+    )
+
+    description = models.TextField(
+        blank=True,
+        help_text="Photo description"
+    )
+
+    # ===== FILE INFORMATION =====
+
+    file_path = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Path to photo file"
+    )
+
+    file_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Original file name"
+    )
+
+    file_size = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="File size in bytes"
+    )
+
+    file_type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="MIME type"
+    )
+
+    thumbnail_path = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Path to thumbnail"
+    )
+
+    # ===== IMAGE PROPERTIES =====
+
+    width = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Image width in pixels"
+    )
+
+    height = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Image height in pixels"
+    )
+
+    orientation = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Image orientation"
+    )
+
+    # ===== LOCATION =====
+
+    latitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        help_text="GPS latitude where photo was taken"
+    )
+
+    longitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        help_text="GPS longitude where photo was taken"
+    )
+
+    location_accuracy = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="GPS accuracy in meters"
+    )
+
+    # ===== TIMING =====
+
+    taken_at = models.DateTimeField(
+        help_text="When photo was taken"
+    )
+
+    uploaded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When photo was uploaded"
+    )
+
+    # ===== ANNOTATIONS =====
+
+    has_annotations = models.BooleanField(
+        default=False,
+        help_text="Photo has annotations"
+    )
+
+    annotations = models.TextField(
+        blank=True,
+        help_text="JSON-encoded annotations"
+    )
+
+    # ===== TAGS =====
+
+    tags = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Comma-separated tags"
+    )
+
+    # ===== SEQUENCE =====
+
+    sequence_number = models.IntegerField(
+        default=1,
+        help_text="Order in sequence (for before/after, etc.)"
+    )
+
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="Primary photo for the entity"
+    )
+
+    # ===== AUDIT =====
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this record was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this record was last updated"
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_field_photos',
+        help_text="User who created this record"
+    )
+
+    class Meta:
+        db_table = "field_photos"
+        ordering = ['-taken_at']
+        verbose_name = "Field Photo"
+        verbose_name_plural = "Field Photos"
+        indexes = [
+            models.Index(fields=['photo_number']),
+            models.Index(fields=['site_visit', 'category']),
+            models.Index(fields=['drill_bit']),
+            models.Index(fields=['taken_at']),
+        ]
+        permissions = [
+            ("can_upload_photos", "Can upload field photos"),
+            ("can_delete_photos", "Can delete field photos"),
+            ("can_annotate_photos", "Can annotate photos"),
+        ]
+
+    def __str__(self):
+        return f"{self.photo_number} - {self.title or self.category}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate photo number"""
+        if not self.photo_number:
+            self.photo_number = self._generate_photo_number()
+        super().save(*args, **kwargs)
+
+    def _generate_photo_number(self):
+        """Generate unique photo number: PHOTO-YYYY-####"""
+        year = timezone.now().year
+
+        last_photo = FieldPhoto.objects.filter(
+            photo_number__startswith=f"PHOTO-{year}-"
+        ).order_by('-photo_number').first()
+
+        if last_photo:
+            try:
+                last_num = int(last_photo.photo_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"PHOTO-{year}-{new_num:04d}"
+
+    @property
+    def has_location(self):
+        """Check if photo has GPS coordinates"""
+        return self.latitude is not None and self.longitude is not None
+
+    @property
+    def file_size_mb(self):
+        """Get file size in MB"""
+        if self.file_size:
+            return round(self.file_size / (1024 * 1024), 2)
+        return None
+
+    def mark_uploaded(self):
+        """Mark photo as uploaded"""
+        self.status = self.PhotoStatus.UPLOADED
+        self.uploaded_at = timezone.now()
+        self.save()
+
+
+class FieldDocument(models.Model):
+    """
+    Manage documents associated with field operations.
+
+    This model tracks documents such as reports, forms, certificates,
+    and other paperwork generated or collected in the field.
+
+    Features:
+    - Multiple document types
+    - Version control
+    - Digital signatures
+    - Approval workflow
+    - Template support
+
+    Integrates with:
+    - SiteVisit: Visit-related documents
+    - FieldServiceRequest: Request documents
+    - ServiceReport: Report attachments
+    - FieldTechnician: Document creator
+
+    ISO 9001 References:
+    - Clause 7.5: Documented Information
+    - Clause 7.5.2: Creating and Updating
+
+    Author: Sprint 5 Week 3 Implementation
+    Date: December 2024
+    """
+
+    class DocumentType(models.TextChoices):
+        """Type of document"""
+        REPORT = "REPORT", "Report"
+        FORM = "FORM", "Form"
+        CERTIFICATE = "CERTIFICATE", "Certificate"
+        PERMIT = "PERMIT", "Permit"
+        PROCEDURE = "PROCEDURE", "Procedure"
+        CHECKLIST = "CHECKLIST", "Checklist"
+        DRAWING = "DRAWING", "Drawing/Diagram"
+        SPECIFICATION = "SPECIFICATION", "Specification"
+        INVOICE = "INVOICE", "Invoice"
+        DELIVERY_NOTE = "DELIVERY_NOTE", "Delivery Note"
+        SIGN_OFF = "SIGN_OFF", "Sign-Off Document"
+        OTHER = "OTHER", "Other"
+
+    class Status(models.TextChoices):
+        """Document status"""
+        DRAFT = "DRAFT", "Draft"
+        PENDING_REVIEW = "PENDING_REVIEW", "Pending Review"
+        REVIEWED = "REVIEWED", "Reviewed"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+        SUPERSEDED = "SUPERSEDED", "Superseded"
+        ARCHIVED = "ARCHIVED", "Archived"
+
+    # ===== IDENTIFICATION =====
+
+    document_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique document identifier (auto-generated: DOC-YYYY-####)"
+    )
+
+    # ===== RELATIONSHIPS =====
+
+    site_visit = models.ForeignKey(
+        'SiteVisit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documents',
+        help_text="Associated site visit"
+    )
+
+    service_request = models.ForeignKey(
+        'FieldServiceRequest',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documents',
+        help_text="Associated service request"
+    )
+
+    service_report = models.ForeignKey(
+        'ServiceReport',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='attachments',
+        help_text="Associated service report"
+    )
+
+    service_site = models.ForeignKey(
+        'ServiceSite',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documents',
+        help_text="Associated service site"
+    )
+
+    created_by_technician = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_documents',
+        help_text="Technician who created the document"
+    )
+
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_field_documents',
+        help_text="User who approved the document"
+    )
+
+    # ===== DOCUMENT DETAILS =====
+
+    document_type = models.CharField(
+        max_length=20,
+        choices=DocumentType.choices,
+        default=DocumentType.REPORT,
+        help_text="Type of document"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+        help_text="Document status"
+    )
+
+    title = models.CharField(
+        max_length=300,
+        help_text="Document title"
+    )
+
+    description = models.TextField(
+        blank=True,
+        help_text="Document description"
+    )
+
+    # ===== FILE INFORMATION =====
+
+    file_path = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Path to document file"
+    )
+
+    file_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Original file name"
+    )
+
+    file_size = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="File size in bytes"
+    )
+
+    file_type = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="MIME type"
+    )
+
+    # ===== VERSION CONTROL =====
+
+    version = models.CharField(
+        max_length=20,
+        default="1.0",
+        help_text="Document version"
+    )
+
+    revision_number = models.IntegerField(
+        default=1,
+        help_text="Revision number"
+    )
+
+    previous_version = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='newer_versions',
+        help_text="Previous version of this document"
+    )
+
+    # ===== DATES =====
+
+    document_date = models.DateField(
+        help_text="Date on the document"
+    )
+
+    effective_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="When document becomes effective"
+    )
+
+    expiry_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="When document expires"
+    )
+
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When document was approved"
+    )
+
+    # ===== SIGNATURES =====
+
+    requires_signature = models.BooleanField(
+        default=False,
+        help_text="Document requires signature"
+    )
+
+    is_signed = models.BooleanField(
+        default=False,
+        help_text="Document has been signed"
+    )
+
+    signed_by = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Who signed the document"
+    )
+
+    signed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When document was signed"
+    )
+
+    customer_signed = models.BooleanField(
+        default=False,
+        help_text="Customer has signed"
+    )
+
+    customer_signature_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Customer signatory name"
+    )
+
+    customer_signed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When customer signed"
+    )
+
+    # ===== CONFIDENTIALITY =====
+
+    is_confidential = models.BooleanField(
+        default=False,
+        help_text="Document is confidential"
+    )
+
+    access_level = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Required access level"
+    )
+
+    # ===== NOTES =====
+
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes"
+    )
+
+    review_notes = models.TextField(
+        blank=True,
+        help_text="Notes from review"
+    )
+
+    # ===== AUDIT =====
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this record was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this record was last updated"
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_field_documents',
+        help_text="User who created this record"
+    )
+
+    class Meta:
+        db_table = "field_documents"
+        ordering = ['-document_date', '-created_at']
+        verbose_name = "Field Document"
+        verbose_name_plural = "Field Documents"
+        indexes = [
+            models.Index(fields=['document_number']),
+            models.Index(fields=['document_type', 'status']),
+            models.Index(fields=['site_visit']),
+            models.Index(fields=['document_date']),
+        ]
+        permissions = [
+            ("can_create_documents", "Can create field documents"),
+            ("can_approve_documents", "Can approve field documents"),
+            ("can_view_confidential", "Can view confidential documents"),
+        ]
+
+    def __str__(self):
+        return f"{self.document_number} - {self.title}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate document number"""
+        if not self.document_number:
+            self.document_number = self._generate_document_number()
+        super().save(*args, **kwargs)
+
+    def _generate_document_number(self):
+        """Generate unique document number: DOC-YYYY-####"""
+        year = timezone.now().year
+
+        last_doc = FieldDocument.objects.filter(
+            document_number__startswith=f"DOC-{year}-"
+        ).order_by('-document_number').first()
+
+        if last_doc:
+            try:
+                last_num = int(last_doc.document_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"DOC-{year}-{new_num:04d}"
+
+    @property
+    def is_expired(self):
+        """Check if document has expired"""
+        if self.expiry_date:
+            return timezone.now().date() > self.expiry_date
+        return False
+
+    @property
+    def file_size_mb(self):
+        """Get file size in MB"""
+        if self.file_size:
+            return round(self.file_size / (1024 * 1024), 2)
+        return None
+
+    def approve(self, user, notes=None):
+        """Approve the document"""
+        if self.status not in [self.Status.PENDING_REVIEW, self.Status.REVIEWED]:
+            raise ValidationError("Can only approve documents pending review or reviewed")
+
+        self.status = self.Status.APPROVED
+        self.approved_by = user
+        self.approved_at = timezone.now()
+        if notes:
+            self.review_notes = notes
+        self.save()
+
+    def create_new_version(self):
+        """Create a new version of this document"""
+        new_doc = FieldDocument.objects.create(
+            document_type=self.document_type,
+            title=self.title,
+            description=self.description,
+            site_visit=self.site_visit,
+            service_request=self.service_request,
+            service_site=self.service_site,
+            document_date=timezone.now().date(),
+            version=f"{float(self.version) + 0.1:.1f}",
+            revision_number=self.revision_number + 1,
+            previous_version=self,
+            created_by=self.created_by,
+        )
+
+        # Mark this version as superseded
+        self.status = self.Status.SUPERSEDED
+        self.save()
+
+        return new_doc
+
+
+class GPSLocation(models.Model):
+    """
+    Track GPS locations and movements during field operations.
+
+    This model records GPS coordinates for tracking personnel,
+    equipment, and vehicles in the field. Supports geofencing
+    and route tracking.
+
+    Features:
+    - Real-time location tracking
+    - Historical location data
+    - Speed and heading tracking
+    - Geofencing support
+    - Battery and signal quality
+
+    Integrates with:
+    - FieldTechnician: Technician being tracked
+    - SiteVisit: Location during visits
+    - FieldDrillStringRun: Equipment location
+
+    ISO 9001 References:
+    - Clause 8.5.2: Identification and Traceability
+
+    Author: Sprint 5 Week 3 Implementation
+    Date: December 2024
+    """
+
+    class LocationType(models.TextChoices):
+        """Type of location record"""
+        AUTOMATIC = "AUTOMATIC", "Automatic Update"
+        MANUAL = "MANUAL", "Manual Check-in"
+        CHECK_IN = "CHECK_IN", "Site Check-in"
+        CHECK_OUT = "CHECK_OUT", "Site Check-out"
+        WAYPOINT = "WAYPOINT", "Waypoint"
+        ALERT = "ALERT", "Alert Location"
+
+    class SourceDevice(models.TextChoices):
+        """Source of GPS data"""
+        PHONE = "PHONE", "Mobile Phone"
+        TABLET = "TABLET", "Tablet"
+        GPS_TRACKER = "GPS_TRACKER", "GPS Tracker Device"
+        VEHICLE = "VEHICLE", "Vehicle GPS"
+        MANUAL = "MANUAL", "Manual Entry"
+
+    # ===== RELATIONSHIPS =====
+
+    field_technician = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='gps_locations',
+        help_text="Technician being tracked"
+    )
+
+    site_visit = models.ForeignKey(
+        'SiteVisit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='gps_locations',
+        help_text="Associated site visit"
+    )
+
+    service_site = models.ForeignKey(
+        'ServiceSite',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='gps_locations',
+        help_text="Nearby service site"
+    )
+
+    # ===== LOCATION DATA =====
+
+    latitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        db_index=True,
+        help_text="GPS latitude"
+    )
+
+    longitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        db_index=True,
+        help_text="GPS longitude"
+    )
+
+    altitude = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Altitude in meters"
+    )
+
+    accuracy = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Horizontal accuracy in meters"
+    )
+
+    altitude_accuracy = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Vertical accuracy in meters"
+    )
+
+    # ===== MOVEMENT DATA =====
+
+    speed = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Speed in km/h"
+    )
+
+    heading = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Heading in degrees (0-360)"
+    )
+
+    # ===== TIMING =====
+
+    recorded_at = models.DateTimeField(
+        db_index=True,
+        help_text="When location was recorded"
+    )
+
+    device_timestamp = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp from device"
+    )
+
+    # ===== RECORD TYPE =====
+
+    location_type = models.CharField(
+        max_length=20,
+        choices=LocationType.choices,
+        default=LocationType.AUTOMATIC,
+        help_text="Type of location record"
+    )
+
+    source_device = models.CharField(
+        max_length=20,
+        choices=SourceDevice.choices,
+        default=SourceDevice.PHONE,
+        help_text="Source of GPS data"
+    )
+
+    device_id = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Device identifier"
+    )
+
+    # ===== DEVICE STATUS =====
+
+    battery_level = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Battery level percentage"
+    )
+
+    signal_strength = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Signal strength (dBm)"
+    )
+
+    satellites_used = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of satellites used"
+    )
+
+    # ===== GEOFENCING =====
+
+    is_inside_geofence = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text="Location is inside designated geofence"
+    )
+
+    geofence_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Name of geofence if applicable"
+    )
+
+    distance_from_site = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Distance from service site in meters"
+    )
+
+    # ===== ADDRESS =====
+
+    address = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Reverse geocoded address"
+    )
+
+    # ===== NOTES =====
+
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes about this location"
+    )
+
+    # ===== AUDIT =====
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this record was created"
+    )
+
+    class Meta:
+        db_table = "gps_locations"
+        ordering = ['-recorded_at']
+        verbose_name = "GPS Location"
+        verbose_name_plural = "GPS Locations"
+        indexes = [
+            models.Index(fields=['field_technician', 'recorded_at']),
+            models.Index(fields=['site_visit']),
+            models.Index(fields=['recorded_at']),
+            models.Index(fields=['latitude', 'longitude']),
+        ]
+        permissions = [
+            ("can_view_gps_tracking", "Can view GPS tracking data"),
+            ("can_manage_geofencing", "Can manage geofencing"),
+        ]
+
+    def __str__(self):
+        return f"{self.field_technician} @ {self.latitude}, {self.longitude} - {self.recorded_at}"
+
+    @property
+    def coordinates(self):
+        """Get coordinates as tuple"""
+        return (float(self.latitude), float(self.longitude))
+
+    @property
+    def has_movement_data(self):
+        """Check if record has movement data"""
+        return self.speed is not None or self.heading is not None
+
+    def distance_to(self, other_lat, other_lon):
+        """Calculate distance to another point using Haversine formula"""
+        from math import radians, sin, cos, sqrt, atan2
+
+        R = 6371000  # Earth's radius in meters
+
+        lat1, lon1 = radians(float(self.latitude)), radians(float(self.longitude))
+        lat2, lon2 = radians(float(other_lat)), radians(float(other_lon))
+
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+
+        a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+        c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        return R * c
+
+
+class FieldWorkOrder(models.Model):
+    """
+    Field work orders for on-site service activities.
+
+    This model manages work orders created and executed in the field,
+    tracking tasks, materials, labor, and completion status.
+
+    Features:
+    - Task-based work breakdown
+    - Material tracking
+    - Labor time recording
+    - Approval workflow
+    - Cost tracking
+
+    Integrates with:
+    - FieldServiceRequest: Parent request
+    - SiteVisit: Execution visit
+    - FieldTechnician: Assigned workers
+    - ServiceSite: Work location
+
+    ISO 9001 References:
+    - Clause 8.5.1: Control of Production and Service Provision
+    - Clause 8.5.6: Control of Changes
+
+    Author: Sprint 5 Week 3 Implementation
+    Date: December 2024
+    """
+
+    class Status(models.TextChoices):
+        """Work order status"""
+        DRAFT = "DRAFT", "Draft"
+        PENDING = "PENDING", "Pending Approval"
+        APPROVED = "APPROVED", "Approved"
+        ASSIGNED = "ASSIGNED", "Assigned"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        ON_HOLD = "ON_HOLD", "On Hold"
+        COMPLETED = "COMPLETED", "Completed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    class Priority(models.TextChoices):
+        """Priority levels"""
+        LOW = "LOW", "Low"
+        NORMAL = "NORMAL", "Normal"
+        HIGH = "HIGH", "High"
+        URGENT = "URGENT", "Urgent"
+        EMERGENCY = "EMERGENCY", "Emergency"
+
+    class WorkType(models.TextChoices):
+        """Type of work"""
+        INSPECTION = "INSPECTION", "Inspection"
+        REPAIR = "REPAIR", "Repair"
+        MAINTENANCE = "MAINTENANCE", "Maintenance"
+        INSTALLATION = "INSTALLATION", "Installation"
+        REPLACEMENT = "REPLACEMENT", "Replacement"
+        CALIBRATION = "CALIBRATION", "Calibration"
+        TRAINING = "TRAINING", "Training"
+        CONSULTATION = "CONSULTATION", "Consultation"
+        OTHER = "OTHER", "Other"
+
+    # ===== IDENTIFICATION =====
+
+    work_order_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique work order identifier (auto-generated: FWO-YYYY-####)"
+    )
+
+    # ===== RELATIONSHIPS =====
+
+    service_request = models.ForeignKey(
+        'FieldServiceRequest',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='work_orders',
+        help_text="Parent service request"
+    )
+
+    site_visit = models.ForeignKey(
+        'SiteVisit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='work_orders',
+        help_text="Associated site visit"
+    )
+
+    service_site = models.ForeignKey(
+        'ServiceSite',
+        on_delete=models.PROTECT,
+        related_name='work_orders',
+        help_text="Work location"
+    )
+
+    customer = models.ForeignKey(
+        'Customer',
+        on_delete=models.PROTECT,
+        related_name='field_work_orders',
+        help_text="Customer"
+    )
+
+    assigned_technician = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_work_orders',
+        help_text="Primary assigned technician"
+    )
+
+    additional_technicians = models.ManyToManyField(
+        'FieldTechnician',
+        blank=True,
+        related_name='supporting_work_orders',
+        help_text="Additional technicians"
+    )
+
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_field_work_orders',
+        help_text="User who approved the work order"
+    )
+
+    # ===== WORK ORDER DETAILS =====
+
+    work_type = models.CharField(
+        max_length=20,
+        choices=WorkType.choices,
+        default=WorkType.MAINTENANCE,
+        help_text="Type of work"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+        help_text="Work order status"
+    )
+
+    priority = models.CharField(
+        max_length=20,
+        choices=Priority.choices,
+        default=Priority.NORMAL,
+        help_text="Priority level"
+    )
+
+    title = models.CharField(
+        max_length=300,
+        help_text="Work order title"
+    )
+
+    description = models.TextField(
+        help_text="Detailed description of work"
+    )
+
+    scope_of_work = models.TextField(
+        blank=True,
+        help_text="Scope of work to be performed"
+    )
+
+    # ===== SCHEDULING =====
+
+    requested_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Requested completion date"
+    )
+
+    scheduled_start = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Scheduled start time"
+    )
+
+    scheduled_end = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Scheduled end time"
+    )
+
+    actual_start = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Actual start time"
+    )
+
+    actual_end = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Actual end time"
+    )
+
+    estimated_hours = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Estimated hours"
+    )
+
+    actual_hours = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Actual hours worked"
+    )
+
+    # ===== COST TRACKING =====
+
+    estimated_labor_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Estimated labor cost"
+    )
+
+    estimated_material_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Estimated material cost"
+    )
+
+    actual_labor_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Actual labor cost"
+    )
+
+    actual_material_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Actual material cost"
+    )
+
+    # ===== COMPLETION =====
+
+    work_performed = models.TextField(
+        blank=True,
+        help_text="Description of work performed"
+    )
+
+    completion_notes = models.TextField(
+        blank=True,
+        help_text="Completion notes"
+    )
+
+    issues_found = models.TextField(
+        blank=True,
+        help_text="Issues found during work"
+    )
+
+    recommendations = models.TextField(
+        blank=True,
+        help_text="Recommendations for follow-up"
+    )
+
+    follow_up_required = models.BooleanField(
+        default=False,
+        help_text="Follow-up work is required"
+    )
+
+    # ===== CUSTOMER SIGN-OFF =====
+
+    customer_signoff = models.BooleanField(
+        default=False,
+        help_text="Customer has signed off"
+    )
+
+    customer_signoff_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Customer signatory name"
+    )
+
+    customer_signoff_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When customer signed off"
+    )
+
+    customer_feedback = models.TextField(
+        blank=True,
+        help_text="Customer feedback"
+    )
+
+    customer_rating = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Customer satisfaction rating (1-5)"
+    )
+
+    # ===== AUDIT =====
+
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When work order was approved"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this record was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this record was last updated"
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_field_work_orders',
+        help_text="User who created this record"
+    )
+
+    class Meta:
+        db_table = "field_work_orders"
+        ordering = ['-created_at']
+        verbose_name = "Field Work Order"
+        verbose_name_plural = "Field Work Orders"
+        indexes = [
+            models.Index(fields=['work_order_number']),
+            models.Index(fields=['status', 'priority']),
+            models.Index(fields=['customer', 'status']),
+            models.Index(fields=['assigned_technician', 'status']),
+            models.Index(fields=['scheduled_start']),
+        ]
+        permissions = [
+            ("can_create_field_work_orders", "Can create field work orders"),
+            ("can_approve_field_work_orders", "Can approve field work orders"),
+            ("can_assign_technicians", "Can assign technicians to work orders"),
+        ]
+
+    def __str__(self):
+        return f"{self.work_order_number} - {self.title}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate work order number"""
+        if not self.work_order_number:
+            self.work_order_number = self._generate_work_order_number()
+        super().save(*args, **kwargs)
+
+    def _generate_work_order_number(self):
+        """Generate unique work order number: FWO-YYYY-####"""
+        year = timezone.now().year
+
+        last_wo = FieldWorkOrder.objects.filter(
+            work_order_number__startswith=f"FWO-{year}-"
+        ).order_by('-work_order_number').first()
+
+        if last_wo:
+            try:
+                last_num = int(last_wo.work_order_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"FWO-{year}-{new_num:04d}"
+
+    # ===== PROPERTIES =====
+
+    @property
+    def total_estimated_cost(self):
+        """Calculate total estimated cost"""
+        labor = self.estimated_labor_cost or Decimal('0')
+        material = self.estimated_material_cost or Decimal('0')
+        return labor + material
+
+    @property
+    def total_actual_cost(self):
+        """Calculate total actual cost"""
+        labor = self.actual_labor_cost or Decimal('0')
+        material = self.actual_material_cost or Decimal('0')
+        return labor + material
+
+    @property
+    def cost_variance(self):
+        """Calculate cost variance"""
+        if self.total_estimated_cost > 0:
+            return self.total_actual_cost - self.total_estimated_cost
+        return None
+
+    @property
+    def is_overdue(self):
+        """Check if work order is overdue"""
+        if self.requested_date and self.status not in [self.Status.COMPLETED, self.Status.CANCELLED]:
+            return timezone.now().date() > self.requested_date
+        return False
+
+    @property
+    def duration_hours(self):
+        """Calculate actual duration in hours"""
+        if self.actual_start and self.actual_end:
+            delta = self.actual_end - self.actual_start
+            return round(delta.total_seconds() / 3600, 2)
+        return None
+
+    # ===== WORKFLOW METHODS =====
+
+    def approve(self, user):
+        """Approve the work order"""
+        if self.status != self.Status.PENDING:
+            raise ValidationError("Can only approve pending work orders")
+
+        self.status = self.Status.APPROVED
+        self.approved_by = user
+        self.approved_at = timezone.now()
+        self.save()
+
+    def start_work(self):
+        """Start the work order"""
+        if self.status not in [self.Status.APPROVED, self.Status.ASSIGNED]:
+            raise ValidationError("Can only start approved or assigned work orders")
+
+        self.status = self.Status.IN_PROGRESS
+        self.actual_start = timezone.now()
+        self.save()
+
+    def complete_work(self, work_performed=None, notes=None):
+        """Complete the work order"""
+        if self.status != self.Status.IN_PROGRESS:
+            raise ValidationError("Can only complete in-progress work orders")
+
+        self.status = self.Status.COMPLETED
+        self.actual_end = timezone.now()
+
+        if work_performed:
+            self.work_performed = work_performed
+        if notes:
+            self.completion_notes = notes
+
+        self.save()
+
+
+class FieldAssetAssignment(models.Model):
+    """
+    Track assignments of assets to field operations.
+
+    This model manages the assignment and tracking of equipment,
+    tools, and other assets to field operations, including
+    check-out, check-in, and condition tracking.
+
+    Features:
+    - Asset checkout/checkin tracking
+    - Condition assessment
+    - Usage logging
+    - Maintenance tracking
+    - Cost allocation
+
+    Integrates with:
+    - DrillBit: Assigned drill bits
+    - FieldWorkOrder: Work order assignments
+    - SiteVisit: Visit assignments
+    - FieldTechnician: Asset holder
+
+    ISO 9001 References:
+    - Clause 7.1.3: Infrastructure
+    - Clause 8.5.2: Identification and Traceability
+
+    Author: Sprint 5 Week 3 Implementation
+    Date: December 2024
+    """
+
+    class AssetType(models.TextChoices):
+        """Type of asset"""
+        DRILL_BIT = "DRILL_BIT", "Drill Bit"
+        TOOL = "TOOL", "Tool"
+        EQUIPMENT = "EQUIPMENT", "Equipment"
+        VEHICLE = "VEHICLE", "Vehicle"
+        INSTRUMENT = "INSTRUMENT", "Instrument"
+        SAFETY_EQUIPMENT = "SAFETY_EQUIPMENT", "Safety Equipment"
+        CONSUMABLE = "CONSUMABLE", "Consumable"
+        OTHER = "OTHER", "Other"
+
+    class Status(models.TextChoices):
+        """Assignment status"""
+        RESERVED = "RESERVED", "Reserved"
+        CHECKED_OUT = "CHECKED_OUT", "Checked Out"
+        IN_USE = "IN_USE", "In Use"
+        RETURNED = "RETURNED", "Returned"
+        LOST = "LOST", "Lost"
+        DAMAGED = "DAMAGED", "Damaged"
+
+    class ConditionOnReturn(models.TextChoices):
+        """Condition when returned"""
+        EXCELLENT = "EXCELLENT", "Excellent"
+        GOOD = "GOOD", "Good"
+        FAIR = "FAIR", "Fair"
+        POOR = "POOR", "Poor"
+        DAMAGED = "DAMAGED", "Damaged"
+        NOT_RETURNED = "NOT_RETURNED", "Not Returned"
+
+    # ===== IDENTIFICATION =====
+
+    assignment_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique assignment identifier (auto-generated: ASSIGN-YYYY-####)"
+    )
+
+    # ===== RELATIONSHIPS =====
+
+    drill_bit = models.ForeignKey(
+        'workorders.DrillBit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='field_assignments',
+        help_text="Assigned drill bit"
+    )
+
+    work_order = models.ForeignKey(
+        'FieldWorkOrder',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='asset_assignments',
+        help_text="Associated work order"
+    )
+
+    site_visit = models.ForeignKey(
+        'SiteVisit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='asset_assignments',
+        help_text="Associated site visit"
+    )
+
+    service_site = models.ForeignKey(
+        'ServiceSite',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='asset_assignments',
+        help_text="Destination site"
+    )
+
+    assigned_to = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='asset_assignments',
+        help_text="Technician holding the asset"
+    )
+
+    checked_out_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='checked_out_assets',
+        help_text="User who processed checkout"
+    )
+
+    checked_in_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='checked_in_assets',
+        help_text="User who processed checkin"
+    )
+
+    # ===== ASSET DETAILS =====
+
+    asset_type = models.CharField(
+        max_length=20,
+        choices=AssetType.choices,
+        default=AssetType.EQUIPMENT,
+        help_text="Type of asset"
+    )
+
+    asset_name = models.CharField(
+        max_length=200,
+        help_text="Name/description of asset"
+    )
+
+    asset_code = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Asset code/serial number"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.RESERVED,
+        db_index=True,
+        help_text="Assignment status"
+    )
+
+    quantity = models.IntegerField(
+        default=1,
+        help_text="Quantity assigned"
+    )
+
+    # ===== CHECKOUT =====
+
+    checkout_date = models.DateField(
+        help_text="Date asset was checked out"
+    )
+
+    checkout_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Time asset was checked out"
+    )
+
+    expected_return_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Expected return date"
+    )
+
+    checkout_condition = models.TextField(
+        blank=True,
+        help_text="Condition at checkout"
+    )
+
+    checkout_notes = models.TextField(
+        blank=True,
+        help_text="Notes at checkout"
+    )
+
+    # ===== RETURN =====
+
+    return_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date asset was returned"
+    )
+
+    return_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Time asset was returned"
+    )
+
+    condition_on_return = models.CharField(
+        max_length=20,
+        choices=ConditionOnReturn.choices,
+        blank=True,
+        help_text="Condition when returned"
+    )
+
+    return_notes = models.TextField(
+        blank=True,
+        help_text="Notes at return"
+    )
+
+    # ===== USAGE =====
+
+    hours_used = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Hours used"
+    )
+
+    usage_notes = models.TextField(
+        blank=True,
+        help_text="Usage notes"
+    )
+
+    # ===== COST =====
+
+    daily_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Daily rental/usage rate"
+    )
+
+    total_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total cost for assignment"
+    )
+
+    billable = models.BooleanField(
+        default=True,
+        help_text="Assignment is billable"
+    )
+
+    # ===== MAINTENANCE =====
+
+    requires_maintenance = models.BooleanField(
+        default=False,
+        help_text="Asset requires maintenance after use"
+    )
+
+    maintenance_notes = models.TextField(
+        blank=True,
+        help_text="Maintenance requirements"
+    )
+
+    # ===== AUDIT =====
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this record was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this record was last updated"
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_asset_assignments',
+        help_text="User who created this record"
+    )
+
+    class Meta:
+        db_table = "field_asset_assignments"
+        ordering = ['-checkout_date', '-created_at']
+        verbose_name = "Field Asset Assignment"
+        verbose_name_plural = "Field Asset Assignments"
+        indexes = [
+            models.Index(fields=['assignment_number']),
+            models.Index(fields=['drill_bit']),
+            models.Index(fields=['assigned_to', 'status']),
+            models.Index(fields=['checkout_date']),
+            models.Index(fields=['status']),
+        ]
+        permissions = [
+            ("can_checkout_assets", "Can check out assets"),
+            ("can_checkin_assets", "Can check in assets"),
+            ("can_manage_assignments", "Can manage asset assignments"),
+        ]
+
+    def __str__(self):
+        return f"{self.assignment_number} - {self.asset_name}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate assignment number"""
+        if not self.assignment_number:
+            self.assignment_number = self._generate_assignment_number()
+
+        # Calculate total cost if we have dates and rate
+        self._calculate_cost()
+
+        super().save(*args, **kwargs)
+
+    def _generate_assignment_number(self):
+        """Generate unique assignment number: ASSIGN-YYYY-####"""
+        year = timezone.now().year
+
+        last_assign = FieldAssetAssignment.objects.filter(
+            assignment_number__startswith=f"ASSIGN-{year}-"
+        ).order_by('-assignment_number').first()
+
+        if last_assign:
+            try:
+                last_num = int(last_assign.assignment_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"ASSIGN-{year}-{new_num:04d}"
+
+    def _calculate_cost(self):
+        """Calculate total cost based on duration and rate"""
+        if self.daily_rate and self.checkout_date:
+            end_date = self.return_date or timezone.now().date()
+            days = (end_date - self.checkout_date).days + 1
+            self.total_cost = self.daily_rate * days * self.quantity
+
+    @property
+    def is_overdue(self):
+        """Check if return is overdue"""
+        if self.expected_return_date and self.status in [self.Status.CHECKED_OUT, self.Status.IN_USE]:
+            return timezone.now().date() > self.expected_return_date
+        return False
+
+    @property
+    def days_out(self):
+        """Calculate days asset has been out"""
+        if self.checkout_date:
+            end_date = self.return_date or timezone.now().date()
+            return (end_date - self.checkout_date).days
+        return 0
+
+    def checkout(self, user, notes=None):
+        """Process checkout"""
+        if self.status != self.Status.RESERVED:
+            raise ValidationError("Can only checkout reserved assets")
+
+        self.status = self.Status.CHECKED_OUT
+        self.checked_out_by = user
+        self.checkout_time = timezone.now().time()
+        if notes:
+            self.checkout_notes = notes
+        self.save()
+
+    def checkin(self, user, condition, notes=None):
+        """Process checkin"""
+        if self.status not in [self.Status.CHECKED_OUT, self.Status.IN_USE]:
+            raise ValidationError("Asset is not currently checked out")
+
+        self.status = self.Status.RETURNED
+        self.checked_in_by = user
+        self.return_date = timezone.now().date()
+        self.return_time = timezone.now().time()
+        self.condition_on_return = condition
+
+        if notes:
+            self.return_notes = notes
+
+        # Flag for maintenance if condition is poor or damaged
+        if condition in [self.ConditionOnReturn.POOR, self.ConditionOnReturn.DAMAGED]:
+            self.requires_maintenance = True
+
+        self.save()
