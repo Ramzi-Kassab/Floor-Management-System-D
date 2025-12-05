@@ -2616,3 +2616,2550 @@ class ServiceReport(models.Model):
 
         self.status = self.Status.ARCHIVED
         self.save()
+
+
+# =============================================================================
+# SPRINT 5 - WEEK 2: DRILL STRING FIELD OPERATIONS
+# =============================================================================
+
+
+class FieldDrillStringRun(models.Model):
+    """
+    Track drill bit runs (deployments) in the field.
+
+    A run represents a single deployment of a drill bit in a well, capturing
+    all operational parameters, depths, times, and performance data. This is
+    the core model for field DRSS integration.
+
+    Features:
+    - Complete run lifecycle tracking (planned → in_hole → completed)
+    - Depth and footage tracking (start/end depths, footage drilled)
+    - Time tracking (spud time, out of hole time, total hours)
+    - Parameter recording (WOB, RPM, torque, flow rate)
+    - Formation tracking
+    - Performance metrics (ROP, cost per foot)
+    - Integration with well, rig, and service request
+
+    Integrates with:
+    - DrillBit: The bit being run
+    - Well: Where the run takes place
+    - Rig: Equipment used
+    - FieldServiceRequest: Associated service request
+    - ServiceSite: Location of the run
+    - FieldRunData: Detailed operational data points
+
+    ISO 9001 References:
+    - Clause 8.5.1: Control of Production and Service Provision
+    - Clause 8.5.2: Identification and Traceability
+
+    Author: Sprint 5 Week 2 Implementation
+    Date: December 2024
+    """
+
+    class Status(models.TextChoices):
+        """Run status choices"""
+        PLANNED = "PLANNED", "Planned"
+        MOBILIZED = "MOBILIZED", "Mobilized to Site"
+        RIG_UP = "RIG_UP", "Rigging Up"
+        IN_HOLE = "IN_HOLE", "In Hole"
+        DRILLING = "DRILLING", "Drilling"
+        TRIPPING = "TRIPPING", "Tripping"
+        OUT_OF_HOLE = "OUT_OF_HOLE", "Out of Hole"
+        COMPLETED = "COMPLETED", "Completed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    class RunType(models.TextChoices):
+        """Type of drilling run"""
+        SURFACE = "SURFACE", "Surface Hole"
+        INTERMEDIATE = "INTERMEDIATE", "Intermediate Hole"
+        PRODUCTION = "PRODUCTION", "Production Hole"
+        SIDETRACK = "SIDETRACK", "Sidetrack"
+        REAMING = "REAMING", "Reaming"
+        CORING = "CORING", "Coring"
+        OTHER = "OTHER", "Other"
+
+    class TerminationReason(models.TextChoices):
+        """Why the run ended"""
+        TD_REACHED = "TD_REACHED", "TD Reached"
+        CASING_POINT = "CASING_POINT", "Casing Point"
+        BIT_WORN = "BIT_WORN", "Bit Worn"
+        BIT_DAMAGED = "BIT_DAMAGED", "Bit Damaged"
+        FORMATION_CHANGE = "FORMATION_CHANGE", "Formation Change"
+        MECHANICAL_ISSUE = "MECHANICAL_ISSUE", "Mechanical Issue"
+        CUSTOMER_REQUEST = "CUSTOMER_REQUEST", "Customer Request"
+        TRIP_FOR_LOGGING = "TRIP_FOR_LOGGING", "Trip for Logging"
+        OTHER = "OTHER", "Other"
+
+    # ===== IDENTIFICATION =====
+
+    run_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique run identifier (auto-generated: RUN-YYYY-####)"
+    )
+
+    run_sequence = models.IntegerField(
+        default=1,
+        help_text="Sequence number for this bit (1st run, 2nd run, etc.)"
+    )
+
+    # ===== RELATIONSHIPS =====
+
+    drill_bit = models.ForeignKey(
+        'workorders.DrillBit',
+        on_delete=models.PROTECT,
+        related_name='field_runs',
+        help_text="Drill bit being run"
+    )
+
+    well = models.ForeignKey(
+        'Well',
+        on_delete=models.PROTECT,
+        related_name='drill_string_runs',
+        help_text="Well where run takes place"
+    )
+
+    rig = models.ForeignKey(
+        'Rig',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='drill_string_runs',
+        help_text="Rig performing the drilling"
+    )
+
+    service_request = models.ForeignKey(
+        'FieldServiceRequest',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='drill_string_runs',
+        help_text="Associated field service request"
+    )
+
+    service_site = models.ForeignKey(
+        'ServiceSite',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='drill_string_runs',
+        help_text="Service site location"
+    )
+
+    customer = models.ForeignKey(
+        'Customer',
+        on_delete=models.PROTECT,
+        related_name='drill_string_runs',
+        help_text="Customer for this run"
+    )
+
+    field_technician = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='supervised_runs',
+        help_text="Field technician supervising the run"
+    )
+
+    # ===== RUN DETAILS =====
+
+    run_type = models.CharField(
+        max_length=20,
+        choices=RunType.choices,
+        default=RunType.PRODUCTION,
+        help_text="Type of drilling run"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PLANNED,
+        db_index=True,
+        help_text="Current run status"
+    )
+
+    # ===== DEPTH TRACKING =====
+
+    depth_in = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Depth when bit went in hole (feet)"
+    )
+
+    depth_out = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Depth when bit came out (feet)"
+    )
+
+    footage_drilled = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total footage drilled (calculated or entered)"
+    )
+
+    planned_depth = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Planned target depth (feet)"
+    )
+
+    # ===== TIME TRACKING =====
+
+    planned_start_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Planned start date"
+    )
+
+    spud_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Time bit entered hole"
+    )
+
+    out_of_hole_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Time bit came out of hole"
+    )
+
+    total_rotating_hours = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total rotating hours"
+    )
+
+    total_circulating_hours = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total circulating hours"
+    )
+
+    total_on_bottom_hours = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total on-bottom hours (actual drilling)"
+    )
+
+    non_productive_hours = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Non-productive time (repairs, waiting, etc.)"
+    )
+
+    # ===== OPERATIONAL PARAMETERS =====
+
+    avg_wob = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average Weight on Bit (klbs)"
+    )
+
+    max_wob = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Maximum Weight on Bit (klbs)"
+    )
+
+    avg_rpm = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Average RPM"
+    )
+
+    max_rpm = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Maximum RPM"
+    )
+
+    avg_torque = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average torque (ft-lbs)"
+    )
+
+    max_torque = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Maximum torque (ft-lbs)"
+    )
+
+    avg_flow_rate = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average flow rate (GPM)"
+    )
+
+    avg_standpipe_pressure = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average standpipe pressure (PSI)"
+    )
+
+    mud_weight = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Mud weight (PPG)"
+    )
+
+    # ===== FORMATION DATA =====
+
+    formation_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Formation(s) drilled"
+    )
+
+    formation_description = models.TextField(
+        blank=True,
+        help_text="Detailed formation description"
+    )
+
+    lithology = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Rock type(s) encountered"
+    )
+
+    formation_hardness = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Formation hardness classification"
+    )
+
+    # ===== PERFORMANCE METRICS =====
+
+    avg_rop = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average Rate of Penetration (ft/hr)"
+    )
+
+    max_rop = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Maximum Rate of Penetration (ft/hr)"
+    )
+
+    cost_per_foot = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Cost per foot drilled"
+    )
+
+    # ===== BIT CONDITION =====
+
+    dull_grade_in = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="IADC dull grade going in hole"
+    )
+
+    dull_grade_out = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="IADC dull grade coming out of hole"
+    )
+
+    bit_condition_notes = models.TextField(
+        blank=True,
+        help_text="Notes on bit condition"
+    )
+
+    # ===== TERMINATION =====
+
+    termination_reason = models.CharField(
+        max_length=30,
+        choices=TerminationReason.choices,
+        blank=True,
+        help_text="Reason run was terminated"
+    )
+
+    termination_notes = models.TextField(
+        blank=True,
+        help_text="Additional notes on run termination"
+    )
+
+    # ===== NOTES =====
+
+    operational_notes = models.TextField(
+        blank=True,
+        help_text="Operational notes and observations"
+    )
+
+    issues_encountered = models.TextField(
+        blank=True,
+        help_text="Issues or problems during run"
+    )
+
+    recommendations = models.TextField(
+        blank=True,
+        help_text="Recommendations for future runs"
+    )
+
+    # ===== AUDIT TRAIL =====
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this run record was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this run was last updated"
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_field_runs',
+        help_text="User who created this run record"
+    )
+
+    class Meta:
+        db_table = "field_drill_string_runs"
+        ordering = ['-spud_time', '-created_at']
+        verbose_name = "Field Drill String Run"
+        verbose_name_plural = "Field Drill String Runs"
+        indexes = [
+            models.Index(fields=['run_number']),
+            models.Index(fields=['drill_bit', 'status']),
+            models.Index(fields=['well', 'status']),
+            models.Index(fields=['customer', 'status']),
+            models.Index(fields=['spud_time']),
+        ]
+        permissions = [
+            ("can_start_field_run", "Can start field drill string runs"),
+            ("can_complete_field_run", "Can complete field drill string runs"),
+            ("can_view_run_performance", "Can view run performance data"),
+        ]
+
+    def __str__(self):
+        return f"{self.run_number} - {self.drill_bit}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate run number and calculate fields"""
+        if not self.run_number:
+            self.run_number = self._generate_run_number()
+
+        # Calculate footage if depths are available
+        if self.depth_in is not None and self.depth_out is not None:
+            self.footage_drilled = self.depth_out - self.depth_in
+
+        super().save(*args, **kwargs)
+
+    def _generate_run_number(self):
+        """Generate unique run number: RUN-YYYY-####"""
+        year = timezone.now().year
+
+        last_run = FieldDrillStringRun.objects.filter(
+            run_number__startswith=f"RUN-{year}-"
+        ).order_by('-run_number').first()
+
+        if last_run:
+            try:
+                last_num = int(last_run.run_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"RUN-{year}-{new_num:04d}"
+
+    # ===== PROPERTIES =====
+
+    @property
+    def total_hours(self):
+        """Calculate total hours from spud to out of hole"""
+        if self.spud_time and self.out_of_hole_time:
+            delta = self.out_of_hole_time - self.spud_time
+            return round(delta.total_seconds() / 3600, 2)
+        return None
+
+    @property
+    def productive_hours(self):
+        """Calculate productive hours (total minus non-productive)"""
+        total = self.total_hours
+        if total is not None:
+            return round(total - float(self.non_productive_hours or 0), 2)
+        return None
+
+    @property
+    def is_active(self):
+        """Check if run is currently active"""
+        return self.status in [
+            self.Status.IN_HOLE,
+            self.Status.DRILLING,
+            self.Status.TRIPPING
+        ]
+
+    @property
+    def is_completed(self):
+        """Check if run is completed"""
+        return self.status == self.Status.COMPLETED
+
+    @property
+    def depth_progress_percent(self):
+        """Calculate progress toward planned depth"""
+        if self.planned_depth and self.depth_out:
+            return round((float(self.depth_out) / float(self.planned_depth)) * 100, 1)
+        return None
+
+    @property
+    def calculated_rop(self):
+        """Calculate ROP from footage and on-bottom hours"""
+        if self.footage_drilled and self.total_on_bottom_hours:
+            if float(self.total_on_bottom_hours) > 0:
+                return round(float(self.footage_drilled) / float(self.total_on_bottom_hours), 2)
+        return None
+
+    # ===== STATUS CHECK METHODS =====
+
+    def can_start(self):
+        """Check if run can be started"""
+        return self.status in [self.Status.PLANNED, self.Status.MOBILIZED, self.Status.RIG_UP]
+
+    def can_complete(self):
+        """Check if run can be completed"""
+        return self.status in [self.Status.IN_HOLE, self.Status.DRILLING, self.Status.TRIPPING, self.Status.OUT_OF_HOLE]
+
+    def can_cancel(self):
+        """Check if run can be cancelled"""
+        return self.status not in [self.Status.COMPLETED, self.Status.CANCELLED]
+
+    # ===== WORKFLOW METHODS =====
+
+    def start_run(self, depth_in=None, spud_time=None):
+        """Start the drilling run"""
+        if not self.can_start():
+            raise ValidationError("Run cannot be started in current status")
+
+        self.status = self.Status.IN_HOLE
+        self.spud_time = spud_time or timezone.now()
+        if depth_in is not None:
+            self.depth_in = depth_in
+        self.save()
+
+    def complete_run(self, depth_out=None, termination_reason=None, dull_grade_out=None):
+        """Complete the drilling run"""
+        if not self.can_complete():
+            raise ValidationError("Run cannot be completed in current status")
+
+        self.status = self.Status.COMPLETED
+        self.out_of_hole_time = timezone.now()
+
+        if depth_out is not None:
+            self.depth_out = depth_out
+        if termination_reason:
+            self.termination_reason = termination_reason
+        if dull_grade_out:
+            self.dull_grade_out = dull_grade_out
+
+        self.save()
+
+        # Update drill bit usage
+        self._update_bit_usage()
+
+    def cancel_run(self, reason=None):
+        """Cancel the run"""
+        if not self.can_cancel():
+            raise ValidationError("Run cannot be cancelled")
+
+        self.status = self.Status.CANCELLED
+        if reason:
+            self.termination_notes = reason
+        self.save()
+
+    def _update_bit_usage(self):
+        """Update drill bit total hours and footage after run completion"""
+        if self.drill_bit and self.is_completed:
+            if self.total_hours:
+                self.drill_bit.total_hours += Decimal(str(self.total_hours))
+            if self.footage_drilled:
+                self.drill_bit.total_footage += int(self.footage_drilled)
+            self.drill_bit.run_count += 1
+            self.drill_bit.save()
+
+
+class FieldRunData(models.Model):
+    """
+    Capture detailed operational data points during a drill string run.
+
+    This model stores time-series data collected during drilling operations,
+    including real-time parameters like WOB, RPM, torque, and ROP at specific
+    depths or time intervals.
+
+    Features:
+    - Time-stamped data points
+    - Depth-correlated measurements
+    - All key drilling parameters
+    - Data quality indicators
+    - Formation correlation
+
+    Integrates with:
+    - FieldDrillStringRun: Parent run record
+    - FieldTechnician: Who recorded the data
+
+    ISO 9001 References:
+    - Clause 7.1.5: Monitoring and Measuring Resources
+    - Clause 8.5.1: Control of Production and Service Provision
+
+    Author: Sprint 5 Week 2 Implementation
+    Date: December 2024
+    """
+
+    class DataSource(models.TextChoices):
+        """Source of data"""
+        MANUAL = "MANUAL", "Manual Entry"
+        EDR = "EDR", "Electronic Drilling Recorder"
+        WITS = "WITS", "WITS Transfer"
+        MWD = "MWD", "MWD System"
+        SENSOR = "SENSOR", "Direct Sensor"
+        CALCULATED = "CALCULATED", "Calculated"
+
+    class DataQuality(models.TextChoices):
+        """Data quality indicator"""
+        GOOD = "GOOD", "Good Quality"
+        QUESTIONABLE = "QUESTIONABLE", "Questionable"
+        POOR = "POOR", "Poor Quality"
+        INTERPOLATED = "INTERPOLATED", "Interpolated"
+        ESTIMATED = "ESTIMATED", "Estimated"
+
+    # ===== RELATIONSHIPS =====
+
+    field_run = models.ForeignKey(
+        'FieldDrillStringRun',
+        on_delete=models.CASCADE,
+        related_name='run_data_points',
+        help_text="Parent drilling run"
+    )
+
+    recorded_by = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recorded_data_points',
+        help_text="Technician who recorded this data"
+    )
+
+    # ===== TIMESTAMP & DEPTH =====
+
+    timestamp = models.DateTimeField(
+        db_index=True,
+        help_text="When this data was recorded"
+    )
+
+    bit_depth = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        db_index=True,
+        help_text="Bit depth at time of recording (feet)"
+    )
+
+    hole_depth = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total hole depth (feet)"
+    )
+
+    # ===== DRILLING PARAMETERS =====
+
+    wob = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Weight on Bit (klbs)"
+    )
+
+    rpm = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Rotary speed (RPM)"
+    )
+
+    torque = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Rotary torque (ft-lbs)"
+    )
+
+    rop = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Rate of Penetration (ft/hr)"
+    )
+
+    # ===== HYDRAULIC PARAMETERS =====
+
+    flow_rate = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Flow rate (GPM)"
+    )
+
+    standpipe_pressure = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Standpipe pressure (PSI)"
+    )
+
+    differential_pressure = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Differential pressure (PSI)"
+    )
+
+    ecd = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Equivalent Circulating Density (PPG)"
+    )
+
+    # ===== MUD PROPERTIES =====
+
+    mud_weight_in = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Mud weight in (PPG)"
+    )
+
+    mud_weight_out = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Mud weight out (PPG)"
+    )
+
+    mud_temperature = models.DecimalField(
+        max_digits=5,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Mud temperature (F)"
+    )
+
+    funnel_viscosity = models.DecimalField(
+        max_digits=5,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Funnel viscosity (sec/qt)"
+    )
+
+    # ===== HOOK LOAD & BLOCK =====
+
+    hook_load = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Hook load (klbs)"
+    )
+
+    block_position = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Block position (feet)"
+    )
+
+    # ===== MSE & ENERGY =====
+
+    mse = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Mechanical Specific Energy (PSI)"
+    )
+
+    bit_hydraulic_power = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Bit hydraulic horsepower (HP)"
+    )
+
+    # ===== FORMATION DATA =====
+
+    formation = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Current formation being drilled"
+    )
+
+    gamma_ray = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Gamma ray reading (API)"
+    )
+
+    # ===== DATA QUALITY =====
+
+    data_source = models.CharField(
+        max_length=20,
+        choices=DataSource.choices,
+        default=DataSource.MANUAL,
+        help_text="Source of this data"
+    )
+
+    data_quality = models.CharField(
+        max_length=20,
+        choices=DataQuality.choices,
+        default=DataQuality.GOOD,
+        help_text="Data quality indicator"
+    )
+
+    # ===== NOTES =====
+
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes about this data point"
+    )
+
+    # ===== AUDIT =====
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this record was created"
+    )
+
+    class Meta:
+        db_table = "field_run_data"
+        ordering = ['field_run', 'timestamp']
+        verbose_name = "Field Run Data Point"
+        verbose_name_plural = "Field Run Data Points"
+        indexes = [
+            models.Index(fields=['field_run', 'timestamp']),
+            models.Index(fields=['field_run', 'bit_depth']),
+            models.Index(fields=['timestamp']),
+        ]
+        permissions = [
+            ("can_record_run_data", "Can record field run data"),
+            ("can_edit_run_data", "Can edit field run data"),
+        ]
+
+    def __str__(self):
+        return f"{self.field_run.run_number} @ {self.bit_depth}ft - {self.timestamp}"
+
+    def clean(self):
+        """Validate data point"""
+        super().clean()
+
+        # Validate depth is within run range
+        if self.field_run:
+            if self.field_run.depth_in and self.bit_depth < self.field_run.depth_in:
+                raise ValidationError({
+                    'bit_depth': 'Bit depth cannot be less than run starting depth'
+                })
+
+    @property
+    def is_on_bottom(self):
+        """Check if bit is on bottom (drilling)"""
+        return self.wob is not None and float(self.wob) > 0 and self.rpm is not None and float(self.rpm) > 0
+
+    @property
+    def calculated_mse(self):
+        """Calculate MSE from parameters if not directly provided"""
+        if self.mse:
+            return self.mse
+        return None
+
+
+class FieldPerformanceLog(models.Model):
+    """
+    Log performance metrics and analysis for field drill string runs.
+
+    This model aggregates performance data for analysis, benchmarking,
+    and optimization. It captures interval-based performance summaries
+    and comparisons against targets.
+
+    Features:
+    - Interval-based performance summaries
+    - Target vs actual comparisons
+    - Formation-specific performance
+    - Efficiency calculations
+    - Benchmarking data
+
+    Integrates with:
+    - FieldDrillStringRun: The run being analyzed
+    - Well: Well performance history
+
+    ISO 9001 References:
+    - Clause 9.1: Monitoring, Measurement, Analysis, and Evaluation
+    - Clause 10.3: Continual Improvement
+
+    Author: Sprint 5 Week 2 Implementation
+    Date: December 2024
+    """
+
+    class IntervalType(models.TextChoices):
+        """Type of logging interval"""
+        HOURLY = "HOURLY", "Hourly"
+        SHIFT = "SHIFT", "Per Shift"
+        DAILY = "DAILY", "Daily"
+        STAND = "STAND", "Per Stand"
+        FORMATION = "FORMATION", "Per Formation"
+        COMPLETE = "COMPLETE", "Complete Run"
+
+    class PerformanceRating(models.TextChoices):
+        """Overall performance rating"""
+        EXCELLENT = "EXCELLENT", "Excellent"
+        GOOD = "GOOD", "Good"
+        AVERAGE = "AVERAGE", "Average"
+        BELOW_AVERAGE = "BELOW_AVERAGE", "Below Average"
+        POOR = "POOR", "Poor"
+
+    # ===== IDENTIFICATION =====
+
+    log_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique log identifier (auto-generated: PERF-YYYY-####)"
+    )
+
+    # ===== RELATIONSHIPS =====
+
+    field_run = models.ForeignKey(
+        'FieldDrillStringRun',
+        on_delete=models.CASCADE,
+        related_name='performance_logs',
+        help_text="Associated drilling run"
+    )
+
+    logged_by = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='performance_logs',
+        help_text="Technician who created this log"
+    )
+
+    # ===== INTERVAL DEFINITION =====
+
+    interval_type = models.CharField(
+        max_length=20,
+        choices=IntervalType.choices,
+        default=IntervalType.DAILY,
+        help_text="Type of interval this log covers"
+    )
+
+    start_time = models.DateTimeField(
+        help_text="Start of logging interval"
+    )
+
+    end_time = models.DateTimeField(
+        help_text="End of logging interval"
+    )
+
+    start_depth = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Depth at start of interval (feet)"
+    )
+
+    end_depth = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Depth at end of interval (feet)"
+    )
+
+    # ===== PERFORMANCE METRICS =====
+
+    footage_drilled = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Footage drilled in this interval"
+    )
+
+    rotating_hours = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        help_text="Rotating hours in interval"
+    )
+
+    on_bottom_hours = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        help_text="On-bottom hours in interval"
+    )
+
+    avg_rop = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        help_text="Average ROP for interval (ft/hr)"
+    )
+
+    max_rop = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Maximum ROP achieved (ft/hr)"
+    )
+
+    min_rop = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Minimum ROP (ft/hr)"
+    )
+
+    # ===== TARGET COMPARISONS =====
+
+    target_rop = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Target ROP for this formation (ft/hr)"
+    )
+
+    rop_variance_percent = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="ROP variance from target (%)"
+    )
+
+    target_footage = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Target footage for interval"
+    )
+
+    footage_variance_percent = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Footage variance from target (%)"
+    )
+
+    # ===== OPERATIONAL PARAMETERS =====
+
+    avg_wob = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average WOB (klbs)"
+    )
+
+    avg_rpm = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Average RPM"
+    )
+
+    avg_torque = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average torque (ft-lbs)"
+    )
+
+    avg_flow_rate = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average flow rate (GPM)"
+    )
+
+    avg_mse = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average MSE (PSI)"
+    )
+
+    # ===== FORMATION DATA =====
+
+    formation_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Formation(s) drilled in interval"
+    )
+
+    formation_hardness = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Formation hardness"
+    )
+
+    # ===== EFFICIENCY METRICS =====
+
+    drilling_efficiency = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Drilling efficiency (on-bottom/rotating) %"
+    )
+
+    connection_time_avg = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Average connection time (minutes)"
+    )
+
+    trip_speed = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Trip speed (ft/hr)"
+    )
+
+    # ===== RATING & ANALYSIS =====
+
+    performance_rating = models.CharField(
+        max_length=20,
+        choices=PerformanceRating.choices,
+        default=PerformanceRating.AVERAGE,
+        help_text="Overall performance rating"
+    )
+
+    performance_notes = models.TextField(
+        blank=True,
+        help_text="Performance analysis notes"
+    )
+
+    optimization_recommendations = models.TextField(
+        blank=True,
+        help_text="Recommendations for optimization"
+    )
+
+    # ===== BENCHMARKING =====
+
+    offset_well_comparison = models.TextField(
+        blank=True,
+        help_text="Comparison to offset wells"
+    )
+
+    historical_comparison = models.TextField(
+        blank=True,
+        help_text="Comparison to historical runs"
+    )
+
+    # ===== AUDIT =====
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this log was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this log was last updated"
+    )
+
+    class Meta:
+        db_table = "field_performance_logs"
+        ordering = ['-start_time']
+        verbose_name = "Field Performance Log"
+        verbose_name_plural = "Field Performance Logs"
+        indexes = [
+            models.Index(fields=['log_number']),
+            models.Index(fields=['field_run', 'start_time']),
+            models.Index(fields=['performance_rating']),
+        ]
+        permissions = [
+            ("can_create_performance_logs", "Can create performance logs"),
+            ("can_analyze_performance", "Can analyze performance data"),
+        ]
+
+    def __str__(self):
+        return f"{self.log_number} - {self.field_run.run_number}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate log number and calculate metrics"""
+        if not self.log_number:
+            self.log_number = self._generate_log_number()
+
+        # Calculate variances
+        self._calculate_variances()
+
+        # Calculate drilling efficiency
+        self._calculate_efficiency()
+
+        super().save(*args, **kwargs)
+
+    def _generate_log_number(self):
+        """Generate unique log number: PERF-YYYY-####"""
+        year = timezone.now().year
+
+        last_log = FieldPerformanceLog.objects.filter(
+            log_number__startswith=f"PERF-{year}-"
+        ).order_by('-log_number').first()
+
+        if last_log:
+            try:
+                last_num = int(last_log.log_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"PERF-{year}-{new_num:04d}"
+
+    def _calculate_variances(self):
+        """Calculate variance percentages"""
+        if self.target_rop and self.avg_rop:
+            self.rop_variance_percent = round(
+                ((float(self.avg_rop) - float(self.target_rop)) / float(self.target_rop)) * 100, 2
+            )
+
+        if self.target_footage and self.footage_drilled:
+            self.footage_variance_percent = round(
+                ((float(self.footage_drilled) - float(self.target_footage)) / float(self.target_footage)) * 100, 2
+            )
+
+    def _calculate_efficiency(self):
+        """Calculate drilling efficiency"""
+        if self.rotating_hours and float(self.rotating_hours) > 0 and self.on_bottom_hours:
+            self.drilling_efficiency = round(
+                (float(self.on_bottom_hours) / float(self.rotating_hours)) * 100, 2
+            )
+
+    @property
+    def interval_duration_hours(self):
+        """Calculate interval duration in hours"""
+        if self.start_time and self.end_time:
+            delta = self.end_time - self.start_time
+            return round(delta.total_seconds() / 3600, 2)
+        return None
+
+    @property
+    def is_above_target(self):
+        """Check if performance is above target"""
+        if self.rop_variance_percent is not None:
+            return float(self.rop_variance_percent) > 0
+        return None
+
+
+class FieldInspection(models.Model):
+    """
+    Record field inspections of drill bits and equipment.
+
+    This model tracks inspections performed in the field before, during,
+    or after drilling operations. It captures detailed findings, measurements,
+    and recommendations.
+
+    Features:
+    - Pre-run and post-run inspections
+    - Detailed component-level findings
+    - Photo references
+    - Grading and measurements
+    - Recommendations for action
+
+    Integrates with:
+    - DrillBit: The bit being inspected
+    - FieldDrillStringRun: Associated run (if any)
+    - SiteVisit: Site visit during which inspection occurred
+    - FieldTechnician: Inspector
+
+    ISO 9001 References:
+    - Clause 8.6: Release of Products and Services
+    - Clause 8.5.2: Identification and Traceability
+
+    Author: Sprint 5 Week 2 Implementation
+    Date: December 2024
+    """
+
+    class InspectionType(models.TextChoices):
+        """Type of inspection"""
+        PRE_RUN = "PRE_RUN", "Pre-Run Inspection"
+        MID_RUN = "MID_RUN", "Mid-Run Inspection"
+        POST_RUN = "POST_RUN", "Post-Run Inspection"
+        DULL_GRADING = "DULL_GRADING", "Dull Grading"
+        DAMAGE_ASSESSMENT = "DAMAGE_ASSESSMENT", "Damage Assessment"
+        RECEIVING = "RECEIVING", "Receiving Inspection"
+        ROUTINE = "ROUTINE", "Routine Inspection"
+
+    class Status(models.TextChoices):
+        """Inspection status"""
+        SCHEDULED = "SCHEDULED", "Scheduled"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        COMPLETED = "COMPLETED", "Completed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    class OverallCondition(models.TextChoices):
+        """Overall bit condition rating"""
+        EXCELLENT = "EXCELLENT", "Excellent - Ready for Use"
+        GOOD = "GOOD", "Good - Minor Wear"
+        FAIR = "FAIR", "Fair - Significant Wear"
+        POOR = "POOR", "Poor - Requires Repair"
+        DAMAGED = "DAMAGED", "Damaged - May Not Be Repairable"
+        SCRAPPED = "SCRAPPED", "Scrapped - Beyond Repair"
+
+    class Recommendation(models.TextChoices):
+        """Recommended action"""
+        RUN_AS_IS = "RUN_AS_IS", "Run As-Is"
+        MINOR_REPAIR = "MINOR_REPAIR", "Minor Repair Needed"
+        MAJOR_REPAIR = "MAJOR_REPAIR", "Major Repair Needed"
+        REWORK = "REWORK", "Rework Required"
+        SCRAP = "SCRAP", "Scrap Recommended"
+        FURTHER_EVALUATION = "FURTHER_EVALUATION", "Further Evaluation Needed"
+
+    # ===== IDENTIFICATION =====
+
+    inspection_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique inspection identifier (auto-generated: INSP-YYYY-####)"
+    )
+
+    # ===== RELATIONSHIPS =====
+
+    drill_bit = models.ForeignKey(
+        'workorders.DrillBit',
+        on_delete=models.PROTECT,
+        related_name='field_inspections',
+        help_text="Drill bit being inspected"
+    )
+
+    field_run = models.ForeignKey(
+        'FieldDrillStringRun',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inspections',
+        help_text="Associated drilling run"
+    )
+
+    site_visit = models.ForeignKey(
+        'SiteVisit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inspections',
+        help_text="Site visit during which inspection occurred"
+    )
+
+    inspector = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='conducted_inspections',
+        help_text="Technician who performed inspection"
+    )
+
+    service_site = models.ForeignKey(
+        'ServiceSite',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inspections',
+        help_text="Location of inspection"
+    )
+
+    # ===== INSPECTION DETAILS =====
+
+    inspection_type = models.CharField(
+        max_length=20,
+        choices=InspectionType.choices,
+        default=InspectionType.POST_RUN,
+        help_text="Type of inspection"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.SCHEDULED,
+        db_index=True,
+        help_text="Inspection status"
+    )
+
+    inspection_date = models.DateField(
+        help_text="Date of inspection"
+    )
+
+    inspection_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Time inspection started"
+    )
+
+    completion_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Time inspection completed"
+    )
+
+    # ===== DULL GRADING (IADC) =====
+
+    dull_grade = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="IADC dull grade (e.g., 2-2-WT-A-X-I-NO-TD)"
+    )
+
+    inner_rows = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="Inner rows condition (0-8)"
+    )
+
+    outer_rows = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="Outer rows condition (0-8)"
+    )
+
+    dull_characteristic = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Primary dull characteristic"
+    )
+
+    location = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Location of wear/damage"
+    )
+
+    bearing_seal = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Bearing/seal condition"
+    )
+
+    gauge = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Gauge condition"
+    )
+
+    other_characteristic = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Other dull characteristic"
+    )
+
+    reason_pulled = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Reason pulled from hole"
+    )
+
+    # ===== MEASUREMENTS =====
+
+    gauge_measurement = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Gauge measurement (inches)"
+    )
+
+    gauge_wear = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Gauge wear amount (inches)"
+    )
+
+    body_od = models.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="Body outer diameter (inches)"
+    )
+
+    cutter_count_damaged = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of damaged cutters"
+    )
+
+    cutter_count_missing = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of missing cutters"
+    )
+
+    nozzle_condition = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Nozzle condition and sizes"
+    )
+
+    # ===== CONDITION ASSESSMENT =====
+
+    overall_condition = models.CharField(
+        max_length=20,
+        choices=OverallCondition.choices,
+        default=OverallCondition.GOOD,
+        help_text="Overall condition rating"
+    )
+
+    blade_condition = models.TextField(
+        blank=True,
+        help_text="Blade condition details"
+    )
+
+    cutter_condition = models.TextField(
+        blank=True,
+        help_text="Cutter condition details"
+    )
+
+    body_condition = models.TextField(
+        blank=True,
+        help_text="Body condition details"
+    )
+
+    connection_condition = models.TextField(
+        blank=True,
+        help_text="Connection/thread condition"
+    )
+
+    junk_damage = models.BooleanField(
+        default=False,
+        help_text="Evidence of junk damage"
+    )
+
+    junk_damage_description = models.TextField(
+        blank=True,
+        help_text="Description of junk damage"
+    )
+
+    # ===== RECOMMENDATION =====
+
+    recommendation = models.CharField(
+        max_length=30,
+        choices=Recommendation.choices,
+        default=Recommendation.FURTHER_EVALUATION,
+        help_text="Recommended action"
+    )
+
+    recommendation_notes = models.TextField(
+        blank=True,
+        help_text="Detailed recommendation notes"
+    )
+
+    estimated_remaining_life = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Estimated remaining footage (feet)"
+    )
+
+    # ===== PHOTOS & DOCUMENTS =====
+
+    has_photos = models.BooleanField(
+        default=False,
+        help_text="Photos were taken during inspection"
+    )
+
+    photo_count = models.IntegerField(
+        default=0,
+        help_text="Number of photos taken"
+    )
+
+    photo_notes = models.TextField(
+        blank=True,
+        help_text="Notes about photos"
+    )
+
+    # ===== NOTES =====
+
+    findings = models.TextField(
+        blank=True,
+        help_text="Detailed inspection findings"
+    )
+
+    customer_representative = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Customer representative present"
+    )
+
+    customer_signature = models.BooleanField(
+        default=False,
+        help_text="Customer signed inspection report"
+    )
+
+    # ===== AUDIT =====
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this record was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this record was last updated"
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_field_inspections',
+        help_text="User who created this record"
+    )
+
+    class Meta:
+        db_table = "field_inspections"
+        ordering = ['-inspection_date', '-inspection_time']
+        verbose_name = "Field Inspection"
+        verbose_name_plural = "Field Inspections"
+        indexes = [
+            models.Index(fields=['inspection_number']),
+            models.Index(fields=['drill_bit', 'inspection_type']),
+            models.Index(fields=['inspection_date', 'status']),
+            models.Index(fields=['overall_condition']),
+        ]
+        permissions = [
+            ("can_conduct_inspections", "Can conduct field inspections"),
+            ("can_approve_inspections", "Can approve inspection reports"),
+        ]
+
+    def __str__(self):
+        return f"{self.inspection_number} - {self.drill_bit}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate inspection number"""
+        if not self.inspection_number:
+            self.inspection_number = self._generate_inspection_number()
+        super().save(*args, **kwargs)
+
+    def _generate_inspection_number(self):
+        """Generate unique inspection number: INSP-YYYY-####"""
+        year = timezone.now().year
+
+        last_insp = FieldInspection.objects.filter(
+            inspection_number__startswith=f"INSP-{year}-"
+        ).order_by('-inspection_number').first()
+
+        if last_insp:
+            try:
+                last_num = int(last_insp.inspection_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"INSP-{year}-{new_num:04d}"
+
+    # ===== PROPERTIES =====
+
+    @property
+    def is_completed(self):
+        """Check if inspection is completed"""
+        return self.status == self.Status.COMPLETED
+
+    @property
+    def requires_repair(self):
+        """Check if inspection recommends repair"""
+        return self.recommendation in [
+            self.Recommendation.MINOR_REPAIR,
+            self.Recommendation.MAJOR_REPAIR,
+            self.Recommendation.REWORK
+        ]
+
+    @property
+    def duration_minutes(self):
+        """Calculate inspection duration"""
+        if self.inspection_time and self.completion_time:
+            from datetime import datetime
+            start = datetime.combine(self.inspection_date, self.inspection_time)
+            end = datetime.combine(self.inspection_date, self.completion_time)
+            delta = end - start
+            return round(delta.total_seconds() / 60, 0)
+        return None
+
+    # ===== WORKFLOW METHODS =====
+
+    def start_inspection(self):
+        """Start the inspection"""
+        if self.status != self.Status.SCHEDULED:
+            raise ValidationError("Can only start scheduled inspections")
+
+        self.status = self.Status.IN_PROGRESS
+        self.inspection_time = timezone.now().time()
+        self.save()
+
+    def complete_inspection(self, dull_grade=None, overall_condition=None, recommendation=None):
+        """Complete the inspection"""
+        if self.status != self.Status.IN_PROGRESS:
+            raise ValidationError("Can only complete in-progress inspections")
+
+        self.status = self.Status.COMPLETED
+        self.completion_time = timezone.now().time()
+
+        if dull_grade:
+            self.dull_grade = dull_grade
+        if overall_condition:
+            self.overall_condition = overall_condition
+        if recommendation:
+            self.recommendation = recommendation
+
+        self.save()
+
+
+class RunHours(models.Model):
+    """
+    Track running hours for drill bits.
+
+    This model records incremental hours of operation for drill bits,
+    supporting both real-time tracking during runs and historical
+    hour logging. Essential for maintenance scheduling and cost tracking.
+
+    Features:
+    - Incremental hour logging
+    - Multiple hour types (rotating, circulating, on-bottom)
+    - Run association
+    - Automatic cumulative calculations
+    - Hour validation
+
+    Integrates with:
+    - DrillBit: The bit being tracked
+    - FieldDrillStringRun: Associated run (if any)
+    - FieldTechnician: Who recorded the hours
+
+    ISO 9001 References:
+    - Clause 7.1.5.2: Measurement Traceability
+    - Clause 8.5.2: Identification and Traceability
+
+    Author: Sprint 5 Week 2 Implementation
+    Date: December 2024
+    """
+
+    class HourType(models.TextChoices):
+        """Type of hours being recorded"""
+        ROTATING = "ROTATING", "Rotating Hours"
+        CIRCULATING = "CIRCULATING", "Circulating Hours"
+        ON_BOTTOM = "ON_BOTTOM", "On Bottom Hours"
+        TOTAL = "TOTAL", "Total Hours"
+        REAMING = "REAMING", "Reaming Hours"
+        TRIPPING = "TRIPPING", "Tripping Hours"
+
+    class EntrySource(models.TextChoices):
+        """Source of hour entry"""
+        MANUAL = "MANUAL", "Manual Entry"
+        EDR = "EDR", "EDR System"
+        CALCULATED = "CALCULATED", "Calculated from Run"
+        IMPORTED = "IMPORTED", "Imported Data"
+
+    # ===== RELATIONSHIPS =====
+
+    drill_bit = models.ForeignKey(
+        'workorders.DrillBit',
+        on_delete=models.CASCADE,
+        related_name='hour_logs',
+        help_text="Drill bit being tracked"
+    )
+
+    field_run = models.ForeignKey(
+        'FieldDrillStringRun',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='hour_logs',
+        help_text="Associated drilling run"
+    )
+
+    recorded_by = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recorded_hours',
+        help_text="Technician who recorded hours"
+    )
+
+    # ===== HOUR DETAILS =====
+
+    hour_type = models.CharField(
+        max_length=20,
+        choices=HourType.choices,
+        default=HourType.TOTAL,
+        help_text="Type of hours"
+    )
+
+    hours = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        help_text="Hours to add"
+    )
+
+    cumulative_hours = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Cumulative hours after this entry"
+    )
+
+    # ===== TIMING =====
+
+    record_date = models.DateField(
+        help_text="Date hours were accumulated"
+    )
+
+    start_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Start time of operation"
+    )
+
+    end_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="End time of operation"
+    )
+
+    # ===== CONTEXT =====
+
+    entry_source = models.CharField(
+        max_length=20,
+        choices=EntrySource.choices,
+        default=EntrySource.MANUAL,
+        help_text="Source of this entry"
+    )
+
+    depth_at_start = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Depth at start of period (feet)"
+    )
+
+    depth_at_end = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Depth at end of period (feet)"
+    )
+
+    # ===== NOTES =====
+
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes about this hour entry"
+    )
+
+    # ===== AUDIT =====
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this record was created"
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_run_hours',
+        help_text="User who created this record"
+    )
+
+    class Meta:
+        db_table = "run_hours"
+        ordering = ['-record_date', '-created_at']
+        verbose_name = "Run Hours"
+        verbose_name_plural = "Run Hours"
+        indexes = [
+            models.Index(fields=['drill_bit', 'hour_type']),
+            models.Index(fields=['drill_bit', 'record_date']),
+            models.Index(fields=['field_run']),
+        ]
+        permissions = [
+            ("can_record_run_hours", "Can record run hours"),
+            ("can_adjust_hours", "Can adjust hour entries"),
+        ]
+
+    def __str__(self):
+        return f"{self.drill_bit} - {self.hours}hrs ({self.hour_type}) - {self.record_date}"
+
+    def save(self, *args, **kwargs):
+        """Override save to calculate cumulative hours"""
+        if self.cumulative_hours is None:
+            self._calculate_cumulative()
+        super().save(*args, **kwargs)
+
+        # Update drill bit total hours
+        self._update_bit_hours()
+
+    def _calculate_cumulative(self):
+        """Calculate cumulative hours for this bit and hour type"""
+        previous = RunHours.objects.filter(
+            drill_bit=self.drill_bit,
+            hour_type=self.hour_type,
+            record_date__lte=self.record_date
+        ).exclude(pk=self.pk).order_by('-record_date', '-created_at').first()
+
+        if previous and previous.cumulative_hours:
+            self.cumulative_hours = previous.cumulative_hours + self.hours
+        else:
+            self.cumulative_hours = self.hours
+
+    def _update_bit_hours(self):
+        """Update drill bit total hours"""
+        if self.drill_bit and self.hour_type == self.HourType.TOTAL:
+            total = RunHours.objects.filter(
+                drill_bit=self.drill_bit,
+                hour_type=self.HourType.TOTAL
+            ).aggregate(total=models.Sum('hours'))['total'] or Decimal('0')
+
+            self.drill_bit.total_hours = total
+            self.drill_bit.save(update_fields=['total_hours'])
+
+    def clean(self):
+        """Validate hour entry"""
+        super().clean()
+
+        if self.hours < 0:
+            raise ValidationError({'hours': 'Hours cannot be negative'})
+
+        if self.start_time and self.end_time:
+            if self.end_time < self.start_time:
+                raise ValidationError({
+                    'end_time': 'End time cannot be before start time'
+                })
+
+    @property
+    def footage_drilled(self):
+        """Calculate footage drilled during this period"""
+        if self.depth_at_start is not None and self.depth_at_end is not None:
+            return self.depth_at_end - self.depth_at_start
+        return None
+
+
+class FieldIncident(models.Model):
+    """
+    Record incidents that occur during field operations.
+
+    This model captures any incidents, accidents, near-misses, or
+    equipment failures that occur in the field. Essential for
+    safety tracking, root cause analysis, and continuous improvement.
+
+    Features:
+    - Multiple incident categories
+    - Severity classification
+    - Investigation tracking
+    - Corrective action management
+    - Regulatory reporting support
+
+    Integrates with:
+    - SiteVisit: Site visit during incident
+    - FieldDrillStringRun: Run during incident
+    - DrillBit: Equipment involved
+    - ServiceSite: Location
+    - FieldTechnician: Personnel involved
+
+    ISO 9001 References:
+    - Clause 10.2: Nonconformity and Corrective Action
+    - Clause 8.7: Control of Nonconforming Outputs
+
+    Author: Sprint 5 Week 2 Implementation
+    Date: December 2024
+    """
+
+    class IncidentCategory(models.TextChoices):
+        """Category of incident"""
+        SAFETY = "SAFETY", "Safety Incident"
+        ENVIRONMENTAL = "ENVIRONMENTAL", "Environmental Incident"
+        EQUIPMENT_FAILURE = "EQUIPMENT_FAILURE", "Equipment Failure"
+        NEAR_MISS = "NEAR_MISS", "Near Miss"
+        QUALITY = "QUALITY", "Quality Issue"
+        PROCEDURAL = "PROCEDURAL", "Procedural Violation"
+        PROPERTY_DAMAGE = "PROPERTY_DAMAGE", "Property Damage"
+        DOWNHOLE = "DOWNHOLE", "Downhole Incident"
+        OTHER = "OTHER", "Other"
+
+    class Severity(models.TextChoices):
+        """Severity level"""
+        MINOR = "MINOR", "Minor - No Injury/Minimal Impact"
+        MODERATE = "MODERATE", "Moderate - First Aid/Limited Impact"
+        SERIOUS = "SERIOUS", "Serious - Medical Treatment/Significant Impact"
+        SEVERE = "SEVERE", "Severe - Lost Time/Major Impact"
+        CRITICAL = "CRITICAL", "Critical - Life Threatening/Catastrophic"
+
+    class Status(models.TextChoices):
+        """Incident status"""
+        REPORTED = "REPORTED", "Reported"
+        UNDER_INVESTIGATION = "UNDER_INVESTIGATION", "Under Investigation"
+        ROOT_CAUSE_IDENTIFIED = "ROOT_CAUSE_IDENTIFIED", "Root Cause Identified"
+        CORRECTIVE_ACTION = "CORRECTIVE_ACTION", "Corrective Action in Progress"
+        CLOSED = "CLOSED", "Closed"
+        REOPENED = "REOPENED", "Reopened"
+
+    class InjuryType(models.TextChoices):
+        """Type of injury if applicable"""
+        NONE = "NONE", "No Injury"
+        FIRST_AID = "FIRST_AID", "First Aid Case"
+        MEDICAL_TREATMENT = "MEDICAL_TREATMENT", "Medical Treatment Case"
+        RESTRICTED_WORK = "RESTRICTED_WORK", "Restricted Work Case"
+        LOST_TIME = "LOST_TIME", "Lost Time Injury"
+        FATALITY = "FATALITY", "Fatality"
+
+    # ===== IDENTIFICATION =====
+
+    incident_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique incident identifier (auto-generated: INC-YYYY-####)"
+    )
+
+    # ===== RELATIONSHIPS =====
+
+    site_visit = models.ForeignKey(
+        'SiteVisit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='incidents',
+        help_text="Site visit during which incident occurred"
+    )
+
+    field_run = models.ForeignKey(
+        'FieldDrillStringRun',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='incidents',
+        help_text="Drilling run during incident"
+    )
+
+    drill_bit = models.ForeignKey(
+        'workorders.DrillBit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='field_incidents',
+        help_text="Equipment involved in incident"
+    )
+
+    service_site = models.ForeignKey(
+        'ServiceSite',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='incidents',
+        help_text="Location of incident"
+    )
+
+    reported_by = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='reported_incidents',
+        help_text="Person who reported the incident"
+    )
+
+    customer = models.ForeignKey(
+        'Customer',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='field_incidents',
+        help_text="Customer at time of incident"
+    )
+
+    # ===== INCIDENT DETAILS =====
+
+    category = models.CharField(
+        max_length=30,
+        choices=IncidentCategory.choices,
+        default=IncidentCategory.OTHER,
+        help_text="Incident category"
+    )
+
+    severity = models.CharField(
+        max_length=20,
+        choices=Severity.choices,
+        default=Severity.MINOR,
+        help_text="Severity level"
+    )
+
+    status = models.CharField(
+        max_length=30,
+        choices=Status.choices,
+        default=Status.REPORTED,
+        db_index=True,
+        help_text="Current status"
+    )
+
+    incident_title = models.CharField(
+        max_length=200,
+        help_text="Brief title describing incident"
+    )
+
+    incident_date = models.DateField(
+        help_text="Date incident occurred"
+    )
+
+    incident_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Time incident occurred"
+    )
+
+    location_description = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Specific location (e.g., rig floor, pipe deck)"
+    )
+
+    # ===== DESCRIPTION =====
+
+    description = models.TextField(
+        help_text="Detailed description of what happened"
+    )
+
+    immediate_actions = models.TextField(
+        blank=True,
+        help_text="Immediate actions taken"
+    )
+
+    conditions_at_time = models.TextField(
+        blank=True,
+        help_text="Conditions at time of incident (weather, visibility, etc.)"
+    )
+
+    equipment_involved = models.TextField(
+        blank=True,
+        help_text="Equipment involved in incident"
+    )
+
+    # ===== INJURY INFORMATION =====
+
+    injury_type = models.CharField(
+        max_length=30,
+        choices=InjuryType.choices,
+        default=InjuryType.NONE,
+        help_text="Type of injury if applicable"
+    )
+
+    persons_injured = models.IntegerField(
+        default=0,
+        help_text="Number of persons injured"
+    )
+
+    injury_description = models.TextField(
+        blank=True,
+        help_text="Description of injuries"
+    )
+
+    body_parts_affected = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Body parts affected"
+    )
+
+    medical_treatment_provided = models.TextField(
+        blank=True,
+        help_text="Medical treatment provided"
+    )
+
+    days_lost = models.IntegerField(
+        default=0,
+        help_text="Days lost due to injury"
+    )
+
+    # ===== DAMAGE INFORMATION =====
+
+    property_damage = models.BooleanField(
+        default=False,
+        help_text="Property damage occurred"
+    )
+
+    damage_description = models.TextField(
+        blank=True,
+        help_text="Description of damage"
+    )
+
+    estimated_damage_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Estimated cost of damage"
+    )
+
+    # ===== INVESTIGATION =====
+
+    investigation_started = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When investigation began"
+    )
+
+    investigation_lead = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='led_investigations',
+        help_text="Person leading investigation"
+    )
+
+    root_cause = models.TextField(
+        blank=True,
+        help_text="Root cause analysis findings"
+    )
+
+    contributing_factors = models.TextField(
+        blank=True,
+        help_text="Contributing factors identified"
+    )
+
+    lessons_learned = models.TextField(
+        blank=True,
+        help_text="Lessons learned from incident"
+    )
+
+    # ===== CORRECTIVE ACTIONS =====
+
+    corrective_actions = models.TextField(
+        blank=True,
+        help_text="Corrective actions required"
+    )
+
+    preventive_actions = models.TextField(
+        blank=True,
+        help_text="Preventive actions to avoid recurrence"
+    )
+
+    corrective_action_due_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Due date for corrective actions"
+    )
+
+    corrective_action_completed = models.BooleanField(
+        default=False,
+        help_text="Corrective actions completed"
+    )
+
+    corrective_action_completed_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date corrective actions completed"
+    )
+
+    # ===== REPORTING =====
+
+    reportable_to_client = models.BooleanField(
+        default=False,
+        help_text="Incident is reportable to client"
+    )
+
+    reported_to_client = models.BooleanField(
+        default=False,
+        help_text="Incident has been reported to client"
+    )
+
+    reported_to_client_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date reported to client"
+    )
+
+    reportable_to_authority = models.BooleanField(
+        default=False,
+        help_text="Incident is reportable to regulatory authority"
+    )
+
+    reported_to_authority = models.BooleanField(
+        default=False,
+        help_text="Incident has been reported to authority"
+    )
+
+    authority_report_number = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Regulatory authority report number"
+    )
+
+    # ===== CLOSURE =====
+
+    closed_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date incident was closed"
+    )
+
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='closed_incidents',
+        help_text="User who closed the incident"
+    )
+
+    closure_notes = models.TextField(
+        blank=True,
+        help_text="Notes on incident closure"
+    )
+
+    # ===== PHOTOS & DOCUMENTS =====
+
+    has_photos = models.BooleanField(
+        default=False,
+        help_text="Photos are attached"
+    )
+
+    photo_count = models.IntegerField(
+        default=0,
+        help_text="Number of photos"
+    )
+
+    has_documents = models.BooleanField(
+        default=False,
+        help_text="Documents are attached"
+    )
+
+    # ===== WITNESS INFORMATION =====
+
+    witnesses = models.TextField(
+        blank=True,
+        help_text="Names of witnesses"
+    )
+
+    witness_statements = models.TextField(
+        blank=True,
+        help_text="Summary of witness statements"
+    )
+
+    # ===== AUDIT =====
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this record was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this record was last updated"
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_field_incidents',
+        help_text="User who created this record"
+    )
+
+    class Meta:
+        db_table = "field_incidents"
+        ordering = ['-incident_date', '-incident_time']
+        verbose_name = "Field Incident"
+        verbose_name_plural = "Field Incidents"
+        indexes = [
+            models.Index(fields=['incident_number']),
+            models.Index(fields=['incident_date', 'severity']),
+            models.Index(fields=['category', 'status']),
+            models.Index(fields=['service_site', 'incident_date']),
+        ]
+        permissions = [
+            ("can_report_incidents", "Can report field incidents"),
+            ("can_investigate_incidents", "Can investigate incidents"),
+            ("can_close_incidents", "Can close incidents"),
+        ]
+
+    def __str__(self):
+        return f"{self.incident_number} - {self.incident_title}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate incident number"""
+        if not self.incident_number:
+            self.incident_number = self._generate_incident_number()
+        super().save(*args, **kwargs)
+
+    def _generate_incident_number(self):
+        """Generate unique incident number: INC-YYYY-####"""
+        year = timezone.now().year
+
+        last_inc = FieldIncident.objects.filter(
+            incident_number__startswith=f"INC-{year}-"
+        ).order_by('-incident_number').first()
+
+        if last_inc:
+            try:
+                last_num = int(last_inc.incident_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"INC-{year}-{new_num:04d}"
+
+    # ===== PROPERTIES =====
+
+    @property
+    def is_open(self):
+        """Check if incident is still open"""
+        return self.status not in [self.Status.CLOSED]
+
+    @property
+    def is_serious(self):
+        """Check if incident is serious or above"""
+        return self.severity in [
+            self.Severity.SERIOUS,
+            self.Severity.SEVERE,
+            self.Severity.CRITICAL
+        ]
+
+    @property
+    def has_injuries(self):
+        """Check if incident resulted in injuries"""
+        return self.injury_type != self.InjuryType.NONE
+
+    @property
+    def days_open(self):
+        """Calculate days incident has been open"""
+        if self.closed_date:
+            return (self.closed_date - self.incident_date).days
+        return (timezone.now().date() - self.incident_date).days
+
+    @property
+    def corrective_action_overdue(self):
+        """Check if corrective actions are overdue"""
+        if self.corrective_action_due_date and not self.corrective_action_completed:
+            return timezone.now().date() > self.corrective_action_due_date
+        return False
+
+    # ===== WORKFLOW METHODS =====
+
+    def start_investigation(self, lead_user):
+        """Start investigation of incident"""
+        if self.status not in [self.Status.REPORTED, self.Status.REOPENED]:
+            raise ValidationError("Can only start investigation for reported or reopened incidents")
+
+        self.status = self.Status.UNDER_INVESTIGATION
+        self.investigation_started = timezone.now()
+        self.investigation_lead = lead_user
+        self.save()
+
+    def record_root_cause(self, root_cause, contributing_factors=None):
+        """Record root cause findings"""
+        if self.status != self.Status.UNDER_INVESTIGATION:
+            raise ValidationError("Can only record root cause during investigation")
+
+        self.status = self.Status.ROOT_CAUSE_IDENTIFIED
+        self.root_cause = root_cause
+        if contributing_factors:
+            self.contributing_factors = contributing_factors
+        self.save()
+
+    def close_incident(self, user, notes=None):
+        """Close the incident"""
+        if self.status == self.Status.CLOSED:
+            raise ValidationError("Incident is already closed")
+
+        self.status = self.Status.CLOSED
+        self.closed_date = timezone.now().date()
+        self.closed_by = user
+        if notes:
+            self.closure_notes = notes
+        self.save()
+
+    def reopen_incident(self, reason):
+        """Reopen a closed incident"""
+        if self.status != self.Status.CLOSED:
+            raise ValidationError("Can only reopen closed incidents")
+
+        self.status = self.Status.REOPENED
+        self.closed_date = None
+        self.closed_by = None
+        self.closure_notes = f"REOPENED: {reason}\n\nPrevious notes: {self.closure_notes}"
+        self.save()
