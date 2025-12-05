@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Complete Work Order</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ mwo.mwo_number }}</p>
+    </div>
+    <a href="{% url 'maintenance:mwo_detail' mwo.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <!-- Work Order Summary -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Work Order Summary</h2>
+        <dl class="grid grid-cols-2 gap-4 text-sm">
+            <div>
+                <dt class="text-gray-500">Equipment</dt>
+                <dd class="text-gray-900 dark:text-white font-medium">{{ mwo.equipment.code }} - {{ mwo.equipment.name }}</dd>
+            </div>
+            <div>
+                <dt class="text-gray-500">Work Type</dt>
+                <dd class="text-gray-900 dark:text-white">{{ mwo.get_work_type_display }}</dd>
+            </div>
+            <div>
+                <dt class="text-gray-500">Started</dt>
+                <dd class="text-gray-900 dark:text-white">{{ mwo.actual_start|date:"M d, Y H:i" }}</dd>
+            </div>
+            <div>
+                <dt class="text-gray-500">Assigned To</dt>
+                <dd class="text-gray-900 dark:text-white">{{ mwo.assigned_to.get_full_name|default:mwo.assigned_to.username|default:"-" }}</dd>
+            </div>
+        </dl>
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <dt class="text-gray-500 text-sm">Description</dt>
+            <dd class="text-gray-900 dark:text-white mt-1">{{ mwo.description }}</dd>
+        </div>
+    </div>
+
+    <!-- Completion Form -->
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Completion Details</h2>
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Actual Hours Worked *</label>
+                    {{ form.actual_hours }}
+                    {% if form.actual_hours.errors %}<p class="text-red-600 text-sm mt-1">{{ form.actual_hours.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Completion Notes *</label>
+                    {{ form.completion_notes }}
+                    {% if form.completion_notes.errors %}<p class="text-red-600 text-sm mt-1">{{ form.completion_notes.errors.0 }}</p>{% endif %}
+                    <p class="text-gray-500 text-xs mt-1">Describe the work completed, any issues encountered, and recommendations.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-6">
+            <div class="flex">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 mr-3 flex-shrink-0"></i>
+                <div>
+                    <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Confirm Completion</h3>
+                    <p class="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                        This will mark the work order as completed and update the equipment's last maintenance date.
+                        This action cannot be undone.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end space-x-3 pt-6">
+            <a href="{% url 'maintenance:mwo_detail' mwo.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                <i data-lucide="check-circle" class="w-4 h-4 mr-2 inline"></i>Complete Work Order
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

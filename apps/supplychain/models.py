@@ -145,6 +145,11 @@ class POLine(models.Model):
     def __str__(self):
         return f"{self.po.po_number} - Line {self.line_number}"
 
+    @property
+    def line_total(self):
+        """Calculate line total (quantity * unit_price)."""
+        return self.quantity * self.unit_price
+
 
 class GoodsReceipt(models.Model):
     """🟡 P2: Goods Receipt Notes."""
