@@ -1535,3 +1535,1084 @@ class FieldServiceRequest(models.Model):
         if self.assigned_technician:
             self.assigned_technician.is_currently_assigned = False
             self.assigned_technician.save(update_fields=['is_currently_assigned'])
+
+
+class ServiceSchedule(models.Model):
+    """
+    Sprint 5: Service Schedule management.
+
+    Manages scheduling of field service appointments including
+    technician assignments, time slots, and conflict detection.
+
+    Features:
+    - Schedule conflict detection
+    - Rescheduling with history
+    - Customer confirmation tracking
+    - Notification management
+
+    ISO 9001 References:
+    - Clause 8.1: Operational Planning and Control
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        CONFIRMED = "CONFIRMED", "Confirmed"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        COMPLETED = "COMPLETED", "Completed"
+        CANCELLED = "CANCELLED", "Cancelled"
+        RESCHEDULED = "RESCHEDULED", "Rescheduled"
+
+    # ===== IDENTIFICATION =====
+    schedule_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique schedule number (auto-generated: SCH-YYYY-####)"
+    )
+
+    # ===== LINKED ENTITIES =====
+    service_request = models.ForeignKey(
+        'FieldServiceRequest',
+        on_delete=models.CASCADE,
+        related_name='schedules',
+        help_text="Related field service request"
+    )
+
+    technician = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.PROTECT,
+        related_name='schedules',
+        help_text="Assigned technician"
+    )
+
+    service_site = models.ForeignKey(
+        'ServiceSite',
+        on_delete=models.PROTECT,
+        related_name='schedules',
+        help_text="Service site location"
+    )
+
+    # ===== SCHEDULING DETAILS =====
+    scheduled_date = models.DateField(
+        db_index=True,
+        help_text="Scheduled service date"
+    )
+
+    scheduled_start_time = models.TimeField(
+        help_text="Scheduled start time"
+    )
+
+    scheduled_end_time = models.TimeField(
+        help_text="Scheduled end time"
+    )
+
+    estimated_duration_hours = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Estimated duration in hours"
+    )
+
+    # ===== STATUS =====
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+        help_text="Current schedule status"
+    )
+
+    # ===== CONFIRMATION =====
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='confirmed_schedules',
+        help_text="User who confirmed the schedule"
+    )
+
+    confirmed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the schedule was confirmed"
+    )
+
+    customer_confirmed = models.BooleanField(
+        default=False,
+        help_text="Whether customer confirmed the schedule"
+    )
+
+    customer_confirmed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When customer confirmed"
+    )
+
+    # ===== RESCHEDULING =====
+    original_schedule = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rescheduled_versions',
+        help_text="Original schedule if this is a reschedule"
+    )
+
+    rescheduled_to = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rescheduled_from',
+        help_text="New schedule if this was rescheduled"
+    )
+
+    reschedule_reason = models.TextField(
+        blank=True,
+        help_text="Reason for rescheduling"
+    )
+
+    reschedule_count = models.IntegerField(
+        default=0,
+        help_text="Number of times rescheduled"
+    )
+
+    # ===== NOTIFICATIONS =====
+    notification_sent = models.BooleanField(
+        default=False,
+        help_text="Whether notification was sent"
+    )
+
+    notification_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When notification was sent"
+    )
+
+    reminder_sent = models.BooleanField(
+        default=False,
+        help_text="Whether reminder was sent"
+    )
+
+    reminder_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When reminder was sent"
+    )
+
+    # ===== NOTES =====
+    scheduling_notes = models.TextField(
+        blank=True,
+        help_text="Internal scheduling notes"
+    )
+
+    special_requirements = models.TextField(
+        blank=True,
+        help_text="Special requirements for this visit"
+    )
+
+    # ===== AUDIT =====
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_schedules',
+        help_text="User who created this schedule"
+    )
+
+    class Meta:
+        db_table = "service_schedules"
+        ordering = ['scheduled_date', 'scheduled_start_time']
+        verbose_name = "Service Schedule"
+        verbose_name_plural = "Service Schedules"
+        indexes = [
+            models.Index(fields=['schedule_number']),
+            models.Index(fields=['scheduled_date', 'status']),
+            models.Index(fields=['technician', 'scheduled_date']),
+            models.Index(fields=['service_request', 'status']),
+        ]
+        permissions = [
+            ("can_create_schedules", "Can create service schedules"),
+            ("can_confirm_schedules", "Can confirm service schedules"),
+            ("can_reschedule", "Can reschedule service appointments"),
+        ]
+
+    def __str__(self):
+        return f"{self.schedule_number} - {self.scheduled_date}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate schedule number"""
+        if not self.schedule_number:
+            self.schedule_number = self._generate_schedule_number()
+        super().save(*args, **kwargs)
+
+    def _generate_schedule_number(self):
+        """Generate unique schedule number: SCH-YYYY-####"""
+        year = timezone.now().year
+
+        last_schedule = ServiceSchedule.objects.filter(
+            schedule_number__startswith=f"SCH-{year}-"
+        ).order_by('-schedule_number').first()
+
+        if last_schedule:
+            try:
+                last_num = int(last_schedule.schedule_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"SCH-{year}-{new_num:04d}"
+
+    def _times_overlap(self, other):
+        """Check if time slots overlap"""
+        return not (
+            self.scheduled_end_time <= other.scheduled_start_time or
+            self.scheduled_start_time >= other.scheduled_end_time
+        )
+
+    def check_conflicts(self):
+        """
+        Check for scheduling conflicts.
+
+        Returns:
+            list: List of conflicting schedules
+        """
+        conflicts = ServiceSchedule.objects.filter(
+            technician=self.technician,
+            scheduled_date=self.scheduled_date,
+            status__in=['CONFIRMED', 'IN_PROGRESS']
+        ).exclude(pk=self.pk)
+
+        conflicting = []
+        for schedule in conflicts:
+            if self._times_overlap(schedule):
+                conflicting.append(schedule)
+
+        return conflicting
+
+    def has_conflicts(self):
+        """Check if schedule has any conflicts"""
+        return len(self.check_conflicts()) > 0
+
+    @property
+    def is_past(self):
+        """Check if scheduled date is in the past"""
+        return self.scheduled_date < timezone.now().date()
+
+    @property
+    def is_today(self):
+        """Check if scheduled for today"""
+        return self.scheduled_date == timezone.now().date()
+
+    @property
+    def days_until(self):
+        """Calculate days until scheduled date"""
+        delta = self.scheduled_date - timezone.now().date()
+        return delta.days
+
+    def can_be_confirmed(self):
+        """Check if schedule can be confirmed"""
+        return self.status == self.Status.DRAFT and not self.has_conflicts()
+
+    def can_be_cancelled(self):
+        """Check if schedule can be cancelled"""
+        return self.status not in [self.Status.COMPLETED, self.Status.CANCELLED]
+
+    def can_be_rescheduled(self):
+        """Check if schedule can be rescheduled"""
+        return self.status not in [
+            self.Status.COMPLETED,
+            self.Status.CANCELLED,
+            self.Status.RESCHEDULED
+        ]
+
+    def confirm_schedule(self, user):
+        """Confirm the schedule"""
+        if not self.can_be_confirmed():
+            if self.has_conflicts():
+                raise ValidationError("Schedule has conflicts that must be resolved")
+            raise ValidationError("Schedule cannot be confirmed in current status")
+
+        self.status = self.Status.CONFIRMED
+        self.confirmed_by = user
+        self.confirmed_at = timezone.now()
+        self.save()
+
+    def confirm_by_customer(self):
+        """Mark schedule as confirmed by customer"""
+        self.customer_confirmed = True
+        self.customer_confirmed_at = timezone.now()
+        self.save()
+
+    def start_service(self):
+        """Mark schedule as in progress"""
+        if self.status != self.Status.CONFIRMED:
+            raise ValidationError("Can only start confirmed schedules")
+
+        self.status = self.Status.IN_PROGRESS
+        self.save()
+
+    def complete_service(self):
+        """Mark schedule as completed"""
+        if self.status != self.Status.IN_PROGRESS:
+            raise ValidationError("Can only complete in-progress schedules")
+
+        self.status = self.Status.COMPLETED
+        self.save()
+
+    def cancel_schedule(self, reason=''):
+        """Cancel the schedule"""
+        if not self.can_be_cancelled():
+            raise ValidationError("Schedule cannot be cancelled")
+
+        self.status = self.Status.CANCELLED
+        if reason:
+            self.scheduling_notes = f"{self.scheduling_notes}\nCancelled: {reason}".strip()
+        self.save()
+
+    def reschedule(self, new_date, new_start_time, new_end_time, reason='', user=None):
+        """
+        Reschedule to a new date/time.
+
+        Creates a new schedule and marks this one as rescheduled.
+        """
+        if not self.can_be_rescheduled():
+            raise ValidationError("Schedule cannot be rescheduled")
+
+        # Create new schedule
+        new_schedule = ServiceSchedule.objects.create(
+            service_request=self.service_request,
+            technician=self.technician,
+            service_site=self.service_site,
+            scheduled_date=new_date,
+            scheduled_start_time=new_start_time,
+            scheduled_end_time=new_end_time,
+            estimated_duration_hours=self.estimated_duration_hours,
+            original_schedule=self,
+            reschedule_count=self.reschedule_count + 1,
+            scheduling_notes=self.scheduling_notes,
+            special_requirements=self.special_requirements,
+            created_by=user
+        )
+
+        # Mark this schedule as rescheduled
+        self.status = self.Status.RESCHEDULED
+        self.rescheduled_to = new_schedule
+        self.reschedule_reason = reason
+        self.save()
+
+        return new_schedule
+
+
+class SiteVisit(models.Model):
+    """
+    Sprint 5: Site Visit records.
+
+    Records actual site visits by technicians including
+    check-in/check-out, work performed, and outcomes.
+
+    Features:
+    - Check-in/check-out tracking
+    - Duration calculations
+    - Customer feedback collection
+    - Photo/document tracking
+
+    ISO 9001 References:
+    - Clause 8.5.1: Control of Production and Service Provision
+    """
+
+    class VisitType(models.TextChoices):
+        SCHEDULED = "SCHEDULED", "Scheduled Service"
+        EMERGENCY = "EMERGENCY", "Emergency Call"
+        FOLLOW_UP = "FOLLOW_UP", "Follow-up Visit"
+        INSPECTION = "INSPECTION", "Inspection"
+        TRAINING = "TRAINING", "Training"
+        OTHER = "OTHER", "Other"
+
+    class Status(models.TextChoices):
+        SCHEDULED = "SCHEDULED", "Scheduled"
+        EN_ROUTE = "EN_ROUTE", "En Route"
+        ARRIVED = "ARRIVED", "Arrived"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        COMPLETED = "COMPLETED", "Completed"
+        CANCELLED = "CANCELLED", "Cancelled"
+        INCOMPLETE = "INCOMPLETE", "Incomplete"
+
+    # ===== IDENTIFICATION =====
+    visit_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique visit number (auto-generated: VIS-YYYY-####)"
+    )
+
+    # ===== LINKED ENTITIES =====
+    service_request = models.ForeignKey(
+        'FieldServiceRequest',
+        on_delete=models.PROTECT,
+        related_name='site_visits',
+        help_text="Related field service request"
+    )
+
+    schedule = models.ForeignKey(
+        'ServiceSchedule',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='site_visits',
+        help_text="Related schedule"
+    )
+
+    technician = models.ForeignKey(
+        'FieldTechnician',
+        on_delete=models.PROTECT,
+        related_name='site_visits',
+        help_text="Technician who performed the visit"
+    )
+
+    service_site = models.ForeignKey(
+        'ServiceSite',
+        on_delete=models.PROTECT,
+        related_name='site_visits',
+        help_text="Site visited"
+    )
+
+    # ===== VISIT TIMING =====
+    visit_date = models.DateField(
+        db_index=True,
+        help_text="Date of the visit"
+    )
+
+    check_in_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When technician checked in"
+    )
+
+    check_out_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When technician checked out"
+    )
+
+    actual_duration_hours = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Actual visit duration in hours"
+    )
+
+    # ===== VISIT DETAILS =====
+    visit_type = models.CharField(
+        max_length=50,
+        choices=VisitType.choices,
+        default=VisitType.SCHEDULED,
+        help_text="Type of visit"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.SCHEDULED,
+        db_index=True,
+        help_text="Current visit status"
+    )
+
+    # ===== WORK PERFORMED =====
+    work_performed = models.TextField(
+        blank=True,
+        help_text="Description of work performed"
+    )
+
+    issues_found = models.TextField(
+        blank=True,
+        help_text="Issues found during visit"
+    )
+
+    parts_used = models.TextField(
+        blank=True,
+        help_text="Parts/materials used"
+    )
+
+    recommendations = models.TextField(
+        blank=True,
+        help_text="Recommendations for future work"
+    )
+
+    # ===== OUTCOMES =====
+    visit_successful = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text="Whether the visit was successful"
+    )
+
+    follow_up_required = models.BooleanField(
+        default=False,
+        help_text="Whether follow-up is required"
+    )
+
+    follow_up_reason = models.TextField(
+        blank=True,
+        help_text="Reason for follow-up"
+    )
+
+    # ===== CUSTOMER FEEDBACK =====
+    customer_signature = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Customer signature (name)"
+    )
+
+    customer_signed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When customer signed"
+    )
+
+    customer_satisfaction_rating = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Customer satisfaction rating (1-5)"
+    )
+
+    customer_comments = models.TextField(
+        blank=True,
+        help_text="Customer comments/feedback"
+    )
+
+    # ===== ATTACHMENTS =====
+    has_photos = models.BooleanField(
+        default=False,
+        help_text="Whether photos were taken"
+    )
+
+    photo_count = models.IntegerField(
+        default=0,
+        help_text="Number of photos"
+    )
+
+    has_documents = models.BooleanField(
+        default=False,
+        help_text="Whether documents were attached"
+    )
+
+    document_count = models.IntegerField(
+        default=0,
+        help_text="Number of documents"
+    )
+
+    # ===== GPS LOCATION =====
+    check_in_latitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        help_text="Check-in GPS latitude"
+    )
+
+    check_in_longitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        help_text="Check-in GPS longitude"
+    )
+
+    check_out_latitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        help_text="Check-out GPS latitude"
+    )
+
+    check_out_longitude = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        help_text="Check-out GPS longitude"
+    )
+
+    # ===== AUDIT =====
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "site_visits"
+        ordering = ['-visit_date', '-check_in_time']
+        verbose_name = "Site Visit"
+        verbose_name_plural = "Site Visits"
+        indexes = [
+            models.Index(fields=['visit_number']),
+            models.Index(fields=['visit_date', 'status']),
+            models.Index(fields=['technician', 'visit_date']),
+            models.Index(fields=['service_site', 'visit_date']),
+        ]
+        permissions = [
+            ("can_check_in_visit", "Can check in to site visit"),
+            ("can_complete_visit", "Can complete site visit"),
+            ("can_view_all_visits", "Can view all site visits"),
+        ]
+
+    def __str__(self):
+        return f"{self.visit_number} - {self.visit_date}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate visit number"""
+        if not self.visit_number:
+            self.visit_number = self._generate_visit_number()
+        super().save(*args, **kwargs)
+
+    def _generate_visit_number(self):
+        """Generate unique visit number: VIS-YYYY-####"""
+        year = timezone.now().year
+
+        last_visit = SiteVisit.objects.filter(
+            visit_number__startswith=f"VIS-{year}-"
+        ).order_by('-visit_number').first()
+
+        if last_visit:
+            try:
+                last_num = int(last_visit.visit_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"VIS-{year}-{new_num:04d}"
+
+    @property
+    def is_checked_in(self):
+        """Check if technician has checked in"""
+        return self.check_in_time is not None
+
+    @property
+    def is_checked_out(self):
+        """Check if technician has checked out"""
+        return self.check_out_time is not None
+
+    @property
+    def duration_minutes(self):
+        """Calculate visit duration in minutes"""
+        if not self.check_in_time or not self.check_out_time:
+            return None
+        delta = self.check_out_time - self.check_in_time
+        return int(delta.total_seconds() / 60)
+
+    def can_check_in(self):
+        """Check if technician can check in"""
+        return self.status in [self.Status.SCHEDULED, self.Status.EN_ROUTE]
+
+    def can_check_out(self):
+        """Check if technician can check out"""
+        return self.status in [self.Status.ARRIVED, self.Status.IN_PROGRESS]
+
+    def check_in(self, latitude=None, longitude=None):
+        """Check in to site visit"""
+        if not self.can_check_in():
+            raise ValidationError("Cannot check in to this visit")
+
+        self.check_in_time = timezone.now()
+        self.status = self.Status.ARRIVED
+
+        if latitude and longitude:
+            self.check_in_latitude = Decimal(str(latitude))
+            self.check_in_longitude = Decimal(str(longitude))
+
+        self.save()
+
+    def start_work(self):
+        """Start work at the site"""
+        if self.status != self.Status.ARRIVED:
+            raise ValidationError("Must be checked in to start work")
+
+        self.status = self.Status.IN_PROGRESS
+        self.save()
+
+    def check_out(self, latitude=None, longitude=None, work_performed='', successful=True):
+        """Check out from site visit"""
+        if not self.can_check_out():
+            raise ValidationError("Cannot check out from this visit")
+
+        self.check_out_time = timezone.now()
+        self.status = self.Status.COMPLETED
+        self.visit_successful = successful
+
+        if work_performed:
+            self.work_performed = work_performed
+
+        if latitude and longitude:
+            self.check_out_latitude = Decimal(str(latitude))
+            self.check_out_longitude = Decimal(str(longitude))
+
+        # Calculate duration
+        if self.check_in_time:
+            duration = self.check_out_time - self.check_in_time
+            self.actual_duration_hours = Decimal(str(duration.total_seconds() / 3600))
+
+        self.save()
+
+        # Update service site history
+        self.service_site.update_service_history(self.visit_date)
+
+    def mark_incomplete(self, reason=''):
+        """Mark visit as incomplete"""
+        self.status = self.Status.INCOMPLETE
+        self.visit_successful = False
+        self.follow_up_required = True
+        if reason:
+            self.follow_up_reason = reason
+        self.save()
+
+    def cancel(self, reason=''):
+        """Cancel the visit"""
+        if self.status in [self.Status.COMPLETED, self.Status.CANCELLED]:
+            raise ValidationError("Cannot cancel completed or already cancelled visit")
+
+        self.status = self.Status.CANCELLED
+        if reason:
+            self.issues_found = f"Cancelled: {reason}"
+        self.save()
+
+    def record_customer_signature(self, signature_name, rating=None, comments=''):
+        """Record customer signature and feedback"""
+        self.customer_signature = signature_name
+        self.customer_signed_at = timezone.now()
+
+        if rating:
+            self.customer_satisfaction_rating = rating
+
+        if comments:
+            self.customer_comments = comments
+
+        self.save()
+
+
+class ServiceReport(models.Model):
+    """
+    Sprint 5: Service Report generation.
+
+    Generates comprehensive service reports from site visits
+    for customer documentation and internal records.
+
+    Features:
+    - Aggregates visit data
+    - Cost calculations
+    - Approval workflow
+    - Customer delivery tracking
+
+    ISO 9001 References:
+    - Clause 7.5: Documented Information
+    - Clause 8.5.1: Control of Production and Service Provision
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        REVIEW = "REVIEW", "Under Review"
+        APPROVED = "APPROVED", "Approved"
+        SENT = "SENT", "Sent to Customer"
+        ACKNOWLEDGED = "ACKNOWLEDGED", "Customer Acknowledged"
+        ARCHIVED = "ARCHIVED", "Archived"
+
+    # ===== IDENTIFICATION =====
+    report_number = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        help_text="Unique report number (auto-generated: RPT-YYYY-####)"
+    )
+
+    # ===== LINKED ENTITIES =====
+    service_request = models.ForeignKey(
+        'FieldServiceRequest',
+        on_delete=models.PROTECT,
+        related_name='service_reports',
+        help_text="Related field service request"
+    )
+
+    site_visit = models.ForeignKey(
+        'SiteVisit',
+        on_delete=models.PROTECT,
+        related_name='service_reports',
+        help_text="Related site visit"
+    )
+
+    # ===== REPORT DETAILS =====
+    report_date = models.DateField(
+        help_text="Report date"
+    )
+
+    report_title = models.CharField(
+        max_length=200,
+        help_text="Report title"
+    )
+
+    # ===== CONTENT =====
+    executive_summary = models.TextField(
+        help_text="Executive summary of the service"
+    )
+
+    work_performed_detail = models.TextField(
+        help_text="Detailed description of work performed"
+    )
+
+    findings = models.TextField(
+        blank=True,
+        help_text="Findings during service"
+    )
+
+    issues_identified = models.TextField(
+        blank=True,
+        help_text="Issues identified"
+    )
+
+    corrective_actions = models.TextField(
+        blank=True,
+        help_text="Corrective actions taken"
+    )
+
+    recommendations = models.TextField(
+        blank=True,
+        help_text="Recommendations for future"
+    )
+
+    # ===== ASSETS SERVICED =====
+    drill_bits_serviced = models.ManyToManyField(
+        'workorders.DrillBit',
+        blank=True,
+        related_name='service_reports',
+        help_text="Drill bits serviced"
+    )
+
+    # ===== PARTS AND MATERIALS =====
+    parts_used_detail = models.TextField(
+        blank=True,
+        help_text="Detailed parts/materials used"
+    )
+
+    parts_cost = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total parts cost"
+    )
+
+    # ===== TIME AND LABOR =====
+    labor_hours = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Total labor hours"
+    )
+
+    labor_cost = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total labor cost"
+    )
+
+    # ===== TOTALS =====
+    total_cost = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total cost (parts + labor)"
+    )
+
+    # ===== ATTACHMENTS =====
+    has_photos = models.BooleanField(
+        default=False,
+        help_text="Report includes photos"
+    )
+
+    has_diagrams = models.BooleanField(
+        default=False,
+        help_text="Report includes diagrams"
+    )
+
+    has_test_results = models.BooleanField(
+        default=False,
+        help_text="Report includes test results"
+    )
+
+    # ===== STATUS AND APPROVAL =====
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+        help_text="Report status"
+    )
+
+    submitted_for_review_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When submitted for review"
+    )
+
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_service_reports',
+        help_text="User who approved the report"
+    )
+
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the report was approved"
+    )
+
+    # ===== CUSTOMER DELIVERY =====
+    sent_to_customer_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When sent to customer"
+    )
+
+    customer_email = models.EmailField(
+        blank=True,
+        help_text="Email sent to"
+    )
+
+    customer_acknowledged_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When customer acknowledged"
+    )
+
+    # ===== AUDIT =====
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_service_reports',
+        help_text="User who created this report"
+    )
+
+    class Meta:
+        db_table = "service_reports"
+        ordering = ['-report_date']
+        verbose_name = "Service Report"
+        verbose_name_plural = "Service Reports"
+        indexes = [
+            models.Index(fields=['report_number']),
+            models.Index(fields=['report_date', 'status']),
+            models.Index(fields=['service_request']),
+        ]
+        permissions = [
+            ("can_approve_service_reports", "Can approve service reports"),
+            ("can_send_to_customer", "Can send reports to customers"),
+        ]
+
+    def __str__(self):
+        return f"{self.report_number} - {self.report_title}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate report number"""
+        if not self.report_number:
+            self.report_number = self._generate_report_number()
+        super().save(*args, **kwargs)
+
+    def _generate_report_number(self):
+        """Generate unique report number: RPT-YYYY-####"""
+        year = timezone.now().year
+
+        last_report = ServiceReport.objects.filter(
+            report_number__startswith=f"RPT-{year}-"
+        ).order_by('-report_number').first()
+
+        if last_report:
+            try:
+                last_num = int(last_report.report_number.split('-')[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"RPT-{year}-{new_num:04d}"
+
+    def calculate_total_cost(self):
+        """Calculate total cost from parts and labor"""
+        total = Decimal('0.00')
+        if self.parts_cost:
+            total += self.parts_cost
+        if self.labor_cost:
+            total += self.labor_cost
+        self.total_cost = total
+        return total
+
+    def can_be_submitted(self):
+        """Check if report can be submitted for review"""
+        return self.status == self.Status.DRAFT
+
+    def can_be_approved(self):
+        """Check if report can be approved"""
+        return self.status == self.Status.REVIEW
+
+    def can_be_sent(self):
+        """Check if report can be sent to customer"""
+        return self.status == self.Status.APPROVED
+
+    def submit_for_review(self):
+        """Submit report for review"""
+        if not self.can_be_submitted():
+            raise ValidationError("Report cannot be submitted in current status")
+
+        self.status = self.Status.REVIEW
+        self.submitted_for_review_at = timezone.now()
+        self.save()
+
+    def approve(self, user):
+        """Approve the report"""
+        if not self.can_be_approved():
+            raise ValidationError("Report cannot be approved in current status")
+
+        self.status = self.Status.APPROVED
+        self.approved_by = user
+        self.approved_at = timezone.now()
+        self.save()
+
+    def send_to_customer(self, email=None):
+        """Mark report as sent to customer"""
+        if not self.can_be_sent():
+            raise ValidationError("Report cannot be sent in current status")
+
+        self.status = self.Status.SENT
+        self.sent_to_customer_at = timezone.now()
+        if email:
+            self.customer_email = email
+        self.save()
+
+    def acknowledge_receipt(self):
+        """Mark report as acknowledged by customer"""
+        if self.status != self.Status.SENT:
+            raise ValidationError("Can only acknowledge sent reports")
+
+        self.status = self.Status.ACKNOWLEDGED
+        self.customer_acknowledged_at = timezone.now()
+        self.save()
+
+    def archive(self):
+        """Archive the report"""
+        if self.status not in [self.Status.SENT, self.Status.ACKNOWLEDGED]:
+            raise ValidationError("Can only archive sent or acknowledged reports")
+
+        self.status = self.Status.ARCHIVED
+        self.save()
