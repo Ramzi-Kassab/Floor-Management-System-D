@@ -135,8 +135,8 @@ class DrillBit(models.Model):
 
     # Customer/Job
     customer = models.ForeignKey("sales.Customer", on_delete=models.SET_NULL, null=True, blank=True, related_name="drill_bits")
-    rig = models.ForeignKey("sales.Rig", on_delete=models.SET_NULL, null=True, blank=True)
-    well = models.ForeignKey("sales.Well", on_delete=models.SET_NULL, null=True, blank=True)
+    rig = models.ForeignKey("sales.Rig", on_delete=models.SET_NULL, null=True, blank=True, related_name="drill_bits")
+    well = models.ForeignKey("sales.Well", on_delete=models.SET_NULL, null=True, blank=True, related_name="drill_bits")
 
     # Usage tracking
     total_hours = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -225,8 +225,8 @@ class WorkOrder(models.Model):
     )
 
     # Destination
-    rig = models.ForeignKey("sales.Rig", on_delete=models.SET_NULL, null=True, blank=True)
-    well = models.ForeignKey("sales.Well", on_delete=models.SET_NULL, null=True, blank=True)
+    rig = models.ForeignKey("sales.Rig", on_delete=models.SET_NULL, null=True, blank=True, related_name="work_orders")
+    well = models.ForeignKey("sales.Well", on_delete=models.SET_NULL, null=True, blank=True, related_name="work_orders")
 
     # Sprint 4: Repair-specific fields
     class RepairType(models.TextChoices):
@@ -297,7 +297,7 @@ class WorkOrder(models.Model):
     assigned_to = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_work_orders"
     )
-    department = models.ForeignKey("organization.Department", on_delete=models.SET_NULL, null=True, blank=True)
+    department = models.ForeignKey("organization.Department", on_delete=models.SET_NULL, null=True, blank=True, related_name="work_orders")
 
     # Notes
     description = models.TextField(blank=True)
@@ -433,7 +433,7 @@ class WorkOrderDocument(models.Model):
     file = models.FileField(upload_to="wo_documents/")
     version = models.CharField(max_length=20, blank=True)
 
-    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="uploaded_wo_documents")
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -456,7 +456,7 @@ class WorkOrderPhoto(models.Model):
     caption = models.CharField(max_length=200, blank=True)
     stage = models.CharField(max_length=50, blank=True, help_text="Production stage")
 
-    taken_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    taken_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="taken_wo_photos")
     taken_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -478,7 +478,7 @@ class WorkOrderMaterial(models.Model):
     inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.PROTECT, related_name="wo_consumptions")
 
     # From BOM
-    bom_line = models.ForeignKey("technology.BOMLine", on_delete=models.SET_NULL, null=True, blank=True)
+    bom_line = models.ForeignKey("technology.BOMLine", on_delete=models.SET_NULL, null=True, blank=True, related_name="wo_materials")
 
     # Quantities
     planned_quantity = models.DecimalField(max_digits=10, decimal_places=3)
@@ -521,7 +521,7 @@ class WorkOrderTimeLog(models.Model):
 
     # Activity
     activity_type = models.CharField(max_length=50, blank=True)
-    step = models.ForeignKey("procedures.ProcedureStep", on_delete=models.SET_NULL, null=True, blank=True)
+    step = models.ForeignKey("procedures.ProcedureStep", on_delete=models.SET_NULL, null=True, blank=True, related_name="wo_time_logs")
     description = models.TextField(blank=True)
 
     # Cost
@@ -574,8 +574,8 @@ class BitEvaluation(models.Model):
     drill_bit = models.ForeignKey(DrillBit, on_delete=models.CASCADE, related_name="evaluations")
 
     # Field data
-    rig = models.ForeignKey("sales.Rig", on_delete=models.SET_NULL, null=True, blank=True)
-    well = models.ForeignKey("sales.Well", on_delete=models.SET_NULL, null=True, blank=True)
+    rig = models.ForeignKey("sales.Rig", on_delete=models.SET_NULL, null=True, blank=True, related_name="bit_evaluations")
+    well = models.ForeignKey("sales.Well", on_delete=models.SET_NULL, null=True, blank=True, related_name="bit_evaluations")
     run_number = models.IntegerField(null=True, blank=True)
     hours_run = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     footage_drilled = models.IntegerField(null=True, blank=True)

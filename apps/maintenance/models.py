@@ -57,7 +57,7 @@ class Equipment(models.Model):
     year_of_manufacture = models.IntegerField(null=True, blank=True)
 
     # Location
-    department = models.ForeignKey("organization.Department", on_delete=models.SET_NULL, null=True, blank=True)
+    department = models.ForeignKey("organization.Department", on_delete=models.SET_NULL, null=True, blank=True, related_name="equipment")
     location = models.CharField(max_length=200, blank=True)
 
     # Status
