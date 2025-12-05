@@ -10,7 +10,7 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView
+from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
 
 from .forms import (
     PlanningBoardForm,
@@ -634,4 +634,156 @@ class WikiPageUpdateView(LoginRequiredMixin, UpdateView):
 
         form.instance.last_edited_by = self.request.user
         messages.success(self.request, "Wiki page updated successfully.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# Delete Views
+# =============================================================================
+
+
+class SprintDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a sprint."""
+
+    model = Sprint
+    template_name = "planning/confirm_delete.html"
+    success_url = reverse_lazy("planning:sprint_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete {self.object.code}"
+        context["object_type"] = "Sprint"
+        context["object_name"] = self.object.code
+        context["cancel_url"] = reverse_lazy("planning:sprint_detail", kwargs={"pk": self.object.pk})
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Sprint {self.object.code} deleted successfully.")
+        return super().form_valid(form)
+
+
+class BoardDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a board."""
+
+    model = PlanningBoard
+    template_name = "planning/confirm_delete.html"
+    success_url = reverse_lazy("planning:board_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete {self.object.name}"
+        context["object_type"] = "Board"
+        context["object_name"] = self.object.name
+        context["cancel_url"] = reverse_lazy("planning:board_detail", kwargs={"pk": self.object.pk})
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Board {self.object.name} deleted successfully.")
+        return super().form_valid(form)
+
+
+class ColumnDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a column."""
+
+    model = PlanningColumn
+    template_name = "planning/confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("planning:board_detail", kwargs={"pk": self.object.board.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete {self.object.name}"
+        context["object_type"] = "Column"
+        context["object_name"] = self.object.name
+        context["cancel_url"] = reverse_lazy("planning:board_detail", kwargs={"pk": self.object.board.pk})
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Column {self.object.name} deleted successfully.")
+        return super().form_valid(form)
+
+
+class ItemDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a planning item."""
+
+    model = PlanningItem
+    template_name = "planning/confirm_delete.html"
+    success_url = reverse_lazy("planning:item_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete {self.object.code}"
+        context["object_type"] = "Item"
+        context["object_name"] = f"{self.object.code} - {self.object.title}"
+        context["cancel_url"] = reverse_lazy("planning:item_detail", kwargs={"pk": self.object.pk})
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Item {self.object.code} deleted successfully.")
+        return super().form_valid(form)
+
+
+class LabelDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a label."""
+
+    model = PlanningLabel
+    template_name = "planning/confirm_delete.html"
+    success_url = reverse_lazy("planning:label_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete {self.object.name}"
+        context["object_type"] = "Label"
+        context["object_name"] = self.object.name
+        context["cancel_url"] = reverse_lazy("planning:label_list")
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Label {self.object.name} deleted successfully.")
+        return super().form_valid(form)
+
+
+class WikiSpaceDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a wiki space."""
+
+    model = WikiSpace
+    template_name = "planning/confirm_delete.html"
+    success_url = reverse_lazy("planning:wiki_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete {self.object.name}"
+        context["object_type"] = "Wiki Space"
+        context["object_name"] = self.object.name
+        context["cancel_url"] = reverse_lazy("planning:wiki_space_detail", kwargs={"pk": self.object.pk})
+        context["warning"] = "This will also delete all pages in this wiki space!"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Wiki space {self.object.name} deleted successfully.")
+        return super().form_valid(form)
+
+
+class WikiPageDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a wiki page."""
+
+    model = WikiPage
+    template_name = "planning/confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("planning:wiki_space_detail", kwargs={"pk": self.object.space.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete {self.object.title}"
+        context["object_type"] = "Wiki Page"
+        context["object_name"] = self.object.title
+        context["cancel_url"] = reverse_lazy("planning:wiki_page_detail", kwargs={"pk": self.object.pk})
+        if self.object.children.exists():
+            context["warning"] = "This page has child pages that will also be affected!"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Wiki page '{self.object.title}' deleted successfully.")
         return super().form_valid(form)

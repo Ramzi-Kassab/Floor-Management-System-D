@@ -48,7 +48,10 @@ urlpatterns = [
     
     # Planning Module (NEW in v5.4)
     path('planning/', include('apps.planning.urls', namespace='planning')),
-    
+
+    # Reports & Analytics (NEW in v5.4)
+    path('reports/', include('apps.reports.urls', namespace='reports')),
+
     # Future Phase Apps (P2+)
     path('supply-chain/', include('apps.supplychain.urls', namespace='supplychain')),
     path('dispatch/', include('apps.dispatch.urls', namespace='dispatch')),

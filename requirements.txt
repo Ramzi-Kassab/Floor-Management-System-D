@@ -28,6 +28,9 @@ qrcode>=7.4
 markdown>=3.5
 bleach>=6.0
 
+# Excel Export
+openpyxl>=3.1
+
 # Production Server
 whitenoise>=6.6
 gunicorn>=21.0

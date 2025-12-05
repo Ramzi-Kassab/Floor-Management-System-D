@@ -151,7 +151,7 @@ class NCR(models.Model):
     status = models.CharField(max_length=30, choices=Status.choices, default=Status.OPEN)
     disposition = models.CharField(max_length=30, choices=Disposition.choices, null=True, blank=True)
     disposition_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="dispositoned_ncrs"
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="dispositioned_ncrs"
     )
     disposition_date = models.DateField(null=True, blank=True)
     disposition_notes = models.TextField(blank=True)

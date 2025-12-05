@@ -1,0 +1,119 @@
+{% extends "reports/report_base.html" %}
+
+{% block report_description %}Maintenance work orders and equipment tracking{% endblock %}
+
+{% block filter_fields %}
+<div>
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Date</label>
+    <input type="date" name="date_from" value="{{ request.GET.date_from }}"
+           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+</div>
+<div>
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">To Date</label>
+    <input type="date" name="date_to" value="{{ request.GET.date_to }}"
+           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+</div>
+<div>
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+    <select name="status"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+        <option value="">All Statuses</option>
+        {% for value, label in status_choices %}
+        <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+</div>
+{% endblock %}
+
+{% block summary %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Total MWOs</p>
+        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ summary.total_mwos }}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Completed</p>
+        <p class="text-2xl font-bold text-green-600">{{ summary.completed }}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">In Progress</p>
+        <p class="text-2xl font-bold text-blue-600">{{ summary.in_progress }}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Pending Requests</p>
+        <p class="text-2xl font-bold text-yellow-600">{{ summary.pending_requests }}</p>
+    </div>
+</div>
+
+<!-- Equipment Stats -->
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Equipment Status</h3>
+    <div class="grid grid-cols-3 gap-4">
+        <div class="text-center">
+            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ equipment_stats.total }}</p>
+            <p class="text-sm text-gray-500">Total Equipment</p>
+        </div>
+        <div class="text-center">
+            <p class="text-2xl font-bold text-green-600">{{ equipment_stats.operational }}</p>
+            <p class="text-sm text-gray-500">Operational</p>
+        </div>
+        <div class="text-center">
+            <p class="text-2xl font-bold text-orange-600">{{ equipment_stats.under_maintenance }}</p>
+            <p class="text-sm text-gray-500">Under Maintenance</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block table %}
+<div class="overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-900">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MWO Number</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Equipment</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Work Type</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Priority</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Assigned To</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Scheduled</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for mwo in mwos %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <a href="{% url 'maintenance:mwo_detail' mwo.pk %}" class="text-blue-600 hover:underline font-medium">
+                        {{ mwo.mwo_number }}
+                    </a>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white">
+                    {{ mwo.equipment.code }} - {{ mwo.equipment.name }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                    {{ mwo.get_work_type_display }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    {% include "components/status_badge.html" with status=mwo.status %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    {% include "components/priority_badge.html" with priority=mwo.priority %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                    {{ mwo.assigned_to.username|default:"-" }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                    {{ mwo.scheduled_date|date:"M d, Y"|default:"-" }}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                    No maintenance work orders found.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

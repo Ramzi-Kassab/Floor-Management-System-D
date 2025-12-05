@@ -89,6 +89,9 @@ LOCAL_APPS = [
     # Planning (NEW in v5.4)
     'apps.planning',
 
+    # Reports & Analytics (NEW in v5.4)
+    'apps.reports',
+
     # Future Phases (skeleton only)
     'apps.supplychain',
     'apps.dispatch',

@@ -110,7 +110,7 @@ class StepExecution(models.Model):
         PARTIAL = "PARTIAL", "Partial"
 
     execution = models.ForeignKey(ProcedureExecution, on_delete=models.CASCADE, related_name="step_executions")
-    step = models.ForeignKey("procedures.ProcedureStep", on_delete=models.PROTECT)
+    step = models.ForeignKey("procedures.ProcedureStep", on_delete=models.PROTECT, related_name="step_executions")
 
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     result = models.CharField(max_length=20, choices=Result.choices, null=True, blank=True)
