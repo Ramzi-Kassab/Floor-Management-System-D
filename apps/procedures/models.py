@@ -132,8 +132,8 @@ class ProcedureStep(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
 
-    step_type = models.ForeignKey(StepType, on_delete=models.SET_NULL, null=True, blank=True)
-    responsible_role = models.ForeignKey("accounts.Role", on_delete=models.SET_NULL, null=True, blank=True)
+    step_type = models.ForeignKey(StepType, on_delete=models.SET_NULL, null=True, blank=True, related_name="procedure_steps")
+    responsible_role = models.ForeignKey("accounts.Role", on_delete=models.SET_NULL, null=True, blank=True, related_name="responsible_steps")
     reference_procedure_code = models.CharField(max_length=30, blank=True, help_text="Sub-procedure link")
 
     # Step behavior
@@ -237,7 +237,7 @@ class StepCheckpoint(models.Model):
     checkpoint_code = models.CharField(max_length=30, blank=True)
     name = models.CharField(max_length=200)
 
-    check_type = models.ForeignKey(CheckpointType, on_delete=models.SET_NULL, null=True, blank=True)
+    check_type = models.ForeignKey(CheckpointType, on_delete=models.SET_NULL, null=True, blank=True, related_name="checkpoints")
     expected_value = models.CharField(max_length=100, blank=True)
     tolerance_min = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
     tolerance_max = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
@@ -246,7 +246,7 @@ class StepCheckpoint(models.Model):
 
     is_critical = models.BooleanField(default=False)
     failure_action = models.CharField(max_length=30, choices=FailureAction.choices, default=FailureAction.NOTIFY)
-    failure_notify_role = models.ForeignKey("accounts.Role", on_delete=models.SET_NULL, null=True, blank=True)
+    failure_notify_role = models.ForeignKey("accounts.Role", on_delete=models.SET_NULL, null=True, blank=True, related_name="failure_notification_checkpoints")
 
     help_text = models.TextField(blank=True)
     photo_required = models.BooleanField(default=False)
@@ -290,7 +290,7 @@ class StepBranch(models.Model):
     then_target_step = models.ForeignKey(
         ProcedureStep, on_delete=models.SET_NULL, null=True, blank=True, related_name="incoming_branches"
     )
-    then_notify_role = models.ForeignKey("accounts.Role", on_delete=models.SET_NULL, null=True, blank=True)
+    then_notify_role = models.ForeignKey("accounts.Role", on_delete=models.SET_NULL, null=True, blank=True, related_name="branch_notifications")
     then_message = models.TextField(blank=True)
 
     is_default = models.BooleanField(default=False, help_text="ELSE branch")
@@ -328,8 +328,8 @@ class StepInput(models.Model):
     name = models.CharField(max_length=200)
     code = models.CharField(max_length=50, blank=True)
 
-    inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.SET_NULL, null=True, blank=True)
-    equipment = models.ForeignKey("maintenance.Equipment", on_delete=models.SET_NULL, null=True, blank=True)
+    inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.SET_NULL, null=True, blank=True, related_name="step_inputs")
+    equipment = models.ForeignKey("maintenance.Equipment", on_delete=models.SET_NULL, null=True, blank=True, related_name="step_inputs")
 
     quantity = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     unit = models.CharField(max_length=20, blank=True)
@@ -391,7 +391,7 @@ class ProcedureVersion(models.Model):
 
     # Change tracking
     change_summary = models.TextField(blank=True)
-    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="procedure_version_changes")
     changed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

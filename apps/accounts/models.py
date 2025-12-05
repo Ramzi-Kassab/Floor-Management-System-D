@@ -81,7 +81,7 @@ class User(AbstractUser):
     timezone = models.CharField(max_length=50, default="Asia/Riyadh")
 
     # Theme
-    theme = models.ForeignKey("organization.Theme", on_delete=models.SET_NULL, null=True, blank=True)
+    theme = models.ForeignKey("organization.Theme", on_delete=models.SET_NULL, null=True, blank=True, related_name="users")
 
     # Status
     is_active = models.BooleanField(default=True)
@@ -195,8 +195,8 @@ class RolePermission(models.Model):
     🟢 P1: Many-to-many relationship between roles and permissions.
     """
 
-    role = models.ForeignKey(Role, on_delete=models.CASCADE)
-    permission = models.ForeignKey(Permission, on_delete=models.CASCADE)
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="role_permissions")
+    permission = models.ForeignKey(Permission, on_delete=models.CASCADE, related_name="role_permissions")
     granted_at = models.DateTimeField(auto_now_add=True)
     granted_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name="granted_role_permissions"
@@ -218,8 +218,8 @@ class UserRole(models.Model):
     🟢 P1: Many-to-many relationship between users and roles.
     """
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    role = models.ForeignKey(Role, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="user_roles")
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="user_roles")
     assigned_at = models.DateTimeField(auto_now_add=True)
     assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_user_roles")
     expires_at = models.DateTimeField(null=True, blank=True, help_text="Temporary role assignment")

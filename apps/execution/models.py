@@ -166,7 +166,7 @@ class CheckpointResult(models.Model):
         NA = "NA", "Not Applicable"
 
     step_execution = models.ForeignKey(StepExecution, on_delete=models.CASCADE, related_name="checkpoint_results")
-    checkpoint = models.ForeignKey("procedures.StepCheckpoint", on_delete=models.PROTECT)
+    checkpoint = models.ForeignKey("procedures.StepCheckpoint", on_delete=models.PROTECT, related_name="results")
 
     result = models.CharField(max_length=20, choices=Result.choices)
     actual_value = models.CharField(max_length=200, blank=True)
@@ -182,7 +182,7 @@ class CheckpointResult(models.Model):
     # NCR link (if checkpoint failed and NCR created)
     ncr = models.ForeignKey("quality.NCR", on_delete=models.SET_NULL, null=True, blank=True, related_name="checkpoint_results")
 
-    evaluated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    evaluated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="evaluated_checkpoints")
     evaluated_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -206,7 +206,7 @@ class BranchEvaluation(models.Model):
     """
 
     step_execution = models.ForeignKey(StepExecution, on_delete=models.CASCADE, related_name="branch_evaluations")
-    branch = models.ForeignKey("procedures.StepBranch", on_delete=models.PROTECT)
+    branch = models.ForeignKey("procedures.StepBranch", on_delete=models.PROTECT, related_name="evaluations")
 
     condition_met = models.BooleanField()
     evaluated_value = models.CharField(max_length=500, blank=True)
@@ -234,12 +234,12 @@ class FormSubmission(models.Model):
     """
 
     step_execution = models.ForeignKey(StepExecution, on_delete=models.CASCADE, related_name="form_submissions")
-    form_template = models.ForeignKey("forms_engine.FormTemplate", on_delete=models.PROTECT)
+    form_template = models.ForeignKey("forms_engine.FormTemplate", on_delete=models.PROTECT, related_name="submissions")
 
     # Version at submission time
     template_version = models.CharField(max_length=10, blank=True)
 
-    submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="form_submissions")
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     # Computed properties stored for quick access
@@ -263,7 +263,7 @@ class FormFieldValue(models.Model):
     """
 
     submission = models.ForeignKey(FormSubmission, on_delete=models.CASCADE, related_name="field_values")
-    field = models.ForeignKey("forms_engine.FormField", on_delete=models.PROTECT)
+    field = models.ForeignKey("forms_engine.FormField", on_delete=models.PROTECT, related_name="submitted_values")
 
     # Store all values as text; field type determines interpretation
     value = models.TextField(blank=True)

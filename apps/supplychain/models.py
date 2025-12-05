@@ -84,7 +84,7 @@ class PRLine(models.Model):
 
     pr = models.ForeignKey(PurchaseRequisition, on_delete=models.CASCADE, related_name="lines")
     line_number = models.IntegerField()
-    inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.PROTECT)
+    inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.PROTECT, related_name="pr_lines")
     quantity = models.DecimalField(max_digits=10, decimal_places=3)
     notes = models.TextField(blank=True)
 
@@ -115,7 +115,7 @@ class PurchaseOrder(models.Model):
     total_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     notes = models.TextField(blank=True)
 
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_purchase_orders")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -133,7 +133,7 @@ class POLine(models.Model):
 
     po = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="lines")
     line_number = models.IntegerField()
-    inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.PROTECT)
+    inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.PROTECT, related_name="po_lines")
     quantity = models.DecimalField(max_digits=10, decimal_places=3)
     unit_price = models.DecimalField(max_digits=15, decimal_places=4)
     received_quantity = models.DecimalField(max_digits=10, decimal_places=3, default=0)
@@ -159,7 +159,7 @@ class GoodsReceipt(models.Model):
     receipt_date = models.DateField()
     notes = models.TextField(blank=True)
 
-    received_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    received_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="received_goods")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -175,7 +175,7 @@ class GRNLine(models.Model):
     """🟡 P2: Goods Receipt Lines."""
 
     grn = models.ForeignKey(GoodsReceipt, on_delete=models.CASCADE, related_name="lines")
-    po_line = models.ForeignKey(POLine, on_delete=models.PROTECT)
+    po_line = models.ForeignKey(POLine, on_delete=models.PROTECT, related_name="grn_lines")
     quantity_received = models.DecimalField(max_digits=10, decimal_places=3)
     lot_number = models.CharField(max_length=50, blank=True)
 
@@ -196,7 +196,7 @@ class CAPA(models.Model):
         CLOSED = "CLOSED", "Closed"
 
     capa_number = models.CharField(max_length=30, unique=True)
-    ncr = models.ForeignKey("quality.NCR", on_delete=models.SET_NULL, null=True, blank=True)
+    ncr = models.ForeignKey("quality.NCR", on_delete=models.SET_NULL, null=True, blank=True, related_name="capas")
     title = models.CharField(max_length=200)
     description = models.TextField()
     root_cause = models.TextField(blank=True)
@@ -205,7 +205,7 @@ class CAPA(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     due_date = models.DateField(null=True, blank=True)
 
-    assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="assigned_capas")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

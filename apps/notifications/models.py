@@ -59,7 +59,7 @@ class Notification(models.Model):
 
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
 
-    template = models.ForeignKey(NotificationTemplate, on_delete=models.SET_NULL, null=True, blank=True)
+    template = models.ForeignKey(NotificationTemplate, on_delete=models.SET_NULL, null=True, blank=True, related_name="notifications")
 
     title = models.CharField(max_length=200)
     message = models.TextField()

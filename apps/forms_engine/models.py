@@ -109,7 +109,7 @@ class FormField(models.Model):
     """
 
     section = models.ForeignKey(FormSection, on_delete=models.CASCADE, related_name="fields")
-    field_type = models.ForeignKey(FieldType, on_delete=models.PROTECT)
+    field_type = models.ForeignKey(FieldType, on_delete=models.PROTECT, related_name="form_fields")
 
     name = models.CharField(max_length=100, help_text="Internal field name")
     label = models.CharField(max_length=200, help_text="Display label")
@@ -166,7 +166,7 @@ class FormTemplateVersion(models.Model):
 
     # Change tracking
     change_summary = models.TextField(blank=True)
-    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="form_template_version_changes")
     changed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -56,13 +56,13 @@ class Dispatch(models.Model):
         CANCELLED = "CANCELLED", "Cancelled"
 
     dispatch_number = models.CharField(max_length=30, unique=True)
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.SET_NULL, null=True, blank=True)
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.SET_NULL, null=True, blank=True, related_name="dispatches")
     driver_name = models.CharField(max_length=100, blank=True)
 
     # Destination
     customer = models.ForeignKey("sales.Customer", on_delete=models.PROTECT, related_name="dispatches")
-    destination = models.ForeignKey("sales.Warehouse", on_delete=models.SET_NULL, null=True, blank=True)
-    rig = models.ForeignKey("sales.Rig", on_delete=models.SET_NULL, null=True, blank=True)
+    destination = models.ForeignKey("sales.Warehouse", on_delete=models.SET_NULL, null=True, blank=True, related_name="dispatch_destinations")
+    rig = models.ForeignKey("sales.Rig", on_delete=models.SET_NULL, null=True, blank=True, related_name="dispatches")
 
     # Dates
     planned_date = models.DateField()
@@ -72,7 +72,7 @@ class Dispatch(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PLANNED)
     notes = models.TextField(blank=True)
 
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_dispatches")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -95,8 +95,8 @@ class DispatchItem(models.Model):
     """🟠 P3: Items in a dispatch."""
 
     dispatch = models.ForeignKey(Dispatch, on_delete=models.CASCADE, related_name="items")
-    sales_order_line = models.ForeignKey("sales.SalesOrderLine", on_delete=models.PROTECT)
-    drill_bit = models.ForeignKey("workorders.DrillBit", on_delete=models.SET_NULL, null=True, blank=True)
+    sales_order_line = models.ForeignKey("sales.SalesOrderLine", on_delete=models.PROTECT, related_name="dispatch_items")
+    drill_bit = models.ForeignKey("workorders.DrillBit", on_delete=models.SET_NULL, null=True, blank=True, related_name="dispatch_items")
     quantity = models.IntegerField(default=1)
 
     class Meta:
@@ -116,12 +116,12 @@ class InventoryReservation(models.Model):
         ISSUED = "ISSUED", "Issued"
         CANCELLED = "CANCELLED", "Cancelled"
 
-    inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.PROTECT)
-    work_order = models.ForeignKey("workorders.WorkOrder", on_delete=models.CASCADE)
+    inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.PROTECT, related_name="reservations")
+    work_order = models.ForeignKey("workorders.WorkOrder", on_delete=models.CASCADE, related_name="inventory_reservations")
     quantity = models.DecimalField(max_digits=10, decimal_places=3)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.RESERVED)
 
-    reserved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    reserved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="inventory_reservations")
     reserved_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

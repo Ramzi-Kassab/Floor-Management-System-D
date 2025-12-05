@@ -124,7 +124,7 @@ class SystemSetting(models.Model):
     is_editable = models.BooleanField(default=True)
 
     updated_at = models.DateTimeField(auto_now=True)
-    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="updated_settings")
 
     class Meta:
         db_table = "system_settings"

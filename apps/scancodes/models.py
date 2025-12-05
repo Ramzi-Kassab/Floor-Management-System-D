@@ -89,11 +89,11 @@ class ScanLog(models.Model):
     purpose = models.CharField(max_length=20, choices=Purpose.choices, default=Purpose.IDENTIFY)
 
     # Context
-    work_order = models.ForeignKey("workorders.WorkOrder", on_delete=models.SET_NULL, null=True, blank=True)
-    step_execution = models.ForeignKey("execution.StepExecution", on_delete=models.SET_NULL, null=True, blank=True)
+    work_order = models.ForeignKey("workorders.WorkOrder", on_delete=models.SET_NULL, null=True, blank=True, related_name="scan_logs")
+    step_execution = models.ForeignKey("execution.StepExecution", on_delete=models.SET_NULL, null=True, blank=True, related_name="scan_logs")
 
     # Location
-    location = models.ForeignKey("inventory.InventoryLocation", on_delete=models.SET_NULL, null=True, blank=True)
+    location = models.ForeignKey("inventory.InventoryLocation", on_delete=models.SET_NULL, null=True, blank=True, related_name="scan_logs")
     latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
 
@@ -102,7 +102,7 @@ class ScanLog(models.Model):
     validation_message = models.CharField(max_length=500, blank=True)
 
     # User & device
-    scanned_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    scanned_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="scanned_codes")
     scanned_at = models.DateTimeField(auto_now_add=True)
     device_info = models.CharField(max_length=200, blank=True)
 

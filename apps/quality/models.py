@@ -42,8 +42,8 @@ class Inspection(models.Model):
     )
 
     # Procedure link
-    procedure = models.ForeignKey("procedures.Procedure", on_delete=models.SET_NULL, null=True, blank=True)
-    procedure_execution = models.ForeignKey("execution.ProcedureExecution", on_delete=models.SET_NULL, null=True, blank=True)
+    procedure = models.ForeignKey("procedures.Procedure", on_delete=models.SET_NULL, null=True, blank=True, related_name="inspections")
+    procedure_execution = models.ForeignKey("execution.ProcedureExecution", on_delete=models.SET_NULL, null=True, blank=True, related_name="inspections")
 
     # Schedule
     scheduled_date = models.DateField(null=True, blank=True)
@@ -202,7 +202,7 @@ class NCRPhoto(models.Model):
     photo = models.ImageField(upload_to="ncr_photos/")
     caption = models.CharField(max_length=200, blank=True)
 
-    taken_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    taken_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="ncr_photos")
     taken_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

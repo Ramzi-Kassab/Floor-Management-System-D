@@ -35,7 +35,7 @@ class HOCReport(models.Model):
     immediate_action = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
 
-    reported_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    reported_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="reported_hoc")
     reported_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -89,7 +89,7 @@ class Incident(models.Model):
     root_cause = models.TextField(blank=True)
     corrective_actions = models.TextField(blank=True)
 
-    reported_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    reported_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="reported_incidents")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -123,7 +123,7 @@ class Journey(models.Model):
     driver = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="journeys_as_driver"
     )
-    vehicle = models.ForeignKey("dispatch.Vehicle", on_delete=models.SET_NULL, null=True, blank=True)
+    vehicle = models.ForeignKey("dispatch.Vehicle", on_delete=models.SET_NULL, null=True, blank=True, related_name="journeys")
 
     departure_location = models.CharField(max_length=200)
     destination = models.CharField(max_length=200)

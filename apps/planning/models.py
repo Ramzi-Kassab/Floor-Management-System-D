@@ -368,7 +368,7 @@ class WikiPageVersion(models.Model):
 
     # Change tracking
     change_summary = models.CharField(max_length=500, blank=True)
-    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="wiki_page_version_changes")
     changed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

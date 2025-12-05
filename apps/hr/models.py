@@ -97,7 +97,7 @@ class LeaveRequest(models.Model):
         CANCELLED = "CANCELLED", "Cancelled"
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="leave_requests")
-    leave_type = models.ForeignKey(LeaveType, on_delete=models.PROTECT)
+    leave_type = models.ForeignKey(LeaveType, on_delete=models.PROTECT, related_name="leave_requests")
     start_date = models.DateField()
     end_date = models.DateField()
     days = models.DecimalField(max_digits=5, decimal_places=2)
