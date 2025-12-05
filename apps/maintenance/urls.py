@@ -28,4 +28,7 @@ urlpatterns = [
     path("work-orders/<int:pk>/start/", views.MWOStartView.as_view(), name="mwo_start"),
     path("work-orders/<int:pk>/complete/", views.MWOCompleteView.as_view(), name="mwo_complete"),
     path("work-orders/<int:pk>/add-part/", views.MWOAddPartView.as_view(), name="mwo_add_part"),
+    # Preventive Maintenance Scheduling
+    path("schedule/", views.PreventiveMaintenanceScheduleView.as_view(), name="pm_schedule"),
+    path("schedule/generate/", views.GeneratePreventiveMaintenanceView.as_view(), name="pm_generate"),
 ]

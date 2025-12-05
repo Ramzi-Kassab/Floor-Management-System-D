@@ -22,8 +22,8 @@ from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import UpdateView
 
-from .forms import CustomAuthenticationForm, UserProfileForm
-from .models import User
+from .forms import CustomAuthenticationForm, UserPreferenceForm, UserProfileForm
+from .models import User, UserPreference
 
 
 class CustomLoginView(LoginView):
@@ -101,22 +101,40 @@ def profile_view(request):
 @login_required
 def settings_view(request):
     """
-    User settings page for preferences.
+    User settings page for profile and preferences.
     """
     user = request.user
 
+    # Get or create user preferences
+    preferences, created = UserPreference.objects.get_or_create(user=user)
+
     if request.method == "POST":
-        # Handle profile form
-        profile_form = UserProfileForm(request.POST, instance=user)
-        if profile_form.is_valid():
-            profile_form.save()
-            messages.success(request, "Profile updated successfully!")
-            return redirect("accounts:settings")
+        form_type = request.POST.get("form_type", "profile")
+
+        if form_type == "profile":
+            profile_form = UserProfileForm(request.POST, instance=user)
+            preferences_form = UserPreferenceForm(instance=preferences)
+            if profile_form.is_valid():
+                profile_form.save()
+                messages.success(request, "Profile updated successfully!")
+                return redirect("accounts:settings")
+        elif form_type == "preferences":
+            profile_form = UserProfileForm(instance=user)
+            preferences_form = UserPreferenceForm(request.POST, instance=preferences)
+            if preferences_form.is_valid():
+                preferences_form.save()
+                messages.success(request, "Preferences updated successfully!")
+                return redirect("accounts:settings")
+        else:
+            profile_form = UserProfileForm(instance=user)
+            preferences_form = UserPreferenceForm(instance=preferences)
     else:
         profile_form = UserProfileForm(instance=user)
+        preferences_form = UserPreferenceForm(instance=preferences)
 
     context = {
         "profile_form": profile_form,
+        "preferences_form": preferences_form,
         "themes": [
             {"value": "light", "label": "Light"},
             {"value": "dark", "label": "Dark"},

@@ -3,11 +3,17 @@ ARDT FMS - Supply Chain Views
 Version: 5.4
 """
 
+import io
+
+from django.conf import settings as django_settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.mail import EmailMessage
 from django.db.models import Count, F, Q, Sum
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import CreateView, DetailView, ListView, TemplateView, UpdateView, View
@@ -601,3 +607,115 @@ class CAPAUpdateView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "CAPA updated successfully.")
         return super().form_valid(form)
+
+
+# =============================================================================
+# PO PDF and Email Views
+# =============================================================================
+
+
+class POPDFView(LoginRequiredMixin, View):
+    """Generate PDF for a Purchase Order."""
+
+    def get(self, request, pk):
+        from xhtml2pdf import pisa
+
+        po = get_object_or_404(
+            PurchaseOrder.objects.select_related("supplier", "created_by"),
+            pk=pk
+        )
+        lines = po.lines.select_related("inventory_item")
+
+        # Render HTML template
+        html_content = render_to_string("supplychain/po_pdf.html", {
+            "po": po,
+            "lines": lines,
+            "company_name": getattr(django_settings, "COMPANY_NAME", "ARDT FMS"),
+        })
+
+        # Create PDF
+        buffer = io.BytesIO()
+        pisa_status = pisa.CreatePDF(html_content, dest=buffer)
+
+        if pisa_status.err:
+            return HttpResponse("Error generating PDF", status=500)
+
+        buffer.seek(0)
+        response = HttpResponse(buffer.read(), content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{po.po_number}.pdf"'
+        return response
+
+
+class POEmailView(LoginRequiredMixin, View):
+    """Email PO to supplier."""
+
+    def get(self, request, pk):
+        """Show confirmation page."""
+        from django.shortcuts import render
+
+        po = get_object_or_404(
+            PurchaseOrder.objects.select_related("supplier"),
+            pk=pk
+        )
+
+        if not po.supplier.email:
+            messages.error(request, "Supplier does not have an email address configured.")
+            return redirect("supplychain:po_detail", pk=pk)
+
+        return render(request, "supplychain/po_email_confirm.html", {
+            "po": po,
+            "page_title": f"Email {po.po_number}",
+        })
+
+    def post(self, request, pk):
+        """Send the email with PDF attachment."""
+        from xhtml2pdf import pisa
+
+        po = get_object_or_404(
+            PurchaseOrder.objects.select_related("supplier", "created_by"),
+            pk=pk
+        )
+        lines = po.lines.select_related("inventory_item")
+
+        if not po.supplier.email:
+            messages.error(request, "Supplier does not have an email address.")
+            return redirect("supplychain:po_detail", pk=pk)
+
+        # Generate PDF
+        html_content = render_to_string("supplychain/po_pdf.html", {
+            "po": po,
+            "lines": lines,
+            "company_name": getattr(django_settings, "COMPANY_NAME", "ARDT FMS"),
+        })
+
+        buffer = io.BytesIO()
+        pisa.CreatePDF(html_content, dest=buffer)
+        buffer.seek(0)
+        pdf_content = buffer.read()
+
+        # Compose email
+        subject = f"Purchase Order {po.po_number}"
+        body = render_to_string("supplychain/po_email_body.html", {
+            "po": po,
+            "sender_name": request.user.get_full_name() or request.user.username,
+        })
+
+        email = EmailMessage(
+            subject=subject,
+            body=body,
+            from_email=django_settings.DEFAULT_FROM_EMAIL,
+            to=[po.supplier.email],
+        )
+        email.attach(f"{po.po_number}.pdf", pdf_content, "application/pdf")
+
+        try:
+            email.send()
+            # Update PO status to SENT if it's still in DRAFT
+            if po.status == PurchaseOrder.Status.DRAFT:
+                po.status = PurchaseOrder.Status.SENT
+                po.save()
+            messages.success(request, f"Purchase Order sent to {po.supplier.email}")
+        except Exception as e:
+            messages.error(request, f"Failed to send email: {str(e)}")
+
+        return redirect("supplychain:po_detail", pk=pk)

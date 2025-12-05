@@ -3,9 +3,18 @@
 {% block title %}Dashboard - ARDT FMS{% endblock %}
 
 {% block page_header %}
-<div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-    <p class="text-gray-600 dark:text-gray-400">Welcome back, {{ user.first_name|default:user.username }}!</p>
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Welcome back, {{ user.first_name|default:user.username }}!</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'dashboard:customize' %}"
+           class="inline-flex items-center px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors">
+            <i data-lucide="layout-dashboard" class="w-4 h-4 mr-2"></i>
+            Customize Dashboard
+        </a>
+    </div>
 </div>
 {% endblock %}
 

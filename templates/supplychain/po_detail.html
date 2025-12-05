@@ -27,6 +27,14 @@
             <i data-lucide="package-check" class="w-4 h-4 mr-2"></i>Receive Goods
         </a>
         {% endif %}
+        <a href="{% url 'supplychain:po_pdf' po.pk %}" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+            <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>PDF
+        </a>
+        {% if po.supplier.email %}
+        <a href="{% url 'supplychain:po_email' po.pk %}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+            <i data-lucide="mail" class="w-4 h-4 mr-2"></i>Email
+        </a>
+        {% endif %}
         <a href="{% url 'supplychain:po_update' po.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
             <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
         </a>

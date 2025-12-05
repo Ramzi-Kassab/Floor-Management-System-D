@@ -1,0 +1,19 @@
+Dear {{ po.supplier.contact_person|default:po.supplier.name }},
+
+Please find attached Purchase Order {{ po.po_number }} dated {{ po.order_date|date:"F d, Y" }}.
+
+Order Summary:
+- PO Number: {{ po.po_number }}
+- Order Date: {{ po.order_date|date:"F d, Y" }}
+{% if po.expected_date %}- Expected Delivery: {{ po.expected_date|date:"F d, Y" }}{% endif %}
+- Total Amount: ${{ po.total_amount|floatformat:2 }}
+
+Please confirm receipt of this order and provide an estimated delivery date.
+
+If you have any questions, please don't hesitate to contact us.
+
+Best regards,
+{{ sender_name }}
+
+---
+This is an automated message from ARDT Floor Management System.

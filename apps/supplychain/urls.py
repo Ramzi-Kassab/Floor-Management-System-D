@@ -27,6 +27,8 @@ urlpatterns = [
     path("orders/<int:pk>/", views.PODetailView.as_view(), name="po_detail"),
     path("orders/<int:pk>/edit/", views.POUpdateView.as_view(), name="po_update"),
     path("orders/<int:pk>/add-line/", views.POAddLineView.as_view(), name="po_add_line"),
+    path("orders/<int:pk>/pdf/", views.POPDFView.as_view(), name="po_pdf"),
+    path("orders/<int:pk>/email/", views.POEmailView.as_view(), name="po_email"),
     # Goods Receipts
     path("receipts/", views.GRNListView.as_view(), name="grn_list"),
     path("receipts/create/", views.GRNCreateView.as_view(), name="grn_create"),

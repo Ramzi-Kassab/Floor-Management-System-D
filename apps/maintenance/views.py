@@ -506,3 +506,151 @@ class MWOAddPartView(LoginRequiredMixin, View):
             messages.error(request, "Failed to add part.")
 
         return redirect("maintenance:mwo_detail", pk=pk)
+
+
+# =============================================================================
+# Preventive Maintenance Scheduling Views
+# =============================================================================
+
+
+class PreventiveMaintenanceScheduleView(LoginRequiredMixin, ListView):
+    """View preventive maintenance schedule for all equipment."""
+
+    model = Equipment
+    template_name = "maintenance/pm_schedule.html"
+    context_object_name = "equipment_list"
+
+    def get_queryset(self):
+        from datetime import timedelta
+
+        today = timezone.now().date()
+        days_ahead = int(self.request.GET.get("days", 30))
+
+        # Equipment with scheduled maintenance
+        qs = Equipment.objects.filter(
+            status__in=[Equipment.Status.OPERATIONAL, Equipment.Status.MAINTENANCE],
+            maintenance_interval_days__isnull=False,
+        ).select_related("category", "department")
+
+        # Filter by timeframe
+        filter_type = self.request.GET.get("filter", "all")
+        if filter_type == "overdue":
+            qs = qs.filter(next_maintenance__lt=today)
+        elif filter_type == "upcoming":
+            qs = qs.filter(next_maintenance__gte=today, next_maintenance__lte=today + timedelta(days=days_ahead))
+        elif filter_type == "due_today":
+            qs = qs.filter(next_maintenance=today)
+
+        return qs.order_by("next_maintenance")
+
+    def get_context_data(self, **kwargs):
+        from datetime import timedelta
+
+        context = super().get_context_data(**kwargs)
+        today = timezone.now().date()
+
+        context["page_title"] = "Preventive Maintenance Schedule"
+        context["today"] = today
+        context["current_filter"] = self.request.GET.get("filter", "all")
+        context["days_ahead"] = int(self.request.GET.get("days", 30))
+
+        # Summary counts
+        all_equipment = Equipment.objects.filter(
+            status__in=[Equipment.Status.OPERATIONAL, Equipment.Status.MAINTENANCE],
+            maintenance_interval_days__isnull=False,
+        )
+        context["overdue_count"] = all_equipment.filter(next_maintenance__lt=today).count()
+        context["due_today_count"] = all_equipment.filter(next_maintenance=today).count()
+        context["upcoming_count"] = all_equipment.filter(
+            next_maintenance__gt=today,
+            next_maintenance__lte=today + timedelta(days=30)
+        ).count()
+
+        return context
+
+
+class GeneratePreventiveMaintenanceView(LoginRequiredMixin, View):
+    """Generate preventive maintenance requests for equipment that's due."""
+
+    def get(self, request):
+        """Show confirmation page."""
+        from django.shortcuts import render
+
+        today = timezone.now().date()
+
+        # Find equipment due for maintenance (including overdue)
+        due_equipment = Equipment.objects.filter(
+            status=Equipment.Status.OPERATIONAL,
+            maintenance_interval_days__isnull=False,
+            next_maintenance__lte=today,
+        ).exclude(
+            # Exclude equipment that already has pending/in-progress maintenance requests
+            maintenance_requests__status__in=[
+                MaintenanceRequest.Status.PENDING,
+                MaintenanceRequest.Status.APPROVED,
+                MaintenanceRequest.Status.IN_PROGRESS,
+            ]
+        ).select_related("category", "department")
+
+        return render(request, "maintenance/pm_generate.html", {
+            "page_title": "Generate Preventive Maintenance",
+            "equipment_list": due_equipment,
+            "count": due_equipment.count(),
+        })
+
+    def post(self, request):
+        """Create maintenance requests for due equipment."""
+        today = timezone.now().date()
+        created_count = 0
+
+        # Find equipment due for maintenance
+        due_equipment = Equipment.objects.filter(
+            status=Equipment.Status.OPERATIONAL,
+            maintenance_interval_days__isnull=False,
+            next_maintenance__lte=today,
+        ).exclude(
+            maintenance_requests__status__in=[
+                MaintenanceRequest.Status.PENDING,
+                MaintenanceRequest.Status.APPROVED,
+                MaintenanceRequest.Status.IN_PROGRESS,
+            ]
+        )
+
+        for equipment in due_equipment:
+            # Generate request number
+            prefix = "MR"
+            year = timezone.now().year
+            last = MaintenanceRequest.objects.filter(
+                request_number__startswith=f"{prefix}-{year}"
+            ).order_by("-id").first()
+            if last:
+                try:
+                    last_num = int(last.request_number.split("-")[-1])
+                    next_num = last_num + 1
+                except (ValueError, IndexError):
+                    next_num = 1
+            else:
+                next_num = 1
+            request_number = f"{prefix}-{year}-{str(next_num).zfill(4)}"
+
+            # Create the maintenance request
+            MaintenanceRequest.objects.create(
+                request_number=request_number,
+                equipment=equipment,
+                request_type=MaintenanceRequest.RequestType.PREVENTIVE,
+                priority=MaintenanceRequest.Priority.NORMAL,
+                title=f"Scheduled Preventive Maintenance - {equipment.code}",
+                description=f"Scheduled preventive maintenance for {equipment.name}. "
+                           f"Last maintenance: {equipment.last_maintenance or 'Never'}. "
+                           f"Maintenance interval: {equipment.maintenance_interval_days} days.",
+                status=MaintenanceRequest.Status.PENDING,
+                requested_by=request.user,
+            )
+            created_count += 1
+
+        if created_count > 0:
+            messages.success(request, f"Created {created_count} preventive maintenance request(s).")
+        else:
+            messages.info(request, "No equipment is currently due for preventive maintenance.")
+
+        return redirect("maintenance:pm_schedule")
