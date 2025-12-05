@@ -60,7 +60,7 @@ class Dispatch(models.Model):
     driver_name = models.CharField(max_length=100, blank=True)
 
     # Destination
-    customer = models.ForeignKey("sales.Customer", on_delete=models.PROTECT)
+    customer = models.ForeignKey("sales.Customer", on_delete=models.PROTECT, related_name="dispatches")
     destination = models.ForeignKey("sales.Warehouse", on_delete=models.SET_NULL, null=True, blank=True)
     rig = models.ForeignKey("sales.Rig", on_delete=models.SET_NULL, null=True, blank=True)
 

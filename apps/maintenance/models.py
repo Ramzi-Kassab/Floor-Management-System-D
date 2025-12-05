@@ -235,3 +235,68 @@ class MaintenancePartsUsed(models.Model):
 
     def __str__(self):
         return f"{self.mwo.mwo_number} - {self.inventory_item.name}"
+
+
+# =============================================================================
+# SPRINT 4: EQUIPMENT CALIBRATION
+# =============================================================================
+
+class EquipmentCalibration(models.Model):
+    """
+    Sprint 4: Calibration records for equipment.
+    Tracks calibration history and due dates for ISO 9001 / API Q1 compliance.
+    """
+    equipment = models.ForeignKey(
+        Equipment, on_delete=models.CASCADE, related_name="calibrations"
+    )
+
+    # Calibration details
+    calibration_date = models.DateField()
+    due_date = models.DateField()
+    performed_by = models.CharField(max_length=200, help_text="Calibration service provider")
+    cert_number = models.CharField(max_length=100, blank=True)
+
+    # Results
+    passed = models.BooleanField(default=True)
+    results_notes = models.TextField(blank=True)
+
+    # Standards/references
+    standard_used = models.CharField(max_length=200, blank=True)
+    reference_equipment = models.CharField(max_length=200, blank=True)
+
+    # Documentation
+    certificate = models.FileField(upload_to="calibration_certs/", null=True, blank=True)
+
+    # Costs
+    cost = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="created_calibrations"
+    )
+
+    class Meta:
+        db_table = "equipment_calibrations"
+        ordering = ["-calibration_date"]
+        verbose_name = "Equipment Calibration"
+        verbose_name_plural = "Equipment Calibrations"
+        indexes = [
+            models.Index(fields=["equipment", "due_date"]),
+            models.Index(fields=["due_date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.equipment.code} - {self.calibration_date}"
+
+    @property
+    def is_due(self):
+        from django.utils import timezone
+        return self.due_date <= timezone.now().date()
+
+    @property
+    def days_until_due(self):
+        from django.utils import timezone
+        delta = self.due_date - timezone.now().date()
+        return delta.days

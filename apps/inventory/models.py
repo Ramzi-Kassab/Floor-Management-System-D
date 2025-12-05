@@ -242,3 +242,142 @@ class InventoryTransaction(models.Model):
 
     def __str__(self):
         return f"{self.transaction_number} - {self.transaction_type}"
+
+
+# =============================================================================
+# SPRINT 4: MATERIAL LOT TRACKING
+# =============================================================================
+
+class MaterialLot(models.Model):
+    """
+    Sprint 4: Lot/batch tracking for inventory items.
+    Enables full traceability of materials used in repairs.
+    """
+    class Status(models.TextChoices):
+        AVAILABLE = "AVAILABLE", "Available"
+        RESERVED = "RESERVED", "Reserved"
+        IN_USE = "IN_USE", "In Use"
+        CONSUMED = "CONSUMED", "Consumed"
+        EXPIRED = "EXPIRED", "Expired"
+        QUARANTINED = "QUARANTINED", "Quarantined"
+
+    lot_number = models.CharField(max_length=50, unique=True)
+    inventory_item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT, related_name="lots"
+    )
+
+    # Quantities
+    initial_quantity = models.DecimalField(max_digits=15, decimal_places=3)
+    quantity_on_hand = models.DecimalField(max_digits=15, decimal_places=3)
+    quantity_reserved = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+
+    @property
+    def quantity_available(self):
+        return self.quantity_on_hand - self.quantity_reserved
+
+    # Dates
+    received_date = models.DateField()
+    manufacture_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+
+    # Source
+    vendor = models.ForeignKey(
+        "supplychain.Supplier", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="material_lots"
+    )
+    purchase_order = models.CharField(max_length=50, blank=True)
+    vendor_lot_number = models.CharField(max_length=50, blank=True)
+
+    # Certification
+    cert_number = models.CharField(max_length=100, blank=True)
+    certificate = models.FileField(upload_to="lot_certificates/", null=True, blank=True)
+
+    # Location
+    location = models.ForeignKey(
+        InventoryLocation, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="lots"
+    )
+
+    # Status
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.AVAILABLE)
+
+    # Cost
+    unit_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="created_lots"
+    )
+
+    class Meta:
+        db_table = "material_lots"
+        ordering = ["-received_date", "lot_number"]
+        verbose_name = "Material Lot"
+        verbose_name_plural = "Material Lots"
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["expiry_date"]),
+            models.Index(fields=["inventory_item", "status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.lot_number} - {self.inventory_item.code}"
+
+    @property
+    def is_expired(self):
+        from django.utils import timezone
+        if self.expiry_date:
+            return self.expiry_date < timezone.now().date()
+        return False
+
+
+class MaterialConsumption(models.Model):
+    """
+    Sprint 4: Tracks material consumption per work order.
+    Links lot-level traceability to work orders.
+    """
+    work_order = models.ForeignKey(
+        "workorders.WorkOrder", on_delete=models.CASCADE,
+        related_name="material_consumptions"
+    )
+    lot = models.ForeignKey(
+        MaterialLot, on_delete=models.PROTECT, related_name="consumptions"
+    )
+
+    # Quantity consumed
+    quantity_consumed = models.DecimalField(max_digits=15, decimal_places=3)
+    consumed_at = models.DateTimeField(auto_now_add=True)
+    consumed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="material_consumptions"
+    )
+
+    # Link to operation (optional)
+    operation_execution = models.ForeignKey(
+        "workorders.OperationExecution", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="material_consumptions"
+    )
+
+    # Cost
+    unit_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+
+    @property
+    def total_cost(self):
+        return self.quantity_consumed * self.unit_cost
+
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "material_consumptions"
+        ordering = ["-consumed_at"]
+        verbose_name = "Material Consumption"
+        verbose_name_plural = "Material Consumptions"
+        indexes = [
+            models.Index(fields=["work_order"]),
+            models.Index(fields=["lot"]),
+        ]
+
+    def __str__(self):
+        return f"{self.lot.lot_number} - {self.quantity_consumed} for {self.work_order.wo_number}"
