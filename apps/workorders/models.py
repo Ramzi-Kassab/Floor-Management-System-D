@@ -638,7 +638,11 @@ class StatusTransitionLog(models.Model):
     Sprint 4: Audit trail for status changes on any model.
     Uses GenericForeignKey to track status changes across DrillBit, WorkOrder, etc.
     """
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        related_name='status_transition_logs'
+    )
     object_id = models.PositiveBigIntegerField()
     content_object = GenericForeignKey("content_type", "object_id")
 
