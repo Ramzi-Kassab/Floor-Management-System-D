@@ -46,6 +46,7 @@ class VendorContactAdmin(admin.ModelAdmin):
     list_display = ["vendor", "first_name", "last_name", "contact_type", "is_primary", "email"]
     list_filter = ["contact_type", "is_primary"]
     search_fields = ["first_name", "last_name", "email", "vendor__name"]
+    list_select_related = ["vendor"]
 
 
 @admin.register(PurchaseRequisition)
@@ -55,6 +56,7 @@ class PurchaseRequisitionAdmin(admin.ModelAdmin):
     list_filter = ["status", "priority"]
     search_fields = ["requisition_number", "title", "description"]
     readonly_fields = ["requisition_number", "created_at", "updated_at"]
+    list_select_related = ["requested_by", "department"]
 
 
 @admin.register(PurchaseRequisitionLine)
@@ -62,6 +64,7 @@ class PurchaseRequisitionLineAdmin(admin.ModelAdmin):
     """Admin for PR Line Items"""
     list_display = ["requisition", "line_number", "item_description", "quantity_requested", "estimated_unit_price"]
     list_filter = ["requisition__status"]
+    list_select_related = ["requisition"]
 
 
 @admin.register(PurchaseOrder)
@@ -71,6 +74,7 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
     list_filter = ["status", "order_type"]
     search_fields = ["po_number", "vendor__name"]
     readonly_fields = ["po_number", "created_at", "updated_at"]
+    list_select_related = ["vendor", "created_by"]
 
 
 @admin.register(PurchaseOrderLine)
@@ -78,6 +82,7 @@ class PurchaseOrderLineAdmin(admin.ModelAdmin):
     """Admin for PO Line Items"""
     list_display = ["purchase_order", "line_number", "item_description", "quantity_ordered", "unit_price"]
     list_filter = ["purchase_order__status"]
+    list_select_related = ["purchase_order", "purchase_order__vendor"]
 
 
 # =============================================================================
@@ -91,6 +96,7 @@ class ReceiptAdmin(admin.ModelAdmin):
     list_filter = ["status", "receipt_type"]
     search_fields = ["receipt_number", "purchase_order__po_number"]
     readonly_fields = ["receipt_number", "created_at", "updated_at"]
+    list_select_related = ["purchase_order", "purchase_order__vendor", "received_by"]
 
 
 @admin.register(ReceiptLine)
@@ -98,6 +104,7 @@ class ReceiptLineAdmin(admin.ModelAdmin):
     """Admin for Receipt Line Items"""
     list_display = ["receipt", "line_number", "quantity_received", "inspection_status"]
     list_filter = ["inspection_status"]
+    list_select_related = ["receipt", "po_line"]
 
 
 @admin.register(VendorInvoice)
@@ -107,6 +114,7 @@ class VendorInvoiceAdmin(admin.ModelAdmin):
     list_filter = ["status"]
     search_fields = ["invoice_number", "vendor_invoice_number", "vendor__name"]
     readonly_fields = ["invoice_number", "created_at", "updated_at"]
+    list_select_related = ["vendor"]
 
 
 @admin.register(InvoiceLine)
@@ -114,6 +122,7 @@ class InvoiceLineAdmin(admin.ModelAdmin):
     """Admin for Invoice Line Items"""
     list_display = ["vendor_invoice", "line_number", "description", "quantity", "unit_price"]
     list_filter = ["vendor_invoice__status"]
+    list_select_related = ["vendor_invoice", "po_line"]
 
 
 @admin.register(InvoiceMatch)
@@ -121,6 +130,7 @@ class InvoiceMatchAdmin(admin.ModelAdmin):
     """Admin for Three-Way Matching"""
     list_display = ["vendor_invoice", "purchase_order", "receipt", "match_status"]
     list_filter = ["match_status"]
+    list_select_related = ["vendor_invoice", "purchase_order", "receipt"]
 
 
 # =============================================================================
@@ -133,6 +143,7 @@ class ExpenseCategoryAdmin(admin.ModelAdmin):
     list_display = ["category_code", "category_name", "parent_category", "is_active"]
     list_filter = ["is_active"]
     search_fields = ["category_code", "category_name"]
+    list_select_related = ["parent_category"]
 
 
 @admin.register(CostAllocation)
@@ -142,6 +153,7 @@ class CostAllocationAdmin(admin.ModelAdmin):
     list_filter = ["cost_type"]
     search_fields = ["allocation_number", "description"]
     readonly_fields = ["allocation_number", "created_at", "updated_at"]
+    list_select_related = ["work_order", "expense_category"]
 
 
 @admin.register(PaymentTerm)
@@ -159,6 +171,7 @@ class VendorPaymentAdmin(admin.ModelAdmin):
     list_filter = ["status", "payment_method"]
     search_fields = ["payment_number", "vendor__name"]
     readonly_fields = ["payment_number", "created_at", "updated_at"]
+    list_select_related = ["vendor"]
 
 
 @admin.register(PaymentAllocation)
@@ -166,6 +179,7 @@ class PaymentAllocationAdmin(admin.ModelAdmin):
     """Admin for Payment Allocations"""
     list_display = ["payment", "vendor_invoice", "allocated_amount"]
     search_fields = ["payment__payment_number", "vendor_invoice__invoice_number"]
+    list_select_related = ["payment", "vendor_invoice"]
 
 
 # =============================================================================
