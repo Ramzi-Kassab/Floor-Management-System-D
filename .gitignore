@@ -23,3 +23,5 @@ venv/
 *~
 .DS_Store
 db_test.sqlite3
+.coverage
+htmlcov/
