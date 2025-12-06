@@ -19,7 +19,7 @@ from django.views.generic import ListView, TemplateView, View
 from apps.inventory.models import InventoryItem, InventoryStock, InventoryTransaction
 from apps.maintenance.models import Equipment, MaintenanceRequest, MaintenanceWorkOrder
 from apps.quality.models import Inspection, NCR
-from apps.supplychain.models import CAPA, GoodsReceipt, PurchaseOrder, PurchaseRequisition, Supplier
+from apps.supplychain.models import CAPA, PurchaseOrder, PurchaseRequisition, Receipt, Supplier, Vendor
 from apps.workorders.models import DrillBit, WorkOrder
 
 from .models import ReportExportLog
