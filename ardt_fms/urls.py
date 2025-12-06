@@ -7,8 +7,34 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
+from django.db import connection
+
+
+def health_check(request):
+    """Health check endpoint for container orchestration."""
+    try:
+        # Check database connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        db_status = "healthy"
+    except Exception as e:
+        db_status = f"unhealthy: {str(e)}"
+
+    status = {
+        "status": "healthy" if db_status == "healthy" else "degraded",
+        "database": db_status,
+        "version": "5.4.0",
+    }
+
+    status_code = 200 if status["status"] == "healthy" else 503
+    return JsonResponse(status, status=status_code)
+
 
 urlpatterns = [
+    # Health check (for container orchestration)
+    path('health/', health_check, name='health_check'),
+
     # Admin
     path('admin/', admin.site.urls),
     
