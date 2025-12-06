@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Delete Dispatch - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="mb-6">
+    <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+        <a href="{% url 'dispatch:dispatch-list' %}" class="hover:text-blue-600">Dispatches</a>
+        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        <span>Delete</span>
+    </div>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Delete Dispatch</h1>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-lg">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+            <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+        </div>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">Confirm Deletion</h2>
+        <p class="text-gray-600 dark:text-gray-400 text-center mb-6">
+            Are you sure you want to delete dispatch <strong class="text-gray-900 dark:text-white">{{ dispatch.dispatch_number }}</strong>?
+            This will also delete all dispatch items.
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex justify-center gap-3">
+                <a href="{% url 'dispatch:dispatch-detail' dispatch.pk %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">Cancel</a>
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete Dispatch</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

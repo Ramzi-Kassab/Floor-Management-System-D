@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        <li><a href="{% url 'dashboard:home' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Dashboard</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'forms_engine:template-list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Form Templates</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li class="text-gray-900 dark:text-white font-medium">{{ page_title }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            {% if object %}Edit form template details{% else %}Create a new form template{% endif %}
+        </p>
+    </div>
+    <a href="{% if object %}{% url 'forms_engine:template-detail' object.pk %}{% else %}{% url 'forms_engine:template-list' %}{% endif %}"
+       class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+        <i data-lucide="x" class="w-4 h-4 mr-2"></i>
+        Cancel
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="max-w-2xl">
+    {% csrf_token %}
+
+    <!-- Form Errors -->
+    {% if form.errors %}
+    <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+        <div class="flex items-start">
+            <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 mr-3"></i>
+            <div>
+                <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Please correct the following errors:</h3>
+                <ul class="mt-2 text-sm text-red-700 dark:text-red-300 list-disc list-inside">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                        <li>{{ field.label }}: {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 space-y-6">
+        <!-- Code -->
+        <div>
+            <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Template Code <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="code" id="id_code" required
+                   value="{{ form.code.value|default:'' }}"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                   placeholder="FORM-001">
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Unique identifier for this template</p>
+        </div>
+
+        <!-- Name -->
+        <div>
+            <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Template Name <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="name" id="id_name" required
+                   value="{{ form.name.value|default:'' }}"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                   placeholder="Quality Inspection Form">
+        </div>
+
+        <!-- Description -->
+        <div>
+            <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Description
+            </label>
+            <textarea name="description" id="id_description" rows="3"
+                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Describe the purpose of this form template...">{{ form.description.value|default:'' }}</textarea>
+        </div>
+
+        <!-- Status -->
+        <div>
+            <label for="id_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Status
+            </label>
+            <select name="status" id="id_status"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% for value, label in form.fields.status.choices %}
+                <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Only active templates can be used in procedures</p>
+        </div>
+
+        <!-- Submit -->
+        <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+            <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                {% if object %}Update Template{% else %}Create Template{% endif %}
+            </button>
+        </div>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Preview: {{ template.name }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        <li><a href="{% url 'dashboard:home' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Dashboard</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'forms_engine:template-list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Form Templates</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'forms_engine:template-detail' template.pk %}" class="hover:text-gray-700 dark:hover:text-gray-200">{{ template.code }}</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li class="text-gray-900 dark:text-white font-medium">Preview</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Preview how this form will appear to users</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex space-x-3">
+        <a href="{% url 'forms_engine:template-builder' template.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+            <i data-lucide="wrench" class="w-4 h-4 mr-2"></i>
+            Back to Builder
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+        <div class="flex">
+            <i data-lucide="info" class="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-3"></i>
+            <p class="text-sm text-yellow-700 dark:text-yellow-300">
+                This is a preview. Form submissions are disabled in preview mode.
+            </p>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <!-- Form Header -->
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ template.name }}</h2>
+            {% if template.description %}
+            <p class="text-gray-600 dark:text-gray-400 mt-1">{{ template.description }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Form Body -->
+        <div class="p-6 space-y-8">
+            {% for section in template.sections.all %}
+            <div class="{% if not forloop.first %}pt-6 border-t border-gray-200 dark:border-gray-700{% endif %}">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ section.name }}</h3>
+                {% if section.description %}
+                <p class="text-gray-600 dark:text-gray-400 text-sm mb-4">{{ section.description }}</p>
+                {% endif %}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {% for field in section.fields.all %}
+                    <div class="{% if field.width == 'full' %}md:col-span-2{% elif field.width == 'third' %}md:col-span-1{% elif field.width == 'quarter' %}md:col-span-1{% endif %}">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ field.label }}
+                            {% if field.is_required %}<span class="text-red-500">*</span>{% endif %}
+                        </label>
+
+                        {% if field.field_type.code == 'TEXT' or field.field_type.html_input_type == 'text' %}
+                        <input type="text" disabled
+                               placeholder="{{ field.placeholder|default:field.label }}"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white opacity-75">
+
+                        {% elif field.field_type.code == 'TEXTAREA' %}
+                        <textarea rows="3" disabled
+                                  placeholder="{{ field.placeholder|default:field.label }}"
+                                  class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white opacity-75"></textarea>
+
+                        {% elif field.field_type.code == 'NUMBER' or field.field_type.html_input_type == 'number' %}
+                        <input type="number" disabled
+                               placeholder="{{ field.placeholder|default:'0' }}"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white opacity-75">
+
+                        {% elif field.field_type.code == 'DATE' or field.field_type.html_input_type == 'date' %}
+                        <input type="date" disabled
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white opacity-75">
+
+                        {% elif field.field_type.code == 'SELECT' or field.field_type.has_options %}
+                        <select disabled class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white opacity-75">
+                            <option>Select an option...</option>
+                            {% if field.options %}
+                                {% for option in field.options %}
+                                <option value="{{ option.value }}">{{ option.label }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+
+                        {% elif field.field_type.code == 'CHECKBOX' or field.field_type.html_input_type == 'checkbox' %}
+                        <div class="flex items-center">
+                            <input type="checkbox" disabled class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded">
+                            <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">{{ field.placeholder|default:field.label }}</span>
+                        </div>
+
+                        {% elif field.field_type.code == 'FILE' or field.field_type.html_input_type == 'file' %}
+                        <div class="flex items-center justify-center w-full h-24 border-2 border-gray-300 border-dashed rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600">
+                            <div class="text-center">
+                                <i data-lucide="upload" class="w-6 h-6 mx-auto text-gray-400 mb-1"></i>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Upload file</p>
+                            </div>
+                        </div>
+
+                        {% else %}
+                        <input type="{{ field.field_type.html_input_type|default:'text' }}" disabled
+                               placeholder="{{ field.placeholder|default:field.label }}"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white opacity-75">
+                        {% endif %}
+
+                        {% if field.help_text %}
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ field.help_text }}</p>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <div class="md:col-span-2 text-center py-4 text-gray-500 dark:text-gray-400">
+                        No fields in this section
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                <i data-lucide="file-x" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+                <p>No sections defined in this form template</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Form Footer (disabled submit) -->
+        {% if template.sections.all %}
+        <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700">
+            <button type="button" disabled class="inline-flex items-center px-4 py-2 bg-blue-400 text-white rounded-lg cursor-not-allowed opacity-75">
+                <i data-lucide="send" class="w-4 h-4 mr-2"></i>
+                Submit Form (Preview Mode)
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

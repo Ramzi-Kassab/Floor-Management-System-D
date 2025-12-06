@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}{{ incident.incident_number }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'hsse:incident-list' %}" class="hover:text-blue-600">Incidents</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{{ incident.incident_number }}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ incident.incident_number }}</h1>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'hsse:incident-update' incident.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Incident Details</h2>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                    {% if incident.severity == 'CRITICAL' %}bg-red-100 text-red-800
+                    {% elif incident.severity == 'MAJOR' %}bg-orange-100 text-orange-800
+                    {% elif incident.severity == 'MODERATE' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-green-100 text-green-800{% endif %}">
+                    {{ incident.get_severity_display }}
+                </span>
+            </div>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ incident.get_incident_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Location</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ incident.location }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Occurred At</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ incident.occurred_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Status</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if incident.status == 'REPORTED' %}bg-yellow-100 text-yellow-800
+                            {% elif incident.status == 'INVESTIGATING' %}bg-blue-100 text-blue-800
+                            {% else %}bg-green-100 text-green-800{% endif %}">
+                            {{ incident.get_status_display }}
+                        </span>
+                    </dd>
+                </div>
+            </dl>
+            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Description</h3>
+                <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ incident.description }}</p>
+            </div>
+            {% if incident.immediate_action %}
+            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Immediate Action</h3>
+                <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ incident.immediate_action }}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% if incident.investigation_findings or incident.root_cause or incident.corrective_actions %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Investigation</h2>
+            {% if incident.investigation_findings %}
+            <div class="mb-4">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Findings</h3>
+                <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ incident.investigation_findings }}</p>
+            </div>
+            {% endif %}
+            {% if incident.root_cause %}
+            <div class="mb-4">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Root Cause</h3>
+                <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ incident.root_cause }}</p>
+            </div>
+            {% endif %}
+            {% if incident.corrective_actions %}
+            <div>
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Corrective Actions</h3>
+                <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ incident.corrective_actions }}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Info</h2>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Reported By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ incident.reported_by.get_full_name|default:incident.reported_by.username }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ incident.created_at|date:"M d, Y H:i" }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

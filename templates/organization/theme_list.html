@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Themes - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Manage UI themes</p>
+    </div>
+    <a href="{% url 'organization:theme-create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mt-4 md:mt-0">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Theme
+    </a>
+</div>
+{% endblock %}
+{% block content %}
+{% if themes %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for theme in themes %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="h-24 relative" style="background: linear-gradient(135deg, {{ theme.primary_color }} 0%, {{ theme.secondary_color }} 100%);">
+            {% if theme.is_default %}
+            <span class="absolute top-2 right-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-white/90 text-gray-800">
+                <i data-lucide="star" class="w-3 h-3 mr-1 text-yellow-500"></i>Default
+            </span>
+            {% endif %}
+        </div>
+        <div class="p-4">
+            <div class="flex items-start justify-between mb-3">
+                <div>
+                    <h3 class="font-semibold text-gray-900 dark:text-white">{{ theme.name }}</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 font-mono">{{ theme.code }}</p>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if theme.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {% if theme.is_active %}Active{% else %}Inactive{% endif %}
+                </span>
+            </div>
+            <div class="flex items-center gap-2 mb-4">
+                <div class="w-6 h-6 rounded-full border border-gray-200 dark:border-gray-600" style="background-color: {{ theme.primary_color }};" title="Primary"></div>
+                <div class="w-6 h-6 rounded-full border border-gray-200 dark:border-gray-600" style="background-color: {{ theme.secondary_color }};" title="Secondary"></div>
+                <div class="w-6 h-6 rounded-full border border-gray-200 dark:border-gray-600" style="background-color: {{ theme.sidebar_color }};" title="Sidebar"></div>
+                {% if theme.is_dark %}
+                <span class="text-xs text-gray-500 dark:text-gray-400 ml-2"><i data-lucide="moon" class="w-3 h-3 inline"></i> Dark</span>
+                {% else %}
+                <span class="text-xs text-gray-500 dark:text-gray-400 ml-2"><i data-lucide="sun" class="w-3 h-3 inline"></i> Light</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'organization:theme-detail' theme.pk %}" class="text-blue-600 hover:text-blue-700 text-sm">View Details</a>
+                <a href="{% url 'organization:theme-update' theme.pk %}" class="text-gray-400 hover:text-yellow-600">
+                    <i data-lucide="edit" class="w-4 h-4"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-16 text-center">
+    <i data-lucide="palette" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No themes found</h3>
+    <a href="{% url 'organization:theme-create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mt-4">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Theme
+    </a>
+</div>
+{% endif %}
+{% endblock %}

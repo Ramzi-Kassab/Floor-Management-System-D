@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}{{ dispatch.dispatch_number }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'dispatch:dispatch-list' %}" class="hover:text-blue-600">Dispatches</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{{ dispatch.dispatch_number }}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ dispatch.dispatch_number }}</h1>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'dispatch:dispatch-update' dispatch.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'dispatch:dispatch-delete' dispatch.pk %}" class="inline-flex items-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Delete
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Dispatch Details</h2>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                    {% if dispatch.status == 'DELIVERED' %}bg-green-100 text-green-800
+                    {% elif dispatch.status == 'IN_TRANSIT' %}bg-blue-100 text-blue-800
+                    {% elif dispatch.status == 'LOADING' %}bg-yellow-100 text-yellow-800
+                    {% elif dispatch.status == 'CANCELLED' %}bg-red-100 text-red-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ dispatch.get_status_display }}
+                </span>
+            </div>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Dispatch Number</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ dispatch.dispatch_number }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Vehicle</dt>
+                    <dd class="text-gray-900 dark:text-white">
+                        {% if dispatch.vehicle %}
+                        <a href="{% url 'dispatch:vehicle-detail' dispatch.vehicle.pk %}" class="text-blue-600 hover:underline">{{ dispatch.vehicle.code }}</a>
+                        {% else %}-{% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Driver</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ dispatch.driver_name|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Planned Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ dispatch.planned_date|date:"M d, Y" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Customer</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ dispatch.customer.name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Destination</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ dispatch.destination.name|default:"-" }}</dd>
+                </div>
+                {% if dispatch.rig %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Rig</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ dispatch.rig.name }}</dd>
+                </div>
+                {% endif %}
+                {% if dispatch.actual_departure %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Actual Departure</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ dispatch.actual_departure|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% endif %}
+                {% if dispatch.actual_arrival %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Actual Arrival</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ dispatch.actual_arrival|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+            {% if dispatch.notes %}
+            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Notes</h3>
+                <p class="text-gray-600 dark:text-gray-400">{{ dispatch.notes }}</p>
+            </div>
+            {% endif %}
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Dispatch Items</h2>
+            {% if dispatch.items.all %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                            <th class="pb-2 font-medium">Item</th>
+                            <th class="pb-2 font-medium">Serial #</th>
+                            <th class="pb-2 font-medium">Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                        {% for item in dispatch.items.all %}
+                        <tr>
+                            <td class="py-2 text-gray-900 dark:text-white">{{ item.sales_order_line }}</td>
+                            <td class="py-2 text-gray-600 dark:text-gray-400 font-mono">{{ item.drill_bit.serial_number|default:"-" }}</td>
+                            <td class="py-2 text-gray-600 dark:text-gray-400">{{ item.quantity }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-center py-8">No items in this dispatch</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Update Status</h2>
+            <form method="post" action="{% url 'dispatch:dispatch-status' dispatch.pk %}">
+                {% csrf_token %}
+                <select name="status" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-3">
+                    {% for value, label in dispatch.Status.choices %}
+                    <option value="{{ value }}" {% if dispatch.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Update Status
+                </button>
+            </form>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Info</h2>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ dispatch.created_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Created By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ dispatch.created_by.get_full_name|default:dispatch.created_by.username }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Last Updated</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ dispatch.updated_at|date:"M d, Y H:i" }}</dd>
+                </div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actions</h2>
+            <div class="space-y-2">
+                <a href="{% url 'dispatch:dispatch-list' %}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

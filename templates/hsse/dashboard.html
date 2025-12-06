@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}HSSE Dashboard - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Health, Safety, Security & Environment</p>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'hsse:hoc-create' %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+            <i data-lucide="alert-triangle" class="w-4 h-4 mr-2"></i>Report HOC
+        </a>
+        <a href="{% url 'hsse:incident-create' %}" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+            <i data-lucide="shield-alert" class="w-4 h-4 mr-2"></i>Report Incident
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Open HOC Reports</p>
+                <p class="text-2xl font-bold text-yellow-600">{{ open_hoc }}</p>
+            </div>
+            <div class="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center">
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-yellow-600"></i>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Open Incidents</p>
+                <p class="text-2xl font-bold text-red-600">{{ open_incidents }}</p>
+            </div>
+            <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <i data-lucide="shield-alert" class="w-6 h-6 text-red-600"></i>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Active Journeys</p>
+                <p class="text-2xl font-bold text-blue-600">{{ active_journeys }}</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                <i data-lucide="navigation" class="w-6 h-6 text-blue-600"></i>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Pending Approvals</p>
+                <p class="text-2xl font-bold text-purple-600">{{ pending_approvals }}</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
+                <i data-lucide="clock" class="w-6 h-6 text-purple-600"></i>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent HOC Reports</h2>
+            <a href="{% url 'hsse:hoc-list' %}" class="text-sm text-blue-600 hover:underline">View All</a>
+        </div>
+        {% if recent_hoc %}
+        <div class="space-y-3">
+            {% for hoc in recent_hoc %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div>
+                    <a href="{% url 'hsse:hoc-detail' hoc.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-blue-600">{{ hoc.hoc_number }}</a>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ hoc.get_category_display }}</p>
+                </div>
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                    {% if hoc.category == 'UNSAFE_ACT' %}bg-red-100 text-red-800
+                    {% elif hoc.category == 'UNSAFE_CONDITION' %}bg-orange-100 text-orange-800
+                    {% elif hoc.category == 'NEAR_MISS' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-green-100 text-green-800{% endif %}">
+                    {{ hoc.get_status_display }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 dark:text-gray-400 text-center py-8">No recent HOC reports</p>
+        {% endif %}
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Incidents</h2>
+            <a href="{% url 'hsse:incident-list' %}" class="text-sm text-blue-600 hover:underline">View All</a>
+        </div>
+        {% if recent_incidents %}
+        <div class="space-y-3">
+            {% for incident in recent_incidents %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div>
+                    <a href="{% url 'hsse:incident-detail' incident.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-blue-600">{{ incident.incident_number }}</a>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ incident.get_incident_type_display }}</p>
+                </div>
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                    {% if incident.severity == 'CRITICAL' %}bg-red-100 text-red-800
+                    {% elif incident.severity == 'MAJOR' %}bg-orange-100 text-orange-800
+                    {% elif incident.severity == 'MODERATE' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-green-100 text-green-800{% endif %}">
+                    {{ incident.get_severity_display }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 dark:text-gray-400 text-center py-8">No recent incidents</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

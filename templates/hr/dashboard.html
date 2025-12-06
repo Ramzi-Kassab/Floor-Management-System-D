@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}HR Dashboard - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+    <p class="text-gray-600 dark:text-gray-400">Human Resources overview and quick actions</p>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Active Employees</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ total_employees }}</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                <i data-lucide="users" class="w-6 h-6 text-blue-600"></i>
+            </div>
+        </div>
+        <p class="text-xs text-green-600 mt-2">+{{ new_this_month }} this month</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">On Leave Today</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ approved_leaves_today }}</p>
+            </div>
+            <div class="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center">
+                <i data-lucide="calendar-off" class="w-6 h-6 text-yellow-600"></i>
+            </div>
+        </div>
+        <p class="text-xs text-yellow-600 mt-2">{{ pending_leaves }} pending requests</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Pending Timesheets</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ pending_timesheets }}</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                <i data-lucide="clock" class="w-6 h-6 text-purple-600"></i>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Pending Reviews</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ pending_reviews }}</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                <i data-lucide="clipboard-check" class="w-6 h-6 text-green-600"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Quick Actions</h2>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <a href="{% url 'hr:employee-create' %}" class="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i data-lucide="user-plus" class="w-8 h-8 text-blue-600 mb-2"></i>
+                <span class="text-sm text-gray-700 dark:text-gray-300">Add Employee</span>
+            </a>
+            <a href="{% url 'hr:leave-list' %}?status=PENDING" class="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i data-lucide="calendar-check" class="w-8 h-8 text-yellow-600 mb-2"></i>
+                <span class="text-sm text-gray-700 dark:text-gray-300">Leave Requests</span>
+            </a>
+            <a href="{% url 'hr:timeentry-list' %}?status=SUBMITTED" class="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i data-lucide="clock" class="w-8 h-8 text-purple-600 mb-2"></i>
+                <span class="text-sm text-gray-700 dark:text-gray-300">Timesheets</span>
+            </a>
+            <a href="{% url 'hr:review-create' %}" class="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i data-lucide="clipboard-list" class="w-8 h-8 text-green-600 mb-2"></i>
+                <span class="text-sm text-gray-700 dark:text-gray-300">New Review</span>
+            </a>
+            <a href="{% url 'hr:shift-create' %}" class="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i data-lucide="calendar-days" class="w-8 h-8 text-indigo-600 mb-2"></i>
+                <span class="text-sm text-gray-700 dark:text-gray-300">Schedule Shift</span>
+            </a>
+            <a href="{% url 'hr:goal-create' %}" class="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i data-lucide="target" class="w-8 h-8 text-orange-600 mb-2"></i>
+                <span class="text-sm text-gray-700 dark:text-gray-300">Set Goal</span>
+            </a>
+            <a href="{% url 'hr:payroll-list' %}" class="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i data-lucide="banknote" class="w-8 h-8 text-emerald-600 mb-2"></i>
+                <span class="text-sm text-gray-700 dark:text-gray-300">Payroll</span>
+            </a>
+            <a href="{% url 'hr:skill-list' %}" class="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i data-lucide="award" class="w-8 h-8 text-pink-600 mb-2"></i>
+                <span class="text-sm text-gray-700 dark:text-gray-300">Skills Matrix</span>
+            </a>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Pending Leave Requests</h2>
+        {% if recent_leave_requests %}
+        <div class="space-y-3">
+            {% for leave in recent_leave_requests %}
+            <a href="{% url 'hr:leave-detail' leave.pk %}" class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <div>
+                    <p class="font-medium text-gray-900 dark:text-white text-sm">{{ leave.employee.full_name }}</p>
+                    <p class="text-xs text-gray-500">{{ leave.get_leave_type_display }} - {{ leave.total_days }} days</p>
+                </div>
+                <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">Pending</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 dark:text-gray-400 text-sm">No pending leave requests</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Employees</h2>
+        <a href="{% url 'hr:employee-list' %}" class="text-blue-600 hover:underline text-sm">View All</a>
+    </div>
+    {% if recent_employees %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                    <th class="pb-3 font-medium">Employee</th>
+                    <th class="pb-3 font-medium">Department</th>
+                    <th class="pb-3 font-medium">Job Title</th>
+                    <th class="pb-3 font-medium">Hire Date</th>
+                    <th class="pb-3 font-medium">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for emp in recent_employees %}
+                <tr>
+                    <td class="py-3">
+                        <a href="{% url 'hr:employee-detail' emp.pk %}" class="text-blue-600 hover:underline font-medium">
+                            {{ emp.employee_number }}
+                        </a>
+                        <p class="text-xs text-gray-500">{{ emp.full_name }}</p>
+                    </td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ emp.department }}</td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ emp.job_title }}</td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ emp.hire_date|date:"M d, Y" }}</td>
+                    <td class="py-3">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium
+                            {% if emp.employment_status == 'ACTIVE' %}bg-green-100 text-green-800
+                            {% elif emp.employment_status == 'ON_LEAVE' %}bg-yellow-100 text-yellow-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ emp.get_employment_status_display }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 dark:text-gray-400">No employees yet.</p>
+    {% endif %}
+</div>
+{% endblock %}
