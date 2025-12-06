@@ -79,6 +79,7 @@ LOCAL_APPS = [
     # Quality & Inventory
     'apps.quality',
     'apps.inventory',
+    'apps.compliance',
 
     # Support Systems
     'apps.scancodes',
