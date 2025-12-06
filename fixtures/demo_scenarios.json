@@ -1,0 +1,68 @@
+[
+  {
+    "scenario": "New Work Order Creation",
+    "description": "Create a new repair work order for a returned drill bit",
+    "steps": [
+      "1. Login as demo_planner",
+      "2. Navigate to Work Orders > Create New",
+      "3. Select WO Type: REPAIR",
+      "4. Select drill bit: DEMO-PDC-001",
+      "5. Set priority: HIGH",
+      "6. Assign to: demo_technician",
+      "7. Set due date",
+      "8. Save as DRAFT"
+    ],
+    "expected_result": "Work order created in DRAFT status"
+  },
+  {
+    "scenario": "Field Service Request",
+    "description": "Process a customer field service request",
+    "steps": [
+      "1. Login as demo_field",
+      "2. Navigate to Field Service > Requests",
+      "3. Create new request for DEMO-ARAMCO",
+      "4. Select site: Ghawar Field Rig 5",
+      "5. Request type: DRILL_BIT_INSPECTION",
+      "6. Submit request"
+    ],
+    "expected_result": "FSR created and pending approval"
+  },
+  {
+    "scenario": "Vendor Purchase Order",
+    "description": "Create a purchase order for materials",
+    "steps": [
+      "1. Login as demo_procurement",
+      "2. Navigate to Supply Chain > Purchase Orders",
+      "3. Create new PO for VND-DEMO-001",
+      "4. Add line items (PDC cutters)",
+      "5. Submit for approval"
+    ],
+    "expected_result": "PO created pending approval"
+  },
+  {
+    "scenario": "Quality Inspection",
+    "description": "Perform final QC inspection",
+    "steps": [
+      "1. Login as demo_qc",
+      "2. Navigate to Quality > Inspections",
+      "3. Create new inspection for work order WO-DEMO-003",
+      "4. Inspection type: FINAL",
+      "5. Complete checklist",
+      "6. Record result: PASS"
+    ],
+    "expected_result": "QC record created, WO can proceed to completion"
+  },
+  {
+    "scenario": "Employee Leave Request",
+    "description": "Submit annual leave request",
+    "steps": [
+      "1. Login as demo_technician",
+      "2. Navigate to HR > My Leave",
+      "3. Request new leave",
+      "4. Type: ANNUAL",
+      "5. Select dates (5 days)",
+      "6. Submit for approval"
+    ],
+    "expected_result": "Leave request pending manager approval"
+  }
+]

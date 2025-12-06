@@ -93,6 +93,9 @@ LOCAL_APPS = [
     # Reports & Analytics (NEW in v5.4)
     'apps.reports',
 
+    # Common utilities
+    'apps.common',
+
     # Future Phases (skeleton only)
     'apps.supplychain',
     'apps.dispatch',
