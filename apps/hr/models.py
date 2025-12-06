@@ -1909,6 +1909,16 @@ class ShiftSchedule(models.Model):
         help_text="Work location"
     )
 
+    # Relationship to field work
+    site_visit = models.ForeignKey(
+        'sales.SiteVisit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='shift_schedules',
+        help_text="Related site visit if field work"
+    )
+
     # Actual times (filled when shift completes)
     actual_start_time = models.TimeField(
         null=True,
@@ -2092,6 +2102,24 @@ class TimeEntry(models.Model):
     )
 
     # Related work
+    work_order = models.ForeignKey(
+        'workorders.WorkOrder',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='time_entries',
+        help_text="Related work order for labor tracking"
+    )
+
+    site_visit = models.ForeignKey(
+        'sales.SiteVisit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='time_entries',
+        help_text="Related site visit for field work"
+    )
+
     work_description = models.TextField(
         blank=True,
         help_text="Description of work performed"
