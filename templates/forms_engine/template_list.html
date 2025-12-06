@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Form Templates - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Create and manage dynamic form templates</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex space-x-3">
+        <a href="{% url 'forms_engine:fieldtype-list' %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+            <i data-lucide="settings" class="w-4 h-4 mr-2"></i>
+            Field Types
+        </a>
+        <a href="{% url 'forms_engine:template-create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+            New Template
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <!-- Search -->
+        <div class="flex-1">
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" name="q" value="{{ search_query }}"
+                       placeholder="Search by code, name, or description..."
+                       class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+        </div>
+
+        <!-- Status Filter -->
+        <div class="w-full md:w-48">
+            <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                <option value="">All Statuses</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+            <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>
+            Filter
+        </button>
+
+        {% if search_query or current_status %}
+        <a href="{% url 'forms_engine:template-list' %}" class="px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+            Clear
+        </a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Results Count -->
+<div class="flex items-center justify-between mb-4">
+    <p class="text-sm text-gray-600 dark:text-gray-400">
+        Showing {{ templates|length }} of {{ page_obj.paginator.count|default:templates|length }} templates
+    </p>
+</div>
+
+<!-- Templates Grid -->
+{% if templates %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for template in templates %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+        <div class="p-6">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        <a href="{% url 'forms_engine:template-detail' template.pk %}" class="hover:text-blue-600 dark:hover:text-blue-400">
+                            {{ template.name }}
+                        </a>
+                    </h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 font-mono">{{ template.code }}</p>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                    {% if template.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                    {% elif template.status == 'DRAFT' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                    {{ template.get_status_display }}
+                </span>
+            </div>
+
+            <p class="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2">
+                {{ template.description|default:"No description provided" }}
+            </p>
+
+            <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-4">
+                <span class="flex items-center">
+                    <i data-lucide="layers" class="w-4 h-4 mr-1"></i>
+                    {{ template.section_count }} sections
+                </span>
+                <span class="flex items-center">
+                    <i data-lucide="text-cursor-input" class="w-4 h-4 mr-1"></i>
+                    {{ template.field_count }} fields
+                </span>
+            </div>
+        </div>
+
+        <div class="px-6 py-3 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+                v{{ template.version }}
+            </span>
+            <div class="flex items-center space-x-2">
+                <a href="{% url 'forms_engine:template-builder' template.pk %}" class="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400" title="Builder">
+                    <i data-lucide="wrench" class="w-4 h-4"></i>
+                </a>
+                <a href="{% url 'forms_engine:template-preview' template.pk %}" class="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400" title="Preview">
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                </a>
+                <a href="{% url 'forms_engine:template-update' template.pk %}" class="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400" title="Edit">
+                    <i data-lucide="edit" class="w-4 h-4"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="mt-6 flex items-center justify-center">
+    <div class="flex space-x-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+           class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+            Previous
+        </a>
+        {% endif %}
+
+        <span class="px-4 py-2 text-gray-600 dark:text-gray-400">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+           class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+            Next
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+<!-- Empty State -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-16 text-center">
+    <i data-lucide="file-plus-2" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No form templates found</h3>
+    {% if search_query or current_status %}
+    <p class="text-gray-500 dark:text-gray-400 mb-4">Try adjusting your filters or search terms</p>
+    <a href="{% url 'forms_engine:template-list' %}" class="inline-flex items-center px-4 py-2 text-blue-600 dark:text-blue-400 hover:underline">
+        Clear filters
+    </a>
+    {% else %}
+    <p class="text-gray-500 dark:text-gray-400 mb-4">Get started by creating your first form template</p>
+    <a href="{% url 'forms_engine:template-create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+        Create Template
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

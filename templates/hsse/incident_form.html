@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}Report{% endif %} Incident - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="mb-6">
+    <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+        <a href="{% url 'hsse:incident-list' %}" class="hover:text-blue-600">Incidents</a>
+        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        <span>{% if form.instance.pk %}Edit{% else %}Report{% endif %}</span>
+    </div>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if form.instance.pk %}Edit Incident{% else %}Report Incident{% endif %}</h1>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+    <form method="post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        {% csrf_token %}
+        <div class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Incident Number *</label>
+                    <input type="text" name="incident_number" value="{{ form.incident_number.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Occurred At *</label>
+                    <input type="datetime-local" name="occurred_at" value="{{ form.occurred_at.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type *</label>
+                    <select name="incident_type" required class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        {% for value, label in form.fields.incident_type.choices %}
+                        <option value="{{ value }}" {% if form.incident_type.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Severity *</label>
+                    <select name="severity" required class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        {% for value, label in form.fields.severity.choices %}
+                        <option value="{{ value }}" {% if form.severity.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                    <select name="status" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        {% for value, label in form.fields.status.choices %}
+                        <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location *</label>
+                <input type="text" name="location" value="{{ form.location.value|default:'' }}" required
+                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description *</label>
+                <textarea name="description" rows="4" required class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">{{ form.description.value|default:'' }}</textarea>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Immediate Action Taken</label>
+                <textarea name="immediate_action" rows="3" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">{{ form.immediate_action.value|default:'' }}</textarea>
+            </div>
+            {% if form.instance.pk %}
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="text-md font-medium text-gray-900 dark:text-white mb-4">Investigation</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Findings</label>
+                        <textarea name="investigation_findings" rows="3" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">{{ form.investigation_findings.value|default:'' }}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Root Cause</label>
+                        <textarea name="root_cause" rows="3" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">{{ form.root_cause.value|default:'' }}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Corrective Actions</label>
+                        <textarea name="corrective_actions" rows="3" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">{{ form.corrective_actions.value|default:'' }}</textarea>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <a href="{% url 'hsse:incident-list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">Cancel</a>
+            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                {% if form.instance.pk %}Update{% else %}Submit{% endif %} Incident
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

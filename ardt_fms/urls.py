@@ -57,7 +57,8 @@ urlpatterns = [
     
     # Procedure Engine
     path('procedures/', include('apps.procedures.urls', namespace='procedures')),
-    path('forms/', include('apps.forms_engine.urls', namespace='forms_engine')),
+    # INCOMPLETE: forms_engine has models but no views/templates - see docs/SKELETON_APPS_ROOT_CAUSE_ANALYSIS.md
+    # path('forms/', include('apps.forms_engine.urls', namespace='forms_engine')),
     path('execution/', include('apps.execution.urls', namespace='execution')),
     
     # Quality
@@ -67,7 +68,8 @@ urlpatterns = [
     path('inventory/', include('apps.inventory.urls', namespace='inventory')),
     
     # Support Systems
-    path('scan/', include('apps.scancodes.urls', namespace='scancodes')),
+    # INCOMPLETE: scancodes has partial implementation - see docs/SKELETON_APPS_ROOT_CAUSE_ANALYSIS.md
+    # path('scan/', include('apps.scancodes.urls', namespace='scancodes')),
     path('notifications/', include('apps.notifications.urls', namespace='notifications')),
     path('maintenance/', include('apps.maintenance.urls', namespace='maintenance')),
     path('documents/', include('apps.documents.urls', namespace='documents')),
@@ -78,11 +80,22 @@ urlpatterns = [
     # Reports & Analytics (NEW in v5.4)
     path('reports/', include('apps.reports.urls', namespace='reports')),
 
-    # Future Phase Apps (P2+)
+    # Supply Chain (Complete)
     path('supply-chain/', include('apps.supplychain.urls', namespace='supplychain')),
-    path('dispatch/', include('apps.dispatch.urls', namespace='dispatch')),
-    path('hr/', include('apps.hr.urls', namespace='hr')),
-    path('hsse/', include('apps.hsse.urls', namespace='hsse')),
+
+    # ==========================================
+    # INCOMPLETE APPS - Removed Until Sprint 9
+    # ==========================================
+    # These apps have models but no views/templates.
+    # Accessible via Django admin only.
+    # Will be completed in Sprint 9 post-launch.
+    #
+    # Sprint 8 (Incomplete - Models Only):
+    # path('hr/', include('apps.hr.urls', namespace='hr')),
+    # path('dispatch/', include('apps.dispatch.urls', namespace='dispatch')),
+    # path('hsse/', include('apps.hsse.urls', namespace='hsse')),
+    #
+    # See: docs/SKELETON_APPS_ROOT_CAUSE_ANALYSIS.md for details
 ]
 
 # Serve media files in development

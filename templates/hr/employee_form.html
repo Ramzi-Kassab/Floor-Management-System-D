@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Employee - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="mb-6">
+    <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+        <a href="{% url 'hr:employee-list' %}" class="hover:text-blue-600">Employees</a>
+        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        <span>{% if form.instance.pk %}Edit{% else %}Add{% endif %}</span>
+    </div>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if form.instance.pk %}Edit Employee{% else %}Add Employee{% endif %}</h1>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-4xl">
+    <form method="post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        {% csrf_token %}
+
+        <div class="space-y-8">
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">User Account</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">User Account *</label>
+                        {{ form.user }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Employee Number</label>
+                        {{ form.employee_number }}
+                        <p class="text-xs text-gray-500 mt-1">Leave blank to auto-generate</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Badge Number</label>
+                        {{ form.badge_number }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Personal Information</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date of Birth</label>
+                        {{ form.date_of_birth }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nationality</label>
+                        {{ form.nationality }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Marital Status</label>
+                        {{ form.marital_status }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Personal Email</label>
+                        {{ form.personal_email }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mobile Phone</label>
+                        {{ form.mobile_phone }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Home Phone</label>
+                        {{ form.home_phone }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Address</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 1</label>
+                        {{ form.address_line_1 }}
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 2</label>
+                        {{ form.address_line_2 }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
+                        {{ form.city }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">State/Province</label>
+                        {{ form.state_province }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Postal Code</label>
+                        {{ form.postal_code }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
+                        {{ form.country }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Employment Details</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department *</label>
+                        {{ form.department }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Job Title *</label>
+                        {{ form.job_title }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Manager</label>
+                        {{ form.manager }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Employment Type</label>
+                        {{ form.employment_type }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Employment Status</label>
+                        {{ form.employment_status }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Work Location</label>
+                        {{ form.work_location }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hire Date *</label>
+                        {{ form.hire_date }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Probation End Date</label>
+                        {{ form.probation_end_date }}
+                    </div>
+                    <div class="flex items-center pt-6">
+                        {{ form.is_field_technician }}
+                        <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Field Technician</label>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Job Description</label>
+                    {{ form.job_description }}
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Compensation</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pay Type</label>
+                        {{ form.pay_type }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pay Rate</label>
+                        {{ form.pay_rate }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Currency</label>
+                        {{ form.currency_code }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pay Grade</label>
+                        {{ form.pay_grade }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Work Schedule & Leave</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hours/Week</label>
+                        {{ form.standard_hours_per_week }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Work Shift</label>
+                        {{ form.work_shift }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Annual Leave Days</label>
+                        {{ form.annual_leave_days }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sick Leave Days</label>
+                        {{ form.sick_leave_days }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Notes</h3>
+                {{ form.notes }}
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <a href="{% url 'hr:employee-list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">Cancel</a>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                {% if form.instance.pk %}Update{% else %}Create{% endif %} Employee
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Form Builder: {{ template.name }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        <li><a href="{% url 'dashboard:home' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Dashboard</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'forms_engine:template-list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Form Templates</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'forms_engine:template-detail' template.pk %}" class="hover:text-gray-700 dark:hover:text-gray-200">{{ template.code }}</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li class="text-gray-900 dark:text-white font-medium">Builder</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400 font-mono text-sm">{{ template.code }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex space-x-3">
+        <a href="{% url 'forms_engine:template-preview' template.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+            <i data-lucide="eye" class="w-4 h-4 mr-2"></i>
+            Preview
+        </a>
+        <a href="{% url 'forms_engine:template-detail' template.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <i data-lucide="check" class="w-4 h-4 mr-2"></i>
+            Done
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <!-- Field Types Sidebar -->
+    <div class="lg:col-span-1">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 sticky top-4">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4">Field Types</h3>
+            <div class="space-y-2">
+                {% for field_type in field_types %}
+                <div class="flex items-center p-2 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-move hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                     draggable="true"
+                     data-field-type="{{ field_type.code }}">
+                    <i data-lucide="{{ field_type.icon|default:'type' }}" class="w-4 h-4 text-gray-500 dark:text-gray-400 mr-2"></i>
+                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ field_type.name }}</span>
+                </div>
+                {% empty %}
+                <p class="text-sm text-gray-500 dark:text-gray-400">No field types available</p>
+                <a href="{% url 'forms_engine:fieldtype-create' %}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">Create one</a>
+                {% endfor %}
+            </div>
+
+            <hr class="my-4 border-gray-200 dark:border-gray-700">
+
+            <a href="{% url 'forms_engine:section-create' template.pk %}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                Add Section
+            </a>
+        </div>
+    </div>
+
+    <!-- Form Builder Area -->
+    <div class="lg:col-span-3">
+        {% if template.sections.all %}
+        <div class="space-y-4" id="sections-container">
+            {% for section in template.sections.all %}
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden" data-section-id="{{ section.pk }}">
+                <!-- Section Header -->
+                <div class="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-400 cursor-move section-handle"></i>
+                        <div>
+                            <h3 class="font-medium text-gray-900 dark:text-white">{{ section.name }}</h3>
+                            {% if section.description %}
+                            <p class="text-sm text-gray-500 dark:text-gray-400">{{ section.description }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        {% if section.is_collapsible %}
+                        <span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded">Collapsible</span>
+                        {% endif %}
+                        <a href="{% url 'forms_engine:field-create' section.pk %}" class="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400" title="Add Field">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                        </a>
+                        <a href="{% url 'forms_engine:section-update' section.pk %}" class="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400" title="Edit Section">
+                            <i data-lucide="edit" class="w-4 h-4"></i>
+                        </a>
+                        <a href="{% url 'forms_engine:section-delete' section.pk %}" class="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400" title="Delete Section">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Fields -->
+                <div class="p-4 space-y-3 min-h-[100px] fields-container" data-section-id="{{ section.pk }}">
+                    {% for field in section.fields.all %}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                         data-field-id="{{ field.pk }}">
+                        <div class="flex items-center space-x-3">
+                            <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-400 cursor-move field-handle"></i>
+                            <span class="w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-600 rounded-lg shadow-sm">
+                                <i data-lucide="{{ field.field_type.icon|default:'type' }}" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
+                            </span>
+                            <div>
+                                <p class="font-medium text-gray-900 dark:text-white">
+                                    {{ field.label }}
+                                    {% if field.is_required %}<span class="text-red-500">*</span>{% endif %}
+                                </p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                    {{ field.field_type.name }} | <span class="font-mono">{{ field.name }}</span>
+                                    {% if field.width != 'full' %} | {{ field.get_width_display|default:field.width }}{% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <a href="{% url 'forms_engine:field-update' field.pk %}" class="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400" title="Edit Field">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'forms_engine:field-delete' field.pk %}" class="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400" title="Delete Field">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-8 text-gray-400 dark:text-gray-500 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+                        <i data-lucide="text-cursor-input" class="w-8 h-8 mx-auto mb-2"></i>
+                        <p class="text-sm">Drag fields here or click "Add Field"</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <!-- Empty State -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-16 text-center">
+            <i data-lucide="layers" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No sections yet</h3>
+            <p class="text-gray-500 dark:text-gray-400 mb-6">Start building your form by adding sections</p>
+            <a href="{% url 'forms_engine:section-create' template.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                Add First Section
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+// Simple drag-and-drop sorting with SortableJS if available, otherwise basic functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

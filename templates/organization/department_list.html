@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Departments - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Manage organizational departments</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'organization:department-create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+            New Department
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1">
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" name="q" value="{{ search_query }}"
+                       placeholder="Search departments..."
+                       class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+        <div class="w-full md:w-40">
+            <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Status</option>
+                <option value="active" {% if current_status == 'active' %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if current_status == 'inactive' %}selected{% endif %}>Inactive</option>
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+            Filter
+        </button>
+    </form>
+</div>
+
+<!-- Departments Table -->
+{% if departments %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                <th class="px-6 py-3 font-medium">Code</th>
+                <th class="px-6 py-3 font-medium">Name</th>
+                <th class="px-6 py-3 font-medium">Parent</th>
+                <th class="px-6 py-3 font-medium">Manager</th>
+                <th class="px-6 py-3 font-medium">Positions</th>
+                <th class="px-6 py-3 font-medium">Status</th>
+                <th class="px-6 py-3 font-medium text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for dept in departments %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                <td class="px-6 py-4 font-mono text-blue-600 dark:text-blue-400">
+                    <a href="{% url 'organization:department-detail' dept.pk %}">{{ dept.code }}</a>
+                </td>
+                <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">{{ dept.name }}</td>
+                <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ dept.parent.name|default:'-' }}</td>
+                <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ dept.manager.get_full_name|default:'-' }}</td>
+                <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ dept.position_count }}</td>
+                <td class="px-6 py-4">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if dept.is_active %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                        {% if dept.is_active %}Active{% else %}Inactive{% endif %}
+                    </span>
+                </td>
+                <td class="px-6 py-4 text-right">
+                    <a href="{% url 'organization:department-update' dept.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
+                        <i data-lucide="edit" class="w-4 h-4 inline"></i>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-16 text-center">
+    <i data-lucide="building" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No departments found</h3>
+    <a href="{% url 'organization:department-create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mt-4">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+        Create Department
+    </a>
+</div>
+{% endif %}
+{% endblock %}

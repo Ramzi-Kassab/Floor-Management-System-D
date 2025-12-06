@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}{{ scancode.code }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'scancodes:scancode-list' %}" class="hover:text-blue-600">Scan Codes</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{{ scancode.code|truncatechars:20 }}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white font-mono">{{ scancode.code }}</h1>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'scancodes:scancode-update' scancode.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'scancodes:scancode-delete' scancode.pk %}" class="inline-flex items-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Delete
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Code Details</h2>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Code</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono break-all">{{ scancode.code }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Code Type</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium {% if scancode.code_type == 'QR' %}bg-purple-100 text-purple-800{% elif scancode.code_type == 'BARCODE' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ scancode.get_code_type_display }}
+                        </span>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Entity Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ scancode.get_entity_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Entity ID</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ scancode.entity_id|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Source</dt>
+                    <dd class="text-gray-900 dark:text-white">
+                        {% if scancode.is_external %}
+                        <span class="inline-flex items-center"><i data-lucide="external-link" class="w-4 h-4 mr-1 text-orange-500"></i>{{ scancode.external_source|default:"External" }}</span>
+                        {% else %}
+                        <span class="inline-flex items-center"><i data-lucide="building-2" class="w-4 h-4 mr-1 text-green-500"></i>Internal (ARDT)</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Status</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if scancode.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {% if scancode.is_active %}Active{% else %}Inactive{% endif %}
+                        </span>
+                    </dd>
+                </div>
+            </dl>
+            {% if scancode.encoded_data %}
+            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Encoded Data</h3>
+                <pre class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm font-mono overflow-x-auto">{{ scancode.encoded_data|pprint }}</pre>
+            </div>
+            {% endif %}
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Scan History</h2>
+                <a href="{% url 'scancodes:scanlog-list' %}?q={{ scancode.code }}" class="text-sm text-blue-600 hover:underline">View All</a>
+            </div>
+            {% if recent_scans %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                            <th class="pb-2 font-medium">Time</th>
+                            <th class="pb-2 font-medium">Purpose</th>
+                            <th class="pb-2 font-medium">User</th>
+                            <th class="pb-2 font-medium">Result</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                        {% for log in recent_scans %}
+                        <tr>
+                            <td class="py-2 text-gray-600 dark:text-gray-400">{{ log.scanned_at|date:"M d, H:i" }}</td>
+                            <td class="py-2">{{ log.get_purpose_display }}</td>
+                            <td class="py-2 text-gray-600 dark:text-gray-400">{{ log.scanned_by.get_full_name|default:log.scanned_by.username }}</td>
+                            <td class="py-2">
+                                {% if log.is_valid %}
+                                <span class="text-green-600"><i data-lucide="check-circle" class="w-4 h-4 inline"></i></span>
+                                {% else %}
+                                <span class="text-red-600"><i data-lucide="x-circle" class="w-4 h-4 inline"></i></span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-center py-8">No scans recorded yet</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">QR Preview</h2>
+            <div class="bg-white p-4 rounded-lg flex items-center justify-center">
+                <div class="w-32 h-32 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center">
+                    <i data-lucide="qr-code" class="w-20 h-20 text-gray-400"></i>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">QR code preview</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Info</h2>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ scancode.created_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Created By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ scancode.created_by.get_full_name|default:scancode.created_by.username|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Total Scans</dt>
+                    <dd class="text-gray-900 dark:text-white font-semibold">{{ scancode.scan_logs.count }}</dd>
+                </div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actions</h2>
+            <div class="space-y-2">
+                <a href="{% url 'scancodes:scancode-list' %}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

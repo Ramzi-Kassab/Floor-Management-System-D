@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        <li><a href="{% url 'dashboard:home' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Dashboard</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'forms_engine:template-list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Form Templates</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'forms_engine:template-detail' template.pk %}" class="hover:text-gray-700 dark:hover:text-gray-200">{{ template.code }}</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li class="text-gray-900 dark:text-white font-medium">{{ page_title }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Section: {{ section.name }}</p>
+    </div>
+    <a href="{% url 'forms_engine:template-builder' template.pk %}"
+       class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+        <i data-lucide="x" class="w-4 h-4 mr-2"></i>
+        Cancel
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="max-w-3xl">
+    {% csrf_token %}
+
+    {% if form.errors %}
+    <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+        <div class="flex items-start">
+            <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 mr-3"></i>
+            <div>
+                <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Please correct the following errors:</h3>
+                <ul class="mt-2 text-sm text-red-700 dark:text-red-300 list-disc list-inside">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                        <li>{{ field.label }}: {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="space-y-6">
+        <!-- Basic Information -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Field Type -->
+                <div>
+                    <label for="id_field_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Field Type <span class="text-red-500">*</span>
+                    </label>
+                    <select name="field_type" id="id_field_type" required
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        <option value="">Select type...</option>
+                        {% for ft in form.fields.field_type.queryset %}
+                        <option value="{{ ft.pk }}" {% if form.field_type.value == ft.pk|stringformat:"s" %}selected{% endif %}>{{ ft.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Width -->
+                <div>
+                    <label for="id_width" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Width
+                    </label>
+                    <select name="width" id="id_width"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        <option value="full" {% if form.width.value == 'full' %}selected{% endif %}>Full Width</option>
+                        <option value="half" {% if form.width.value == 'half' %}selected{% endif %}>Half Width</option>
+                        <option value="third" {% if form.width.value == 'third' %}selected{% endif %}>One Third</option>
+                        <option value="quarter" {% if form.width.value == 'quarter' %}selected{% endif %}>One Quarter</option>
+                    </select>
+                </div>
+
+                <!-- Name -->
+                <div>
+                    <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Field Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="name" id="id_name" required
+                           value="{{ form.name.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono"
+                           placeholder="field_name">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Internal name (no spaces)</p>
+                </div>
+
+                <!-- Label -->
+                <div>
+                    <label for="id_label" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Display Label <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="label" id="id_label" required
+                           value="{{ form.label.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                           placeholder="Field Label">
+                </div>
+
+                <!-- Placeholder -->
+                <div>
+                    <label for="id_placeholder" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Placeholder
+                    </label>
+                    <input type="text" name="placeholder" id="id_placeholder"
+                           value="{{ form.placeholder.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                           placeholder="Placeholder text">
+                </div>
+
+                <!-- Sequence -->
+                <div>
+                    <label for="id_sequence" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Display Order
+                    </label>
+                    <input type="number" name="sequence" id="id_sequence"
+                           value="{{ form.sequence.value|default:'0' }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                           min="0">
+                </div>
+
+                <!-- Help Text -->
+                <div class="md:col-span-2">
+                    <label for="id_help_text" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Help Text
+                    </label>
+                    <textarea name="help_text" id="id_help_text" rows="2"
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                              placeholder="Optional help text for users">{{ form.help_text.value|default:'' }}</textarea>
+                </div>
+            </div>
+
+            <!-- Checkbox Options -->
+            <div class="mt-4 flex flex-wrap gap-4">
+                <div class="flex items-center">
+                    <input type="checkbox" name="is_required" id="id_is_required"
+                           {% if form.is_required.value %}checked{% endif %}
+                           class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                    <label for="id_is_required" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Required</label>
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" name="is_readonly" id="id_is_readonly"
+                           {% if form.is_readonly.value %}checked{% endif %}
+                           class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                    <label for="id_is_readonly" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Read-only</label>
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" name="is_hidden" id="id_is_hidden"
+                           {% if form.is_hidden.value %}checked{% endif %}
+                           class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                    <label for="id_is_hidden" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Hidden</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Validation -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Validation</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="id_min_length" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Min Length
+                    </label>
+                    <input type="number" name="min_length" id="id_min_length"
+                           value="{{ form.min_length.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                           min="0">
+                </div>
+                <div>
+                    <label for="id_max_length" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Max Length
+                    </label>
+                    <input type="number" name="max_length" id="id_max_length"
+                           value="{{ form.max_length.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                           min="0">
+                </div>
+                <div>
+                    <label for="id_min_value" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Min Value
+                    </label>
+                    <input type="number" name="min_value" id="id_min_value" step="any"
+                           value="{{ form.min_value.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                </div>
+                <div>
+                    <label for="id_max_value" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Max Value
+                    </label>
+                    <input type="number" name="max_value" id="id_max_value" step="any"
+                           value="{{ form.max_value.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                </div>
+                <div class="md:col-span-2">
+                    <label for="id_regex_pattern" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Regex Pattern
+                    </label>
+                    <input type="text" name="regex_pattern" id="id_regex_pattern"
+                           value="{{ form.regex_pattern.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono"
+                           placeholder="^[A-Z]{2}[0-9]+$">
+                </div>
+                <div class="md:col-span-2">
+                    <label for="id_validation_message" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Validation Error Message
+                    </label>
+                    <input type="text" name="validation_message" id="id_validation_message"
+                           value="{{ form.validation_message.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                           placeholder="Custom error message">
+                </div>
+            </div>
+        </div>
+
+        <!-- Options (for select/radio/checkbox) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Options (for dropdowns/checkboxes)</h2>
+            <div>
+                <label for="id_options" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Options JSON
+                </label>
+                <textarea name="options" id="id_options" rows="4"
+                          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono text-sm"
+                          placeholder='[{"value": "option1", "label": "Option 1"}, {"value": "option2", "label": "Option 2"}]'>{{ form.options.value|default:'' }}</textarea>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">JSON array of options with "value" and "label" keys</p>
+            </div>
+            <div class="mt-4">
+                <label for="id_default_value" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Default Value
+                </label>
+                <input type="text" name="default_value" id="id_default_value"
+                       value="{{ form.default_value.value|default:'' }}"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="flex justify-end">
+            <button type="submit" class="inline-flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                {% if object %}Update Field{% else %}Add Field{% endif %}
+            </button>
+        </div>
+    </div>
+</form>
+{% endblock %}

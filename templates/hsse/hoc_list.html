@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}HOC Reports - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Hazard Observation Cards</p>
+    </div>
+    <a href="{% url 'hsse:hoc-create' %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 mt-4 md:mt-0">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Report HOC
+    </a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search..."
+                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+        </div>
+        <select name="category" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            <option value="">All Categories</option>
+            {% for value, label in categories %}<option value="{{ value }}" {% if current_category == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <select name="status" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            <option value="">All Status</option>
+            {% for value, label in statuses %}<option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">Filter</button>
+    </form>
+</div>
+{% if reports %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                <th class="px-6 py-3 font-medium">HOC #</th>
+                <th class="px-6 py-3 font-medium">Category</th>
+                <th class="px-6 py-3 font-medium">Location</th>
+                <th class="px-6 py-3 font-medium">Reported By</th>
+                <th class="px-6 py-3 font-medium">Date</th>
+                <th class="px-6 py-3 font-medium">Status</th>
+                <th class="px-6 py-3 font-medium text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for report in reports %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                <td class="px-6 py-4">
+                    <a href="{% url 'hsse:hoc-detail' report.pk %}" class="text-blue-600 hover:underline font-medium">{{ report.hoc_number }}</a>
+                </td>
+                <td class="px-6 py-4">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                        {% if report.category == 'UNSAFE_ACT' %}bg-red-100 text-red-800
+                        {% elif report.category == 'UNSAFE_CONDITION' %}bg-orange-100 text-orange-800
+                        {% elif report.category == 'NEAR_MISS' %}bg-yellow-100 text-yellow-800
+                        {% else %}bg-green-100 text-green-800{% endif %}">
+                        {{ report.get_category_display }}
+                    </span>
+                </td>
+                <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ report.location|truncatechars:25 }}</td>
+                <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ report.reported_by.get_full_name|default:report.reported_by.username }}</td>
+                <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ report.reported_at|date:"M d, Y" }}</td>
+                <td class="px-6 py-4">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if report.status == 'OPEN' %}bg-yellow-100 text-yellow-800
+                        {% elif report.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800
+                        {% else %}bg-green-100 text-green-800{% endif %}">
+                        {{ report.get_status_display }}
+                    </span>
+                </td>
+                <td class="px-6 py-4 text-right">
+                    <a href="{% url 'hsse:hoc-update' report.pk %}" class="text-gray-400 hover:text-yellow-600">
+                        <i data-lucide="edit" class="w-4 h-4 inline"></i>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-16 text-center">
+    <i data-lucide="alert-triangle" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No HOC reports found</h3>
+    <a href="{% url 'hsse:hoc-create' %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 mt-4">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Report HOC
+    </a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}{{ department.name }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        <li><a href="{% url 'dashboard:home' %}" class="hover:text-gray-700">Dashboard</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'organization:department-list' %}" class="hover:text-gray-700">Departments</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li class="text-gray-900 dark:text-white font-medium">{{ department.code }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ department.name }}</h1>
+        <p class="text-gray-600 dark:text-gray-400 font-mono">{{ department.code }}</p>
+    </div>
+    <a href="{% url 'organization:department-update' department.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
+        Edit
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Details</h2>
+            <dl class="grid grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Location</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ department.location|default:'-' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Manager</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ department.manager.get_full_name|default:'-' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Parent Department</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ department.parent.name|default:'-' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Status</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if department.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {% if department.is_active %}Active{% else %}Inactive{% endif %}
+                        </span>
+                    </dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Positions -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Positions ({{ department.positions.count }})</h2>
+            {% if department.positions.all %}
+            <ul class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for pos in department.positions.all %}
+                <li class="py-3 flex items-center justify-between">
+                    <div>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ pos.title }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Level {{ pos.level }}</p>
+                    </div>
+                    <a href="{% url 'organization:position-detail' pos.pk %}" class="text-blue-600 hover:underline text-sm">View</a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">No positions in this department.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        <!-- Sub-departments -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sub-departments</h2>
+            {% if department.children.all %}
+            <ul class="space-y-2">
+                {% for child in department.children.all %}
+                <li>
+                    <a href="{% url 'organization:department-detail' child.pk %}" class="text-blue-600 hover:underline">{{ child.name }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">No sub-departments.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
