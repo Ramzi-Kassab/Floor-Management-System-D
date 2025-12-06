@@ -13,8 +13,8 @@ from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 
-from .models import Department, Position, Theme, SystemSetting
-from .forms import DepartmentForm, PositionForm, ThemeForm, SystemSettingForm
+from .models import Department, Position, Theme, SystemSetting, NumberSequence
+from .forms import DepartmentForm, PositionForm, ThemeForm, SystemSettingForm, NumberSequenceForm
 
 
 # =============================================================================
@@ -414,3 +414,70 @@ class SystemSettingCreateView(LoginRequiredMixin, CreateView):
         form.instance.updated_by = self.request.user
         messages.success(self.request, f"Setting '{form.instance.key}' created successfully.")
         return super().form_valid(form)
+
+
+# =============================================================================
+# NUMBER SEQUENCE VIEWS
+# =============================================================================
+
+
+class NumberSequenceListView(LoginRequiredMixin, ListView):
+    """List all number sequences."""
+
+    model = NumberSequence
+    template_name = "organization/sequence_list.html"
+    context_object_name = "sequences"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Number Sequences"
+        return context
+
+
+class NumberSequenceCreateView(LoginRequiredMixin, CreateView):
+    """Create a new number sequence."""
+
+    model = NumberSequence
+    form_class = NumberSequenceForm
+    template_name = "organization/sequence_form.html"
+    success_url = reverse_lazy("organization:sequence-list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Number Sequence"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Number sequence '{form.instance.code}' created successfully.")
+        return super().form_valid(form)
+
+
+class NumberSequenceUpdateView(LoginRequiredMixin, UpdateView):
+    """Update a number sequence."""
+
+    model = NumberSequence
+    form_class = NumberSequenceForm
+    template_name = "organization/sequence_form.html"
+    success_url = reverse_lazy("organization:sequence-list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit: {self.object.code}"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Number sequence '{form.instance.code}' updated successfully.")
+        return super().form_valid(form)
+
+
+class NumberSequenceDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a number sequence."""
+
+    model = NumberSequence
+    template_name = "organization/sequence_confirm_delete.html"
+    success_url = reverse_lazy("organization:sequence-list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete: {self.object.code}"
+        return context

@@ -37,4 +37,10 @@ urlpatterns = [
     path('settings/', views.SystemSettingListView.as_view(), name='setting-list'),
     path('settings/create/', views.SystemSettingCreateView.as_view(), name='setting-create'),
     path('settings/<int:pk>/edit/', views.SystemSettingUpdateView.as_view(), name='setting-update'),
+
+    # Number Sequences
+    path('sequences/', views.NumberSequenceListView.as_view(), name='sequence-list'),
+    path('sequences/create/', views.NumberSequenceCreateView.as_view(), name='sequence-create'),
+    path('sequences/<int:pk>/edit/', views.NumberSequenceUpdateView.as_view(), name='sequence-update'),
+    path('sequences/<int:pk>/delete/', views.NumberSequenceDeleteView.as_view(), name='sequence-delete'),
 ]

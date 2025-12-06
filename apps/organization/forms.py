@@ -6,7 +6,7 @@ Form classes for organization management.
 """
 
 from django import forms
-from .models import Department, Position, Theme, SystemSetting
+from .models import Department, Position, Theme, SystemSetting, NumberSequence
 
 
 class DepartmentForm(forms.ModelForm):
@@ -149,4 +149,50 @@ class SystemSettingForm(forms.ModelForm):
             'is_editable': forms.CheckboxInput(attrs={
                 'class': 'w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500'
             }),
+        }
+
+
+class NumberSequenceForm(forms.ModelForm):
+    """Form for managing number sequences."""
+
+    class Meta:
+        model = NumberSequence
+        fields = ['code', 'name', 'prefix', 'suffix', 'padding', 'current_value', 'increment_by', 'reset_period']
+        widgets = {
+            'code': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white',
+                'placeholder': 'WO_NUMBER'
+            }),
+            'name': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white',
+                'placeholder': 'Work Order Number'
+            }),
+            'prefix': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white',
+                'placeholder': 'WO-'
+            }),
+            'suffix': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white',
+                'placeholder': '-2024'
+            }),
+            'padding': forms.NumberInput(attrs={
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white',
+                'min': 1,
+                'max': 12
+            }),
+            'current_value': forms.NumberInput(attrs={
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white',
+                'min': 0
+            }),
+            'increment_by': forms.NumberInput(attrs={
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white',
+                'min': 1
+            }),
+            'reset_period': forms.Select(attrs={
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white'
+            }, choices=[
+                ('', 'Never'),
+                ('YEARLY', 'Yearly'),
+                ('MONTHLY', 'Monthly'),
+            ]),
         }
