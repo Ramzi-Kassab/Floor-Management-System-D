@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ request.request_number }}</h1>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="px-2 py-1 text-xs font-medium rounded-full {% if request.priority == 'URGENT' %}bg-red-100 text-red-800{% elif request.priority == 'HIGH' %}bg-orange-100 text-orange-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ request.get_priority_display|default:request.priority }}</span>
+                <span class="px-2 py-1 text-xs font-medium rounded-full {% if request.status == 'COMPLETED' %}bg-green-100 text-green-800{% elif request.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ request.get_status_display|default:request.status }}</span>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:fieldservicerequest_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:fieldservicerequest_update' request.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Request Information</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Request Number</dt><dd class="font-medium text-gray-900 dark:text-white">{{ request.request_number }}</dd></div>
+                <div><dt class="text-gray-500">Request Type</dt><dd class="font-medium text-gray-900 dark:text-white">{{ request.get_request_type_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Requested Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ request.requested_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Required Completion</dt><dd class="font-medium text-gray-900 dark:text-white">{{ request.required_completion_date|date:"M d, Y"|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Customer & Site</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Customer</dt><dd class="font-medium text-gray-900 dark:text-white">{% if request.customer %}<a href="{% url 'sales:customer_detail' request.customer.pk %}" class="text-ardt-blue hover:underline">{{ request.customer.name }}</a>{% else %}-{% endif %}</dd></div>
+                <div><dt class="text-gray-500">Service Site</dt><dd class="font-medium text-gray-900 dark:text-white">{% if request.service_site %}<a href="{% url 'sales:servicesite_detail' request.service_site.pk %}" class="text-ardt-blue hover:underline">{{ request.service_site.site_name }}</a>{% else %}-{% endif %}</dd></div>
+                <div><dt class="text-gray-500">Assigned Technician</dt><dd class="font-medium text-gray-900 dark:text-white">{% if request.assigned_technician %}<a href="{% url 'sales:fieldtechnician_detail' request.assigned_technician.pk %}" class="text-ardt-blue hover:underline">{{ request.assigned_technician.tech_id }}</a>{% else %}-{% endif %}</dd></div>
+            </dl>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Service Description</h3>
+        <p class="text-gray-900 dark:text-white">{{ request.service_description|default:"No description provided." }}</p>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Estimated vs Actual</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Est. Duration (hrs)</dt><dd class="font-medium text-gray-900 dark:text-white">{{ request.estimated_duration_hours|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Est. Cost</dt><dd class="font-medium text-gray-900 dark:text-white">${{ request.estimated_cost|default:"0" }}</dd></div>
+                <div><dt class="text-gray-500">Actual Cost</dt><dd class="font-medium text-gray-900 dark:text-white">${{ request.actual_cost|default:"0" }}</dd></div>
+                <div><dt class="text-gray-500">Actual Completion</dt><dd class="font-medium text-gray-900 dark:text-white">{{ request.actual_completion_date|date:"M d, Y"|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Approval</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Approved By</dt><dd class="font-medium text-gray-900 dark:text-white">{{ request.approved_by.get_full_name|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Approval Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ request.approval_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Customer PO</dt><dd class="font-medium text-gray-900 dark:text-white">{{ request.customer_po_number|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}
