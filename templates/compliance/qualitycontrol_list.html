@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li><a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400"><i data-lucide="home" class="w-4 h-4"></i></a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">Quality Control</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage quality control inspections</p>
+        </div>
+        <a href="{% url 'compliance:qualitycontrol_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition shadow-sm">
+            <i data-lucide="plus" class="w-5 h-5 mr-2"></i> New Inspection
+        </a>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+        <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search inspections..." class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+            <select name="inspection_type" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                <option value="">All Types</option>
+                <option value="INCOMING" {% if request.GET.inspection_type == 'INCOMING' %}selected{% endif %}>Incoming</option>
+                <option value="IN_PROCESS" {% if request.GET.inspection_type == 'IN_PROCESS' %}selected{% endif %}>In-Process</option>
+                <option value="FINAL" {% if request.GET.inspection_type == 'FINAL' %}selected{% endif %}>Final</option>
+            </select>
+            <select name="result" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                <option value="">All Results</option>
+                <option value="PASS" {% if request.GET.result == 'PASS' %}selected{% endif %}>Pass</option>
+                <option value="FAIL" {% if request.GET.result == 'FAIL' %}selected{% endif %}>Fail</option>
+                <option value="CONDITIONAL" {% if request.GET.result == 'CONDITIONAL' %}selected{% endif %}>Conditional</option>
+            </select>
+            <button type="submit" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md"><i data-lucide="search" class="w-4 h-4 inline mr-1"></i> Filter</button>
+        </form>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        {% if inspections %}
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Inspection #</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Type</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Result</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Inspector</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for insp in inspections %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-6 py-4"><a href="{% url 'compliance:qualitycontrol_detail' insp.pk %}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400">{{ insp.inspection_number|default:insp.pk }}</a></td>
+                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ insp.get_inspection_type_display }}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full {% if insp.result == 'PASS' %}bg-green-100 text-green-800{% elif insp.result == 'FAIL' %}bg-red-100 text-red-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">{{ insp.get_result_display }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ insp.inspection_date|date:"M d, Y" }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ insp.inspector.get_full_name|default:"-" }}</td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{% url 'compliance:qualitycontrol_detail' insp.pk %}" class="text-blue-600 hover:text-blue-800 mr-2"><i data-lucide="eye" class="w-4 h-4 inline"></i></a>
+                        <a href="{% url 'compliance:qualitycontrol_update' insp.pk %}" class="text-yellow-600 hover:text-yellow-800 mr-2"><i data-lucide="edit" class="w-4 h-4 inline"></i></a>
+                        <a href="{% url 'compliance:qualitycontrol_delete' insp.pk %}" class="text-red-600 hover:text-red-800"><i data-lucide="trash-2" class="w-4 h-4 inline"></i></a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if is_paginated %}{% include "components/pagination.html" %}{% endif %}
+        {% else %}
+        <div class="text-center py-12">
+            <i data-lucide="clipboard-check" class="w-12 h-12 mx-auto text-gray-400 mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No inspections found</h3>
+            <a href="{% url 'compliance:qualitycontrol_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg mt-4"><i data-lucide="plus" class="w-5 h-5 mr-2"></i> New Inspection</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
