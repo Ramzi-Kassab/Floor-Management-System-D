@@ -24,14 +24,20 @@ from .forms import (
     CustomerDocumentRequirementForm, SalesOrderForm, SalesOrderLineForm,
     ServiceSiteForm, FieldTechnicianForm, FieldServiceRequestForm,
     ServiceScheduleForm, SiteVisitForm, ServiceReportForm,
-    FieldDrillStringRunForm, FieldRunDataForm
+    FieldDrillStringRunForm, FieldRunDataForm,
+    FieldPerformanceLogForm, FieldInspectionForm, RunHoursForm,
+    FieldIncidentForm, FieldDataEntryForm, FieldPhotoForm, FieldDocumentForm,
+    GPSLocationForm, FieldWorkOrderForm, FieldAssetAssignmentForm
 )
 from .models import (
     Customer, CustomerContact, Rig, Warehouse, Well,
     CustomerDocumentRequirement, SalesOrder, SalesOrderLine,
     ServiceSite, FieldTechnician, FieldServiceRequest,
     ServiceSchedule, SiteVisit, ServiceReport,
-    FieldDrillStringRun, FieldRunData
+    FieldDrillStringRun, FieldRunData,
+    FieldPerformanceLog, FieldInspection, RunHours,
+    FieldIncident, FieldDataEntry, FieldPhoto, FieldDocument,
+    GPSLocation, FieldWorkOrder, FieldAssetAssignment
 )
 
 # =============================================================================
@@ -1772,4 +1778,1157 @@ class FieldRunDataDeleteView(LoginRequiredMixin, DeleteView):
 
     def form_valid(self, form):
         messages.success(self.request, "Field run data deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# FIELD PERFORMANCE LOG VIEWS
+# =============================================================================
+
+
+class FieldPerformanceLogListView(LoginRequiredMixin, ListView):
+    """List all field performance logs with search and filtering."""
+
+    model = FieldPerformanceLog
+    template_name = "sales/fieldperformancelog_list.html"
+    context_object_name = "logs"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = FieldPerformanceLog.objects.select_related(
+            "drill_string_run", "technician"
+        )
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(drill_string_run__run_number__icontains=search)
+            )
+
+        return queryset.order_by("-log_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Performance Logs"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class FieldPerformanceLogDetailView(LoginRequiredMixin, DetailView):
+    """View field performance log details."""
+
+    model = FieldPerformanceLog
+    template_name = "sales/fieldperformancelog_detail.html"
+    context_object_name = "log"
+
+    def get_queryset(self):
+        return FieldPerformanceLog.objects.select_related(
+            "drill_string_run", "technician"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Performance Log: {self.object.pk}"
+        return context
+
+
+class FieldPerformanceLogCreateView(LoginRequiredMixin, CreateView):
+    """Create a new field performance log."""
+
+    model = FieldPerformanceLog
+    form_class = FieldPerformanceLogForm
+    template_name = "sales/fieldperformancelog_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Performance Log"
+        context["submit_text"] = "Create Log"
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, "Performance log created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldperformancelog_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldPerformanceLogUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing field performance log."""
+
+    model = FieldPerformanceLog
+    form_class = FieldPerformanceLogForm
+    template_name = "sales/fieldperformancelog_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Performance Log: {self.object.pk}"
+        context["submit_text"] = "Update Log"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Performance log updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldperformancelog_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldPerformanceLogDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a field performance log."""
+
+    model = FieldPerformanceLog
+    template_name = "sales/fieldperformancelog_confirm_delete.html"
+    success_url = reverse_lazy("sales:fieldperformancelog_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete Performance Log: {self.object.pk}"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Performance log deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# FIELD INSPECTION VIEWS
+# =============================================================================
+
+
+class FieldInspectionListView(LoginRequiredMixin, ListView):
+    """List all field inspections with search and filtering."""
+
+    model = FieldInspection
+    template_name = "sales/fieldinspection_list.html"
+    context_object_name = "inspections"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = FieldInspection.objects.select_related(
+            "drill_string_run", "inspector"
+        )
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(inspection_number__icontains=search)
+                | Q(serial_number__icontains=search)
+            )
+
+        status = self.request.GET.get("status")
+        if status:
+            queryset = queryset.filter(status=status)
+
+        return queryset.order_by("-inspection_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Field Inspections"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class FieldInspectionDetailView(LoginRequiredMixin, DetailView):
+    """View field inspection details."""
+
+    model = FieldInspection
+    template_name = "sales/fieldinspection_detail.html"
+    context_object_name = "inspection"
+
+    def get_queryset(self):
+        return FieldInspection.objects.select_related(
+            "drill_string_run", "inspector"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Inspection: {self.object.inspection_number}"
+        return context
+
+
+class FieldInspectionCreateView(LoginRequiredMixin, CreateView):
+    """Create a new field inspection."""
+
+    model = FieldInspection
+    form_class = FieldInspectionForm
+    template_name = "sales/fieldinspection_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Inspection"
+        context["submit_text"] = "Create Inspection"
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Inspection '{form.instance.inspection_number}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldinspection_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldInspectionUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing field inspection."""
+
+    model = FieldInspection
+    form_class = FieldInspectionForm
+    template_name = "sales/fieldinspection_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Inspection: {self.object.inspection_number}"
+        context["submit_text"] = "Update Inspection"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Inspection '{form.instance.inspection_number}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldinspection_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldInspectionDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a field inspection."""
+
+    model = FieldInspection
+    template_name = "sales/fieldinspection_confirm_delete.html"
+    success_url = reverse_lazy("sales:fieldinspection_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete Inspection: {self.object.inspection_number}"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Inspection '{self.object.inspection_number}' deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# RUN HOURS VIEWS
+# =============================================================================
+
+
+class RunHoursListView(LoginRequiredMixin, ListView):
+    """List all run hours records with search and filtering."""
+
+    model = RunHours
+    template_name = "sales/runhours_list.html"
+    context_object_name = "run_hours"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = RunHours.objects.select_related(
+            "drill_string_run", "technician"
+        )
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(drill_string_run__run_number__icontains=search)
+            )
+
+        return queryset.order_by("-record_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Run Hours"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class RunHoursDetailView(LoginRequiredMixin, DetailView):
+    """View run hours details."""
+
+    model = RunHours
+    template_name = "sales/runhours_detail.html"
+    context_object_name = "run_hour"
+
+    def get_queryset(self):
+        return RunHours.objects.select_related(
+            "drill_string_run", "technician", "verified_by"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Run Hours: {self.object.pk}"
+        return context
+
+
+class RunHoursCreateView(LoginRequiredMixin, CreateView):
+    """Create a new run hours record."""
+
+    model = RunHours
+    form_class = RunHoursForm
+    template_name = "sales/runhours_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Run Hours"
+        context["submit_text"] = "Create Record"
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, "Run hours record created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:runhours_detail", kwargs={"pk": self.object.pk})
+
+
+class RunHoursUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing run hours record."""
+
+    model = RunHours
+    form_class = RunHoursForm
+    template_name = "sales/runhours_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Run Hours: {self.object.pk}"
+        context["submit_text"] = "Update Record"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Run hours record updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:runhours_detail", kwargs={"pk": self.object.pk})
+
+
+class RunHoursDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a run hours record."""
+
+    model = RunHours
+    template_name = "sales/runhours_confirm_delete.html"
+    success_url = reverse_lazy("sales:runhours_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete Run Hours: {self.object.pk}"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Run hours record deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# FIELD INCIDENT VIEWS
+# =============================================================================
+
+
+class FieldIncidentListView(LoginRequiredMixin, ListView):
+    """List all field incidents with search and filtering."""
+
+    model = FieldIncident
+    template_name = "sales/fieldincident_list.html"
+    context_object_name = "incidents"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = FieldIncident.objects.select_related(
+            "service_site", "technician", "reported_by"
+        )
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(incident_number__icontains=search)
+            )
+
+        incident_type = self.request.GET.get("incident_type")
+        if incident_type:
+            queryset = queryset.filter(incident_type=incident_type)
+
+        severity = self.request.GET.get("severity")
+        if severity:
+            queryset = queryset.filter(severity=severity)
+
+        status = self.request.GET.get("status")
+        if status:
+            queryset = queryset.filter(status=status)
+
+        return queryset.order_by("-incident_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Field Incidents"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class FieldIncidentDetailView(LoginRequiredMixin, DetailView):
+    """View field incident details."""
+
+    model = FieldIncident
+    template_name = "sales/fieldincident_detail.html"
+    context_object_name = "incident"
+
+    def get_queryset(self):
+        return FieldIncident.objects.select_related(
+            "service_site", "technician", "reported_by"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Incident: {self.object.incident_number}"
+        return context
+
+
+class FieldIncidentCreateView(LoginRequiredMixin, CreateView):
+    """Create a new field incident."""
+
+    model = FieldIncident
+    form_class = FieldIncidentForm
+    template_name = "sales/fieldincident_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Incident"
+        context["submit_text"] = "Create Incident"
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Incident '{form.instance.incident_number}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldincident_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldIncidentUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing field incident."""
+
+    model = FieldIncident
+    form_class = FieldIncidentForm
+    template_name = "sales/fieldincident_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Incident: {self.object.incident_number}"
+        context["submit_text"] = "Update Incident"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Incident '{form.instance.incident_number}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldincident_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldIncidentDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a field incident."""
+
+    model = FieldIncident
+    template_name = "sales/fieldincident_confirm_delete.html"
+    success_url = reverse_lazy("sales:fieldincident_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete Incident: {self.object.incident_number}"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Incident '{self.object.incident_number}' deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# FIELD DATA ENTRY VIEWS
+# =============================================================================
+
+
+class FieldDataEntryListView(LoginRequiredMixin, ListView):
+    """List all field data entries with search and filtering."""
+
+    model = FieldDataEntry
+    template_name = "sales/fielddataentry_list.html"
+    context_object_name = "entries"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = FieldDataEntry.objects.select_related(
+            "drill_string_run", "recorded_by"
+        )
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(entry_number__icontains=search)
+                | Q(drill_string_run__run_number__icontains=search)
+            )
+
+        return queryset.order_by("-entry_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Field Data Entries"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class FieldDataEntryDetailView(LoginRequiredMixin, DetailView):
+    """View field data entry details."""
+
+    model = FieldDataEntry
+    template_name = "sales/fielddataentry_detail.html"
+    context_object_name = "entry"
+
+    def get_queryset(self):
+        return FieldDataEntry.objects.select_related(
+            "drill_string_run", "recorded_by", "verified_by"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Data Entry: {self.object.entry_number}"
+        return context
+
+
+class FieldDataEntryCreateView(LoginRequiredMixin, CreateView):
+    """Create a new field data entry."""
+
+    model = FieldDataEntry
+    form_class = FieldDataEntryForm
+    template_name = "sales/fielddataentry_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Data Entry"
+        context["submit_text"] = "Create Entry"
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Data entry '{form.instance.entry_number}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fielddataentry_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldDataEntryUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing field data entry."""
+
+    model = FieldDataEntry
+    form_class = FieldDataEntryForm
+    template_name = "sales/fielddataentry_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Data Entry: {self.object.entry_number}"
+        context["submit_text"] = "Update Entry"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Data entry '{form.instance.entry_number}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fielddataentry_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldDataEntryDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a field data entry."""
+
+    model = FieldDataEntry
+    template_name = "sales/fielddataentry_confirm_delete.html"
+    success_url = reverse_lazy("sales:fielddataentry_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete Data Entry: {self.object.entry_number}"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Data entry '{self.object.entry_number}' deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# FIELD PHOTO VIEWS
+# =============================================================================
+
+
+class FieldPhotoListView(LoginRequiredMixin, ListView):
+    """List all field photos with search and filtering."""
+
+    model = FieldPhoto
+    template_name = "sales/fieldphoto_list.html"
+    context_object_name = "photos"
+    paginate_by = 24
+
+    def get_queryset(self):
+        queryset = FieldPhoto.objects.select_related(
+            "drill_string_run", "service_site", "taken_by"
+        )
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search)
+                | Q(caption__icontains=search)
+            )
+
+        photo_type = self.request.GET.get("photo_type")
+        if photo_type:
+            queryset = queryset.filter(photo_type=photo_type)
+
+        return queryset.order_by("-taken_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Field Photos"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class FieldPhotoDetailView(LoginRequiredMixin, DetailView):
+    """View field photo details."""
+
+    model = FieldPhoto
+    template_name = "sales/fieldphoto_detail.html"
+    context_object_name = "photo"
+
+    def get_queryset(self):
+        return FieldPhoto.objects.select_related(
+            "drill_string_run", "service_site", "taken_by"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Photo: {self.object.title}"
+        return context
+
+
+class FieldPhotoCreateView(LoginRequiredMixin, CreateView):
+    """Upload a new field photo."""
+
+    model = FieldPhoto
+    form_class = FieldPhotoForm
+    template_name = "sales/fieldphoto_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Upload Photo"
+        context["submit_text"] = "Upload"
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Photo '{form.instance.title}' uploaded.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldphoto_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldPhotoUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing field photo."""
+
+    model = FieldPhoto
+    form_class = FieldPhotoForm
+    template_name = "sales/fieldphoto_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Photo: {self.object.title}"
+        context["submit_text"] = "Update"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Photo '{form.instance.title}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldphoto_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldPhotoDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a field photo."""
+
+    model = FieldPhoto
+    template_name = "sales/fieldphoto_confirm_delete.html"
+    success_url = reverse_lazy("sales:fieldphoto_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete Photo: {self.object.title}"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Photo '{self.object.title}' deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# FIELD DOCUMENT VIEWS
+# =============================================================================
+
+
+class FieldDocumentListView(LoginRequiredMixin, ListView):
+    """List all field documents with search and filtering."""
+
+    model = FieldDocument
+    template_name = "sales/fielddocument_list.html"
+    context_object_name = "documents"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = FieldDocument.objects.select_related(
+            "drill_string_run", "service_site", "uploaded_by"
+        )
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search)
+            )
+
+        document_type = self.request.GET.get("document_type")
+        if document_type:
+            queryset = queryset.filter(document_type=document_type)
+
+        status = self.request.GET.get("status")
+        if status:
+            queryset = queryset.filter(status=status)
+
+        return queryset.order_by("-document_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Field Documents"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class FieldDocumentDetailView(LoginRequiredMixin, DetailView):
+    """View field document details."""
+
+    model = FieldDocument
+    template_name = "sales/fielddocument_detail.html"
+    context_object_name = "document"
+
+    def get_queryset(self):
+        return FieldDocument.objects.select_related(
+            "drill_string_run", "service_site", "uploaded_by"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Document: {self.object.title}"
+        return context
+
+
+class FieldDocumentCreateView(LoginRequiredMixin, CreateView):
+    """Upload a new field document."""
+
+    model = FieldDocument
+    form_class = FieldDocumentForm
+    template_name = "sales/fielddocument_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Upload Document"
+        context["submit_text"] = "Upload"
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Document '{form.instance.title}' uploaded.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fielddocument_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldDocumentUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing field document."""
+
+    model = FieldDocument
+    form_class = FieldDocumentForm
+    template_name = "sales/fielddocument_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Document: {self.object.title}"
+        context["submit_text"] = "Update"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Document '{form.instance.title}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fielddocument_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldDocumentDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a field document."""
+
+    model = FieldDocument
+    template_name = "sales/fielddocument_confirm_delete.html"
+    success_url = reverse_lazy("sales:fielddocument_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete Document: {self.object.title}"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Document '{self.object.title}' deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# GPS LOCATION VIEWS
+# =============================================================================
+
+
+class GPSLocationListView(LoginRequiredMixin, ListView):
+    """List all GPS locations with search and filtering."""
+
+    model = GPSLocation
+    template_name = "sales/gpslocation_list.html"
+    context_object_name = "locations"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = GPSLocation.objects.select_related(
+            "technician", "service_site"
+        )
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(address__icontains=search)
+            )
+
+        return queryset.order_by("-recorded_at")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "GPS Locations"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class GPSLocationDetailView(LoginRequiredMixin, DetailView):
+    """View GPS location details."""
+
+    model = GPSLocation
+    template_name = "sales/gpslocation_detail.html"
+    context_object_name = "location"
+
+    def get_queryset(self):
+        return GPSLocation.objects.select_related(
+            "technician", "service_site"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"GPS Location: {self.object.pk}"
+        return context
+
+
+class GPSLocationCreateView(LoginRequiredMixin, CreateView):
+    """Create a new GPS location record."""
+
+    model = GPSLocation
+    form_class = GPSLocationForm
+    template_name = "sales/gpslocation_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New GPS Location"
+        context["submit_text"] = "Record Location"
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, "GPS location recorded.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:gpslocation_detail", kwargs={"pk": self.object.pk})
+
+
+class GPSLocationUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing GPS location record."""
+
+    model = GPSLocation
+    form_class = GPSLocationForm
+    template_name = "sales/gpslocation_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit GPS Location: {self.object.pk}"
+        context["submit_text"] = "Update Location"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "GPS location updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:gpslocation_detail", kwargs={"pk": self.object.pk})
+
+
+class GPSLocationDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a GPS location record."""
+
+    model = GPSLocation
+    template_name = "sales/gpslocation_confirm_delete.html"
+    success_url = reverse_lazy("sales:gpslocation_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete GPS Location: {self.object.pk}"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "GPS location deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# FIELD WORK ORDER VIEWS
+# =============================================================================
+
+
+class FieldWorkOrderListView(LoginRequiredMixin, ListView):
+    """List all field work orders with search and filtering."""
+
+    model = FieldWorkOrder
+    template_name = "sales/fieldworkorder_list.html"
+    context_object_name = "work_orders"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = FieldWorkOrder.objects.select_related(
+            "service_request", "service_site", "assigned_technician"
+        )
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(work_order_number__icontains=search)
+            )
+
+        status = self.request.GET.get("status")
+        if status:
+            queryset = queryset.filter(status=status)
+
+        priority = self.request.GET.get("priority")
+        if priority:
+            queryset = queryset.filter(priority=priority)
+
+        return queryset.order_by("-scheduled_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Field Work Orders"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class FieldWorkOrderDetailView(LoginRequiredMixin, DetailView):
+    """View field work order details."""
+
+    model = FieldWorkOrder
+    template_name = "sales/fieldworkorder_detail.html"
+    context_object_name = "work_order"
+
+    def get_queryset(self):
+        return FieldWorkOrder.objects.select_related(
+            "service_request", "service_site", "assigned_technician"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Work Order: {self.object.work_order_number}"
+        return context
+
+
+class FieldWorkOrderCreateView(LoginRequiredMixin, CreateView):
+    """Create a new field work order."""
+
+    model = FieldWorkOrder
+    form_class = FieldWorkOrderForm
+    template_name = "sales/fieldworkorder_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Work Order"
+        context["submit_text"] = "Create Work Order"
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Work order '{form.instance.work_order_number}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldworkorder_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldWorkOrderUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing field work order."""
+
+    model = FieldWorkOrder
+    form_class = FieldWorkOrderForm
+    template_name = "sales/fieldworkorder_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Work Order: {self.object.work_order_number}"
+        context["submit_text"] = "Update Work Order"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Work order '{form.instance.work_order_number}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldworkorder_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldWorkOrderDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a field work order."""
+
+    model = FieldWorkOrder
+    template_name = "sales/fieldworkorder_confirm_delete.html"
+    success_url = reverse_lazy("sales:fieldworkorder_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete Work Order: {self.object.work_order_number}"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Work order '{self.object.work_order_number}' deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# FIELD ASSET ASSIGNMENT VIEWS
+# =============================================================================
+
+
+class FieldAssetAssignmentListView(LoginRequiredMixin, ListView):
+    """List all field asset assignments with search and filtering."""
+
+    model = FieldAssetAssignment
+    template_name = "sales/fieldassetassignment_list.html"
+    context_object_name = "assignments"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = FieldAssetAssignment.objects.select_related(
+            "drill_bit", "service_site", "technician", "assigned_by"
+        )
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(assignment_number__icontains=search)
+            )
+
+        status = self.request.GET.get("status")
+        if status:
+            queryset = queryset.filter(status=status)
+
+        return queryset.order_by("-assignment_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Asset Assignments"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class FieldAssetAssignmentDetailView(LoginRequiredMixin, DetailView):
+    """View field asset assignment details."""
+
+    model = FieldAssetAssignment
+    template_name = "sales/fieldassetassignment_detail.html"
+    context_object_name = "assignment"
+
+    def get_queryset(self):
+        return FieldAssetAssignment.objects.select_related(
+            "drill_bit", "service_site", "technician", "assigned_by", "returned_to"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Assignment: {self.object.assignment_number}"
+        return context
+
+
+class FieldAssetAssignmentCreateView(LoginRequiredMixin, CreateView):
+    """Create a new field asset assignment."""
+
+    model = FieldAssetAssignment
+    form_class = FieldAssetAssignmentForm
+    template_name = "sales/fieldassetassignment_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Asset Assignment"
+        context["submit_text"] = "Create Assignment"
+        return context
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Assignment '{form.instance.assignment_number}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldassetassignment_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldAssetAssignmentUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing field asset assignment."""
+
+    model = FieldAssetAssignment
+    form_class = FieldAssetAssignmentForm
+    template_name = "sales/fieldassetassignment_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Assignment: {self.object.assignment_number}"
+        context["submit_text"] = "Update Assignment"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Assignment '{form.instance.assignment_number}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("sales:fieldassetassignment_detail", kwargs={"pk": self.object.pk})
+
+
+class FieldAssetAssignmentDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a field asset assignment."""
+
+    model = FieldAssetAssignment
+    template_name = "sales/fieldassetassignment_confirm_delete.html"
+    success_url = reverse_lazy("sales:fieldassetassignment_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete Assignment: {self.object.assignment_number}"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Assignment '{self.object.assignment_number}' deleted.")
         return super().form_valid(form)

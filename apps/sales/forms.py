@@ -223,7 +223,10 @@ class WarehouseForm(forms.ModelForm):
 from .models import (
     CustomerDocumentRequirement, SalesOrder, SalesOrderLine,
     ServiceSite, FieldTechnician, FieldServiceRequest, ServiceSchedule,
-    SiteVisit, ServiceReport, FieldDrillStringRun, FieldRunData
+    SiteVisit, ServiceReport, FieldDrillStringRun, FieldRunData,
+    FieldPerformanceLog, FieldInspection, RunHours,
+    FieldIncident, FieldDataEntry, FieldPhoto, FieldDocument,
+    GPSLocation, FieldWorkOrder, FieldAssetAssignment
 )
 
 
@@ -592,3 +595,438 @@ class FieldRunDataForm(forms.ModelForm):
         optional = ['rop', 'wob', 'rpm', 'torque', 'flow_rate', 'pressure', 'notes']
         for field in optional:
             self.fields[field].required = False
+
+
+# =============================================================================
+# SPRINT 4A/4B FORMS - Field Operations & Asset Management
+# =============================================================================
+
+class FieldPerformanceLogForm(forms.ModelForm):
+    """Form for FieldPerformanceLog - Recording drilling performance data."""
+
+    class Meta:
+        model = FieldPerformanceLog
+        fields = [
+            'drill_string_run', 'log_date', 'shift', 'technician',
+            'drilling_hours', 'rotating_hours', 'circulating_hours',
+            'reaming_hours', 'tripping_hours', 'connection_time',
+            'footage_drilled', 'avg_rop', 'max_rop', 'avg_wob', 'max_wob',
+            'avg_rpm', 'max_rpm', 'avg_torque', 'max_torque',
+            'avg_flow_rate', 'avg_pressure', 'bit_grade', 'formation',
+            'performance_rating', 'observations', 'recommendations', 'notes'
+        ]
+        widgets = {
+            'drill_string_run': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'log_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'shift': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'technician': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'drilling_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'rotating_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'circulating_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'reaming_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'tripping_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'connection_time': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'footage_drilled': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'avg_rop': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
+            'max_rop': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
+            'avg_wob': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'max_wob': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'avg_rpm': forms.NumberInput(attrs={'class': TAILWIND_INPUT}),
+            'max_rpm': forms.NumberInput(attrs={'class': TAILWIND_INPUT}),
+            'avg_torque': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'max_torque': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'avg_flow_rate': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'avg_pressure': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'bit_grade': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'formation': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'performance_rating': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'observations': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'recommendations': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['shift', 'technician', 'rotating_hours', 'circulating_hours',
+                    'reaming_hours', 'tripping_hours', 'connection_time', 'max_rop',
+                    'avg_wob', 'max_wob', 'avg_rpm', 'max_rpm', 'avg_torque', 'max_torque',
+                    'avg_flow_rate', 'avg_pressure', 'bit_grade', 'formation',
+                    'performance_rating', 'observations', 'recommendations', 'notes']
+        for field in optional:
+            if field in self.fields:
+                self.fields[field].required = False
+
+
+class FieldInspectionForm(forms.ModelForm):
+    """Form for FieldInspection - Recording equipment inspections."""
+
+    class Meta:
+        model = FieldInspection
+        fields = [
+            'inspection_number', 'drill_string_run', 'inspection_type',
+            'inspection_date', 'inspector', 'status', 'equipment_type',
+            'serial_number', 'condition_rating', 'wear_percentage',
+            'thread_condition', 'body_condition', 'gauge_condition',
+            'passed', 'failed_reason', 'corrective_action', 'next_inspection_due',
+            'findings', 'recommendations', 'photos_attached', 'notes'
+        ]
+        widgets = {
+            'inspection_number': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'drill_string_run': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'inspection_type': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'inspection_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'inspector': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'status': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'equipment_type': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'serial_number': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'condition_rating': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'wear_percentage': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'thread_condition': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'body_condition': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'gauge_condition': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'passed': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
+            'failed_reason': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+            'corrective_action': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+            'next_inspection_due': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'findings': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'recommendations': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'photos_attached': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
+            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['drill_string_run', 'inspector', 'equipment_type', 'serial_number',
+                    'wear_percentage', 'thread_condition', 'body_condition', 'gauge_condition',
+                    'failed_reason', 'corrective_action', 'next_inspection_due',
+                    'findings', 'recommendations', 'notes']
+        for field in optional:
+            if field in self.fields:
+                self.fields[field].required = False
+
+
+class RunHoursForm(forms.ModelForm):
+    """Form for RunHours - Tracking equipment run hours."""
+
+    class Meta:
+        model = RunHours
+        fields = [
+            'drill_string_run', 'record_date', 'start_time', 'end_time',
+            'total_hours', 'drilling_hours', 'rotating_hours', 'standby_hours',
+            'maintenance_hours', 'technician', 'verified', 'verified_by',
+            'notes'
+        ]
+        widgets = {
+            'drill_string_run': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'record_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'start_time': forms.TimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'time'}),
+            'end_time': forms.TimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'time'}),
+            'total_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'drilling_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'rotating_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'standby_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'maintenance_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'technician': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'verified': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
+            'verified_by': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['start_time', 'end_time', 'drilling_hours', 'rotating_hours',
+                    'standby_hours', 'maintenance_hours', 'technician',
+                    'verified_by', 'notes']
+        for field in optional:
+            if field in self.fields:
+                self.fields[field].required = False
+
+
+class FieldIncidentForm(forms.ModelForm):
+    """Form for FieldIncident - Recording and tracking incidents."""
+
+    class Meta:
+        model = FieldIncident
+        fields = [
+            'incident_number', 'service_site', 'incident_type', 'severity',
+            'status', 'priority', 'incident_date', 'reported_date',
+            'reported_by', 'technician', 'location_description', 'description',
+            'immediate_actions', 'root_cause', 'contributing_factors',
+            'preventive_measures', 'corrective_actions', 'lessons_learned',
+            'injuries', 'injury_details', 'property_damage', 'damage_description',
+            'estimated_cost', 'actual_cost', 'downtime_hours',
+            'customer_notified', 'authorities_notified', 'follow_up_required',
+            'follow_up_actions', 'closed_date', 'notes'
+        ]
+        widgets = {
+            'incident_number': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'service_site': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'incident_type': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'severity': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'status': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'priority': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'incident_date': forms.DateTimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'datetime-local'}),
+            'reported_date': forms.DateTimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'datetime-local'}),
+            'reported_by': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'technician': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'location_description': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'description': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 5}),
+            'immediate_actions': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'root_cause': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'contributing_factors': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'preventive_measures': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'corrective_actions': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'lessons_learned': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'injuries': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
+            'injury_details': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+            'property_damage': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
+            'damage_description': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+            'estimated_cost': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
+            'actual_cost': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
+            'downtime_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.5'}),
+            'customer_notified': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
+            'authorities_notified': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
+            'follow_up_required': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
+            'follow_up_actions': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+            'closed_date': forms.DateTimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'datetime-local'}),
+            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['service_site', 'reported_by', 'technician', 'location_description',
+                    'immediate_actions', 'root_cause', 'contributing_factors',
+                    'preventive_measures', 'corrective_actions', 'lessons_learned',
+                    'injury_details', 'damage_description', 'estimated_cost',
+                    'actual_cost', 'downtime_hours', 'follow_up_actions',
+                    'closed_date', 'notes']
+        for field in optional:
+            if field in self.fields:
+                self.fields[field].required = False
+
+
+class FieldDataEntryForm(forms.ModelForm):
+    """Form for FieldDataEntry - Recording field data entries."""
+
+    class Meta:
+        model = FieldDataEntry
+        fields = [
+            'entry_number', 'drill_string_run', 'entry_type', 'entry_date',
+            'recorded_by', 'depth', 'value_1', 'value_2', 'value_3',
+            'measurement_unit', 'quality_status', 'verified', 'verified_by',
+            'notes'
+        ]
+        widgets = {
+            'entry_number': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'drill_string_run': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'entry_type': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'entry_date': forms.DateTimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'datetime-local'}),
+            'recorded_by': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'depth': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'value_1': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
+            'value_2': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
+            'value_3': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
+            'measurement_unit': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'quality_status': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'verified': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
+            'verified_by': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['recorded_by', 'depth', 'value_2', 'value_3',
+                    'measurement_unit', 'quality_status', 'verified_by', 'notes']
+        for field in optional:
+            if field in self.fields:
+                self.fields[field].required = False
+
+
+class FieldPhotoForm(forms.ModelForm):
+    """Form for FieldPhoto - Uploading and managing field photos."""
+
+    class Meta:
+        model = FieldPhoto
+        fields = [
+            'title', 'photo', 'photo_type', 'drill_string_run', 'service_site',
+            'taken_date', 'taken_by', 'latitude', 'longitude', 'caption',
+            'description', 'is_public', 'notes'
+        ]
+        widgets = {
+            'title': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'photo': forms.FileInput(attrs={'class': TAILWIND_INPUT, 'accept': 'image/*'}),
+            'photo_type': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'drill_string_run': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'service_site': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'taken_date': forms.DateTimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'datetime-local'}),
+            'taken_by': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'latitude': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.000001'}),
+            'longitude': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.000001'}),
+            'caption': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'description': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'is_public': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
+            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['drill_string_run', 'service_site', 'taken_date', 'taken_by',
+                    'latitude', 'longitude', 'caption', 'description', 'notes']
+        for field in optional:
+            if field in self.fields:
+                self.fields[field].required = False
+
+
+class FieldDocumentForm(forms.ModelForm):
+    """Form for FieldDocument - Uploading and managing field documents."""
+
+    class Meta:
+        model = FieldDocument
+        fields = [
+            'title', 'document', 'document_type', 'drill_string_run', 'service_site',
+            'document_date', 'uploaded_by', 'version', 'status', 'expiry_date',
+            'description', 'is_confidential', 'notes'
+        ]
+        widgets = {
+            'title': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'document': forms.FileInput(attrs={'class': TAILWIND_INPUT}),
+            'document_type': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'drill_string_run': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'service_site': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'document_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'uploaded_by': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'version': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'status': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'expiry_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'description': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'is_confidential': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
+            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['drill_string_run', 'service_site', 'uploaded_by', 'version',
+                    'expiry_date', 'description', 'notes']
+        for field in optional:
+            if field in self.fields:
+                self.fields[field].required = False
+
+
+class GPSLocationForm(forms.ModelForm):
+    """Form for GPSLocation - Recording GPS coordinates."""
+
+    class Meta:
+        model = GPSLocation
+        fields = [
+            'technician', 'service_site', 'latitude', 'longitude', 'altitude',
+            'accuracy', 'recorded_at', 'source', 'address', 'notes'
+        ]
+        widgets = {
+            'technician': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'service_site': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'latitude': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.000001'}),
+            'longitude': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.000001'}),
+            'altitude': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'accuracy': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
+            'recorded_at': forms.DateTimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'datetime-local'}),
+            'source': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'address': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['technician', 'service_site', 'altitude', 'accuracy',
+                    'source', 'address', 'notes']
+        for field in optional:
+            if field in self.fields:
+                self.fields[field].required = False
+
+
+class FieldWorkOrderForm(forms.ModelForm):
+    """Form for FieldWorkOrder - Managing field work orders."""
+
+    class Meta:
+        model = FieldWorkOrder
+        fields = [
+            'work_order_number', 'service_request', 'service_site', 'work_order_type',
+            'status', 'priority', 'assigned_technician', 'scheduled_date',
+            'scheduled_start_time', 'scheduled_end_time', 'actual_start_time',
+            'actual_end_time', 'description', 'work_performed', 'materials_used',
+            'labor_hours', 'labor_cost', 'material_cost', 'total_cost',
+            'customer_signature', 'completion_notes', 'notes'
+        ]
+        widgets = {
+            'work_order_number': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'service_request': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'service_site': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'work_order_type': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'status': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'priority': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'assigned_technician': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'scheduled_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'scheduled_start_time': forms.TimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'time'}),
+            'scheduled_end_time': forms.TimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'time'}),
+            'actual_start_time': forms.DateTimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'datetime-local'}),
+            'actual_end_time': forms.DateTimeInput(attrs={'class': TAILWIND_INPUT, 'type': 'datetime-local'}),
+            'description': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 4}),
+            'work_performed': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 4}),
+            'materials_used': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+            'labor_hours': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.5'}),
+            'labor_cost': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
+            'material_cost': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
+            'total_cost': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
+            'customer_signature': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'completion_notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['service_request', 'service_site', 'assigned_technician',
+                    'scheduled_start_time', 'scheduled_end_time', 'actual_start_time',
+                    'actual_end_time', 'work_performed', 'materials_used',
+                    'labor_hours', 'labor_cost', 'material_cost', 'total_cost',
+                    'customer_signature', 'completion_notes', 'notes']
+        for field in optional:
+            if field in self.fields:
+                self.fields[field].required = False
+
+
+class FieldAssetAssignmentForm(forms.ModelForm):
+    """Form for FieldAssetAssignment - Assigning assets to field service."""
+
+    class Meta:
+        model = FieldAssetAssignment
+        fields = [
+            'assignment_number', 'drill_bit', 'service_site', 'technician',
+            'assignment_type', 'status', 'assignment_date', 'expected_return_date',
+            'actual_return_date', 'condition_at_assignment', 'condition_at_return',
+            'assigned_by', 'returned_to', 'purpose', 'notes'
+        ]
+        widgets = {
+            'assignment_number': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'drill_bit': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'service_site': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'technician': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'assignment_type': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'status': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'assignment_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'expected_return_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'actual_return_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'condition_at_assignment': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'condition_at_return': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'assigned_by': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'returned_to': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'purpose': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['drill_bit', 'service_site', 'technician', 'expected_return_date',
+                    'actual_return_date', 'condition_at_return', 'assigned_by',
+                    'returned_to', 'purpose', 'notes']
+        for field in optional:
+            if field in self.fields:
+                self.fields[field].required = False

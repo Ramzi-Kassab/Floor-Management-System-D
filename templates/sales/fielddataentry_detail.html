@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ entry.entry_number }}</h1>
+            <p class="text-sm text-gray-500 mt-1">{{ entry.get_entry_type_display }} - {{ entry.entry_date|date:"M d, Y H:i"|default:"N/A" }}</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:fielddataentry_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:fielddataentry_update' entry.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Entry Details</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Entry Type</dt><dd class="font-medium text-gray-900 dark:text-white">{{ entry.get_entry_type_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Drill String Run</dt><dd class="font-medium text-gray-900 dark:text-white">{{ entry.drill_string_run.run_number|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Recorded By</dt><dd class="font-medium text-gray-900 dark:text-white">{{ entry.recorded_by.tech_id|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Depth</dt><dd class="font-medium text-gray-900 dark:text-white">{{ entry.depth|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Values</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Value 1</dt><dd class="font-medium text-gray-900 dark:text-white">{{ entry.value_1|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Value 2</dt><dd class="font-medium text-gray-900 dark:text-white">{{ entry.value_2|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Value 3</dt><dd class="font-medium text-gray-900 dark:text-white">{{ entry.value_3|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Unit</dt><dd class="font-medium text-gray-900 dark:text-white">{{ entry.measurement_unit|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Verification</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Quality Status</dt><dd class="font-medium text-gray-900 dark:text-white">{{ entry.get_quality_status_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Verified</dt><dd class="font-medium"><span class="px-2 py-1 text-xs rounded-full {% if entry.verified %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">{% if entry.verified %}Yes{% else %}No{% endif %}</span></dd></div>
+                <div><dt class="text-gray-500">Verified By</dt><dd class="font-medium text-gray-900 dark:text-white">{{ entry.verified_by|default:"-" }}</dd></div>
+            </dl>
+            {% if entry.notes %}<div class="mt-4"><h4 class="text-sm font-medium text-gray-500 mb-1">Notes</h4><p class="text-gray-900 dark:text-white">{{ entry.notes }}</p></div>{% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
