@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Bit Repair History - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">View complete repair history for drill bits</p>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+        <form method="get" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search repairs..." class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+            <select name="repair_type" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                <option value="">All Types</option>
+                <option value="STANDARD" {% if request.GET.repair_type == 'STANDARD' %}selected{% endif %}>Standard</option>
+                <option value="MAJOR" {% if request.GET.repair_type == 'MAJOR' %}selected{% endif %}>Major</option>
+                <option value="REFURBISH" {% if request.GET.repair_type == 'REFURBISH' %}selected{% endif %}>Refurbish</option>
+                <option value="WARRANTY" {% if request.GET.repair_type == 'WARRANTY' %}selected{% endif %}>Warranty</option>
+            </select>
+            <button type="submit" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md">Filter</button>
+        </form>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        {% if repairs %}
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Drill Bit</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Repair Type</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Repair Date</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Inspector</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Work Performed</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for repair in repairs %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">{{ repair.drill_bit.serial_number|default:"-" }}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full {% if repair.repair_type == 'MAJOR' %}bg-red-100 text-red-800{% elif repair.repair_type == 'WARRANTY' %}bg-purple-100 text-purple-800{% else %}bg-blue-100 text-blue-800{% endif %}">{{ repair.get_repair_type_display|default:"-" }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ repair.repair_date|date:"M d, Y"|default:"-" }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ repair.quality_inspector.get_full_name|default:"-" }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ repair.work_performed|default:"-"|truncatewords:15 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if is_paginated %}{% include "components/pagination.html" %}{% endif %}
+        {% else %}
+        <div class="text-center py-12">
+            <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No repair history found</h3>
+            <p class="text-gray-500 dark:text-gray-400">Repair records will appear here automatically</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

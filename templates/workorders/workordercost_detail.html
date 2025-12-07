@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Work Order Cost - {{ cost.work_order.wo_number }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+                <a href="{% url 'workorders:workordercost_list' %}" class="hover:text-blue-600 dark:hover:text-blue-400">Work Order Costs</a>
+                <span>/</span>
+                <span>{{ cost.work_order.wo_number|default:"Cost Record" }}</span>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Cost Record - {{ cost.work_order.wo_number }}</h1>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'workorders:workordercost_update' cost.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                Edit
+            </a>
+            <a href="{% url 'workorders:workordercost_delete' cost.pk %}" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Delete
+            </a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Estimated Costs</h2>
+                <dl class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Materials</dt>
+                        <dd class="text-2xl font-bold text-gray-900 dark:text-white">${{ cost.estimated_materials|default:"0" }}</dd>
+                    </div>
+                    <div class="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Labor</dt>
+                        <dd class="text-2xl font-bold text-gray-900 dark:text-white">${{ cost.estimated_labor|default:"0" }}</dd>
+                    </div>
+                    <div class="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Overhead</dt>
+                        <dd class="text-2xl font-bold text-gray-900 dark:text-white">${{ cost.estimated_overhead|default:"0" }}</dd>
+                    </div>
+                </dl>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actual Costs</h2>
+                <dl class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <dt class="text-sm text-blue-600 dark:text-blue-400">Materials</dt>
+                        <dd class="text-2xl font-bold text-blue-700 dark:text-blue-300">${{ cost.actual_materials|default:"0" }}</dd>
+                    </div>
+                    <div class="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <dt class="text-sm text-blue-600 dark:text-blue-400">Labor</dt>
+                        <dd class="text-2xl font-bold text-blue-700 dark:text-blue-300">${{ cost.actual_labor|default:"0" }}</dd>
+                    </div>
+                    <div class="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <dt class="text-sm text-blue-600 dark:text-blue-400">Overhead</dt>
+                        <dd class="text-2xl font-bold text-blue-700 dark:text-blue-300">${{ cost.actual_overhead|default:"0" }}</dd>
+                    </div>
+                </dl>
+            </div>
+            {% if cost.notes %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notes</h2>
+                <div class="text-gray-900 dark:text-white">{{ cost.notes|linebreaks }}</div>
+            </div>
+            {% endif %}
+        </div>
+        <div class="space-y-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Summary</h2>
+                <dl class="space-y-4">
+                    <div class="flex justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <dt class="text-gray-500 dark:text-gray-400">Estimated Total</dt>
+                        <dd class="font-bold text-gray-900 dark:text-white">${{ cost.estimated_total|default:"0" }}</dd>
+                    </div>
+                    <div class="flex justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <dt class="text-blue-600 dark:text-blue-400">Actual Total</dt>
+                        <dd class="font-bold text-blue-700 dark:text-blue-300">${{ cost.actual_total|default:"0" }}</dd>
+                    </div>
+                    <div class="flex justify-between p-3 {% if cost.variance > 0 %}bg-red-50 dark:bg-red-900/20{% elif cost.variance < 0 %}bg-green-50 dark:bg-green-900/20{% else %}bg-gray-50 dark:bg-gray-700{% endif %} rounded-lg">
+                        <dt class="{% if cost.variance > 0 %}text-red-600{% elif cost.variance < 0 %}text-green-600{% else %}text-gray-500{% endif %}">Variance</dt>
+                        <dd class="font-bold {% if cost.variance > 0 %}text-red-700{% elif cost.variance < 0 %}text-green-700{% else %}text-gray-900 dark:text-white{% endif %}">{% if cost.variance > 0 %}+{% endif %}${{ cost.variance|default:"0" }}</dd>
+                    </div>
+                </dl>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Record Information</h2>
+                <dl class="space-y-3 text-sm">
+                    <div>
+                        <dt class="text-gray-500 dark:text-gray-400">Work Order</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cost.work_order.wo_number|default:"—" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500 dark:text-gray-400">Created</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cost.created_at|date:"M d, Y H:i"|default:"—" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500 dark:text-gray-400">Last Modified</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cost.updated_at|date:"M d, Y H:i"|default:"—" }}</dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

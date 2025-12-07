@@ -540,3 +540,589 @@ def export_drill_bits_csv(request):
         )
 
     return response
+
+
+# =============================================================================
+# SPRINT 4 VIEWS - Additional Models
+# =============================================================================
+
+from .forms import (
+    SalvageItemForm, RepairApprovalAuthorityForm, RepairEvaluationForm,
+    RepairBOMForm, ProcessRouteForm, WorkOrderCostForm
+)
+from .models import (
+    SalvageItem, RepairApprovalAuthority, RepairEvaluation,
+    RepairBOM, ProcessRoute, WorkOrderCost,
+    StatusTransitionLog, BitRepairHistory, OperationExecution
+)
+
+
+# ============================================================================
+# SalvageItem Views (5 views)
+# ============================================================================
+
+class SalvageItemListView(LoginRequiredMixin, ListView):
+    """List all salvage items"""
+    model = SalvageItem
+    template_name = "workorders/salvageitem_list.html"
+    context_object_name = "items"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = SalvageItem.objects.select_related('work_order', 'drill_bit', 'disposed_by')
+
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(
+                Q(salvage_number__icontains=search) |
+                Q(description__icontains=search)
+            )
+
+        salvage_type = self.request.GET.get('salvage_type')
+        if salvage_type:
+            queryset = queryset.filter(salvage_type=salvage_type)
+
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+
+        return queryset.order_by('-salvaged_date')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Salvage Items'
+        return context
+
+
+class SalvageItemDetailView(LoginRequiredMixin, DetailView):
+    """View salvage item details"""
+    model = SalvageItem
+    template_name = "workorders/salvageitem_detail.html"
+    context_object_name = "item"
+
+
+class SalvageItemCreateView(LoginRequiredMixin, CreateView):
+    """Create new salvage item"""
+    model = SalvageItem
+    form_class = SalvageItemForm
+    template_name = "workorders/salvageitem_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Salvage item '{form.instance.salvage_number}' created successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:salvageitem_detail', kwargs={'pk': self.object.pk})
+
+
+class SalvageItemUpdateView(LoginRequiredMixin, UpdateView):
+    """Update salvage item"""
+    model = SalvageItem
+    form_class = SalvageItemForm
+    template_name = "workorders/salvageitem_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Salvage item '{form.instance.salvage_number}' updated successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:salvageitem_detail', kwargs={'pk': self.object.pk})
+
+
+class SalvageItemDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete salvage item"""
+    model = SalvageItem
+    template_name = "workorders/salvageitem_confirm_delete.html"
+    success_url = reverse_lazy('workorders:salvageitem_list')
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        messages.success(request, f"Salvage item '{self.object.salvage_number}' deleted successfully.")
+        return super().delete(request, *args, **kwargs)
+
+
+# ============================================================================
+# RepairApprovalAuthority Views (5 views)
+# ============================================================================
+
+class RepairApprovalAuthorityListView(LoginRequiredMixin, ListView):
+    """List repair approval authorities"""
+    model = RepairApprovalAuthority
+    template_name = "workorders/repairapprovalauthority_list.html"
+    context_object_name = "authorities"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = RepairApprovalAuthority.objects.all()
+
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+
+        is_active = self.request.GET.get('is_active')
+        if is_active:
+            queryset = queryset.filter(is_active=(is_active == 'true'))
+
+        return queryset.order_by('min_amount')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Repair Approval Authorities'
+        return context
+
+
+class RepairApprovalAuthorityDetailView(LoginRequiredMixin, DetailView):
+    """View authority details"""
+    model = RepairApprovalAuthority
+    template_name = "workorders/repairapprovalauthority_detail.html"
+    context_object_name = "authority"
+
+
+class RepairApprovalAuthorityCreateView(LoginRequiredMixin, CreateView):
+    """Create approval authority"""
+    model = RepairApprovalAuthority
+    form_class = RepairApprovalAuthorityForm
+    template_name = "workorders/repairapprovalauthority_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Approval authority '{form.instance.name}' created successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:repairapprovalauthority_detail', kwargs={'pk': self.object.pk})
+
+
+class RepairApprovalAuthorityUpdateView(LoginRequiredMixin, UpdateView):
+    """Update approval authority"""
+    model = RepairApprovalAuthority
+    form_class = RepairApprovalAuthorityForm
+    template_name = "workorders/repairapprovalauthority_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Approval authority '{form.instance.name}' updated successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:repairapprovalauthority_detail', kwargs={'pk': self.object.pk})
+
+
+class RepairApprovalAuthorityDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete approval authority"""
+    model = RepairApprovalAuthority
+    template_name = "workorders/repairapprovalauthority_confirm_delete.html"
+    success_url = reverse_lazy('workorders:repairapprovalauthority_list')
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        messages.success(request, f"Approval authority '{self.object.name}' deleted successfully.")
+        return super().delete(request, *args, **kwargs)
+
+
+# ============================================================================
+# RepairEvaluation Views (5 views)
+# ============================================================================
+
+class RepairEvaluationListView(LoginRequiredMixin, ListView):
+    """List repair evaluations"""
+    model = RepairEvaluation
+    template_name = "workorders/repairevaluation_list.html"
+    context_object_name = "evaluations"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = RepairEvaluation.objects.select_related('drill_bit', 'evaluated_by', 'approved_by')
+
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(
+                Q(evaluation_number__icontains=search) |
+                Q(drill_bit__serial_number__icontains=search)
+            )
+
+        recommendation = self.request.GET.get('recommendation')
+        if recommendation:
+            queryset = queryset.filter(recommendation=recommendation)
+
+        return queryset.order_by('-evaluation_date')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Repair Evaluations'
+        return context
+
+
+class RepairEvaluationDetailView(LoginRequiredMixin, DetailView):
+    """View evaluation details"""
+    model = RepairEvaluation
+    template_name = "workorders/repairevaluation_detail.html"
+    context_object_name = "evaluation"
+
+
+class RepairEvaluationCreateView(LoginRequiredMixin, CreateView):
+    """Create repair evaluation"""
+    model = RepairEvaluation
+    form_class = RepairEvaluationForm
+    template_name = "workorders/repairevaluation_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Repair evaluation '{form.instance.evaluation_number}' created successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:repairevaluation_detail', kwargs={'pk': self.object.pk})
+
+
+class RepairEvaluationUpdateView(LoginRequiredMixin, UpdateView):
+    """Update evaluation"""
+    model = RepairEvaluation
+    form_class = RepairEvaluationForm
+    template_name = "workorders/repairevaluation_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Repair evaluation '{form.instance.evaluation_number}' updated successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:repairevaluation_detail', kwargs={'pk': self.object.pk})
+
+
+class RepairEvaluationDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete evaluation"""
+    model = RepairEvaluation
+    template_name = "workorders/repairevaluation_confirm_delete.html"
+    success_url = reverse_lazy('workorders:repairevaluation_list')
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        messages.success(request, f"Repair evaluation '{self.object.evaluation_number}' deleted successfully.")
+        return super().delete(request, *args, **kwargs)
+
+
+# ============================================================================
+# RepairBOM Views (5 views)
+# ============================================================================
+
+class RepairBOMListView(LoginRequiredMixin, ListView):
+    """List repair BOMs"""
+    model = RepairBOM
+    template_name = "workorders/repairbom_list.html"
+    context_object_name = "boms"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = RepairBOM.objects.select_related('drill_bit', 'repair_evaluation', 'prepared_by')
+
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(drill_bit__serial_number__icontains=search)
+
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+
+        return queryset.order_by('-prepared_date')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Repair BOMs'
+        return context
+
+
+class RepairBOMDetailView(LoginRequiredMixin, DetailView):
+    """View BOM details with lines"""
+    model = RepairBOM
+    template_name = "workorders/repairbom_detail.html"
+    context_object_name = "bom"
+
+    def get_queryset(self):
+        return RepairBOM.objects.select_related('drill_bit', 'repair_evaluation', 'prepared_by').prefetch_related('lines__inventory_item')
+
+
+class RepairBOMCreateView(LoginRequiredMixin, CreateView):
+    """Create repair BOM"""
+    model = RepairBOM
+    form_class = RepairBOMForm
+    template_name = "workorders/repairbom_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Repair BOM created successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:repairbom_detail', kwargs={'pk': self.object.pk})
+
+
+class RepairBOMUpdateView(LoginRequiredMixin, UpdateView):
+    """Update repair BOM"""
+    model = RepairBOM
+    form_class = RepairBOMForm
+    template_name = "workorders/repairbom_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Repair BOM updated successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:repairbom_detail', kwargs={'pk': self.object.pk})
+
+
+class RepairBOMDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete repair BOM"""
+    model = RepairBOM
+    template_name = "workorders/repairbom_confirm_delete.html"
+    success_url = reverse_lazy('workorders:repairbom_list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Repair BOM deleted successfully.")
+        return super().delete(request, *args, **kwargs)
+
+
+# ============================================================================
+# ProcessRoute Views (5 views)
+# ============================================================================
+
+class ProcessRouteListView(LoginRequiredMixin, ListView):
+    """List process routes"""
+    model = ProcessRoute
+    template_name = "workorders/processroute_list.html"
+    context_object_name = "routes"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = ProcessRoute.objects.all()
+
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(
+                Q(route_number__icontains=search) |
+                Q(name__icontains=search)
+            )
+
+        is_active = self.request.GET.get('is_active')
+        if is_active:
+            queryset = queryset.filter(is_active=(is_active == 'true'))
+
+        return queryset.order_by('route_number')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Process Routes'
+        return context
+
+
+class ProcessRouteDetailView(LoginRequiredMixin, DetailView):
+    """View route details with operations"""
+    model = ProcessRoute
+    template_name = "workorders/processroute_detail.html"
+    context_object_name = "route"
+
+    def get_queryset(self):
+        return ProcessRoute.objects.prefetch_related('operations')
+
+
+class ProcessRouteCreateView(LoginRequiredMixin, CreateView):
+    """Create process route"""
+    model = ProcessRoute
+    form_class = ProcessRouteForm
+    template_name = "workorders/processroute_form.html"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Process route '{form.instance.route_number}' created successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:processroute_detail', kwargs={'pk': self.object.pk})
+
+
+class ProcessRouteUpdateView(LoginRequiredMixin, UpdateView):
+    """Update process route"""
+    model = ProcessRoute
+    form_class = ProcessRouteForm
+    template_name = "workorders/processroute_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Process route '{form.instance.route_number}' updated successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:processroute_detail', kwargs={'pk': self.object.pk})
+
+
+class ProcessRouteDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete process route"""
+    model = ProcessRoute
+    template_name = "workorders/processroute_confirm_delete.html"
+    success_url = reverse_lazy('workorders:processroute_list')
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        messages.success(request, f"Process route '{self.object.route_number}' deleted successfully.")
+        return super().delete(request, *args, **kwargs)
+
+
+# ============================================================================
+# WorkOrderCost Views (5 views)
+# ============================================================================
+
+class WorkOrderCostListView(LoginRequiredMixin, ListView):
+    """List work order costs"""
+    model = WorkOrderCost
+    template_name = "workorders/workordercost_list.html"
+    context_object_name = "costs"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = WorkOrderCost.objects.select_related('work_order')
+
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(work_order__wo_number__icontains=search)
+
+        return queryset.order_by('-work_order__created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Work Order Costs'
+        return context
+
+
+class WorkOrderCostDetailView(LoginRequiredMixin, DetailView):
+    """View cost details"""
+    model = WorkOrderCost
+    template_name = "workorders/workordercost_detail.html"
+    context_object_name = "cost"
+
+
+class WorkOrderCostCreateView(LoginRequiredMixin, CreateView):
+    """Create work order cost"""
+    model = WorkOrderCost
+    form_class = WorkOrderCostForm
+    template_name = "workorders/workordercost_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Work order cost record created successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:workordercost_detail', kwargs={'pk': self.object.pk})
+
+
+class WorkOrderCostUpdateView(LoginRequiredMixin, UpdateView):
+    """Update work order cost"""
+    model = WorkOrderCost
+    form_class = WorkOrderCostForm
+    template_name = "workorders/workordercost_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Work order cost record updated successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('workorders:workordercost_detail', kwargs={'pk': self.object.pk})
+
+
+class WorkOrderCostDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete work order cost"""
+    model = WorkOrderCost
+    template_name = "workorders/workordercost_confirm_delete.html"
+    success_url = reverse_lazy('workorders:workordercost_list')
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, "Work order cost record deleted successfully.")
+        return super().delete(request, *args, **kwargs)
+
+
+# ============================================================================
+# StatusTransitionLog Views (VIEW-ONLY - 1 view)
+# ============================================================================
+
+class StatusTransitionLogListView(LoginRequiredMixin, ListView):
+    """List status transition logs (view-only)"""
+    model = StatusTransitionLog
+    template_name = "workorders/statustransitionlog_list.html"
+    context_object_name = "logs"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = StatusTransitionLog.objects.select_related('changed_by')
+
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(
+                Q(from_status__icontains=search) |
+                Q(to_status__icontains=search) |
+                Q(reason__icontains=search)
+            )
+
+        return queryset.order_by('-changed_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Status Transition Logs'
+        return context
+
+
+# ============================================================================
+# BitRepairHistory Views (VIEW-ONLY - 1 view)
+# ============================================================================
+
+class BitRepairHistoryListView(LoginRequiredMixin, ListView):
+    """List bit repair history (view-only)"""
+    model = BitRepairHistory
+    template_name = "workorders/bitrepairhistory_list.html"
+    context_object_name = "repairs"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = BitRepairHistory.objects.select_related('drill_bit', 'quality_inspector')
+
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(
+                Q(drill_bit__serial_number__icontains=search) |
+                Q(work_performed__icontains=search)
+            )
+
+        repair_type = self.request.GET.get('repair_type')
+        if repair_type:
+            queryset = queryset.filter(repair_type=repair_type)
+
+        return queryset.order_by('-repair_date')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Bit Repair History'
+        return context
+
+
+# ============================================================================
+# OperationExecution Views (VIEW-ONLY - 1 view)
+# ============================================================================
+
+class OperationExecutionListView(LoginRequiredMixin, ListView):
+    """List operation executions (view-only)"""
+    model = OperationExecution
+    template_name = "workorders/operationexecution_list.html"
+    context_object_name = "executions"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = OperationExecution.objects.select_related(
+            'work_order', 'process_route_operation', 'operator'
+        )
+
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(work_order__wo_number__icontains=search)
+
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+
+        return queryset.order_by('-start_time')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Operation Executions'
+        return context
