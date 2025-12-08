@@ -253,34 +253,30 @@ class SalesOrderForm(forms.ModelForm):
     class Meta:
         model = SalesOrder
         fields = [
-            'order_number', 'customer', 'order_date', 'expected_delivery_date',
-            'status', 'priority', 'payment_terms', 'shipping_address',
-            'billing_address', 'contact_person', 'special_instructions',
-            'internal_notes', 'sales_rep', 'approved_by', 'approval_date'
+            'so_number', 'customer', 'customer_po', 'rig', 'well',
+            'delivery_warehouse', 'order_date', 'required_date', 'promised_date',
+            'status', 'currency', 'notes', 'internal_notes'
         ]
         widgets = {
-            'order_number': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'so_number': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'customer': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'customer_po': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'rig': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'well': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'delivery_warehouse': forms.Select(attrs={'class': TAILWIND_SELECT}),
             'order_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
-            'expected_delivery_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'required_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'promised_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
             'status': forms.Select(attrs={'class': TAILWIND_SELECT}),
-            'priority': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'payment_terms': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'shipping_address': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
-            'billing_address': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
-            'contact_person': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'special_instructions': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'currency': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
             'internal_notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
-            'sales_rep': forms.Select(attrs={'class': TAILWIND_SELECT}),
-            'approved_by': forms.Select(attrs={'class': TAILWIND_SELECT}),
-            'approval_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        optional = ['expected_delivery_date', 'priority', 'payment_terms', 'shipping_address',
-                    'billing_address', 'contact_person', 'special_instructions', 'internal_notes',
-                    'sales_rep', 'approved_by', 'approval_date']
+        optional = ['customer_po', 'rig', 'well', 'delivery_warehouse',
+                    'required_date', 'promised_date', 'notes', 'internal_notes']
         for field in optional:
             self.fields[field].required = False
 
@@ -290,26 +286,21 @@ class SalesOrderLineForm(forms.ModelForm):
 
     class Meta:
         model = SalesOrderLine
-        fields = ['line_number', 'drill_bit', 'quantity', 'unit_price',
-                  'discount_percent', 'tax_rate', 'delivery_date', 'line_status',
-                  'special_requirements', 'notes']
+        fields = ['line_number', 'design', 'description', 'quantity', 'unit_price',
+                  'discount_percent', 'status']
         widgets = {
             'line_number': forms.NumberInput(attrs={'class': TAILWIND_INPUT}),
-            'drill_bit': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'design': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'description': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'quantity': forms.NumberInput(attrs={'class': TAILWIND_INPUT}),
             'unit_price': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
             'discount_percent': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
-            'tax_rate': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.01'}),
-            'delivery_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
-            'line_status': forms.Select(attrs={'class': TAILWIND_SELECT}),
-            'special_requirements': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
-            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+            'status': forms.Select(attrs={'class': TAILWIND_SELECT}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        optional = ['drill_bit', 'discount_percent', 'tax_rate', 'delivery_date',
-                    'special_requirements', 'notes']
+        optional = ['design', 'discount_percent']
         for field in optional:
             self.fields[field].required = False
 
