@@ -464,33 +464,30 @@ class SalvageItemForm(forms.ModelForm):
     """Form for SalvageItem - Full CRUD."""
     class Meta:
         model = SalvageItem
-        fields = ['salvage_number', 'salvage_type', 'description', 'status',
-                  'reuse_potential', 'condition_assessment', 'salvaged_date',
-                  'work_order', 'drill_bit', 'quantity', 'estimated_value',
-                  'disposition', 'disposition_date', 'disposed_by', 'storage_location', 'notes']
+        fields = ['salvage_number', 'drill_bit', 'work_order', 'salvage_type',
+                  'description', 'status', 'condition_rating', 'reuse_potential',
+                  'warehouse', 'storage_location', 'salvage_date', 'expiry_date',
+                  'estimated_value']
         widgets = {
             'salvage_number': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'drill_bit': forms.Select(attrs={'class': SELECT_CLASS}),
+            'work_order': forms.Select(attrs={'class': SELECT_CLASS}),
             'salvage_type': forms.Select(attrs={'class': SELECT_CLASS}),
             'description': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 3}),
             'status': forms.Select(attrs={'class': SELECT_CLASS}),
-            'reuse_potential': forms.Select(attrs={'class': SELECT_CLASS}),
-            'condition_assessment': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 3}),
-            'salvaged_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
-            'work_order': forms.Select(attrs={'class': SELECT_CLASS}),
-            'drill_bit': forms.Select(attrs={'class': SELECT_CLASS}),
-            'quantity': forms.NumberInput(attrs={'class': INPUT_CLASS}),
-            'estimated_value': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'disposition': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'disposition_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
-            'disposed_by': forms.Select(attrs={'class': SELECT_CLASS}),
+            'condition_rating': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 1, 'max': 10}),
+            'reuse_potential': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'warehouse': forms.Select(attrs={'class': SELECT_CLASS}),
             'storage_location': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'notes': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
+            'salvage_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
+            'expiry_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
+            'estimated_value': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        optional = ['work_order', 'drill_bit', 'quantity', 'estimated_value',
-                    'disposition', 'disposition_date', 'disposed_by', 'storage_location', 'notes']
+        optional = ['drill_bit', 'work_order', 'condition_rating', 'reuse_potential',
+                    'warehouse', 'storage_location', 'expiry_date', 'estimated_value']
         for field in optional:
             self.fields[field].required = False
 
@@ -513,47 +510,39 @@ class RepairEvaluationForm(forms.ModelForm):
     """Form for RepairEvaluation - Comprehensive repair decision form."""
     class Meta:
         model = RepairEvaluation
-        fields = ['evaluation_number', 'drill_bit', 'evaluated_by', 'evaluation_date',
-                  'inner_rows_grade', 'outer_rows_grade', 'bearing_condition',
-                  'seal_condition', 'gauge_pad_wear_percent', 'body_wear_description',
-                  'nozzle_condition', 'cutting_structure_assessment', 'cost_to_repair',
-                  'estimated_remaining_life_hours', 'rerun_potential_footage',
-                  'repair_cost_vs_new_ratio', 'scrap_value', 'recommendation',
-                  'justification', 'approved_by', 'approval_date', 'notes']
+        fields = ['evaluation_number', 'drill_bit', 'inner_rows_grade', 'outer_rows_grade',
+                  'dull_characteristic', 'location_code', 'gauge_condition',
+                  'damage_assessment', 'recommended_repair', 'estimated_labor_hours',
+                  'estimated_labor_rate', 'estimated_material_cost', 'estimated_overhead',
+                  'status', 'repair_recommended', 'requires_approval', 'approval_authority',
+                  'approved_by']
         widgets = {
             'evaluation_number': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'drill_bit': forms.Select(attrs={'class': SELECT_CLASS}),
-            'evaluated_by': forms.Select(attrs={'class': SELECT_CLASS}),
-            'evaluation_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
             'inner_rows_grade': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'outer_rows_grade': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'bearing_condition': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'seal_condition': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'gauge_pad_wear_percent': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.1'}),
-            'body_wear_description': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'nozzle_condition': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'cutting_structure_assessment': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'cost_to_repair': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'estimated_remaining_life_hours': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.1'}),
-            'rerun_potential_footage': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.1'}),
-            'repair_cost_vs_new_ratio': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'scrap_value': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'recommendation': forms.Select(attrs={'class': SELECT_CLASS}),
-            'justification': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 3}),
+            'dull_characteristic': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'location_code': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'gauge_condition': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'damage_assessment': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 3}),
+            'recommended_repair': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 3}),
+            'estimated_labor_hours': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'estimated_labor_rate': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'estimated_material_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'estimated_overhead': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'status': forms.Select(attrs={'class': SELECT_CLASS}),
+            'repair_recommended': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'requires_approval': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'approval_authority': forms.Select(attrs={'class': SELECT_CLASS}),
             'approved_by': forms.Select(attrs={'class': SELECT_CLASS}),
-            'approval_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
-            'notes': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        optional = ['drill_bit', 'evaluated_by', 'evaluation_date', 'inner_rows_grade',
-                    'outer_rows_grade', 'bearing_condition', 'seal_condition',
-                    'gauge_pad_wear_percent', 'body_wear_description', 'nozzle_condition',
-                    'cutting_structure_assessment', 'cost_to_repair',
-                    'estimated_remaining_life_hours', 'rerun_potential_footage',
-                    'repair_cost_vs_new_ratio', 'scrap_value', 'justification',
-                    'approved_by', 'approval_date', 'notes']
+        optional = ['inner_rows_grade', 'outer_rows_grade', 'dull_characteristic',
+                    'location_code', 'gauge_condition', 'recommended_repair',
+                    'estimated_labor_hours', 'estimated_labor_rate', 'estimated_material_cost',
+                    'estimated_overhead', 'approval_authority', 'approved_by']
         for field in optional:
             self.fields[field].required = False
 
@@ -562,19 +551,20 @@ class RepairBOMForm(forms.ModelForm):
     """Form for RepairBOM - Used with RepairBOMLine inline formset."""
     class Meta:
         model = RepairBOM
-        fields = ['drill_bit', 'repair_evaluation', 'status', 'prepared_by', 'prepared_date', 'notes']
+        fields = ['work_order', 'master_bom', 'status', 'estimated_material_cost',
+                  'actual_material_cost', 'approved_by']
         widgets = {
-            'drill_bit': forms.Select(attrs={'class': SELECT_CLASS}),
-            'repair_evaluation': forms.Select(attrs={'class': SELECT_CLASS}),
+            'work_order': forms.Select(attrs={'class': SELECT_CLASS}),
+            'master_bom': forms.Select(attrs={'class': SELECT_CLASS}),
             'status': forms.Select(attrs={'class': SELECT_CLASS}),
-            'prepared_by': forms.Select(attrs={'class': SELECT_CLASS}),
-            'prepared_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
-            'notes': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
+            'estimated_material_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'actual_material_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'approved_by': forms.Select(attrs={'class': SELECT_CLASS}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in ['drill_bit', 'repair_evaluation', 'prepared_by', 'prepared_date', 'notes']:
+        for field in ['master_bom', 'estimated_material_cost', 'actual_material_cost', 'approved_by']:
             self.fields[field].required = False
 
 
@@ -582,20 +572,22 @@ class RepairBOMLineForm(forms.ModelForm):
     """Form for RepairBOMLine - inline in RepairBOM."""
     class Meta:
         model = RepairBOMLine
-        fields = ['line_number', 'inventory_item', 'part_description',
-                  'quantity_required', 'quantity_issued', 'notes']
+        fields = ['line_number', 'inventory_item', 'quantity_required', 'quantity_issued',
+                  'quantity_consumed', 'quantity_returned', 'unit_cost', 'notes']
         widgets = {
             'line_number': forms.NumberInput(attrs={'class': INPUT_CLASS}),
             'inventory_item': forms.Select(attrs={'class': SELECT_CLASS}),
-            'part_description': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'quantity_required': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'quantity_issued': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'quantity_required': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'quantity_issued': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'quantity_consumed': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'quantity_returned': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'unit_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.0001'}),
             'notes': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 1}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in ['inventory_item', 'part_description', 'notes']:
+        for field in ['quantity_issued', 'quantity_consumed', 'quantity_returned', 'unit_cost', 'notes']:
             self.fields[field].required = False
 
 
@@ -603,21 +595,23 @@ class ProcessRouteForm(forms.ModelForm):
     """Form for ProcessRoute - Used with ProcessRouteOperation inline formset."""
     class Meta:
         model = ProcessRoute
-        fields = ['route_number', 'name', 'description', 'applicable_bit_types',
-                  'version', 'effective_date', 'is_active']
+        fields = ['route_number', 'name', 'description', 'repair_type', 'bit_types',
+                  'is_active', 'version', 'estimated_duration_hours', 'estimated_labor_cost']
         widgets = {
             'route_number': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'name': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'description': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'applicable_bit_types': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'version': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'effective_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
+            'repair_type': forms.Select(attrs={'class': SELECT_CLASS}),
+            'bit_types': forms.TextInput(attrs={'class': INPUT_CLASS, 'placeholder': '["FC", "RC"]'}),
             'is_active': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'version': forms.NumberInput(attrs={'class': INPUT_CLASS}),
+            'estimated_duration_hours': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'estimated_labor_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in ['description', 'applicable_bit_types', 'version', 'effective_date']:
+        for field in ['description', 'repair_type', 'bit_types', 'estimated_duration_hours', 'estimated_labor_cost']:
             self.fields[field].required = False
 
 
@@ -625,25 +619,26 @@ class ProcessRouteOperationForm(forms.ModelForm):
     """Form for ProcessRouteOperation - inline in ProcessRoute."""
     class Meta:
         model = ProcessRouteOperation
-        fields = ['sequence', 'operation_code', 'operation_name', 'workstation',
-                  'description', 'setup_time_minutes', 'run_time_minutes',
-                  'special_instructions', 'required_skills', 'quality_checkpoints']
+        fields = ['sequence', 'operation_code', 'operation_name', 'description',
+                  'work_center', 'standard_hours', 'labor_rate', 'requires_qc',
+                  'qc_checklist', 'safety_requirements']
         widgets = {
             'sequence': forms.NumberInput(attrs={'class': INPUT_CLASS}),
             'operation_code': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'operation_name': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'workstation': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'description': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'setup_time_minutes': forms.NumberInput(attrs={'class': INPUT_CLASS}),
-            'run_time_minutes': forms.NumberInput(attrs={'class': INPUT_CLASS}),
-            'special_instructions': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'required_skills': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'quality_checkpoints': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
+            'work_center': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'standard_hours': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'labor_rate': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'requires_qc': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'qc_checklist': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
+            'safety_requirements': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        optional = ['workstation', 'description', 'special_instructions', 'required_skills', 'quality_checkpoints']
+        optional = ['description', 'work_center', 'standard_hours', 'labor_rate',
+                    'qc_checklist', 'safety_requirements']
         for field in optional:
             self.fields[field].required = False
 
@@ -652,22 +647,24 @@ class WorkOrderCostForm(forms.ModelForm):
     """Form for WorkOrderCost - Typically one-to-one with WorkOrder."""
     class Meta:
         model = WorkOrderCost
-        fields = ['work_order', 'estimated_labor_hours', 'actual_labor_hours',
-                  'labor_rate', 'estimated_material_cost', 'actual_material_cost',
-                  'estimated_overhead', 'actual_overhead', 'notes']
+        fields = ['estimated_labor_hours', 'actual_labor_hours', 'labor_rate', 'labor_cost',
+                  'estimated_material_cost', 'actual_material_cost', 'overhead_rate_percent',
+                  'overhead_cost', 'subcontractor_cost', 'total_estimated_cost', 'total_actual_cost']
         widgets = {
-            'work_order': forms.Select(attrs={'class': SELECT_CLASS}),
-            'estimated_labor_hours': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.1'}),
-            'actual_labor_hours': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.1'}),
+            'estimated_labor_hours': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'actual_labor_hours': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
             'labor_rate': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'labor_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
             'estimated_material_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
             'actual_material_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'estimated_overhead': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'actual_overhead': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'notes': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
+            'overhead_rate_percent': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'overhead_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'subcontractor_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'total_estimated_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'total_actual_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['work_order'].required = False
-        self.fields['notes'].required = False
+        for field in self.fields:
+            self.fields[field].required = False

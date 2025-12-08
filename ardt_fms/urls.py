@@ -52,8 +52,8 @@ urlpatterns = [
 
     # Operations
     path('drss/', include('apps.drss.urls', namespace='drss')),
-    # path('sales/', include('apps.sales.urls', namespace='sales')),
-    # path('work-orders/', include('apps.workorders.urls', namespace='workorders')),
+    path('sales/', include('apps.sales.urls', namespace='sales')),
+    path('work-orders/', include('apps.workorders.urls', namespace='workorders')),
 
     # Technology / Engineering
     # path('technology/', include('apps.technology.urls', namespace='technology')),
