@@ -235,18 +235,16 @@ class CustomerDocumentRequirementForm(forms.ModelForm):
 
     class Meta:
         model = CustomerDocumentRequirement
-        fields = ['document_name', 'description', 'is_mandatory', 'notes']
+        fields = ['document_type', 'description', 'is_required']
         widgets = {
-            'document_name': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'document_type': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'description': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
-            'is_mandatory': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
-            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+            'is_required': forms.CheckboxInput(attrs={'class': TAILWIND_CHECKBOX}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in ['description', 'notes']:
-            self.fields[field].required = False
+        self.fields['description'].required = False
 
 
 class SalesOrderForm(forms.ModelForm):
