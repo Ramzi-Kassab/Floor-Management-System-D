@@ -120,7 +120,7 @@
     <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Work Orders</h2>
-            <a href="{% url 'workorders:list' %}" class="text-sm text-primary-600 dark:text-primary-400 hover:underline">View all</a>
+            <a href="#" class="text-sm text-primary-600 dark:text-primary-400 hover:underline">View all</a>
         </div>
 
         {% if recent_work_orders %}
@@ -139,7 +139,7 @@
                     {% for wo in recent_work_orders %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td class="py-3">
-                            <a href="{% url 'workorders:detail' wo.pk %}" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                            <a href="#" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">
                                 {{ wo.wo_number }}
                             </a>
                         </td>
@@ -169,7 +169,7 @@
         <div class="text-center py-8 text-gray-500 dark:text-gray-400">
             <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
             <p>No work orders yet</p>
-            <a href="{% url 'workorders:create' %}" class="mt-2 inline-block text-primary-600 dark:text-primary-400 hover:underline">Create your first work order</a>
+            <a href="#" class="mt-2 inline-block text-primary-600 dark:text-primary-400 hover:underline">Create your first work order</a>
         </div>
         {% endif %}
     </div>
@@ -179,11 +179,11 @@
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <a href="{% url 'workorders:create' %}" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
             <i data-lucide="plus-circle" class="w-8 h-8 text-gray-400 mb-2"></i>
             <span class="text-sm text-gray-600 dark:text-gray-400">New Work Order</span>
         </a>
-        <a href="{% url 'workorders:list' %}" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
             <i data-lucide="list" class="w-8 h-8 text-gray-400 mb-2"></i>
             <span class="text-sm text-gray-600 dark:text-gray-400">All Work Orders</span>
         </a>
