@@ -21,325 +21,61 @@
 
     <nav class="p-4 space-y-2">
         <!-- Dashboard -->
-        <a href="{% url 'dashboard:index' %}" 
+        <a href="{% url 'dashboard:index' %}"
            class="flex items-center px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700
                   {% if request.resolver_match.app_name == 'dashboard' %}bg-primary-50 dark:bg-primary-900 text-primary-700 dark:text-primary-200{% endif %}">
             <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i>
             <span x-show="sidebarOpen" x-transition class="ml-3">Dashboard</span>
         </a>
-        
-        <!-- DRSS & Sales Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open" 
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="file-text" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">DRSS & Sales</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'drss:drss_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'drss' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">DRSS Requests</a>
-                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Sales Orders <span class="ml-1 text-xs text-gray-400">Sprint 2</span></a>
-                <a href="{% url 'sales:customer_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'customer' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Customers</a>
-                <a href="{% url 'sales:rig_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'rig' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Rigs</a>
-                <a href="{% url 'sales:well_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'well' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Wells</a>
-                <a href="{% url 'sales:warehouse_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'warehouse' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Warehouses</a>
-            </div>
-        </div>
-        
-        <!-- Work Orders Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open" 
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="clipboard-list" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Work Orders</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'workorders:workorder_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'work-order' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">All Work Orders</a>
-                <a href="{% url 'workorders:drillbit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'drillbit' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Drill Bits</a>
-                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Bit Evaluations <span class="ml-1 text-xs text-gray-400">Sprint 3</span></a>
-            </div>
-        </div>
-        
-        <!-- Execution Section -->
-        <a href="{% url 'execution:list' %}"
-           class="flex items-center px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700
-                  {% if 'execution' in request.path %}bg-primary-50 dark:bg-primary-900 text-primary-700 dark:text-primary-200{% endif %}">
-            <i data-lucide="play-circle" class="w-5 h-5 flex-shrink-0"></i>
-            <span x-show="sidebarOpen" x-transition class="ml-3">Execution</span>
-        </a>
-        
-        <!-- Quality Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open" 
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="shield-check" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Quality</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'quality:inspection_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'inspection' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Inspections</a>
-                <a href="{% url 'quality:ncr_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'ncr' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">NCRs</a>
-            </div>
-        </div>
 
-        <!-- Inventory Section -->
+        <!-- Organization Section -->
         <div x-data="{ open: false }" class="space-y-1">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center">
-                    <i data-lucide="package" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Inventory</span>
+                    <i data-lucide="building-2" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Organization</span>
                 </div>
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'inventory:item_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'inventory' in request.path and 'item' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Items</a>
-                <a href="{% url 'inventory:stock_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'stock' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Stock Levels</a>
-                <a href="{% url 'inventory:transaction_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'transaction' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Transactions</a>
-                <a href="{% url 'inventory:category_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'inventory' in request.path and 'category' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Categories</a>
-                <a href="{% url 'inventory:location_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'location' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Locations</a>
+                <a href="{% url 'organization:department_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Departments</a>
+                <a href="{% url 'organization:position_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Positions</a>
             </div>
         </div>
 
-        <!-- Maintenance Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="wrench" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Maintenance</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'maintenance:equipment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'equipment' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Equipment</a>
-                <a href="{% url 'maintenance:request_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'maintenance' in request.path and 'request' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Requests</a>
-                <a href="{% url 'maintenance:mwo_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'maintenance' in request.path and 'mwo' not in request.path and 'request' not in request.path and 'equipment' not in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Work Orders</a>
-                <a href="{% url 'maintenance:category_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'maintenance' in request.path and 'category' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Categories</a>
-            </div>
-        </div>
-        
-        <!-- Documents Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="folder-open" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Documents</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'documents:document_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'documents' in request.path and 'categories' not in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">All Documents</a>
-                <a href="{% url 'documents:category_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'categories' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Categories</a>
-            </div>
-        </div>
-
-        <!-- Divider -->
-        <div class="border-t border-gray-200 dark:border-gray-700 my-4"></div>
-
-        <!-- Technology Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open" 
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="cpu" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Technology</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'technology:design_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'design' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Designs</a>
-                <a href="{% url 'technology:bom_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'bom' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">BOMs</a>
-                <a href="{% url 'procedures:procedure_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'procedure' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Procedures</a>
-            </div>
-        </div>
-
-        <!-- Planning Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open" 
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="calendar" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Planning</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'planning:board_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'planning' in request.path and 'board' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Boards</a>
-                <a href="{% url 'planning:sprint_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'sprint' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Sprints</a>
-                <a href="{% url 'planning:item_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'planning' in request.path and 'item' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Items</a>
-                <a href="{% url 'planning:label_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'label' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Labels</a>
-                <a href="{% url 'planning:wiki_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'wiki' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Wiki</a>
-            </div>
-        </div>
-
-        <!-- Supply Chain Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="truck" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Supply Chain</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'supplychain:supplier_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'supplier' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Suppliers</a>
-                <a href="{% url 'supplychain:pr_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'requisition' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Requisitions</a>
-                <a href="{% url 'supplychain:po_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'purchase-order' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Purchase Orders</a>
-                <a href="{% url 'supplychain:grn_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'grn' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Goods Receipts</a>
-                <a href="{% url 'supplychain:capa_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'capa' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">CAPAs</a>
-            </div>
-        </div>
-
-        <!-- Reports Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="bar-chart-3" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Reports</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'reports:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if request.path == '/reports/' %}bg-gray-100 dark:bg-gray-700{% endif %}">Dashboard</a>
-                <a href="{% url 'reports:workorder_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'work-orders' in request.path and 'reports' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Work Orders</a>
-                <a href="{% url 'reports:inventory_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'inventory' in request.path and 'reports' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Inventory</a>
-                <a href="{% url 'reports:low_stock_alert' %}" class="block px-3 py-2 rounded-lg text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'low-stock' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Low Stock Alerts</a>
-                <a href="{% url 'reports:quality_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'quality' in request.path and 'reports' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Quality</a>
-                <a href="{% url 'reports:maintenance_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'maintenance' in request.path and 'reports' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Maintenance</a>
-                <a href="{% url 'reports:equipment_health' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'equipment-health' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Equipment Health</a>
-                <a href="{% url 'reports:supplychain_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'supply-chain' in request.path and 'reports' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Supply Chain</a>
-            </div>
-        </div>
-
-        <!-- HR Section -->
+        <!-- Accounts Section -->
         <div x-data="{ open: false }" class="space-y-1">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center">
                     <i data-lucide="users" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">HR</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Accounts</span>
                 </div>
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'hr:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if request.path == '/hr/' %}bg-gray-100 dark:bg-gray-700{% endif %}">Dashboard</a>
-                <a href="{% url 'hr:employee-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'employee' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Employees</a>
-                <a href="{% url 'hr:review-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'review' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Reviews</a>
-                <a href="{% url 'hr:leave-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'leave' in request.path and 'hr' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Leave Requests</a>
-                <a href="{% url 'hr:timeentry-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'time-entr' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Time Entries</a>
-                <a href="{% url 'hr:shift-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'shift' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Shifts</a>
-                <a href="{% url 'hr:payroll-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'payroll' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Payroll</a>
-            </div>
-        </div>
-
-        <!-- Dispatch Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="truck" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Dispatch</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'dispatch:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if request.path == '/dispatch/' %}bg-gray-100 dark:bg-gray-700{% endif %}">Dashboard</a>
-                <a href="{% url 'dispatch:vehicle-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'vehicle' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Vehicles</a>
-                <a href="{% url 'dispatch:dispatch-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'dispatches' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Dispatches</a>
-                <a href="{% url 'dispatch:reservation-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'reservation' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Reservations</a>
-            </div>
-        </div>
-
-        <!-- HSSE Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="shield-alert" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">HSSE</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'hsse:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if request.path == '/hsse/' %}bg-gray-100 dark:bg-gray-700{% endif %}">Dashboard</a>
-                <a href="{% url 'hsse:hoc-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'hoc' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">HOC Reports</a>
-                <a href="{% url 'hsse:incident-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'incident' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Incidents</a>
-                <a href="{% url 'hsse:journey-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'journey' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Journeys</a>
-            </div>
-        </div>
-
-        <!-- Compliance Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="clipboard-check" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Compliance</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'compliance:compliancerequirement_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'requirement' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Requirements</a>
-                <a href="{% url 'compliance:qualitycontrol_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'quality-control' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Quality Control</a>
-                <a href="{% url 'compliance:nonconformance_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'nonconformance' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Non-Conformances</a>
-                <a href="{% url 'compliance:audittrail_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'audit' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Audit Trail</a>
-                <a href="{% url 'compliance:certification_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'certification' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Certifications</a>
-                <a href="{% url 'compliance:trainingrecord_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'training' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Training Records</a>
-            </div>
-        </div>
-
-        <!-- Form Builder Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="file-input" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Form Builder</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'forms_engine:template-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if '/forms/' in request.path and 'field-types' not in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Form Templates</a>
-                <a href="{% url 'forms_engine:fieldtype-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'field-types' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Field Types</a>
-            </div>
-        </div>
-
-        <!-- Scan Codes Section -->
-        <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="qr-code" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Scan Codes</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'scancodes:scancode-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if '/scan/' in request.path and 'logs' not in request.path and 'scanner' not in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Code Registry</a>
-                <a href="{% url 'scancodes:scanner' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'scanner' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Scanner</a>
-                <a href="{% url 'scancodes:scanlog-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'logs' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Scan Logs</a>
-                <a href="{% url 'scancodes:generate-code' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 {% if 'generate' in request.path %}bg-gray-100 dark:bg-gray-700{% endif %}">Generate Code</a>
+                <a href="{% url 'accounts:profile' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">My Profile</a>
             </div>
         </div>
 
         <!-- Divider -->
         <div class="border-t border-gray-200 dark:border-gray-700 my-4"></div>
 
-        <!-- Admin Section (if user is admin) -->
+        <!-- Info about disabled modules -->
+        <div class="px-3 py-2">
+            <p class="text-xs text-gray-400 dark:text-gray-500" x-show="sidebarOpen">
+                Other modules are accessible via the Admin panel below.
+            </p>
+        </div>
+
+        <!-- Divider -->
+        <div class="border-t border-gray-200 dark:border-gray-700 my-4"></div>
+
+        <!-- Admin Section (if user is staff) -->
         {% if user.is_staff %}
         <div x-data="{ open: false }" class="space-y-1">
-            <button @click="open = !open" 
+            <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center">
                     <i data-lucide="settings" class="w-5 h-5 flex-shrink-0"></i>
@@ -348,10 +84,7 @@
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Django Admin</a>
-                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Users</a>
-                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Roles</a>
-                <a href="#" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">System Settings</a>
+                <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium">Django Admin Panel</a>
             </div>
         </div>
         {% endif %}
