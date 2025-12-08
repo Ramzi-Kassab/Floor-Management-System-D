@@ -184,7 +184,7 @@ class TestEmployeeOnboardingWorkflow:
         11. Verify complete onboarding status
         """
         from apps.hr.models import Employee
-        from apps.accounts.models import Role
+        from apps.accounts.models import Role, UserRole
         from apps.notifications.models import Notification
 
         print("\n" + "="*60)
@@ -303,12 +303,12 @@ class TestEmployeeOnboardingWorkflow:
             }
         )
 
-        # Assign role to user
-        new_user.groups.add(role)
+        # Assign role to user via UserRole
+        user_role = UserRole.objects.create(user=new_user, role=role)
         new_user.is_staff = True
         new_user.save()
 
-        assert role in new_user.groups.all()
+        assert UserRole.objects.filter(user=new_user, role=role).exists()
         print(f"  Role assigned: {role.name}")
 
         # ---------------------------------------------------------------------
@@ -362,13 +362,13 @@ class TestEmployeeOnboardingWorkflow:
         # ---------------------------------------------------------------------
         print("\n[Step 10] Verifying organization structure...")
 
-        # Check employee is in department
-        dept_employees = Employee.objects.filter(department=department)
+        # Check employee is in department (department is stored as name string)
+        dept_employees = Employee.objects.filter(department=department.name)
         assert employee in dept_employees
 
-        # Check position assignment
-        assert employee.position.department == department
-        print(f"  Organization path: {department.full_path}")
+        # Check position assignment (job_title is stored as string, not FK)
+        assert employee.job_title == position.title
+        print(f"  Department: {department.name}")
         print(f"  Employee count in dept: {dept_employees.count()}")
 
         # ---------------------------------------------------------------------
@@ -384,7 +384,7 @@ class TestEmployeeOnboardingWorkflow:
             'position_assigned': employee.job_title is not None and employee.job_title != '',
             'emergency_contact': EmergencyContact.objects.filter(employee=employee).exists(),
             'bank_account': BankAccount.objects.filter(employee=employee).exists(),
-            'role_assigned': new_user.groups.exists(),
+            'role_assigned': UserRole.objects.filter(user=new_user).exists(),
             'notification_sent': Notification.objects.filter(recipient=new_user).exists(),
             'can_login': login_success,
         }

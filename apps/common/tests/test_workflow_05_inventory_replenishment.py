@@ -226,8 +226,8 @@ class TestInventoryReplenishmentWorkflow:
         print(f"  Below minimum: {is_below_minimum}")
         print(f"  Below reorder point: {is_below_reorder}")
 
-        # Calculate reorder quantity
-        reorder_qty = inventory_item_low_stock.max_stock - stock.quantity_available
+        # Calculate reorder quantity (ensure Decimal arithmetic)
+        reorder_qty = inventory_item_low_stock.max_stock - Decimal(str(stock.quantity_available))
         print(f"  Recommended order qty: {reorder_qty}")
 
         # ---------------------------------------------------------------------
@@ -257,17 +257,20 @@ class TestInventoryReplenishmentWorkflow:
 
         requisition = PurchaseRequisition.objects.create(
             requisition_number='PR-2024-001',
+            title=f'Replenishment: {inventory_item_low_stock.name}',
             description=f'Replenishment order for {inventory_item_low_stock.name}',
             priority=PurchaseRequisition.Priority.HIGH,
+            request_date=date.today(),
             required_date=date.today() + timedelta(days=7),
             status=PurchaseRequisition.Status.DRAFT,
             requested_by=inventory_manager,
-            total_amount=reorder_qty * inventory_item_low_stock.standard_cost
+            department='Inventory',
+            estimated_total_amount=reorder_qty * inventory_item_low_stock.standard_cost
         )
 
         assert requisition.pk is not None
         print(f"  PR Number: {requisition.requisition_number}")
-        print(f"  Amount: ${requisition.total_amount}")
+        print(f"  Amount: ${requisition.estimated_total_amount}")
 
         # ---------------------------------------------------------------------
         # STEP 5: Approve requisition
@@ -275,7 +278,7 @@ class TestInventoryReplenishmentWorkflow:
         print("\n[Step 5] Submitting for approval...")
 
         # Submit for approval
-        requisition.status = PurchaseRequisition.Status.PENDING
+        requisition.status = PurchaseRequisition.Status.SUBMITTED
         requisition.save()
         print(f"  Status: {requisition.get_status_display()}")
 
@@ -299,10 +302,10 @@ class TestInventoryReplenishmentWorkflow:
             vendor=vendor,
             requisition=requisition,
             order_date=date.today(),
-            expected_date=date.today() + timedelta(days=7),
+            expected_delivery_date=date.today() + timedelta(days=7),
             status=PurchaseOrder.Status.DRAFT,
-            subtotal=requisition.total_amount,
-            total_amount=requisition.total_amount,
+            subtotal_amount=requisition.estimated_total_amount,
+            total_amount=requisition.estimated_total_amount,
             created_by=purchasing_agent
         )
 
@@ -310,19 +313,19 @@ class TestInventoryReplenishmentWorkflow:
         po_line = PurchaseOrderLine.objects.create(
             purchase_order=po,
             line_number=1,
-            item=inventory_item_low_stock,
-            description=inventory_item_low_stock.name,
-            quantity=reorder_qty,
+            inventory_item=inventory_item_low_stock,
+            item_description=inventory_item_low_stock.name,
+            quantity_ordered=reorder_qty,
             unit_price=inventory_item_low_stock.standard_cost,
             line_total=reorder_qty * inventory_item_low_stock.standard_cost,
-            status=PurchaseOrderLine.Status.PENDING
+            required_date=date.today() + timedelta(days=7)
         )
 
         assert po.pk is not None
         assert po_line.pk is not None
         print(f"  PO Number: {po.po_number}")
         print(f"  Vendor: {vendor.name}")
-        print(f"  Quantity: {po_line.quantity}")
+        print(f"  Quantity: {po_line.quantity_ordered}")
 
         # ---------------------------------------------------------------------
         # STEP 7: Send PO to vendor
@@ -336,12 +339,13 @@ class TestInventoryReplenishmentWorkflow:
         print(f"  PO Status: {po.get_status_display()}")
         print(f"  Sent to: {vendor.email}")
 
-        # Vendor confirms
-        po.status = PurchaseOrder.Status.CONFIRMED
-        po.vendor_confirmed_at = timezone.now()
+        # Vendor confirms (using acknowledged_at field)
+        po.status = PurchaseOrder.Status.ACKNOWLEDGED
+        po.acknowledged_by_vendor = True
+        po.acknowledged_at = timezone.now()
         po.save()
 
-        print(f"  Vendor confirmed!")
+        print(f"  Vendor acknowledged!")
 
         # ---------------------------------------------------------------------
         # STEP 8: Receive goods
@@ -354,30 +358,27 @@ class TestInventoryReplenishmentWorkflow:
             vendor=vendor,
             receipt_date=date.today(),
             status=Receipt.Status.DRAFT,
-            warehouse=warehouse,
             received_by=inventory_manager
         )
 
         # Receive the line item
         receipt_line = ReceiptLine.objects.create(
             receipt=receipt,
+            line_number=1,
             po_line=po_line,
-            quantity_ordered=po_line.quantity,
-            quantity_received=po_line.quantity,  # Full receipt
-            quantity_accepted=po_line.quantity,
+            quantity_received=po_line.quantity_ordered,  # Full receipt
+            quantity_accepted=po_line.quantity_ordered,
             quantity_rejected=Decimal('0.000'),
-            location=inventory_location,
-            status=ReceiptLine.Status.ACCEPTED
+            storage_location_code=inventory_location.code,
+            inspection_status='PASSED'
         )
 
         # Complete receipt
         receipt.status = Receipt.Status.COMPLETED
         receipt.save()
 
-        # Update PO line status
-        po_line.quantity_received = receipt_line.quantity_received
-        po_line.status = PurchaseOrderLine.Status.RECEIVED
-        po_line.save()
+        # Note: ReceiptLine.save() automatically updates po_line.quantity_received
+        po_line.refresh_from_db()
 
         assert receipt.status == Receipt.Status.COMPLETED
         print(f"  Receipt: {receipt.receipt_number}")
@@ -405,9 +406,9 @@ class TestInventoryReplenishmentWorkflow:
             created_by=inventory_manager
         )
 
-        # Update stock
-        stock.quantity_on_hand += receipt_line.quantity_accepted
-        stock.quantity_available += receipt_line.quantity_accepted
+        # Update stock (convert to Decimal for arithmetic)
+        stock.quantity_on_hand = Decimal(str(stock.quantity_on_hand)) + Decimal(str(receipt_line.quantity_accepted))
+        stock.quantity_available = Decimal(str(stock.quantity_available)) + Decimal(str(receipt_line.quantity_accepted))
         stock.save()
 
         assert transaction.pk is not None
@@ -434,8 +435,8 @@ class TestInventoryReplenishmentWorkflow:
         alert.read_at = timezone.now()
         alert.save()
 
-        # Mark requisition as completed
-        requisition.status = PurchaseRequisition.Status.COMPLETED
+        # Mark requisition as converted to PO (no COMPLETED status exists)
+        requisition.status = PurchaseRequisition.Status.CONVERTED_TO_PO
         requisition.save()
 
         # Mark PO as completed
@@ -444,7 +445,7 @@ class TestInventoryReplenishmentWorkflow:
 
         # Summary
         final_checks = {
-            'requisition_completed': requisition.status == PurchaseRequisition.Status.COMPLETED,
+            'requisition_converted': requisition.status == PurchaseRequisition.Status.CONVERTED_TO_PO,
             'po_completed': po.status == PurchaseOrder.Status.COMPLETED,
             'receipt_completed': receipt.status == Receipt.Status.COMPLETED,
             'stock_above_minimum': stock.quantity_available >= inventory_item_low_stock.min_stock,
@@ -512,7 +513,9 @@ class TestInventoryReplenishmentWorkflow:
             po_number='PO-PARTIAL-001',
             vendor=vendor,
             order_date=date.today(),
-            status=PurchaseOrder.Status.CONFIRMED,
+            expected_delivery_date=date.today() + timedelta(days=7),
+            status=PurchaseOrder.Status.ACKNOWLEDGED,
+            subtotal_amount=order_qty * inventory_item_low_stock.standard_cost,
             total_amount=order_qty * inventory_item_low_stock.standard_cost,
             created_by=purchasing_agent
         )
@@ -520,11 +523,12 @@ class TestInventoryReplenishmentWorkflow:
         po_line = PurchaseOrderLine.objects.create(
             purchase_order=po,
             line_number=1,
-            item=inventory_item_low_stock,
-            quantity=order_qty,
+            inventory_item=inventory_item_low_stock,
+            item_description=inventory_item_low_stock.name,
+            quantity_ordered=order_qty,
             unit_price=inventory_item_low_stock.standard_cost,
             line_total=order_qty * inventory_item_low_stock.standard_cost,
-            status=PurchaseOrderLine.Status.PENDING
+            required_date=date.today() + timedelta(days=7)
         )
 
         print(f"  PO: {po.po_number}")
@@ -541,28 +545,25 @@ class TestInventoryReplenishmentWorkflow:
             vendor=vendor,
             receipt_date=date.today(),
             status=Receipt.Status.COMPLETED,
-            warehouse=warehouse,
             received_by=inventory_manager
         )
 
         ReceiptLine.objects.create(
             receipt=receipt1,
+            line_number=1,
             po_line=po_line,
-            quantity_ordered=order_qty,
             quantity_received=first_receipt_qty,
             quantity_accepted=first_receipt_qty,
-            location=inventory_location,
-            status=ReceiptLine.Status.ACCEPTED
+            storage_location_code=inventory_location.code,
+            inspection_status='PASSED'
         )
 
-        # Update PO line
-        po_line.quantity_received = first_receipt_qty
-        po_line.status = PurchaseOrderLine.Status.PARTIAL
-        po_line.save()
+        # Note: ReceiptLine.save() automatically updates po_line.quantity_received
+        po_line.refresh_from_db()
 
-        # Update stock
-        stock.quantity_on_hand += first_receipt_qty
-        stock.quantity_available += first_receipt_qty
+        # Update stock (convert to Decimal for arithmetic)
+        stock.quantity_on_hand = Decimal(str(stock.quantity_on_hand)) + first_receipt_qty
+        stock.quantity_available = Decimal(str(stock.quantity_available)) + first_receipt_qty
         stock.save()
 
         print(f"  Received: {first_receipt_qty}")
@@ -580,28 +581,25 @@ class TestInventoryReplenishmentWorkflow:
             vendor=vendor,
             receipt_date=date.today() + timedelta(days=3),
             status=Receipt.Status.COMPLETED,
-            warehouse=warehouse,
             received_by=inventory_manager
         )
 
         ReceiptLine.objects.create(
             receipt=receipt2,
+            line_number=1,
             po_line=po_line,
-            quantity_ordered=order_qty,
             quantity_received=second_receipt_qty,
             quantity_accepted=second_receipt_qty,
-            location=inventory_location,
-            status=ReceiptLine.Status.ACCEPTED
+            storage_location_code=inventory_location.code,
+            inspection_status='PASSED'
         )
 
-        # Update PO line
-        po_line.quantity_received += second_receipt_qty
-        po_line.status = PurchaseOrderLine.Status.RECEIVED
-        po_line.save()
+        # Note: ReceiptLine.save() automatically updates po_line.quantity_received
+        po_line.refresh_from_db()
 
-        # Update stock
-        stock.quantity_on_hand += second_receipt_qty
-        stock.quantity_available += second_receipt_qty
+        # Update stock (convert to Decimal for arithmetic)
+        stock.quantity_on_hand = Decimal(str(stock.quantity_on_hand)) + second_receipt_qty
+        stock.quantity_available = Decimal(str(stock.quantity_available)) + second_receipt_qty
         stock.save()
 
         print(f"  Received: {second_receipt_qty}")
@@ -614,7 +612,7 @@ class TestInventoryReplenishmentWorkflow:
         po.save()
 
         assert po_line.quantity_received == order_qty
-        assert po_line.status == PurchaseOrderLine.Status.RECEIVED
+        assert po_line.is_fully_received  # Use property instead of status
         print(f"  Total ordered: {order_qty}")
         print(f"  Total received: {po_line.quantity_received}")
         print(f"  PO Status: {po.get_status_display()}")
@@ -647,14 +645,17 @@ class TestInventoryReplenishmentWorkflow:
 
         requisition = PurchaseRequisition.objects.create(
             requisition_number='PR-URGENT-001',
+            title='URGENT: Production Material',
             description='URGENT: Production stoppage imminent',
+            department='Production',
             priority=PurchaseRequisition.Priority.URGENT,
+            request_date=date.today(),
             required_date=date.today() + timedelta(days=2),
             status=PurchaseRequisition.Status.APPROVED,  # Auto-approved for urgent
             requested_by=inventory_manager,
             approved_by=inventory_manager,  # Emergency approval
             approved_at=timezone.now(),
-            total_amount=Decimal('15000.00')
+            estimated_total_amount=Decimal('15000.00')
         )
 
         assert requisition.priority == PurchaseRequisition.Priority.URGENT
@@ -669,18 +670,16 @@ class TestInventoryReplenishmentWorkflow:
             vendor=vendor,
             requisition=requisition,
             order_date=date.today(),
-            expected_date=date.today() + timedelta(days=2),
+            expected_delivery_date=date.today() + timedelta(days=2),
             status=PurchaseOrder.Status.SENT,
-            is_urgent=True,
-            notes='EXPEDITE - Production critical',
-            total_amount=requisition.total_amount,
+            special_instructions='EXPEDITE - Production critical',
+            total_amount=requisition.estimated_total_amount,
             created_by=purchasing_agent
         )
 
-        assert po.is_urgent is True
         print(f"  PO: {po.po_number}")
-        print(f"  Urgent flag: {po.is_urgent}")
-        print(f"  Expected: {po.expected_date}")
+        print(f"  Instructions: {po.special_instructions}")
+        print(f"  Expected: {po.expected_delivery_date}")
 
         print("\n" + "="*60)
         print("URGENT WORKFLOW INITIATED!")

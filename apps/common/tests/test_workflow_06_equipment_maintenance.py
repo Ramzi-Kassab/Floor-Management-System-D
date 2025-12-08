@@ -177,7 +177,7 @@ class TestEquipmentMaintenanceWorkflow:
         9. Generate maintenance report
         10. Schedule next maintenance
         """
-        from apps.maintenance.models import MaintenanceRequest, MaintenanceWorkOrder, MaintenancePartsUsed
+        from apps.maintenance.models import Equipment, MaintenanceRequest, MaintenanceWorkOrder, MaintenancePartsUsed
         from apps.inventory.models import InventoryStock, InventoryTransaction
         from apps.documents.models import Document, DocumentCategory
         from apps.notifications.models import Notification
@@ -286,19 +286,18 @@ class TestEquipmentMaintenanceWorkflow:
 
         parts_needed = Decimal('2.000')  # Need 2 filters
 
-        # Reserve parts for work order
-        stock.quantity_reserved += parts_needed
-        stock.quantity_available -= parts_needed
+        # Reserve parts for work order (convert to Decimal for arithmetic)
+        stock.quantity_reserved = Decimal(str(stock.quantity_reserved)) + parts_needed
+        stock.quantity_available = Decimal(str(stock.quantity_available)) - parts_needed
         stock.save()
 
-        # Record parts used
+        # Record parts used (mwo = MaintenanceWorkOrder, inventory_item, quantity)
         parts_used = MaintenancePartsUsed.objects.create(
-            work_order=work_order,
-            item=spare_part,
-            quantity_used=parts_needed,
+            mwo=work_order,
+            inventory_item=spare_part,
+            quantity=parts_needed,
             unit_cost=spare_part.standard_cost,
-            total_cost=parts_needed * spare_part.standard_cost,
-            issued_from=inventory_location
+            total_cost=parts_needed * spare_part.standard_cost
         )
 
         print(f"  Part: {spare_part.name}")
@@ -322,9 +321,9 @@ class TestEquipmentMaintenanceWorkflow:
             created_by=maintenance_manager
         )
 
-        # Update stock
-        stock.quantity_on_hand -= parts_needed
-        stock.quantity_reserved -= parts_needed
+        # Update stock after issue (convert to Decimal for arithmetic)
+        stock.quantity_on_hand = Decimal(str(stock.quantity_on_hand)) - parts_needed
+        stock.quantity_reserved = Decimal(str(stock.quantity_reserved)) - parts_needed
         stock.save()
 
         print(f"  Inventory updated")
