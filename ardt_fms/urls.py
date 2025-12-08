@@ -47,8 +47,11 @@ urlpatterns = [
     # Organization
     path('organization/', include('apps.organization.urls', namespace='organization')),
     
-    # Operations - TODO: Fix form/model mismatches in these apps
-    # path('drss/', include('apps.drss.urls', namespace='drss')),
+    # TODO: Most apps have form/model mismatches that need fixing
+    # For now, these are disabled - use /admin/ for data management
+
+    # Operations
+    path('drss/', include('apps.drss.urls', namespace='drss')),
     # path('sales/', include('apps.sales.urls', namespace='sales')),
     # path('work-orders/', include('apps.workorders.urls', namespace='workorders')),
 
@@ -68,7 +71,7 @@ urlpatterns = [
 
     # Support Systems
     # path('scan/', include('apps.scancodes.urls', namespace='scancodes')),
-    # path('notifications/', include('apps.notifications.urls', namespace='notifications')),
+    path('notifications/', include('apps.notifications.urls', namespace='notifications')),
     # path('maintenance/', include('apps.maintenance.urls', namespace='maintenance')),
     # path('documents/', include('apps.documents.urls', namespace='documents')),
 

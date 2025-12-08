@@ -311,40 +311,36 @@ class ServiceSiteForm(forms.ModelForm):
     class Meta:
         model = ServiceSite
         fields = [
-            'site_number', 'customer', 'site_name', 'site_type', 'status',
-            'address', 'city', 'state_province', 'postal_code', 'country',
-            'gps_latitude', 'gps_longitude', 'site_contact_name',
-            'site_contact_phone', 'site_contact_email', 'rig_name',
-            'rig_type', 'field_name', 'notes'
+            'site_code', 'name', 'customer', 'site_type', 'status',
+            'description', 'address_line1', 'address_line2', 'city',
+            'state_province', 'postal_code', 'country', 'latitude', 'longitude',
+            'primary_contact_name', 'primary_contact_phone', 'primary_contact_email'
         ]
         widgets = {
-            'site_number': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'site_code': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'name': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'customer': forms.Select(attrs={'class': TAILWIND_SELECT}),
-            'site_name': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'site_type': forms.Select(attrs={'class': TAILWIND_SELECT}),
             'status': forms.Select(attrs={'class': TAILWIND_SELECT}),
-            'address': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'description': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'address_line1': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'address_line2': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'city': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'state_province': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'postal_code': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'country': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'gps_latitude': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.000001'}),
-            'gps_longitude': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.000001'}),
-            'site_contact_name': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'site_contact_phone': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'site_contact_email': forms.EmailInput(attrs={'class': TAILWIND_INPUT}),
-            'rig_name': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'rig_type': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'field_name': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
+            'latitude': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.0000001'}),
+            'longitude': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.0000001'}),
+            'primary_contact_name': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'primary_contact_phone': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'primary_contact_email': forms.EmailInput(attrs={'class': TAILWIND_INPUT}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        optional = ['address', 'city', 'state_province', 'postal_code', 'country',
-                    'gps_latitude', 'gps_longitude', 'site_contact_name',
-                    'site_contact_phone', 'site_contact_email', 'rig_name',
-                    'rig_type', 'field_name', 'notes']
+        optional = ['description', 'address_line2', 'state_province', 'postal_code',
+                    'latitude', 'longitude', 'primary_contact_name',
+                    'primary_contact_phone', 'primary_contact_email']
         for field in optional:
             self.fields[field].required = False
 
@@ -355,38 +351,35 @@ class FieldTechnicianForm(forms.ModelForm):
     class Meta:
         model = FieldTechnician
         fields = [
-            'employee', 'tech_id', 'status', 'hire_date', 'primary_skills',
-            'secondary_skills', 'certifications', 'license_number',
-            'license_expiry', 'training_level', 'years_experience',
-            'home_base_location', 'phone', 'emergency_contact_name',
-            'emergency_contact_phone', 'availability_status', 'notes'
+            'employee_id', 'user', 'name', 'email', 'phone', 'mobile',
+            'hire_date', 'employment_status', 'job_title', 'department',
+            'skill_level', 'specializations', 'certifications',
+            'home_base_location', 'emergency_contact_name', 'emergency_contact_phone'
         ]
         widgets = {
-            'employee': forms.Select(attrs={'class': TAILWIND_SELECT}),
-            'tech_id': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'status': forms.Select(attrs={'class': TAILWIND_SELECT}),
-            'hire_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
-            'primary_skills': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'secondary_skills': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'certifications': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'license_number': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'license_expiry': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
-            'training_level': forms.Select(attrs={'class': TAILWIND_SELECT}),
-            'years_experience': forms.NumberInput(attrs={'class': TAILWIND_INPUT, 'step': '0.1'}),
-            'home_base_location': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'employee_id': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'user': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'name': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'email': forms.EmailInput(attrs={'class': TAILWIND_INPUT}),
             'phone': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'mobile': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'hire_date': forms.DateInput(attrs={'class': TAILWIND_INPUT, 'type': 'date'}),
+            'employment_status': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'job_title': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'department': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
+            'skill_level': forms.Select(attrs={'class': TAILWIND_SELECT}),
+            'specializations': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+            'certifications': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 2}),
+            'home_base_location': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'emergency_contact_name': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
             'emergency_contact_phone': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'availability_status': forms.TextInput(attrs={'class': TAILWIND_INPUT}),
-            'notes': forms.Textarea(attrs={'class': TAILWIND_TEXTAREA, 'rows': 3}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        optional = ['employee', 'secondary_skills', 'certifications', 'license_number',
-                    'license_expiry', 'years_experience', 'home_base_location',
-                    'phone', 'emergency_contact_name', 'emergency_contact_phone',
-                    'availability_status', 'notes']
+        optional = ['user', 'mobile', 'hire_date', 'job_title', 'department',
+                    'specializations', 'certifications', 'home_base_location',
+                    'emergency_contact_name', 'emergency_contact_phone']
         for field in optional:
             self.fields[field].required = False
 

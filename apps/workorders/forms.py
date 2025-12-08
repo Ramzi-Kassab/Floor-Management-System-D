@@ -376,22 +376,21 @@ class WorkOrderMaterialForm(forms.ModelForm):
     class Meta:
         model = WorkOrderMaterial
         fields = ['inventory_item', 'bom_line', 'planned_quantity', 'issued_quantity',
-                  'returned_quantity', 'unit', 'unit_cost', 'issued_by', 'notes']
+                  'consumed_quantity', 'returned_quantity', 'unit_cost', 'notes']
         widgets = {
             'inventory_item': forms.Select(attrs={'class': SELECT_CLASS}),
             'bom_line': forms.Select(attrs={'class': SELECT_CLASS}),
-            'planned_quantity': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'issued_quantity': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'returned_quantity': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'unit': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'unit_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'issued_by': forms.Select(attrs={'class': SELECT_CLASS}),
+            'planned_quantity': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'issued_quantity': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'consumed_quantity': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'returned_quantity': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'unit_cost': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.0001'}),
             'notes': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in ['bom_line', 'issued_by', 'notes']:
+        for field in ['bom_line', 'notes']:
             self.fields[field].required = False
 
 
@@ -399,22 +398,21 @@ class WorkOrderTimeLogForm(forms.ModelForm):
     """Form for WorkOrderTimeLog - inline in WorkOrder detail."""
     class Meta:
         model = WorkOrderTimeLog
-        fields = ['user', 'start_time', 'end_time', 'activity', 'billable',
-                  'billing_rate', 'notes', 'approved_by']
+        fields = ['user', 'start_time', 'end_time', 'activity_type', 'step',
+                  'description', 'hourly_rate']
         widgets = {
             'user': forms.Select(attrs={'class': SELECT_CLASS}),
             'start_time': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': INPUT_CLASS}),
             'end_time': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': INPUT_CLASS}),
-            'activity': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'billable': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
-            'billing_rate': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'notes': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'approved_by': forms.Select(attrs={'class': SELECT_CLASS}),
+            'activity_type': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'step': forms.Select(attrs={'class': SELECT_CLASS}),
+            'description': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
+            'hourly_rate': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in ['user', 'notes', 'approved_by']:
+        for field in ['user', 'end_time', 'activity_type', 'step', 'description', 'hourly_rate']:
             self.fields[field].required = False
 
 
@@ -423,44 +421,41 @@ class BitEvaluationForm(forms.ModelForm):
     class Meta:
         model = BitEvaluation
         fields = ['rig', 'well', 'run_number', 'hours_run', 'footage_drilled',
-                  'formation_drilled', 'evaluation_date', 'evaluator', 'condition',
-                  'grading_system', 'inner_rows_grade', 'outer_rows_grade', 'gauge_wear',
-                  'bearing_condition', 'seal_condition', 'structure_damage',
-                  'dull_characteristics', 'reason_pulled', 'rerun_recommendation',
-                  'repairs_needed', 'scrap_decision', 'scrap_reason', 'photos_attached', 'notes']
+                  'depth_in', 'depth_out', 'evaluation_date', 'evaluated_by',
+                  'inner_rows', 'outer_rows', 'dull_char', 'location', 'bearing_seal',
+                  'gauge', 'other_char', 'reason_pulled', 'overall_condition',
+                  'recommendation', 'findings', 'recommendations_detail']
         widgets = {
             'rig': forms.Select(attrs={'class': SELECT_CLASS}),
             'well': forms.Select(attrs={'class': SELECT_CLASS}),
             'run_number': forms.NumberInput(attrs={'class': INPUT_CLASS}),
-            'hours_run': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.1'}),
-            'footage_drilled': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.1'}),
-            'formation_drilled': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'hours_run': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'footage_drilled': forms.NumberInput(attrs={'class': INPUT_CLASS}),
+            'depth_in': forms.NumberInput(attrs={'class': INPUT_CLASS}),
+            'depth_out': forms.NumberInput(attrs={'class': INPUT_CLASS}),
             'evaluation_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
-            'evaluator': forms.Select(attrs={'class': SELECT_CLASS}),
-            'condition': forms.Select(attrs={'class': SELECT_CLASS}),
-            'grading_system': forms.Select(attrs={'class': SELECT_CLASS}),
-            'inner_rows_grade': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'outer_rows_grade': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'gauge_wear': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'bearing_condition': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'seal_condition': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'structure_damage': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'dull_characteristics': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
+            'evaluated_by': forms.Select(attrs={'class': SELECT_CLASS}),
+            'inner_rows': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'outer_rows': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'dull_char': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'location': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'bearing_seal': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'gauge': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'other_char': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'reason_pulled': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'rerun_recommendation': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'repairs_needed': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'scrap_decision': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
-            'scrap_reason': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'photos_attached': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
-            'notes': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 3}),
+            'overall_condition': forms.Select(attrs={'class': SELECT_CLASS}),
+            'recommendation': forms.Select(attrs={'class': SELECT_CLASS}),
+            'findings': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 3}),
+            'recommendations_detail': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 3}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        optional = ['rig', 'well', 'formation_drilled', 'inner_rows_grade', 'outer_rows_grade',
-                    'gauge_wear', 'bearing_condition', 'seal_condition', 'structure_damage',
-                    'dull_characteristics', 'reason_pulled', 'rerun_recommendation',
-                    'repairs_needed', 'scrap_decision', 'scrap_reason', 'photos_attached', 'notes']
+        optional = ['rig', 'well', 'run_number', 'hours_run', 'footage_drilled',
+                    'depth_in', 'depth_out', 'evaluated_by', 'inner_rows', 'outer_rows',
+                    'dull_char', 'location', 'bearing_seal', 'gauge', 'other_char',
+                    'reason_pulled', 'overall_condition', 'recommendation',
+                    'findings', 'recommendations_detail']
         for field in optional:
             self.fields[field].required = False
 
