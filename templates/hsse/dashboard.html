@@ -1,5 +1,21 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}HSSE Dashboard - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
+                <i data-lucide="home" class="w-4 h-4"></i>
+            </a>
+        </li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">HSSE Dashboard</li>
+    </ol>
+</nav>
+{% endblock %}
+
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
     <div>
@@ -78,10 +94,10 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400">{{ hoc.get_category_display }}</p>
                 </div>
                 <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                    {% if hoc.category == 'UNSAFE_ACT' %}bg-red-100 text-red-800
-                    {% elif hoc.category == 'UNSAFE_CONDITION' %}bg-orange-100 text-orange-800
-                    {% elif hoc.category == 'NEAR_MISS' %}bg-yellow-100 text-yellow-800
-                    {% else %}bg-green-100 text-green-800{% endif %}">
+                    {% if hoc.category == 'UNSAFE_ACT' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                    {% elif hoc.category == 'UNSAFE_CONDITION' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                    {% elif hoc.category == 'NEAR_MISS' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                    {% else %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% endif %}">
                     {{ hoc.get_status_display }}
                 </span>
             </div>
@@ -105,10 +121,10 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400">{{ incident.get_incident_type_display }}</p>
                 </div>
                 <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                    {% if incident.severity == 'CRITICAL' %}bg-red-100 text-red-800
-                    {% elif incident.severity == 'MAJOR' %}bg-orange-100 text-orange-800
-                    {% elif incident.severity == 'MODERATE' %}bg-yellow-100 text-yellow-800
-                    {% else %}bg-green-100 text-green-800{% endif %}">
+                    {% if incident.severity == 'CRITICAL' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                    {% elif incident.severity == 'MAJOR' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                    {% elif incident.severity == 'MODERATE' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                    {% else %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% endif %}">
                     {{ incident.get_severity_display }}
                 </span>
             </div>

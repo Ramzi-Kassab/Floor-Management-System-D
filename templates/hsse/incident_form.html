@@ -1,13 +1,29 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{% if form.instance.pk %}Edit{% else %}Report{% endif %} Incident - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
+                <i data-lucide="home" class="w-4 h-4"></i>
+            </a>
+        </li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-500 dark:text-gray-400">HSSE</li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'hsse:incident-list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">Incidents</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">{% if form.instance.pk %}Edit{% else %}Report{% endif %}</li>
+    </ol>
+</nav>
+{% endblock %}
+
 {% block page_header %}
 <div class="mb-6">
-    <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
-        <a href="{% url 'hsse:incident-list' %}" class="hover:text-blue-600">Incidents</a>
-        <i data-lucide="chevron-right" class="w-4 h-4"></i>
-        <span>{% if form.instance.pk %}Edit{% else %}Report{% endif %}</span>
-    </div>
     <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if form.instance.pk %}Edit Incident{% else %}Report Incident{% endif %}</h1>
+    <p class="text-gray-600 dark:text-gray-400">{% if form.instance.pk %}Update incident information{% else %}Report a new safety incident{% endif %}</p>
 </div>
 {% endblock %}
 {% block content %}

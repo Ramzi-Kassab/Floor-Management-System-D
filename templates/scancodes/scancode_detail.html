@@ -1,14 +1,28 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{{ scancode.code }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
+                <i data-lucide="home" class="w-4 h-4"></i>
+            </a>
+        </li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'scancodes:scancode-list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">Scan Codes</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">{{ scancode.code|truncatechars:20 }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
     <div>
-        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
-            <a href="{% url 'scancodes:scancode-list' %}" class="hover:text-blue-600">Scan Codes</a>
-            <i data-lucide="chevron-right" class="w-4 h-4"></i>
-            <span>{{ scancode.code|truncatechars:20 }}</span>
-        </div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white font-mono">{{ scancode.code }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ scancode.get_entity_type_display }}</p>
     </div>
     <div class="flex gap-2 mt-4 md:mt-0">
         <a href="{% url 'scancodes:scancode-update' scancode.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
@@ -33,7 +47,7 @@
                 <div>
                     <dt class="text-sm text-gray-500 dark:text-gray-400">Code Type</dt>
                     <dd>
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium {% if scancode.code_type == 'QR' %}bg-purple-100 text-purple-800{% elif scancode.code_type == 'BARCODE' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium {% if scancode.code_type == 'QR' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200{% elif scancode.code_type == 'BARCODE' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
                             {{ scancode.get_code_type_display }}
                         </span>
                     </dd>
@@ -59,7 +73,7 @@
                 <div>
                     <dt class="text-sm text-gray-500 dark:text-gray-400">Status</dt>
                     <dd>
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if scancode.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if scancode.is_active %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
                             {% if scancode.is_active %}Active{% else %}Inactive{% endif %}
                         </span>
                     </dd>
