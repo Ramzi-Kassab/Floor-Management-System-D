@@ -34,10 +34,10 @@ def work_order(db, test_user):
     """Create a test work order."""
     from apps.workorders.models import WorkOrder
     return WorkOrder.objects.create(
-        work_order_number='WO-EXEC-001',
-        title='Test Work Order',
+        wo_number='WO-EXEC-001',
+        wo_type=WorkOrder.WOType.FC_REPAIR,
         description='Test description',
-        status='IN_PROGRESS',
+        status=WorkOrder.Status.IN_PROGRESS,
         created_by=test_user
     )
 
@@ -49,9 +49,8 @@ def procedure(db, test_user):
     return Procedure.objects.create(
         code='PROC-EXEC-001',
         name='Test Procedure',
-        description='Test description',
-        version='1.0',
-        status='ACTIVE',
+        revision='1.0',
+        status=Procedure.Status.ACTIVE,
         created_by=test_user
     )
 
@@ -63,8 +62,8 @@ def procedure_execution(db, test_user, work_order, procedure):
     return ProcedureExecution.objects.create(
         work_order=work_order,
         procedure=procedure,
-        status='IN_PROGRESS',
-        executed_by=test_user
+        status=ProcedureExecution.Status.IN_PROGRESS,
+        started_by=test_user
     )
 
 

@@ -101,11 +101,9 @@ def approved_request(db, test_user, approver_user, equipment):
 def maintenance_work_order(db, test_user, equipment, approved_request):
     """Create a test maintenance work order."""
     return MaintenanceWorkOrder.objects.create(
-        work_order_number='MWO-001',
+        mwo_number='MWO-001',
         equipment=equipment,
         request=approved_request,
-        work_type=MaintenanceWorkOrder.WorkType.PREVENTIVE,
-        priority=MaintenanceWorkOrder.Priority.NORMAL,
         title='Preventive maintenance',
         description='Perform scheduled PM',
         status=MaintenanceWorkOrder.Status.PLANNED,

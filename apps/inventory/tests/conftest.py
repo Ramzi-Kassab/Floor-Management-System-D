@@ -122,12 +122,13 @@ def inventory_transaction(db, test_user, inventory_item, inventory_location):
         from_location=None,
         to_location=inventory_location,
         quantity=Decimal('50.000'),
+        unit='EA',
         unit_cost=Decimal('24.50'),
         total_cost=Decimal('1225.00'),
-        reference_type=InventoryTransaction.LinkType.PURCHASE_ORDER,
+        link_type=InventoryTransaction.LinkType.PURCHASE_ORDER,
         reference_number='PO-001',
         notes='Initial stock receipt',
-        performed_by=test_user
+        created_by=test_user
     )
 
 

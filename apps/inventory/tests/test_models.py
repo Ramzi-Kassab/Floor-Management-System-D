@@ -196,9 +196,10 @@ class TestInventoryTransactionModel:
             item=inventory_item,
             to_location=inventory_location,
             quantity=Decimal('25.000'),
+            unit='EA',
             unit_cost=Decimal('10.00'),
             total_cost=Decimal('250.00'),
-            performed_by=test_user
+            created_by=test_user
         )
         assert txn.pk is not None
         assert txn.transaction_number == 'TXN-TEST'
@@ -213,7 +214,8 @@ class TestInventoryTransactionModel:
                 item=inventory_item,
                 to_location=inventory_location,
                 quantity=Decimal('10.000'),
-                performed_by=test_user
+                unit='EA',
+                created_by=test_user
             )
             assert txn.transaction_type == txn_type
 
@@ -227,7 +229,8 @@ class TestInventoryTransactionModel:
                 item=inventory_item,
                 to_location=inventory_location,
                 quantity=Decimal('5.000'),
-                performed_by=test_user
+                unit='EA',
+                created_by=test_user
             )
 
     def test_transfer_transaction(self, db, test_user, inventory_item, inventory_location, warehouse):
@@ -245,7 +248,8 @@ class TestInventoryTransactionModel:
             from_location=inventory_location,
             to_location=to_location,
             quantity=Decimal('10.000'),
-            performed_by=test_user
+            unit='EA',
+            created_by=test_user
         )
         assert txn.from_location == inventory_location
         assert txn.to_location == to_location

@@ -36,10 +36,10 @@ def work_order(db, test_user):
     """Create a test work order."""
     from apps.workorders.models import WorkOrder
     return WorkOrder.objects.create(
-        work_order_number='WO-QC-001',
-        title='Test Work Order',
+        wo_number='WO-QC-001',
+        wo_type=WorkOrder.WOType.FC_REPAIR,
         description='Test description',
-        status='IN_PROGRESS',
+        status=WorkOrder.Status.IN_PROGRESS,
         created_by=test_user
     )
 
@@ -48,9 +48,12 @@ def work_order(db, test_user):
 def drill_bit(db):
     """Create a test drill bit."""
     from apps.workorders.models import DrillBit
+    from decimal import Decimal
     return DrillBit.objects.create(
         serial_number='DB-QC-001',
-        status='IN_SERVICE'
+        bit_type=DrillBit.BitType.FC,
+        size=Decimal('8.500'),
+        status=DrillBit.Status.IN_PRODUCTION
     )
 
 

@@ -172,17 +172,15 @@ class TestMaintenanceWorkOrderModel:
     def test_create_work_order(self, db, test_user, equipment):
         """Test creating a maintenance work order."""
         mwo = MaintenanceWorkOrder.objects.create(
-            work_order_number='MWO-TEST',
+            mwo_number='MWO-TEST',
             equipment=equipment,
-            work_type=MaintenanceWorkOrder.WorkType.CORRECTIVE,
-            priority=MaintenanceWorkOrder.Priority.HIGH,
             title='Repair work',
             description='Fix the issue',
             status=MaintenanceWorkOrder.Status.PLANNED,
             created_by=test_user
         )
         assert mwo.pk is not None
-        assert mwo.work_order_number == 'MWO-TEST'
+        assert mwo.mwo_number == 'MWO-TEST'
 
     def test_work_order_status_transitions(self, maintenance_work_order, test_user):
         """Test work order status transitions."""
@@ -206,10 +204,8 @@ class TestMaintenanceWorkOrderModel:
         """Test work order number uniqueness."""
         with pytest.raises(Exception):
             MaintenanceWorkOrder.objects.create(
-                work_order_number='MWO-001',
+                mwo_number='MWO-001',
                 equipment=equipment,
-                work_type=MaintenanceWorkOrder.WorkType.PREVENTIVE,
-                priority=MaintenanceWorkOrder.Priority.NORMAL,
                 title='Duplicate',
                 description='Test',
                 created_by=test_user
