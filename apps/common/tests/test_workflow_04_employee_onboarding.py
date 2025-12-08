@@ -114,7 +114,7 @@ def onboarding_form_template(db, hr_manager):
     FormField.objects.create(
         section=section,
         field_type=text_type,
-        field_name='emergency_contact_name',
+        name='emergency_contact_name',
         label='Emergency Contact Name',
         sequence=1,
         is_required=True
@@ -123,7 +123,7 @@ def onboarding_form_template(db, hr_manager):
     FormField.objects.create(
         section=section,
         field_type=text_type,
-        field_name='emergency_contact_phone',
+        name='emergency_contact_phone',
         label='Emergency Contact Phone',
         sequence=2,
         is_required=True
@@ -208,7 +208,7 @@ class TestEmployeeOnboardingWorkflow:
         # Create employee profile linked to user
         employee = Employee.objects.create(
             user=new_user,
-            employee_id='EMP-2024-001',
+            employee_number='EMP-2024-001',
             employment_type=Employee.EmploymentType.FULL_TIME,
             employment_status=Employee.EmploymentStatus.ACTIVE,
             hire_date=date.today(),
@@ -216,9 +216,9 @@ class TestEmployeeOnboardingWorkflow:
         )
 
         assert employee.pk is not None, "Employee should be created"
-        assert employee.employee_id == 'EMP-2024-001'
+        assert employee.employee_number == 'EMP-2024-001'
         assert employee.employment_status == Employee.EmploymentStatus.ACTIVE
-        print(f"  Created employee: {employee.employee_id}")
+        print(f"  Created employee: {employee.employee_number}")
         print(f"  User account: {new_user.username}")
 
         # ---------------------------------------------------------------------
@@ -226,12 +226,12 @@ class TestEmployeeOnboardingWorkflow:
         # ---------------------------------------------------------------------
         print("\n[Step 2] Assigning to department and position...")
 
-        employee.department = department
-        employee.position = position
+        employee.department = department.name
+        employee.job_title = position.title
         employee.save()
 
-        assert employee.department == department
-        assert employee.position == position
+        assert employee.department == department.name
+        assert employee.job_title == position.title
         print(f"  Department: {department.name}")
         print(f"  Position: {position.title}")
 
@@ -257,15 +257,15 @@ class TestEmployeeOnboardingWorkflow:
 
         emergency_contact = EmergencyContact.objects.create(
             employee=employee,
-            name='Jane Doe',
-            relationship='Spouse',
-            phone_primary='+966 555 123456',
+            full_name='Jane Doe',
+            relationship=EmergencyContact.Relationship.SPOUSE,
+            primary_phone='+966 555 123456',
             is_primary=True
         )
 
         assert emergency_contact.pk is not None
         assert emergency_contact.is_primary is True
-        print(f"  Emergency contact added: {emergency_contact.name}")
+        print(f"  Emergency contact added: {emergency_contact.full_name}")
 
         # ---------------------------------------------------------------------
         # STEP 5: Create bank account for payroll
@@ -380,8 +380,8 @@ class TestEmployeeOnboardingWorkflow:
         final_checks = {
             'employee_record': employee.pk is not None,
             'user_account': new_user.pk is not None,
-            'department_assigned': employee.department is not None,
-            'position_assigned': employee.position is not None,
+            'department_assigned': employee.department is not None and employee.department != '',
+            'position_assigned': employee.job_title is not None and employee.job_title != '',
             'emergency_contact': EmergencyContact.objects.filter(employee=employee).exists(),
             'bank_account': BankAccount.objects.filter(employee=employee).exists(),
             'role_assigned': new_user.groups.exists(),
@@ -438,16 +438,16 @@ class TestEmployeeOnboardingWorkflow:
 
         employee = Employee.objects.create(
             user=pending_user,
-            employee_id='EMP-2024-002',
+            employee_number='EMP-2024-002',
             employment_type=Employee.EmploymentType.CONTRACT,
             employment_status=Employee.EmploymentStatus.ACTIVE,
             hire_date=date.today() + timedelta(days=7),  # Future start date
-            department=department,
-            position=position
+            department=department.name,
+            job_title=position.title
         )
 
         assert pending_user.is_active is False
-        print(f"  Created pending employee: {employee.employee_id}")
+        print(f"  Created pending employee: {employee.employee_number}")
 
         # Step 2: Manager approval simulation
         print("\n[Step 2] Manager approval...")
@@ -515,17 +515,17 @@ class TestEmployeeOnboardingWorkflow:
 
         employee = Employee.objects.create(
             user=transfer_user,
-            employee_id='EMP-2024-003',
+            employee_number='EMP-2024-003',
             employment_type=Employee.EmploymentType.FULL_TIME,
             employment_status=Employee.EmploymentStatus.ACTIVE,
             hire_date=date.today() - timedelta(days=365),  # 1 year ago
-            department=department,
-            position=position
+            department=department.name,
+            job_title=position.title
         )
 
         original_department = employee.department
-        print(f"  Employee: {employee.employee_id}")
-        print(f"  Original department: {original_department.name}")
+        print(f"  Employee: {employee.employee_number}")
+        print(f"  Original department: {original_department}")
 
         # Step 2: Create new department
         print("\n[Step 2] Creating new department...")
@@ -551,24 +551,24 @@ class TestEmployeeOnboardingWorkflow:
         # Step 3: Transfer employee
         print("\n[Step 3] Transferring employee...")
 
-        employee.department = new_department
-        employee.position = new_position
+        employee.department = new_department.name
+        employee.job_title = new_position.title
         employee.save()
 
-        assert employee.department == new_department
-        assert employee.position == new_position
+        assert employee.department == new_department.name
+        assert employee.job_title == new_position.title
         print(f"  Transfer complete!")
-        print(f"  From: {original_department.name} -> To: {new_department.name}")
+        print(f"  From: {original_department} -> To: {new_department.name}")
 
         # Step 4: Verify new assignment
         print("\n[Step 4] Verifying new assignment...")
 
         employee.refresh_from_db()
 
-        assert employee.department.code == 'QC'
-        assert employee.position.title == 'QC Lead'
-        print(f"  Current department: {employee.department.name}")
-        print(f"  Current position: {employee.position.title}")
+        assert employee.department == 'Quality Control'
+        assert employee.job_title == 'QC Lead'
+        print(f"  Current department: {employee.department}")
+        print(f"  Current position: {employee.job_title}")
 
         print("\n" + "="*60)
         print("TRANSFER WORKFLOW COMPLETED!")

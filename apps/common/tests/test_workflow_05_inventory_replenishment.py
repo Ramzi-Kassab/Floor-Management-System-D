@@ -76,18 +76,6 @@ def approver_user(db):
 
 
 @pytest.fixture
-def warehouse(db):
-    """Create a warehouse."""
-    from apps.inventory.models import Warehouse
-    return Warehouse.objects.create(
-        code='WH-MAIN',
-        name='Main Warehouse',
-        address='Industrial Area, Dammam',
-        is_active=True
-    )
-
-
-@pytest.fixture
 def inventory_category(db):
     """Create inventory category."""
     from apps.inventory.models import InventoryCategory
@@ -95,6 +83,18 @@ def inventory_category(db):
         code='RAW-MAT',
         name='Raw Materials',
         description='Raw materials for production',
+        is_active=True
+    )
+
+
+@pytest.fixture
+def warehouse(db):
+    """Create warehouse for inventory."""
+    from apps.sales.models import Warehouse
+    return Warehouse.objects.create(
+        code='WH-MAIN',
+        name='Main Warehouse',
+        warehouse_type=Warehouse.WarehouseType.ARDT,
         is_active=True
     )
 
@@ -142,7 +142,6 @@ def vendor(db, inventory_manager):
         email='sales@pdcsuppliers.com',
         phone='+966 555 987654',
         country='China',
-        payment_terms='Net 30',
         created_by=inventory_manager
     )
 
@@ -302,7 +301,6 @@ class TestInventoryReplenishmentWorkflow:
             order_date=date.today(),
             expected_date=date.today() + timedelta(days=7),
             status=PurchaseOrder.Status.DRAFT,
-            payment_terms=vendor.payment_terms,
             subtotal=requisition.total_amount,
             total_amount=requisition.total_amount,
             created_by=purchasing_agent

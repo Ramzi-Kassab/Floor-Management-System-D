@@ -125,7 +125,6 @@ class TestDocumentLifecycleWorkflow:
         from apps.documents.models import Document, DocumentCategory
         from apps.procedures.models import Procedure
         from apps.notifications.models import Notification
-        from apps.compliance.models import DocumentAcknowledgment
 
         print("\n" + "="*60)
         print("DOCUMENT LIFECYCLE WORKFLOW")
@@ -286,26 +285,40 @@ class TestDocumentLifecycleWorkflow:
         print(f"  Linked to procedure: {procedure.code}")
 
         # ---------------------------------------------------------------------
-        # STEP 9: Track acknowledgments
+        # STEP 9: Track acknowledgments (via notifications)
         # ---------------------------------------------------------------------
         print("\n[Step 9] Tracking acknowledgments...")
 
-        # Create acknowledgment records
-        ack1 = DocumentAcknowledgment.objects.create(
-            document=document,
-            user=document_author,
-            acknowledged_at=timezone.now(),
-            acknowledgment_type='READ'
+        # Create acknowledgment notifications and mark as read
+        ack_notification1 = Notification.objects.create(
+            recipient=document_author,
+            title=f'Document Published: {document.code}',
+            message=f'Please acknowledge document "{document.name}".',
+            priority=Notification.Priority.NORMAL,
+            entity_type='documents.document',
+            entity_id=document.pk
         )
+        ack_notification1.is_read = True
+        ack_notification1.read_at = timezone.now()
+        ack_notification1.save()
 
-        ack2 = DocumentAcknowledgment.objects.create(
-            document=document,
-            user=reviewer,
-            acknowledged_at=timezone.now(),
-            acknowledgment_type='READ'
+        ack_notification2 = Notification.objects.create(
+            recipient=reviewer,
+            title=f'Document Published: {document.code}',
+            message=f'Please acknowledge document "{document.name}".',
+            priority=Notification.Priority.NORMAL,
+            entity_type='documents.document',
+            entity_id=document.pk
         )
+        ack_notification2.is_read = True
+        ack_notification2.read_at = timezone.now()
+        ack_notification2.save()
 
-        ack_count = DocumentAcknowledgment.objects.filter(document=document).count()
+        ack_count = Notification.objects.filter(
+            entity_type='documents.document',
+            entity_id=document.pk,
+            is_read=True
+        ).count()
         print(f"  Acknowledgments recorded: {ack_count}")
 
         # ---------------------------------------------------------------------
@@ -324,9 +337,9 @@ class TestDocumentLifecycleWorkflow:
         # ---------------------------------------------------------------------
         print("\n[Step 11] Creating new revision...")
 
-        # Create new version
+        # Create new version with unique code
         document_v2 = Document.objects.create(
-            code='SOP-MFG-001',
+            code='SOP-MFG-001-V2',
             name='FC Bit Manufacturing Standard Operating Procedure',
             category=document_category,
             version='2.0',
@@ -335,10 +348,6 @@ class TestDocumentLifecycleWorkflow:
             keywords=document.keywords,
             owner=document_author
         )
-
-        # Use unique code for v2
-        document_v2.code = 'SOP-MFG-001-V2'
-        document_v2.save()
 
         print(f"  New version created: {document_v2.version}")
 
@@ -467,13 +476,13 @@ class TestDocumentWorkflowSummary:
         """Verify all workflow models are accessible."""
         from apps.documents.models import Document, DocumentCategory
         from apps.procedures.models import Procedure
-        from apps.compliance.models import DocumentAcknowledgment
+        from apps.compliance.models import DocumentControl
         from apps.notifications.models import Notification
 
         assert Document._meta.model_name == 'document'
         assert DocumentCategory._meta.model_name == 'documentcategory'
         assert Procedure._meta.model_name == 'procedure'
-        assert DocumentAcknowledgment._meta.model_name == 'documentacknowledgment'
+        assert DocumentControl._meta.model_name == 'documentcontrol'
         assert Notification._meta.model_name == 'notification'
 
         print("\nAll document workflow models verified!")

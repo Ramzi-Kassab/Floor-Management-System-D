@@ -127,7 +127,7 @@ class TestSafetyIncidentWorkflow:
         from apps.notifications.models import Notification
         from apps.documents.models import Document, DocumentCategory
         from apps.hr.models import Employee
-        from apps.compliance.models import CorrectiveAction
+        from apps.compliance.models import NonConformance
 
         print("\n" + "="*60)
         print("SAFETY INCIDENT WORKFLOW")
@@ -272,58 +272,61 @@ class TestSafetyIncidentWorkflow:
         print(f"  Primary cause: Incomplete PPE requirements")
 
         # ---------------------------------------------------------------------
-        # STEP 6: Assign corrective actions
+        # STEP 6: Document corrective actions via NonConformance
         # ---------------------------------------------------------------------
-        print("\n[Step 6] Assigning corrective actions...")
+        print("\n[Step 6] Documenting corrective actions...")
 
-        # Create corrective actions
-        ca1 = CorrectiveAction.objects.create(
-            action_number='CA-2024-001',
-            title='Update Grinding Procedure PPE Requirements',
-            description='Revise grinding SOP to require arm guards as mandatory PPE.',
-            priority=CorrectiveAction.Priority.HIGH,
-            due_date=date.today() + timedelta(days=7),
+        # Create NonConformance records to track corrective actions
+        ncr1 = NonConformance.objects.create(
+            ncr_number='NCR-SAFETY-001',
+            source=NonConformance.Source.EMPLOYEE_REPORT,
+            severity=NonConformance.Severity.MAJOR,
+            status=NonConformance.Status.CORRECTIVE_ACTION,
+            description='Update Grinding Procedure PPE Requirements',
+            defect_description='Revise grinding SOP to require arm guards as mandatory PPE.',
+            detected_date=date.today(),
+            reported_by=hsse_officer,
             assigned_to=supervisor,
-            status=CorrectiveAction.Status.OPEN,
-            source_type='INCIDENT',
-            source_number=incident.incident_number,
-            created_by=hsse_officer
+            target_completion_date=date.today() + timedelta(days=7),
+            corrective_action='Update grinding procedure to mandate arm guards'
         )
 
-        ca2 = CorrectiveAction.objects.create(
-            action_number='CA-2024-002',
-            title='Install Updated PPE Signage',
-            description='Install clear PPE requirement signs in all grinding areas.',
-            priority=CorrectiveAction.Priority.HIGH,
-            due_date=date.today() + timedelta(days=3),
+        ncr2 = NonConformance.objects.create(
+            ncr_number='NCR-SAFETY-002',
+            source=NonConformance.Source.EMPLOYEE_REPORT,
+            severity=NonConformance.Severity.MAJOR,
+            status=NonConformance.Status.CORRECTIVE_ACTION,
+            description='Install Updated PPE Signage',
+            defect_description='Install clear PPE requirement signs in all grinding areas.',
+            detected_date=date.today(),
+            reported_by=hsse_officer,
             assigned_to=safety_manager,
-            status=CorrectiveAction.Status.OPEN,
-            source_type='INCIDENT',
-            source_number=incident.incident_number,
-            created_by=hsse_officer
+            target_completion_date=date.today() + timedelta(days=3),
+            corrective_action='Install new PPE signage in all grinding areas'
         )
 
-        ca3 = CorrectiveAction.objects.create(
-            action_number='CA-2024-003',
-            title='Safety Refresher Training',
-            description='Conduct PPE refresher training for all shop floor employees.',
-            priority=CorrectiveAction.Priority.MEDIUM,
-            due_date=date.today() + timedelta(days=14),
+        ncr3 = NonConformance.objects.create(
+            ncr_number='NCR-SAFETY-003',
+            source=NonConformance.Source.EMPLOYEE_REPORT,
+            severity=NonConformance.Severity.MINOR,
+            status=NonConformance.Status.CORRECTIVE_ACTION,
+            description='Safety Refresher Training',
+            defect_description='Conduct PPE refresher training for all shop floor employees.',
+            detected_date=date.today(),
+            reported_by=hsse_officer,
             assigned_to=hsse_officer,
-            status=CorrectiveAction.Status.OPEN,
-            source_type='INCIDENT',
-            source_number=incident.incident_number,
-            created_by=hsse_officer
+            target_completion_date=date.today() + timedelta(days=14),
+            corrective_action='Conduct PPE refresher training'
         )
 
-        corrective_actions = CorrectiveAction.objects.filter(source_number=incident.incident_number)
-        assert corrective_actions.count() == 3
-        print(f"  Corrective actions assigned: {corrective_actions.count()}")
-        for ca in corrective_actions:
-            print(f"    - {ca.action_number}: {ca.title}")
+        corrective_ncrs = NonConformance.objects.filter(ncr_number__startswith='NCR-SAFETY')
+        assert corrective_ncrs.count() == 3
+        print(f"  Corrective actions documented: {corrective_ncrs.count()}")
+        for ncr in corrective_ncrs:
+            print(f"    - {ncr.ncr_number}: {ncr.description}")
 
         # Update incident with corrective actions reference
-        incident.corrective_actions = f'See corrective actions: CA-2024-001, CA-2024-002, CA-2024-003'
+        incident.corrective_actions = f'See NCRs: NCR-SAFETY-001, NCR-SAFETY-002, NCR-SAFETY-003'
         incident.save()
 
         # ---------------------------------------------------------------------
@@ -335,7 +338,7 @@ class TestSafetyIncidentWorkflow:
         employee_profile, _ = Employee.objects.get_or_create(
             user=employee_involved,
             defaults={
-                'employee_id': 'EMP-WRK-001',
+                'employee_number': 'EMP-WRK-001',
                 'employment_type': Employee.EmploymentType.FULL_TIME,
                 'employment_status': Employee.EmploymentStatus.ACTIVE,
                 'hire_date': date.today() - timedelta(days=365)
@@ -361,12 +364,13 @@ class TestSafetyIncidentWorkflow:
         # ---------------------------------------------------------------------
         print("\n[Step 8] Closing incident...")
 
-        # Simulate CA completion
-        for ca in corrective_actions:
-            ca.status = CorrectiveAction.Status.COMPLETED
-            ca.completed_date = date.today()
-            ca.completed_by = ca.assigned_to
-            ca.save()
+        # Complete all NCRs (corrective actions)
+        for ncr in corrective_ncrs:
+            ncr.status = NonConformance.Status.CLOSED
+            ncr.actual_completion_date = date.today()
+            ncr.closed_by = ncr.assigned_to
+            ncr.closed_date = date.today()
+            ncr.save()
 
         # Close HOC
         hoc.status = HOCReport.Status.CLOSED
@@ -440,8 +444,8 @@ class TestSafetyIncidentWorkflow:
             'investigation_complete': bool(incident.investigation_findings),
             'root_cause_identified': bool(incident.root_cause),
             'corrective_actions_complete': all(
-                ca.status == CorrectiveAction.Status.COMPLETED
-                for ca in corrective_actions
+                ncr.status == NonConformance.Status.CLOSED
+                for ncr in corrective_ncrs
             ),
             'hoc_closed': hoc.status == HOCReport.Status.CLOSED,
             'incident_closed': incident.status == Incident.Status.CLOSED,
@@ -454,7 +458,7 @@ class TestSafetyIncidentWorkflow:
         print("\n  Incident Summary:")
         print(f"    Incident: {incident.incident_number}")
         print(f"    Severity: {incident.get_severity_display()}")
-        print(f"    Corrective Actions: {corrective_actions.count()}")
+        print(f"    Corrective Actions: {corrective_ncrs.count()}")
         print(f"    Days to Close: {(timezone.now() - incident.occurred_at).days}")
 
         print("\n  Workflow Checklist:")
@@ -542,12 +546,12 @@ class TestSafetyWorkflowSummary:
         from apps.hsse.models import Incident, HOCReport
         from apps.notifications.models import Notification
         from apps.documents.models import Document
-        from apps.compliance.models import CorrectiveAction
+        from apps.compliance.models import NonConformance
 
         assert Incident._meta.model_name == 'incident'
         assert HOCReport._meta.model_name == 'hocreport'
         assert Notification._meta.model_name == 'notification'
         assert Document._meta.model_name == 'document'
-        assert CorrectiveAction._meta.model_name == 'correctiveaction'
+        assert NonConformance._meta.model_name == 'nonconformance'
 
         print("\nAll safety workflow models verified!")

@@ -95,11 +95,12 @@ def equipment_due_maintenance(db, equipment_category):
 
 @pytest.fixture
 def inventory_warehouse(db):
-    """Create warehouse for parts inventory."""
-    from apps.inventory.models import Warehouse
+    """Create warehouse for spare parts."""
+    from apps.sales.models import Warehouse
     return Warehouse.objects.create(
         code='WH-SPARE',
         name='Spare Parts Warehouse',
+        warehouse_type=Warehouse.WarehouseType.ARDT,
         is_active=True
     )
 
@@ -159,7 +160,6 @@ class TestEquipmentMaintenanceWorkflow:
         technician,
         equipment_due_maintenance,
         spare_part,
-        inventory_warehouse,
         inventory_location
     ):
         """

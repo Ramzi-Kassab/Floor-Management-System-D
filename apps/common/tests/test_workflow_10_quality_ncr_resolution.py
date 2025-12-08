@@ -133,7 +133,7 @@ class TestQualityNCRResolutionWorkflow:
         10. Close NCR
         """
         from apps.quality.models import Inspection, NCR
-        from apps.compliance.models import CorrectiveAction
+        from apps.compliance.models import NonConformance
         from apps.procedures.models import Procedure
         from apps.documents.models import Document, DocumentCategory
         from apps.notifications.models import Notification
@@ -216,7 +216,7 @@ class TestQualityNCRResolutionWorkflow:
         print("\n[Step 3] Implementing containment...")
 
         # Update NCR with containment
-        ncr.status = NCR.Status.UNDER_REVIEW
+        ncr.status = NCR.Status.INVESTIGATING
         ncr.save()
 
         # Mark affected items
@@ -233,7 +233,7 @@ class TestQualityNCRResolutionWorkflow:
         print("\n[Step 4] Investigating root cause...")
 
         # Perform investigation
-        ncr.investigation_notes = '''
+        ncr.root_cause = '''
         ROOT CAUSE INVESTIGATION
         ========================
 
@@ -255,6 +255,7 @@ class TestQualityNCRResolutionWorkflow:
 
         ROOT CAUSE: Inadequate incoming inspection procedure
         '''
+        ncr.investigated_by = quality_manager
         ncr.save()
 
         print(f"  Investigation completed")
@@ -276,7 +277,7 @@ class TestQualityNCRResolutionWorkflow:
             category=doc_category,
             version='1.0',
             status=Document.Status.ACTIVE,
-            description=ncr.investigation_notes,
+            description=ncr.root_cause,
             owner=quality_manager,
             approved_by=quality_manager,
             approved_at=timezone.now()
@@ -285,56 +286,59 @@ class TestQualityNCRResolutionWorkflow:
         print(f"  Report created: {investigation_report.code}")
 
         # ---------------------------------------------------------------------
-        # STEP 6: Create corrective action plan
+        # STEP 6: Create corrective action plan (via NonConformance records)
         # ---------------------------------------------------------------------
         print("\n[Step 6] Creating corrective action plan...")
 
         # Immediate action
-        ca1 = CorrectiveAction.objects.create(
-            action_number='CA-NCR-001',
-            title='Return non-conforming cutters to supplier',
-            description='Return oversized cutters and request replacement.',
-            priority=CorrectiveAction.Priority.HIGH,
-            due_date=date.today() + timedelta(days=3),
+        ca1 = NonConformance.objects.create(
+            ncr_number='CA-NCR-001',
+            source=NonConformance.Source.QUALITY_INSPECTION,
+            severity=NonConformance.Severity.MAJOR,
+            status=NonConformance.Status.CORRECTIVE_ACTION,
+            description='Return non-conforming cutters to supplier',
+            defect_description='Return oversized cutters and request replacement.',
+            detected_date=date.today(),
+            reported_by=quality_manager,
             assigned_to=production_supervisor,
-            status=CorrectiveAction.Status.OPEN,
-            source_type='NCR',
-            source_number=ncr.ncr_number,
-            created_by=quality_manager
+            target_completion_date=date.today() + timedelta(days=3),
+            corrective_action='Return parts and get replacements'
         )
 
         # Preventive action
-        ca2 = CorrectiveAction.objects.create(
-            action_number='CA-NCR-002',
-            title='Update incoming inspection procedure',
-            description='Implement 100% dimensional inspection for critical components.',
-            priority=CorrectiveAction.Priority.HIGH,
-            due_date=date.today() + timedelta(days=7),
+        ca2 = NonConformance.objects.create(
+            ncr_number='CA-NCR-002',
+            source=NonConformance.Source.QUALITY_INSPECTION,
+            severity=NonConformance.Severity.MAJOR,
+            status=NonConformance.Status.CORRECTIVE_ACTION,
+            description='Update incoming inspection procedure',
+            defect_description='Implement 100% dimensional inspection for critical components.',
+            detected_date=date.today(),
+            reported_by=quality_manager,
             assigned_to=quality_manager,
-            status=CorrectiveAction.Status.OPEN,
-            source_type='NCR',
-            source_number=ncr.ncr_number,
-            created_by=quality_manager
+            target_completion_date=date.today() + timedelta(days=7),
+            corrective_action='Revise incoming inspection procedure'
         )
 
         # Training action
-        ca3 = CorrectiveAction.objects.create(
-            action_number='CA-NCR-003',
-            title='Inspector training on critical measurements',
-            description='Train all QC inspectors on critical dimension requirements.',
-            priority=CorrectiveAction.Priority.MEDIUM,
-            due_date=date.today() + timedelta(days=14),
+        ca3 = NonConformance.objects.create(
+            ncr_number='CA-NCR-003',
+            source=NonConformance.Source.QUALITY_INSPECTION,
+            severity=NonConformance.Severity.MINOR,
+            status=NonConformance.Status.CORRECTIVE_ACTION,
+            description='Inspector training on critical measurements',
+            defect_description='Train all QC inspectors on critical dimension requirements.',
+            detected_date=date.today(),
+            reported_by=quality_manager,
             assigned_to=qc_inspector,
-            status=CorrectiveAction.Status.OPEN,
-            source_type='NCR',
-            source_number=ncr.ncr_number,
-            created_by=quality_manager
+            target_completion_date=date.today() + timedelta(days=14),
+            corrective_action='Conduct training for all inspectors'
         )
 
         print(f"  Corrective actions created: 3")
-        print(f"    - {ca1.action_number}: {ca1.title}")
-        print(f"    - {ca2.action_number}: {ca2.title}")
-        print(f"    - {ca3.action_number}: {ca3.title}")
+        print(f"    - {ca1.ncr_number}: {ca1.description}")
+        print(f"    - {ca2.ncr_number}: {ca2.description}")
+        print(f"    - {ca3.ncr_number}: {ca3.description}")
 
         # ---------------------------------------------------------------------
         # STEP 7: Implement corrective actions
@@ -342,22 +346,24 @@ class TestQualityNCRResolutionWorkflow:
         print("\n[Step 7] Implementing corrective actions...")
 
         # Complete CA1 - Return parts
-        ca1.status = CorrectiveAction.Status.COMPLETED
-        ca1.completed_date = date.today()
-        ca1.completed_by = production_supervisor
-        ca1.completion_notes = 'Non-conforming cutters returned. Replacements received and verified.'
+        ca1.status = NonConformance.Status.CLOSED
+        ca1.actual_completion_date = date.today()
+        ca1.closed_by = production_supervisor
+        ca1.closed_date = date.today()
+        ca1.closure_notes = 'Non-conforming cutters returned. Replacements received and verified.'
         ca1.save()
 
-        print(f"  {ca1.action_number}: Completed")
+        print(f"  {ca1.ncr_number}: Completed")
 
         # Complete CA2 - Update procedure
-        ca2.status = CorrectiveAction.Status.COMPLETED
-        ca2.completed_date = date.today()
-        ca2.completed_by = quality_manager
-        ca2.completion_notes = 'Incoming inspection procedure updated to require 100% inspection.'
+        ca2.status = NonConformance.Status.CLOSED
+        ca2.actual_completion_date = date.today()
+        ca2.closed_by = quality_manager
+        ca2.closed_date = date.today()
+        ca2.closure_notes = 'Incoming inspection procedure updated to require 100% inspection.'
         ca2.save()
 
-        print(f"  {ca2.action_number}: Completed")
+        print(f"  {ca2.ncr_number}: Completed")
 
         # ---------------------------------------------------------------------
         # STEP 8: Update procedures
@@ -388,18 +394,18 @@ class TestQualityNCRResolutionWorkflow:
         print("\n[Step 9] Completing training and verification...")
 
         # Complete CA3 - Training
-        ca3.status = CorrectiveAction.Status.COMPLETED
-        ca3.completed_date = date.today()
-        ca3.completed_by = qc_inspector
-        ca3.completion_notes = 'All inspectors trained. Training records updated.'
+        ca3.status = NonConformance.Status.CLOSED
+        ca3.actual_completion_date = date.today()
+        ca3.closed_by = qc_inspector
+        ca3.closed_date = date.today()
+        ca3.closure_notes = 'All inspectors trained. Training records updated.'
         ca3.save()
 
-        print(f"  {ca3.action_number}: Completed")
+        print(f"  {ca3.ncr_number}: Completed")
 
-        # Verify effectiveness
-        ncr.effectiveness_verified = True
-        ncr.verification_date = date.today()
-        ncr.verification_notes = '''
+        # Verify effectiveness - update NCR status to pending verification
+        ncr.status = NCR.Status.PENDING_VERIFICATION
+        ncr.closure_notes = '''
         Effectiveness Verification:
         - Reviewed 5 subsequent incoming lots
         - 100% inspection performed on all
@@ -443,19 +449,19 @@ class TestQualityNCRResolutionWorkflow:
         # ---------------------------------------------------------------------
         print("\n[Step 11] Final verification...")
 
-        corrective_actions = CorrectiveAction.objects.filter(source_number=ncr.ncr_number)
+        corrective_actions = NonConformance.objects.filter(ncr_number__startswith='CA-NCR')
 
         final_checks = {
             'inspection_completed': inspection.status == Inspection.Status.FAILED,
             'ncr_created': ncr.pk is not None,
-            'root_cause_identified': bool(ncr.investigation_notes),
+            'root_cause_identified': bool(ncr.root_cause),
             'report_generated': investigation_report.pk is not None,
             'all_ca_completed': all(
-                ca.status == CorrectiveAction.Status.COMPLETED
+                ca.status == NonConformance.Status.CLOSED
                 for ca in corrective_actions
             ),
             'procedure_updated': procedure.revision == '2.0',
-            'effectiveness_verified': ncr.effectiveness_verified is True,
+            'effectiveness_verified': bool(ncr.closure_notes),
             'ncr_closed': ncr.status == NCR.Status.CLOSED,
             'work_order_resumed': work_order.status == work_order.Status.IN_PROGRESS,
         }
@@ -562,14 +568,14 @@ class TestNCRWorkflowSummary:
     def test_workflow_models_exist(self, db):
         """Verify all workflow models are accessible."""
         from apps.quality.models import Inspection, NCR
-        from apps.compliance.models import CorrectiveAction
+        from apps.compliance.models import NonConformance
         from apps.procedures.models import Procedure
         from apps.documents.models import Document
         from apps.workorders.models import WorkOrder
 
         assert Inspection._meta.model_name == 'inspection'
         assert NCR._meta.model_name == 'ncr'
-        assert CorrectiveAction._meta.model_name == 'correctiveaction'
+        assert NonConformance._meta.model_name == 'nonconformance'
         assert Procedure._meta.model_name == 'procedure'
         assert Document._meta.model_name == 'document'
         assert WorkOrder._meta.model_name == 'workorder'
