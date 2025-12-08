@@ -1,0 +1,356 @@
+[
+    {
+        "model": "compliance.compliancerequirement",
+        "pk": 1,
+        "fields": {
+            "requirement_code": "ISO-9001-001",
+            "title": "Quality Management System Scope",
+            "requirement_type": "ISO_STANDARD",
+            "source_document": "ISO 9001:2015",
+            "clause_number": "4.3",
+            "version": "2015",
+            "issuing_authority": "International Organization for Standardization",
+            "description": "The organization shall determine the boundaries and applicability of the quality management system.",
+            "applicable_scope": "All manufacturing and service operations",
+            "compliance_criteria": "Documented QMS scope covering all operations",
+            "status": "ACTIVE",
+            "compliance_status": "COMPLIANT",
+            "effective_date": "2024-01-01",
+            "review_date": "2025-01-01",
+            "responsible_department": "Quality",
+            "risk_level": "HIGH",
+            "assessment_frequency": "Annual"
+        }
+    },
+    {
+        "model": "compliance.compliancerequirement",
+        "pk": 2,
+        "fields": {
+            "requirement_code": "API-7-1-001",
+            "title": "Rotary Drill Stem Elements Specification",
+            "requirement_type": "API_SPECIFICATION",
+            "source_document": "API Spec 7-1",
+            "clause_number": "5.2",
+            "version": "2017",
+            "issuing_authority": "American Petroleum Institute",
+            "description": "Requirements for the manufacture of drill collar, drill pipe, and tool joints.",
+            "applicable_scope": "All drill string component manufacturing",
+            "compliance_criteria": "Full conformance to dimensional and material requirements",
+            "status": "ACTIVE",
+            "compliance_status": "COMPLIANT",
+            "effective_date": "2024-01-15",
+            "responsible_department": "Manufacturing",
+            "risk_level": "CRITICAL",
+            "assessment_frequency": "Quarterly"
+        }
+    },
+    {
+        "model": "compliance.compliancerequirement",
+        "pk": 3,
+        "fields": {
+            "requirement_code": "ENV-REG-001",
+            "title": "Environmental Waste Management",
+            "requirement_type": "ENVIRONMENTAL",
+            "source_document": "EPA 40 CFR Part 261",
+            "version": "2023",
+            "issuing_authority": "Environmental Protection Agency",
+            "description": "Requirements for identification and handling of hazardous waste.",
+            "applicable_scope": "All facility operations generating waste",
+            "status": "ACTIVE",
+            "compliance_status": "COMPLIANT",
+            "effective_date": "2024-02-01",
+            "responsible_department": "HSSE",
+            "risk_level": "HIGH",
+            "assessment_frequency": "Monthly"
+        }
+    },
+    {
+        "model": "compliance.compliancerequirement",
+        "pk": 4,
+        "fields": {
+            "requirement_code": "SAFETY-001",
+            "title": "Personal Protective Equipment Requirements",
+            "requirement_type": "SAFETY",
+            "source_document": "OSHA 29 CFR 1910.132",
+            "version": "2023",
+            "issuing_authority": "OSHA",
+            "description": "Requirements for PPE assessment and provision.",
+            "status": "ACTIVE",
+            "compliance_status": "COMPLIANT",
+            "effective_date": "2024-01-01",
+            "responsible_department": "HSSE",
+            "risk_level": "HIGH",
+            "assessment_frequency": "Annual"
+        }
+    },
+    {
+        "model": "compliance.compliancerequirement",
+        "pk": 5,
+        "fields": {
+            "requirement_code": "CUST-REQ-001",
+            "title": "Customer Quality Documentation Requirements",
+            "requirement_type": "CUSTOMER_REQUIREMENT",
+            "source_document": "Major Oil Co. Supplier Quality Manual",
+            "version": "Rev 3",
+            "description": "Documentation requirements for drill bit repair services.",
+            "status": "ACTIVE",
+            "compliance_status": "COMPLIANT",
+            "effective_date": "2024-03-01",
+            "responsible_department": "Quality",
+            "risk_level": "MEDIUM",
+            "assessment_frequency": "Per Order"
+        }
+    },
+    {
+        "model": "compliance.qualitycontrol",
+        "pk": 1,
+        "fields": {
+            "inspection_number": "QC-2024-001",
+            "inspection_type": "INCOMING",
+            "status": "PASSED",
+            "inspector_notes": "Material meets all specifications",
+            "inspection_date": "2024-12-01",
+            "specification_reference": "API Spec 7-1",
+            "pass_criteria": "Visual and dimensional inspection per spec",
+            "actual_results": "All measurements within tolerance"
+        }
+    },
+    {
+        "model": "compliance.qualitycontrol",
+        "pk": 2,
+        "fields": {
+            "inspection_number": "QC-2024-002",
+            "inspection_type": "IN_PROCESS",
+            "status": "PASSED",
+            "inspection_date": "2024-12-02",
+            "specification_reference": "Internal WI-100",
+            "pass_criteria": "Hardfacing depth 0.125 +/- 0.010 inches",
+            "actual_results": "Measured depth 0.128 inches - within spec"
+        }
+    },
+    {
+        "model": "compliance.qualitycontrol",
+        "pk": 3,
+        "fields": {
+            "inspection_number": "QC-2024-003",
+            "inspection_type": "FINAL",
+            "status": "PASSED",
+            "inspection_date": "2024-12-03",
+            "specification_reference": "Customer PO Requirements",
+            "pass_criteria": "All repair work complete per quote",
+            "actual_results": "All items verified complete"
+        }
+    },
+    {
+        "model": "compliance.nonconformance",
+        "pk": 1,
+        "fields": {
+            "ncr_number": "NCR-2024-001",
+            "title": "Out of Tolerance Thread Measurement",
+            "description": "Thread pitch diameter measured 0.005 below minimum specification",
+            "severity": "MINOR",
+            "status": "CLOSED",
+            "detected_date": "2024-11-15",
+            "detected_stage": "IN_PROCESS",
+            "root_cause": "Tool wear on thread cutting insert",
+            "corrective_action": "Replace insert and re-cut threads",
+            "verification_notes": "Re-measured within specification"
+        }
+    },
+    {
+        "model": "compliance.nonconformance",
+        "pk": 2,
+        "fields": {
+            "ncr_number": "NCR-2024-002",
+            "title": "Missing Heat Treatment Documentation",
+            "description": "Heat treat certification not provided with incoming material",
+            "severity": "MAJOR",
+            "status": "OPEN",
+            "detected_date": "2024-12-01",
+            "detected_stage": "INCOMING",
+            "root_cause": "Supplier shipping error",
+            "corrective_action": "Requested documentation from supplier"
+        }
+    },
+    {
+        "model": "compliance.documentcontrol",
+        "pk": 1,
+        "fields": {
+            "document_number": "QMS-001",
+            "title": "Quality Management System Manual",
+            "document_type": "QUALITY_MANUAL",
+            "revision": "Rev 5",
+            "status": "ACTIVE",
+            "effective_date": "2024-01-01",
+            "review_date": "2025-01-01",
+            "owner_department": "Quality",
+            "description": "Main QMS manual covering all quality policies and procedures"
+        }
+    },
+    {
+        "model": "compliance.documentcontrol",
+        "pk": 2,
+        "fields": {
+            "document_number": "WI-100",
+            "title": "Drill Bit Hardfacing Procedure",
+            "document_type": "WORK_INSTRUCTION",
+            "revision": "Rev 3",
+            "status": "ACTIVE",
+            "effective_date": "2024-06-01",
+            "review_date": "2025-06-01",
+            "owner_department": "Manufacturing",
+            "description": "Step-by-step instructions for hardfacing operations"
+        }
+    },
+    {
+        "model": "compliance.documentcontrol",
+        "pk": 3,
+        "fields": {
+            "document_number": "SOP-200",
+            "title": "Incoming Inspection Procedure",
+            "document_type": "SOP",
+            "revision": "Rev 2",
+            "status": "ACTIVE",
+            "effective_date": "2024-03-15",
+            "owner_department": "Quality",
+            "description": "Standard procedure for inspecting incoming materials and components"
+        }
+    },
+    {
+        "model": "compliance.trainingrecord",
+        "pk": 1,
+        "fields": {
+            "training_title": "API Spec 7-1 Awareness",
+            "training_type": "TECHNICAL",
+            "status": "COMPLETED",
+            "completion_date": "2024-06-15",
+            "expiry_date": "2026-06-15",
+            "hours_completed": "8.0",
+            "score": "92.0",
+            "certificate_number": "API-CERT-2024-001",
+            "provider": "API Training Services",
+            "notes": "Annual refresher training completed"
+        }
+    },
+    {
+        "model": "compliance.trainingrecord",
+        "pk": 2,
+        "fields": {
+            "training_title": "Crane Operator Certification",
+            "training_type": "SAFETY",
+            "status": "COMPLETED",
+            "completion_date": "2024-05-01",
+            "expiry_date": "2027-05-01",
+            "hours_completed": "40.0",
+            "score": "95.0",
+            "certificate_number": "CRANE-2024-042",
+            "provider": "Industrial Safety Training Inc.",
+            "notes": "3-year certification"
+        }
+    },
+    {
+        "model": "compliance.certification",
+        "pk": 1,
+        "fields": {
+            "certification_number": "ISO-9001-2024-001",
+            "certification_name": "ISO 9001:2015 Quality Management",
+            "certification_type": "ISO",
+            "issuing_body": "DNV GL",
+            "status": "ACTIVE",
+            "issue_date": "2024-01-15",
+            "expiry_date": "2027-01-14",
+            "scope": "Drill bit repair and reconditioning services",
+            "certificate_url": "https://certs.dnvgl.com/ardt-iso9001"
+        }
+    },
+    {
+        "model": "compliance.certification",
+        "pk": 2,
+        "fields": {
+            "certification_number": "API-Q1-2024-001",
+            "certification_name": "API Spec Q1 Quality Program",
+            "certification_type": "API",
+            "issuing_body": "American Petroleum Institute",
+            "status": "ACTIVE",
+            "issue_date": "2024-03-01",
+            "expiry_date": "2027-02-28",
+            "scope": "Manufacturing and repair of petroleum equipment"
+        }
+    },
+    {
+        "model": "compliance.compliancereport",
+        "pk": 1,
+        "fields": {
+            "report_number": "CR-2024-Q4",
+            "title": "Q4 2024 Compliance Summary Report",
+            "report_type": "QUARTERLY",
+            "status": "FINAL",
+            "period_start": "2024-10-01",
+            "period_end": "2024-12-31",
+            "executive_summary": "All compliance requirements met. No critical findings.",
+            "findings_count": 2,
+            "critical_findings": 0,
+            "recommendations": "Continue current compliance monitoring activities"
+        }
+    },
+    {
+        "model": "compliance.qualitymetric",
+        "pk": 1,
+        "fields": {
+            "metric_code": "QM-001",
+            "metric_name": "First Pass Yield",
+            "category": "QUALITY",
+            "target_value": "95.0",
+            "actual_value": "97.2",
+            "unit_of_measure": "Percent",
+            "measurement_period": "MONTHLY",
+            "status": "ON_TARGET",
+            "period_start": "2024-12-01",
+            "period_end": "2024-12-31"
+        }
+    },
+    {
+        "model": "compliance.qualitymetric",
+        "pk": 2,
+        "fields": {
+            "metric_code": "QM-002",
+            "metric_name": "Customer Complaint Rate",
+            "category": "CUSTOMER",
+            "target_value": "1.0",
+            "actual_value": "0.5",
+            "unit_of_measure": "Per 100 Orders",
+            "measurement_period": "MONTHLY",
+            "status": "ON_TARGET",
+            "period_start": "2024-12-01",
+            "period_end": "2024-12-31"
+        }
+    },
+    {
+        "model": "compliance.inspectionchecklist",
+        "pk": 1,
+        "fields": {
+            "checklist_code": "IC-001",
+            "checklist_name": "Incoming Drill Bit Inspection",
+            "description": "Standard checklist for inspecting incoming drill bits",
+            "category": "INCOMING",
+            "revision": "Rev 2",
+            "status": "ACTIVE",
+            "items_count": 15,
+            "estimated_duration": 30
+        }
+    },
+    {
+        "model": "compliance.inspectionchecklist",
+        "pk": 2,
+        "fields": {
+            "checklist_code": "IC-002",
+            "checklist_name": "Final Assembly Inspection",
+            "description": "Checklist for final inspection before shipping",
+            "category": "FINAL",
+            "revision": "Rev 3",
+            "status": "ACTIVE",
+            "items_count": 25,
+            "estimated_duration": 45
+        }
+    }
+]
