@@ -152,7 +152,7 @@ class ReportsDashboardView(LoginRequiredMixin, TemplateView):
         context["stats"] = {
             "work_orders_this_month": WorkOrder.objects.filter(created_at__date__gte=month_start).count(),
             "active_work_orders": WorkOrder.objects.filter(status__in=["PLANNED", "IN_PROGRESS"]).count(),
-            "low_stock_items": InventoryStock.objects.filter(quantity_on_hand__lte=F("reorder_point")).count(),
+            "low_stock_items": InventoryStock.objects.filter(quantity_on_hand__lte=F("item__reorder_point")).count(),
             "open_ncrs": NCR.objects.filter(status__in=["OPEN", "IN_PROGRESS"]).count(),
             "pending_maintenance": MaintenanceRequest.objects.filter(status="PENDING").count(),
             "pending_pos": PurchaseOrder.objects.filter(status="PENDING").count(),
@@ -260,7 +260,7 @@ class InventoryReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
         # Low stock filter
         low_stock = self.request.GET.get("low_stock")
         if low_stock == "true":
-            qs = qs.filter(quantity_on_hand__lte=F("reorder_point"))
+            qs = qs.filter(quantity_on_hand__lte=F("item__reorder_point"))
 
         return qs
 
@@ -272,10 +272,10 @@ class InventoryReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
         qs = self.get_queryset()
         context["summary"] = {
             "total_items": qs.count(),
-            "low_stock": qs.filter(quantity_on_hand__lte=F("reorder_point")).count(),
+            "low_stock": qs.filter(quantity_on_hand__lte=F("item__reorder_point")).count(),
             "out_of_stock": qs.filter(quantity_on_hand=0).count(),
             "total_value": qs.aggregate(
-                total=Sum(F("quantity_on_hand") * F("item__unit_cost"), default=0)
+                total=Sum(F("quantity_on_hand") * F("item__standard_cost"), default=0)
             )["total"] or 0,
         }
 
@@ -291,8 +291,8 @@ class InventoryReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
                 ("quantity_on_hand", "Qty On Hand"),
                 ("quantity_reserved", "Qty Reserved"),
                 ("quantity_available", "Qty Available"),
-                ("reorder_point", "Reorder Point"),
-                ("item.unit_cost", "Unit Cost"),
+                ("item.reorder_point", "Reorder Point"),
+                ("item.standard_cost", "Unit Cost"),
             ]
             return self.export_to_excel(self.get_queryset(), columns, "inventory_report", "Inventory")
         return super().get(request, *args, **kwargs)
@@ -307,7 +307,7 @@ class LowStockAlertView(LoginRequiredMixin, ExcelExportMixin, ListView):
 
     def get_queryset(self):
         return (
-            InventoryStock.objects.filter(quantity_on_hand__lte=F("reorder_point"))
+            InventoryStock.objects.filter(quantity_on_hand__lte=F("item__reorder_point"))
             .select_related("item", "item__category", "location")
             .order_by("quantity_on_hand")
         )
@@ -325,7 +325,7 @@ class LowStockAlertView(LoginRequiredMixin, ExcelExportMixin, ListView):
                 ("item.name", "Item Name"),
                 ("location.name", "Location"),
                 ("quantity_on_hand", "Current Stock"),
-                ("reorder_point", "Reorder Point"),
+                ("item.reorder_point", "Reorder Point"),
                 ("quantity_on_hand", "Shortage"),
             ]
             return self.export_to_excel(self.get_queryset(), columns, "low_stock_alerts", "Low Stock")

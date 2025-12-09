@@ -531,7 +531,7 @@ class ReceiptCreateView(LoginRequiredMixin, CreateView):
         form = super().get_form()
         # Only show confirmed/partially received POs
         form.fields["purchase_order"].queryset = PurchaseOrder.objects.filter(
-            status__in=[PurchaseOrder.Status.APPROVED, PurchaseOrder.Status.PARTIAL_RECEIPT]
+            status__in=[PurchaseOrder.Status.APPROVED, PurchaseOrder.Status.PARTIALLY_RECEIVED]
         )
         return form
 
