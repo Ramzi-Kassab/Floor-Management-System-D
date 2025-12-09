@@ -66,9 +66,9 @@ class SupplierListView(LoginRequiredMixin, ListView):
 
         active = self.request.GET.get("active")
         if active == "1":
-            qs = qs.filter(is_active=True)
+            qs = qs.filter(status="ACTIVE")
         elif active == "0":
-            qs = qs.filter(is_active=False)
+            qs = qs.exclude(status="ACTIVE")
 
         return qs.order_by("name")
 
@@ -384,7 +384,7 @@ class POListView(LoginRequiredMixin, ListView):
         context["page_title"] = "Purchase Orders"
         context["status_choices"] = PurchaseOrder.Status.choices
         context["current_status"] = self.request.GET.get("status", "")
-        context["vendors"] = Vendor.objects.filter(is_active=True)
+        context["vendors"] = Vendor.objects.filter(status="ACTIVE")
         return context
 
 
