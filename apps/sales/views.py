@@ -1354,7 +1354,7 @@ class SiteVisitListView(LoginRequiredMixin, ListView):
         if status:
             queryset = queryset.filter(status=status)
 
-        return queryset.order_by("-arrival_time")
+        return queryset.order_by("-check_in_time")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
