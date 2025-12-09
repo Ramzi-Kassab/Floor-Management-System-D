@@ -193,12 +193,11 @@ class QualityControlForm(forms.ModelForm):
         model = QualityControl
         fields = [
             'inspection_number', 'inspection_type', 'result', 'work_order', 'receipt',
-            'drill_bit', 'inventory_item', 'equipment', 'inspection_date', 'inspector',
-            'inspection_location', 'specification_reference', 'acceptance_criteria',
-            'sampling_method', 'sample_size', 'test_equipment_used', 'measurement_results',
-            'defects_found', 'corrective_action', 'preventive_action', 'approved_by',
-            'approval_date', 'certificate_number', 'certificate_issued', 'remarks',
-            'attachments', 'non_conformance'
+            'site_visit', 'drill_bit', 'inspection_date', 'inspection_time', 'inspector',
+            'witness', 'inspection_checklist', 'compliance_requirement', 'findings',
+            'defects_found', 'measurements', 'passed_criteria', 'failed_criteria',
+            'disposition', 'disposition_notes', 'corrective_action_required', 'approved_by',
+            'approved_at', 'non_conformance', 'photos_attached', 'report_file', 'notes'
         ]
         widgets = {
             'inspection_number': forms.TextInput(attrs={
@@ -209,59 +208,59 @@ class QualityControlForm(forms.ModelForm):
             'result': forms.Select(attrs={'class': SELECT_CLASS}),
             'work_order': forms.Select(attrs={'class': SELECT_CLASS}),
             'receipt': forms.Select(attrs={'class': SELECT_CLASS}),
+            'site_visit': forms.Select(attrs={'class': SELECT_CLASS}),
             'drill_bit': forms.Select(attrs={'class': SELECT_CLASS}),
-            'inventory_item': forms.Select(attrs={'class': SELECT_CLASS}),
-            'equipment': forms.Select(attrs={'class': SELECT_CLASS}),
             'inspection_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
+            'inspection_time': forms.TimeInput(attrs={
+                'type': 'time',
+                'class': INPUT_CLASS
+            }),
             'inspector': forms.Select(attrs={'class': SELECT_CLASS}),
-            'inspection_location': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'specification_reference': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'acceptance_criteria': forms.Textarea(attrs={
+            'witness': forms.Select(attrs={'class': SELECT_CLASS}),
+            'inspection_checklist': forms.Select(attrs={'class': SELECT_CLASS}),
+            'compliance_requirement': forms.Select(attrs={'class': SELECT_CLASS}),
+            'findings': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 3
-            }),
-            'sampling_method': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 2
-            }),
-            'sample_size': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'test_equipment_used': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'measurement_results': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 4,
-                'placeholder': 'Enter JSON data or key measurement results'
             }),
             'defects_found': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 3
             }),
-            'corrective_action': forms.Textarea(attrs={
+            'measurements': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
-                'rows': 3
+                'rows': 4,
+                'placeholder': 'Enter JSON data or key measurement results'
             }),
-            'preventive_action': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 3
-            }),
-            'approved_by': forms.Select(attrs={'class': SELECT_CLASS}),
-            'approval_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': INPUT_CLASS
-            }),
-            'certificate_number': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'certificate_issued': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
-            'remarks': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 3
-            }),
-            'attachments': forms.Textarea(attrs={
+            'passed_criteria': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 2
             }),
+            'failed_criteria': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 2
+            }),
+            'disposition': forms.Select(attrs={'class': SELECT_CLASS}),
+            'disposition_notes': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 2
+            }),
+            'corrective_action_required': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'approved_by': forms.Select(attrs={'class': SELECT_CLASS}),
+            'approved_at': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
+                'class': INPUT_CLASS
+            }),
             'non_conformance': forms.Select(attrs={'class': SELECT_CLASS}),
+            'photos_attached': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'report_file': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'notes': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 3
+            }),
         }
 
     def __init__(self, *args, **kwargs):
@@ -295,14 +294,13 @@ class NonConformanceForm(forms.ModelForm):
     class Meta:
         model = NonConformance
         fields = [
-            'ncr_number', 'source', 'severity', 'status', 'issue_description',
-            'work_order', 'quality_control', 'supplier', 'inventory_item', 'drill_bit',
-            'detected_date', 'detected_by', 'detection_stage', 'root_cause',
-            'containment_action', 'containment_date', 'corrective_action',
-            'corrective_action_date', 'responsible_person', 'target_completion_date',
-            'actual_completion_date', 'verification_method', 'verified_by',
-            'verification_date', 'cost_impact', 'follow_up_required', 'follow_up_date',
-            'lessons_learned'
+            'ncr_number', 'source', 'severity', 'status', 'work_order',
+            'quality_control', 'vendor', 'description', 'defect_description',
+            'detected_date', 'reported_by', 'assigned_to', 'root_cause_analysis',
+            'contributing_factors', 'corrective_action', 'preventive_action',
+            'target_completion_date', 'actual_completion_date', 'verified_by',
+            'verification_date', 'verification_notes', 'capa', 'closed_by',
+            'closed_date', 'closure_notes'
         ]
         widgets = {
             'ncr_number': forms.TextInput(attrs={
@@ -312,43 +310,41 @@ class NonConformanceForm(forms.ModelForm):
             'source': forms.Select(attrs={'class': SELECT_CLASS}),
             'severity': forms.Select(attrs={'class': SELECT_CLASS}),
             'status': forms.Select(attrs={'class': SELECT_CLASS}),
-            'issue_description': forms.Textarea(attrs={
+            'work_order': forms.Select(attrs={'class': SELECT_CLASS}),
+            'quality_control': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vendor': forms.Select(attrs={'class': SELECT_CLASS}),
+            'description': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 4,
                 'placeholder': 'Describe the non-conformance in detail...'
             }),
-            'work_order': forms.Select(attrs={'class': SELECT_CLASS}),
-            'quality_control': forms.Select(attrs={'class': SELECT_CLASS}),
-            'supplier': forms.Select(attrs={'class': SELECT_CLASS}),
-            'inventory_item': forms.Select(attrs={'class': SELECT_CLASS}),
-            'drill_bit': forms.Select(attrs={'class': SELECT_CLASS}),
+            'defect_description': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 3,
+                'placeholder': 'Describe the defect...'
+            }),
             'detected_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
-            'detected_by': forms.Select(attrs={'class': SELECT_CLASS}),
-            'detection_stage': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'root_cause': forms.Textarea(attrs={
+            'reported_by': forms.Select(attrs={'class': SELECT_CLASS}),
+            'assigned_to': forms.Select(attrs={'class': SELECT_CLASS}),
+            'root_cause_analysis': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 3
             }),
-            'containment_action': forms.Textarea(attrs={
+            'contributing_factors': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 3
-            }),
-            'containment_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': INPUT_CLASS
             }),
             'corrective_action': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 3
             }),
-            'corrective_action_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': INPUT_CLASS
+            'preventive_action': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 3
             }),
-            'responsible_person': forms.Select(attrs={'class': SELECT_CLASS}),
             'target_completion_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
@@ -357,25 +353,22 @@ class NonConformanceForm(forms.ModelForm):
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
-            'verification_method': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 2
-            }),
             'verified_by': forms.Select(attrs={'class': SELECT_CLASS}),
             'verification_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
-            'cost_impact': forms.NumberInput(attrs={
-                'class': INPUT_CLASS,
-                'step': '0.01'
+            'verification_notes': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 2
             }),
-            'follow_up_required': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
-            'follow_up_date': forms.DateInput(attrs={
+            'capa': forms.Select(attrs={'class': SELECT_CLASS}),
+            'closed_by': forms.Select(attrs={'class': SELECT_CLASS}),
+            'closed_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
-            'lessons_learned': forms.Textarea(attrs={
+            'closure_notes': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 3
             }),
@@ -383,7 +376,7 @@ class NonConformanceForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        required_fields = ['source', 'severity', 'status', 'issue_description']
+        required_fields = ['source', 'severity', 'status', 'description', 'defect_description', 'detected_date', 'reported_by']
         for field_name, field in self.fields.items():
             if field_name not in required_fields:
                 field.required = False
@@ -403,7 +396,7 @@ class AuditTrailForm(forms.ModelForm):
         model = AuditTrail
         fields = [
             'action', 'description', 'model_name', 'object_id', 'object_repr',
-            'timestamp', 'user', 'ip_address', 'user_agent', 'changes'
+            'user', 'ip_address', 'user_agent', 'changes'
         ]
         widgets = {
             'action': forms.Select(attrs={'class': SELECT_CLASS}),
@@ -414,10 +407,6 @@ class AuditTrailForm(forms.ModelForm):
             'model_name': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'object_id': forms.NumberInput(attrs={'class': INPUT_CLASS}),
             'object_repr': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'timestamp': forms.DateTimeInput(attrs={
-                'type': 'datetime-local',
-                'class': INPUT_CLASS
-            }),
             'user': forms.Select(attrs={'class': SELECT_CLASS}),
             'ip_address': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'user_agent': forms.Textarea(attrs={
@@ -446,11 +435,11 @@ class DocumentControlForm(forms.ModelForm):
         model = DocumentControl
         fields = [
             'document_number', 'title', 'document_type', 'version', 'revision_date',
-            'status', 'author', 'reviewer', 'approver', 'review_date', 'approval_date',
-            'effective_date', 'expiry_date', 'supersedes', 'department',
-            'distribution_list', 'document_file', 'summary', 'keywords',
-            'related_documents', 'retention_period', 'archive_date', 'archived_by',
-            'change_description'
+            'effective_date', 'status', 'prepared_by', 'reviewed_by', 'reviewed_date',
+            'approved_by', 'approved_date', 'description', 'scope', 'file_path',
+            'file_size', 'file_checksum', 'supersedes', 'change_summary',
+            'controlled_copy', 'distribution_list', 'next_review_date',
+            'review_frequency_months', 'compliance_requirements'
         ]
         widgets = {
             'document_number': forms.TextInput(attrs={
@@ -467,63 +456,57 @@ class DocumentControlForm(forms.ModelForm):
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
-            'status': forms.Select(attrs={'class': SELECT_CLASS}),
-            'author': forms.Select(attrs={'class': SELECT_CLASS}),
-            'reviewer': forms.Select(attrs={'class': SELECT_CLASS}),
-            'approver': forms.Select(attrs={'class': SELECT_CLASS}),
-            'review_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': INPUT_CLASS
-            }),
-            'approval_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': INPUT_CLASS
-            }),
             'effective_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
-            'expiry_date': forms.DateInput(attrs={
+            'status': forms.Select(attrs={'class': SELECT_CLASS}),
+            'prepared_by': forms.Select(attrs={'class': SELECT_CLASS}),
+            'reviewed_by': forms.Select(attrs={'class': SELECT_CLASS}),
+            'reviewed_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
+            'approved_by': forms.Select(attrs={'class': SELECT_CLASS}),
+            'approved_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': INPUT_CLASS
+            }),
+            'description': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 3
+            }),
+            'scope': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 2
+            }),
+            'file_path': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'file_size': forms.NumberInput(attrs={'class': INPUT_CLASS}),
+            'file_checksum': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'supersedes': forms.Select(attrs={'class': SELECT_CLASS}),
-            'department': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'change_summary': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 3
+            }),
+            'controlled_copy': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
             'distribution_list': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 2
             }),
-            'document_file': forms.FileInput(attrs={'class': FILE_CLASS}),
-            'summary': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 3
-            }),
-            'keywords': forms.TextInput(attrs={
-                'class': INPUT_CLASS,
-                'placeholder': 'Comma-separated keywords'
-            }),
-            'related_documents': forms.SelectMultiple(attrs={
-                'class': SELECT_CLASS,
-                'size': 5
-            }),
-            'retention_period': forms.TextInput(attrs={
-                'class': INPUT_CLASS,
-                'placeholder': 'e.g., 7 years'
-            }),
-            'archive_date': forms.DateInput(attrs={
+            'next_review_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
-            'archived_by': forms.Select(attrs={'class': SELECT_CLASS}),
-            'change_description': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 3
+            'review_frequency_months': forms.NumberInput(attrs={'class': INPUT_CLASS}),
+            'compliance_requirements': forms.SelectMultiple(attrs={
+                'class': SELECT_CLASS,
+                'size': 5
             }),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        required_fields = ['document_number', 'title', 'document_type', 'version', 'revision_date', 'status']
+        required_fields = ['document_number', 'title', 'document_type', 'version', 'revision_date', 'status', 'prepared_by', 'file_path']
         for field_name, field in self.fields.items():
             if field_name not in required_fields:
                 field.required = False
@@ -543,12 +526,11 @@ class TrainingRecordForm(forms.ModelForm):
         model = TrainingRecord
         fields = [
             'employee', 'training_type', 'training_title', 'training_description',
-            'training_provider', 'training_date', 'status', 'training_duration_hours',
-            'instructor', 'location', 'training_materials', 'assessment_type',
-            'assessment_score', 'passing_score', 'certification_number',
-            'certificate_issued', 'certificate_expiry_date', 'competency_level',
-            'training_cost', 'retraining_required_date', 'retraining_frequency',
-            'notes', 'attachments'
+            'training_provider', 'instructor_name', 'scheduled_date', 'start_date',
+            'completion_date', 'duration_hours', 'status', 'passed', 'score',
+            'certificate_number', 'certificate_issued_date', 'certificate_expiry_date',
+            'required_for_position', 'compliance_requirement', 'training_materials',
+            'completion_certificate_file', 'notes', 'recorded_by'
         ]
         widgets = {
             'employee': forms.Select(attrs={'class': SELECT_CLASS}),
@@ -559,62 +541,52 @@ class TrainingRecordForm(forms.ModelForm):
                 'rows': 3
             }),
             'training_provider': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'training_date': forms.DateInput(attrs={
+            'instructor_name': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'scheduled_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
-            'status': forms.Select(attrs={'class': SELECT_CLASS}),
-            'training_duration_hours': forms.NumberInput(attrs={
-                'class': INPUT_CLASS,
-                'step': '0.5'
+            'start_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': INPUT_CLASS
             }),
-            'instructor': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'location': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'training_materials': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 2
+            'completion_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': INPUT_CLASS
             }),
-            'assessment_type': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'assessment_score': forms.NumberInput(attrs={
+            'duration_hours': forms.NumberInput(attrs={
                 'class': INPUT_CLASS,
                 'step': '0.01'
             }),
-            'passing_score': forms.NumberInput(attrs={
+            'status': forms.Select(attrs={'class': SELECT_CLASS}),
+            'passed': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'score': forms.NumberInput(attrs={
                 'class': INPUT_CLASS,
                 'step': '0.01'
             }),
             'certification_number': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'certificate_issued': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'certificate_issued_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': INPUT_CLASS
+            }),
             'certificate_expiry_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
-            'competency_level': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'training_cost': forms.NumberInput(attrs={
-                'class': INPUT_CLASS,
-                'step': '0.01'
-            }),
-            'retraining_required_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': INPUT_CLASS
-            }),
-            'retraining_frequency': forms.TextInput(attrs={
-                'class': INPUT_CLASS,
-                'placeholder': 'e.g., Annually, Every 2 years'
-            }),
+            'required_for_position': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'compliance_requirement': forms.Select(attrs={'class': SELECT_CLASS}),
+            'training_materials': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'completion_certificate_file': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'notes': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 3
             }),
-            'attachments': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 2
-            }),
+            'recorded_by': forms.Select(attrs={'class': SELECT_CLASS}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        required_fields = ['employee', 'training_type', 'training_title', 'training_description', 'training_provider', 'training_date', 'status']
+        required_fields = ['employee', 'training_type', 'training_title', 'training_provider', 'start_date', 'duration_hours', 'status']
         for field_name, field in self.fields.items():
             if field_name not in required_fields:
                 field.required = False
@@ -634,9 +606,9 @@ class CertificationForm(forms.ModelForm):
         model = Certification
         fields = [
             'employee', 'certification_name', 'certification_body', 'certification_number',
-            'issue_date', 'expiry_date', 'status', 'level', 'scope', 'verification_method',
-            'verified_by', 'verification_date', 'renewal_requirements',
-            'renewal_notification_days', 'cost', 'certificate_file', 'notes'
+            'issue_date', 'expiry_date', 'status', 'renewal_required', 'renewal_date',
+            'renewal_requirements', 'verification_url', 'certificate_file', 'verified',
+            'verified_by', 'verified_date', 'compliance_requirement', 'notes'
         ]
         widgets = {
             'employee': forms.Select(attrs={'class': SELECT_CLASS}),
@@ -652,14 +624,8 @@ class CertificationForm(forms.ModelForm):
                 'class': INPUT_CLASS
             }),
             'status': forms.Select(attrs={'class': SELECT_CLASS}),
-            'level': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'scope': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 2
-            }),
-            'verification_method': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'verified_by': forms.Select(attrs={'class': SELECT_CLASS}),
-            'verification_date': forms.DateInput(attrs={
+            'renewal_required': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'renewal_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
@@ -667,12 +633,15 @@ class CertificationForm(forms.ModelForm):
                 'class': TEXTAREA_CLASS,
                 'rows': 2
             }),
-            'renewal_notification_days': forms.NumberInput(attrs={'class': INPUT_CLASS}),
-            'cost': forms.NumberInput(attrs={
-                'class': INPUT_CLASS,
-                'step': '0.01'
+            'verification_url': forms.URLInput(attrs={'class': INPUT_CLASS}),
+            'certificate_file': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'verified': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'verified_by': forms.Select(attrs={'class': SELECT_CLASS}),
+            'verified_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': INPUT_CLASS
             }),
-            'certificate_file': forms.FileInput(attrs={'class': FILE_CLASS}),
+            'compliance_requirement': forms.Select(attrs={'class': SELECT_CLASS}),
             'notes': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 3
@@ -681,7 +650,7 @@ class CertificationForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        required_fields = ['employee', 'certification_name', 'certification_body', 'certification_number', 'issue_date', 'expiry_date', 'status']
+        required_fields = ['employee', 'certification_name', 'certification_body', 'issue_date', 'status']
         for field_name, field in self.fields.items():
             if field_name not in required_fields:
                 field.required = False
@@ -701,10 +670,10 @@ class ComplianceReportForm(forms.ModelForm):
         model = ComplianceReport
         fields = [
             'report_number', 'report_type', 'title', 'reporting_period_start',
-            'reporting_period_end', 'status', 'prepared_by', 'reviewed_by',
-            'approved_by', 'preparation_date', 'review_date', 'approval_date',
-            'executive_summary', 'findings', 'recommendations', 'action_items',
-            'report_file', 'distribution_list'
+            'reporting_period_end', 'prepared_by', 'approved_by', 'approved_date',
+            'status', 'compliance_requirements', 'compliance_score',
+            'non_conformances_count', 'requirements_assessed', 'requirements_compliant',
+            'executive_summary', 'findings', 'recommendations', 'report_file'
         ]
         widgets = {
             'report_number': forms.TextInput(attrs={
@@ -721,22 +690,24 @@ class ComplianceReportForm(forms.ModelForm):
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
-            'status': forms.Select(attrs={'class': SELECT_CLASS}),
             'prepared_by': forms.Select(attrs={'class': SELECT_CLASS}),
-            'reviewed_by': forms.Select(attrs={'class': SELECT_CLASS}),
             'approved_by': forms.Select(attrs={'class': SELECT_CLASS}),
-            'preparation_date': forms.DateInput(attrs={
+            'approved_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': INPUT_CLASS
             }),
-            'review_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': INPUT_CLASS
+            'status': forms.Select(attrs={'class': SELECT_CLASS}),
+            'compliance_requirements': forms.SelectMultiple(attrs={
+                'class': SELECT_CLASS,
+                'size': 5
             }),
-            'approval_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': INPUT_CLASS
+            'compliance_score': forms.NumberInput(attrs={
+                'class': INPUT_CLASS,
+                'step': '0.01'
             }),
+            'non_conformances_count': forms.NumberInput(attrs={'class': INPUT_CLASS}),
+            'requirements_assessed': forms.NumberInput(attrs={'class': INPUT_CLASS}),
+            'requirements_compliant': forms.NumberInput(attrs={'class': INPUT_CLASS}),
             'executive_summary': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 4
@@ -749,20 +720,12 @@ class ComplianceReportForm(forms.ModelForm):
                 'class': TEXTAREA_CLASS,
                 'rows': 4
             }),
-            'action_items': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 3
-            }),
-            'report_file': forms.FileInput(attrs={'class': FILE_CLASS}),
-            'distribution_list': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 2
-            }),
+            'report_file': forms.TextInput(attrs={'class': INPUT_CLASS}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        required_fields = ['report_type', 'title', 'reporting_period_start', 'reporting_period_end', 'status']
+        required_fields = ['report_type', 'title', 'reporting_period_start', 'reporting_period_end', 'prepared_by', 'status']
         for field_name, field in self.fields.items():
             if field_name not in required_fields:
                 field.required = False
@@ -782,9 +745,9 @@ class QualityMetricForm(forms.ModelForm):
         model = QualityMetric
         fields = [
             'metric_name', 'metric_type', 'measurement_period', 'measured_value',
-            'unit_of_measure', 'status', 'target_value', 'minimum_acceptable',
-            'maximum_acceptable', 'measurement_method', 'data_source', 'measured_by',
-            'variance_percentage', 'trend', 'notes'
+            'unit_of_measure', 'target_value', 'threshold_warning', 'threshold_critical',
+            'trend', 'previous_value', 'department', 'responsible_person', 'data_source',
+            'calculation_method', 'notes', 'recorded_by'
         ]
         widgets = {
             'metric_name': forms.TextInput(attrs={'class': INPUT_CLASS}),
@@ -795,42 +758,43 @@ class QualityMetricForm(forms.ModelForm):
             }),
             'measured_value': forms.NumberInput(attrs={
                 'class': INPUT_CLASS,
-                'step': '0.01'
+                'step': '0.0001'
             }),
             'unit_of_measure': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'status': forms.Select(attrs={'class': SELECT_CLASS}),
             'target_value': forms.NumberInput(attrs={
                 'class': INPUT_CLASS,
-                'step': '0.01'
+                'step': '0.0001'
             }),
-            'minimum_acceptable': forms.NumberInput(attrs={
+            'threshold_warning': forms.NumberInput(attrs={
                 'class': INPUT_CLASS,
-                'step': '0.01'
+                'step': '0.0001'
             }),
-            'maximum_acceptable': forms.NumberInput(attrs={
+            'threshold_critical': forms.NumberInput(attrs={
                 'class': INPUT_CLASS,
-                'step': '0.01'
+                'step': '0.0001'
             }),
-            'measurement_method': forms.Textarea(attrs={
+            'trend': forms.Select(attrs={'class': SELECT_CLASS}),
+            'previous_value': forms.NumberInput(attrs={
+                'class': INPUT_CLASS,
+                'step': '0.0001'
+            }),
+            'department': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'responsible_person': forms.Select(attrs={'class': SELECT_CLASS}),
+            'data_source': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'calculation_method': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 2
             }),
-            'data_source': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'measured_by': forms.Select(attrs={'class': SELECT_CLASS}),
-            'variance_percentage': forms.NumberInput(attrs={
-                'class': INPUT_CLASS,
-                'step': '0.01'
-            }),
-            'trend': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'notes': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 3
             }),
+            'recorded_by': forms.Select(attrs={'class': SELECT_CLASS}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        required_fields = ['metric_name', 'metric_type', 'measurement_period', 'measured_value', 'unit_of_measure', 'status']
+        required_fields = ['metric_name', 'metric_type', 'measurement_period', 'measured_value', 'unit_of_measure']
         for field_name, field in self.fields.items():
             if field_name not in required_fields:
                 field.required = False
@@ -850,7 +814,7 @@ class InspectionChecklistForm(forms.ModelForm):
         model = InspectionChecklist
         fields = [
             'checklist_code', 'checklist_name', 'inspection_type', 'applicable_to',
-            'checklist_items', 'is_active', 'version', 'effective_date', 'revision_date'
+            'checklist_items', 'compliance_requirement', 'is_active', 'version', 'created_by'
         ]
         widgets = {
             'checklist_code': forms.TextInput(attrs={'class': INPUT_CLASS}),
@@ -865,21 +829,15 @@ class InspectionChecklistForm(forms.ModelForm):
                 'rows': 6,
                 'placeholder': 'Enter JSON array of checklist items'
             }),
+            'compliance_requirement': forms.Select(attrs={'class': SELECT_CLASS}),
             'is_active': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
             'version': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'effective_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': INPUT_CLASS
-            }),
-            'revision_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': INPUT_CLASS
-            }),
+            'created_by': forms.Select(attrs={'class': SELECT_CLASS}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        required_fields = ['checklist_code', 'checklist_name', 'inspection_type', 'applicable_to', 'checklist_items', 'is_active']
+        required_fields = ['checklist_code', 'checklist_name', 'inspection_type', 'applicable_to', 'checklist_items', 'version']
         for field_name, field in self.fields.items():
             if field_name not in required_fields:
                 field.required = False

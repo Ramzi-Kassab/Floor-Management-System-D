@@ -56,45 +56,45 @@ urlpatterns = [
     path('work-orders/', include('apps.workorders.urls', namespace='workorders')),
 
     # Technology / Engineering
-    # path('technology/', include('apps.technology.urls', namespace='technology')),
+    path('technology/', include('apps.technology.urls', namespace='technology')),
 
     # Procedure Engine
-    # path('procedures/', include('apps.procedures.urls', namespace='procedures')),
-    # path('forms/', include('apps.forms_engine.urls', namespace='forms_engine')),
-    # path('execution/', include('apps.execution.urls', namespace='execution')),
+    path('procedures/', include('apps.procedures.urls', namespace='procedures')),
+    path('forms/', include('apps.forms_engine.urls', namespace='forms_engine')),
+    path('execution/', include('apps.execution.urls', namespace='execution')),
 
     # Quality
-    # path('quality/', include('apps.quality.urls', namespace='quality')),
+    path('quality/', include('apps.quality.urls', namespace='quality')),
 
     # Inventory
-    # path('inventory/', include('apps.inventory.urls', namespace='inventory')),
+    path('inventory/', include('apps.inventory.urls', namespace='inventory')),
 
     # Support Systems
-    # path('scan/', include('apps.scancodes.urls', namespace='scancodes')),
+    path('scan/', include('apps.scancodes.urls', namespace='scancodes')),
     path('notifications/', include('apps.notifications.urls', namespace='notifications')),
-    # path('maintenance/', include('apps.maintenance.urls', namespace='maintenance')),
-    # path('documents/', include('apps.documents.urls', namespace='documents')),
+    path('maintenance/', include('apps.maintenance.urls', namespace='maintenance')),
+    path('documents/', include('apps.documents.urls', namespace='documents')),
 
     # Planning Module (NEW in v5.4)
-    # path('planning/', include('apps.planning.urls', namespace='planning')),
+    path('planning/', include('apps.planning.urls', namespace='planning')),
 
     # Reports & Analytics (NEW in v5.4)
-    # path('reports/', include('apps.reports.urls', namespace='reports')),
+    path('reports/', include('apps.reports.urls', namespace='reports')),
 
     # Supply Chain (Complete)
-    # path('supply-chain/', include('apps.supplychain.urls', namespace='supplychain')),
+    path('supply-chain/', include('apps.supplychain.urls', namespace='supplychain')),
 
     # HR & Workforce Management
-    # path('hr/', include('apps.hr.urls', namespace='hr')),
+    path('hr/', include('apps.hr.urls', namespace='hr')),
 
     # Fleet & Dispatch
-    # path('dispatch/', include('apps.dispatch.urls', namespace='dispatch')),
+    path('dispatch/', include('apps.dispatch.urls', namespace='dispatch')),
 
     # Health, Safety, Security, Environment
-    # path('hsse/', include('apps.hsse.urls', namespace='hsse')),
+    path('hsse/', include('apps.hsse.urls', namespace='hsse')),
 
     # Compliance
-    # path('compliance/', include('apps.compliance.urls', namespace='compliance')),
+    path('compliance/', include('apps.compliance.urls', namespace='compliance')),
 ]
 
 # Serve media files in development
