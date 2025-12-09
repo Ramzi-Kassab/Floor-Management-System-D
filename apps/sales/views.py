@@ -760,7 +760,7 @@ class SalesOrderListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = SalesOrder.objects.select_related("customer", "sales_rep", "approved_by")
+        queryset = SalesOrder.objects.select_related("customer", "sales_rep")
 
         search = self.request.GET.get("q")
         if search:
@@ -790,7 +790,7 @@ class SalesOrderDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return SalesOrder.objects.select_related(
-            "customer", "sales_rep", "approved_by"
+            "customer", "sales_rep"
         ).prefetch_related("lines__drill_bit")
 
     def get_context_data(self, **kwargs):
@@ -1105,7 +1105,7 @@ class FieldServiceRequestListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = FieldServiceRequest.objects.select_related(
-            "customer", "service_site", "assigned_technician", "approved_by"
+            "customer", "service_site", "assigned_technician"
         )
 
         search = self.request.GET.get("q")
@@ -1140,7 +1140,7 @@ class FieldServiceRequestDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return FieldServiceRequest.objects.select_related(
-            "customer", "service_site", "assigned_technician", "approved_by", "work_order"
+            "customer", "service_site", "assigned_technician"
         )
 
     def get_context_data(self, **kwargs):
@@ -1488,7 +1488,7 @@ class ServiceReportDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return ServiceReport.objects.select_related(
-            "service_request", "site_visit", "prepared_by", "approved_by"
+            "service_request", "site_visit"
         )
 
     def get_context_data(self, **kwargs):
