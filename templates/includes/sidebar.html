@@ -64,6 +64,9 @@
                 <a href="{% url 'sales:fieldservicerequest_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Requests</a>
                 <a href="{% url 'sales:sitevisit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Site Visits</a>
                 <a href="{% url 'sales:salesorder_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Sales Orders</a>
+                <a href="{% url 'sales:servicereport_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Reports</a>
+                <a href="{% url 'sales:serviceschedule_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Schedules</a>
+                <a href="{% url 'sales:fieldtechnician_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Technicians</a>
             </div>
         </div>
 
@@ -82,6 +85,7 @@
                 <a href="{% url 'inventory:stock_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Levels</a>
                 <a href="{% url 'sales:warehouse_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Warehouses</a>
                 <a href="{% url 'supplychain:supplier_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Suppliers</a>
+                <a href="{% url 'supplychain:pr_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requisitions</a>
                 <a href="{% url 'supplychain:po_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Purchase Orders</a>
                 <a href="{% url 'supplychain:grn_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Goods Receipts</a>
             </div>
@@ -100,8 +104,12 @@
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'quality:inspection_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Inspections</a>
                 <a href="{% url 'quality:ncr_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">NCRs</a>
-                <a href="{% url 'compliance:compliancerequirement_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Compliance</a>
+                <a href="{% url 'compliance:compliancerequirement_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requirements</a>
                 <a href="{% url 'compliance:inspectionchecklist_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Checklists</a>
+                <a href="{% url 'compliance:audittrail_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Audits</a>
+                <a href="{% url 'compliance:certification_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Certifications</a>
+                <a href="{% url 'compliance:trainingrecord_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Training</a>
+                <a href="{% url 'compliance:qualitymetric_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Metrics</a>
                 <a href="{% url 'supplychain:capa_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">CAPA</a>
             </div>
         </div>
@@ -135,10 +143,15 @@
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
+                <a href="{% url 'hr:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">HR Dashboard</a>
                 <a href="{% url 'hr:employee-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Employees</a>
                 <a href="{% url 'hr:attendance-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Attendance</a>
+                <a href="{% url 'hr:timeentry-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Time Entries</a>
                 <a href="{% url 'hr:leave-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Leave Requests</a>
                 <a href="{% url 'hr:shift-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Shifts</a>
+                <a href="{% url 'hr:payroll-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Payroll</a>
+                <a href="{% url 'hr:review-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Reviews</a>
+                <a href="{% url 'hr:skill-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Skills</a>
                 <a href="{% url 'dispatch:dispatch-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Dispatch</a>
                 <a href="{% url 'dispatch:vehicle-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Vehicles</a>
             </div>
@@ -173,7 +186,10 @@
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'documents:document_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Documents</a>
-                <a href="{% url 'maintenance:mwo_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance</a>
+                <a href="{% url 'maintenance:equipment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Equipment</a>
+                <a href="{% url 'maintenance:request_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maint. Requests</a>
+                <a href="{% url 'maintenance:mwo_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Orders</a>
+                <a href="{% url 'maintenance:pm_schedule' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">PM Schedule</a>
                 <a href="{% url 'scancodes:scancode-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Scan Codes</a>
             </div>
         </div>
@@ -192,7 +208,12 @@
                 <a href="{% url 'planning:board_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Boards</a>
                 <a href="{% url 'planning:sprint_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Sprints</a>
                 <a href="{% url 'planning:wiki_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Wiki</a>
-                <a href="{% url 'reports:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Reports</a>
+                <a href="{% url 'reports:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Reports Dashboard</a>
+                <a href="{% url 'reports:workorder_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Order Report</a>
+                <a href="{% url 'reports:inventory_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Inventory Report</a>
+                <a href="{% url 'reports:quality_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Quality Report</a>
+                <a href="{% url 'reports:maintenance_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance Report</a>
+                <a href="{% url 'reports:supplychain_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Supply Chain Report</a>
             </div>
         </div>
 
