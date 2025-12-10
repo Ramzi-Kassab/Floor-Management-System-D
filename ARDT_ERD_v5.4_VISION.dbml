@@ -1,0 +1,2914 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// ARDT Floor Management System - Database ERD v5.4
+// VISION DOCUMENT with PHASE TAGS
+// Tech Stack: Django 5.x + PostgreSQL 16 + HTMX + Alpine.js + Tailwind CSS
+// UI Design: Fiori-Style (patterns) + Notion-Style (planning)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// PHASE LEGEND:
+// 🟢 P1 = Phase 1 (v1.0) - Core foundation
+// 🟡 P2 = Phase 2 (v1.1) - Extended operations  
+// 🟠 P3 = Phase 3 (v1.2) - Full operations
+// 🔴 P4 = Phase 4 (v2.0) - Advanced/Political
+// ⚪ FUTURE = Beyond v2.0
+//
+// PLACEHOLDERS marked with: [PLACEHOLDER_xxx] in notes
+// These are fields/tables ready for future phases - no rework needed
+//
+// v5.4 CHANGES (Planning & Versioning):
+// - NEW: sprints, planning_boards, planning_columns (Sprint/Kanban system)
+// - NEW: planning_items, planning_labels, planning_item_labels (Notion-style items)
+// - NEW: planning_item_watchers (notification subscriptions)
+// - NEW: wiki_spaces, wiki_pages, wiki_page_versions (Knowledge base)
+// - NEW: procedure_versions, form_template_versions (Audit trail for templates)
+// - UI Approach: Fiori-style for production + Notion-style for planning
+//
+// v5.3 CHANGES (Major Update):
+// - NEW: drss_requests, drss_request_lines tables (ARAMCO SMI Bit Request workflow)
+// - NEW: scan_codes table (universal QR/barcode registry - replaces qr_codes)
+// - NEW: scan_logs table (scan audit - replaces qr_scan_logs)
+// - NEW: tasks table (lightweight task/reminder pointers)
+// - NEW: audit_logs table (full audit trail with JSON diff)
+// - NEW: comments, comment_attachments tables (universal commenting)
+// - MODIFIED: sales_orders - added drss_request_id, drss_request_line_id
+// - MODIFIED: procedure_steps - added depends_on_step_id, expected_output
+// - MODIFIED: bit_evaluations - added design_id for traceability
+// - MODIFIED: inventory_transactions - added link_type, link_id for tracing
+// - Naming standardization: bom_items → bom_lines, form_responses → form_submissions
+//
+// v5.2 CHANGES:
+// - All timestamp → timestamptz (PostgreSQL best practice)
+// - Added: rigs, wells, warehouses tables (P1)
+// - Added: account_assignments table (P2)
+// - Refactored: attendance (simplified) + attendance_punches (new) (P4)
+// - Added FKs: work_orders, bit_evaluations, dispatches → rigs/wells/warehouses
+// - Consistent audit fields (created_at, updated_at) on all business tables
+//
+// ═══════════════════════════════════════════════════════════════════════════
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: CORE ENGINES
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROCEDURE ENGINE
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table procedures {
+  id bigint [pk, increment]
+  code varchar(30) [unique, not null, note: 'SA-PP-104, SA-QA-1']
+  name varchar(200) [not null]
+  revision varchar(10)
+  revision_date date
+  category varchar(50) [note: 'PRODUCTION, QUALITY, SAFETY, MAINTENANCE, SUPPLY_CHAIN']
+  applies_to varchar(20) [note: 'FC, RC, BOTH, ALL']
+  scope text
+  purpose text
+  safety_notes text
+  responsible_role_id bigint [ref: > roles.id]
+  reviewed_by_id bigint [ref: > users.id]
+  approved_by_id bigint [ref: > users.id]
+  effective_date date
+  status varchar(20) [default: 'DRAFT', note: 'DRAFT, ACTIVE, OBSOLETE']
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Procedure definitions - Procedure Engine executes these'
+}
+
+Table step_types {
+  id bigint [pk, increment]
+  code varchar(30) [unique, not null]
+  name varchar(100)
+  description text
+  icon varchar(50)
+  color varchar(20)
+  
+  Note: '🟢 P1: OPERATION, INSPECTION, APPROVAL, DECISION, DOCUMENT, PHOTO, TRANSFER, WAIT, NOTIFY'
+}
+
+Table procedure_steps {
+  id bigint [pk, increment]
+  procedure_id bigint [ref: > procedures.id, not null]
+  step_number int [not null, note: '10, 20, 30... allows inserting']
+  step_code varchar(30)
+  name varchar(200) [not null]
+  description text
+  step_type_id bigint [ref: > step_types.id]
+  responsible_role_id bigint [ref: > roles.id]
+  reference_procedure_code varchar(30) [note: 'Sub-procedure link']
+  
+  // Step behavior
+  is_mandatory boolean [default: true]
+  is_parallel boolean [default: false]
+  is_conditional boolean [default: false]
+  can_skip boolean [default: false, note: 'Allow skipping with reason']
+  can_go_back boolean [default: true, note: 'Allow returning to previous step']
+  
+  // Dependencies
+  depends_on_step_id bigint [ref: > procedure_steps.id, note: 'Must complete this step first (for conditional flows)']
+  dependency_condition jsonb [note: 'Condition to evaluate: {"field": "result", "operator": "equals", "value": "PASS"}']
+  
+  // Timing
+  estimated_duration_minutes int
+  time_limit_minutes int [note: 'Max time allowed for this step']
+  
+  // Requirements
+  requires_qr_scan boolean [default: false]
+  requires_photo boolean [default: false]
+  requires_signature boolean [default: false]
+  requires_form boolean [default: false, note: 'Has attached form that must be completed']
+  
+  // Expected output (for auto-validation/grading)
+  expected_output jsonb [note: 'Measurable outcomes: {"torque_min": 40, "torque_max": 50, "unit": "ft-lbs"}']
+  validation_rules jsonb [note: 'Auto-validation rules']
+  
+  sequence int
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+
+  indexes {
+    (procedure_id, step_number) [unique]
+    procedure_id
+    depends_on_step_id
+  }
+  
+  Note: '🟢 P1: Steps within a procedure. Supports dependencies for conditional execution.'
+}
+
+Table checkpoint_types {
+  id bigint [pk, increment]
+  code varchar(30) [unique]
+  name varchar(100)
+  input_type varchar(30) [note: 'OK_NOK, PASS_FAIL, YES_NO, MEASURE, SELECT, TEXT, NUMBER']
+  
+  Note: '🟢 P1: Reusable checkpoint types'
+}
+
+Table step_checkpoints {
+  id bigint [pk, increment]
+  step_id bigint [ref: > procedure_steps.id, not null]
+  sequence int
+  checkpoint_code varchar(30)
+  name varchar(200) [not null]
+  check_type_id bigint [ref: > checkpoint_types.id]
+  expected_value varchar(100)
+  tolerance_min decimal(10,4)
+  tolerance_max decimal(10,4)
+  unit varchar(20) [note: 'mm, inch, PSI']
+  options jsonb [note: 'For dropdown options']
+  is_critical boolean [default: false]
+  failure_action varchar(30) [note: 'STOP, NCR, NOTIFY, REWORK, CONTINUE']
+  failure_notify_role_id bigint [ref: > roles.id]
+  help_text text
+  photo_required boolean [default: false]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Checkpoints for INSPECTION steps'
+}
+
+Table step_branches {
+  id bigint [pk, increment]
+  step_id bigint [ref: > procedure_steps.id, not null]
+  sequence int
+  condition_description varchar(200) [note: 'Human readable']
+  condition_field varchar(100) [note: 'Field to evaluate']
+  condition_operator varchar(20) [note: '=, !=, >, <, IN, CONTAINS, IS_NULL']
+  condition_value varchar(200)
+  then_action varchar(30) [note: 'GOTO_STEP, SKIP_STEP, STOP, NCR, NOTIFY, COMPLETE']
+  then_target_step_id bigint [ref: > procedure_steps.id]
+  then_notify_role_id bigint [ref: > roles.id]
+  then_message text
+  is_default boolean [default: false, note: 'ELSE branch']
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Branching logic - CRITICAL for smart routing'
+}
+
+Table step_inputs {
+  id bigint [pk, increment]
+  step_id bigint [ref: > procedure_steps.id, not null]
+  input_type varchar(30) [note: 'MATERIAL, TOOL, EQUIPMENT, DOCUMENT, PPE, FORM']
+  name varchar(200)
+  code varchar(50)
+  inventory_item_id bigint [ref: > inventory_items.id]
+  equipment_id bigint [ref: > equipment.id]
+  quantity decimal(10,2)
+  is_required boolean [default: true]
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: What is needed for a step'
+}
+
+Table step_outputs {
+  id bigint [pk, increment]
+  step_id bigint [ref: > procedure_steps.id, not null]
+  output_type varchar(30) [note: 'FORM, PHOTO, PRODUCT, DOCUMENT, RECORD, NCR']
+  name varchar(200)
+  form_template_id bigint [ref: > form_templates.id]
+  is_required boolean [default: true]
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: What is produced by a step'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FORM ENGINE
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table form_templates {
+  id bigint [pk, increment]
+  form_code varchar(30) [unique, not null, note: 'QAS/001, QAS/053']
+  name varchar(200) [not null]
+  revision varchar(10)
+  category varchar(50) [note: 'JOB_CARD, INSPECTION, NCR, MAINTENANCE, RECEIVING, SAFETY']
+  description text
+  status varchar(20) [default: 'ACTIVE', note: 'DRAFT, ACTIVE, OBSOLETE']
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Form template definitions'
+}
+
+Table form_sections {
+  id bigint [pk, increment]
+  form_template_id bigint [ref: > form_templates.id, not null]
+  section_code varchar(30)
+  section_name varchar(200)
+  sequence int
+  is_repeatable boolean [default: false, note: 'For line items']
+  columns int [default: 1, note: 'Layout: 1, 2, 3, 4']
+  is_collapsible boolean [default: false]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Sections within a form'
+}
+
+Table field_types {
+  id bigint [pk, increment]
+  code varchar(30) [unique]
+  name varchar(100)
+  component varchar(50) [note: 'UI component name']
+  
+  Note: '🟢 P1: TEXT, TEXTAREA, NUMBER, DATE, DATETIME, DROPDOWN, OK_NOK, PASS_FAIL, YES_NO, SIGNATURE, PHOTO, FILE, USER_SELECT, QR_SCAN, CALCULATED, READONLY, MEASUREMENT'
+}
+
+Table form_fields {
+  id bigint [pk, increment]
+  section_id bigint [ref: > form_sections.id, not null]
+  field_code varchar(50)
+  field_label varchar(200)
+  field_type_id bigint [ref: > field_types.id]
+  sequence int
+  is_required boolean [default: false]
+  default_value varchar(200)
+  placeholder varchar(200)
+  options jsonb [note: 'For dropdowns']
+  validation_rule varchar(200)
+  min_value decimal(10,4)
+  max_value decimal(10,4)
+  tolerance decimal(10,4)
+  unit varchar(20)
+  help_text text
+  width varchar(20) [note: 'full, half, third, quarter']
+  is_readonly boolean [default: false]
+  depends_on_field_id bigint [ref: > form_fields.id]
+  depends_on_value varchar(200)
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Fields within a section'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EXECUTION TRACKING (RUNTIME)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table procedure_executions {
+  id bigint [pk, increment]
+  procedure_id bigint [ref: > procedures.id, not null]
+  work_order_id bigint [ref: > work_orders.id]
+  reference_type varchar(50) [note: 'WORK_ORDER, MAINTENANCE, INSPECTION']
+  reference_id bigint
+  bit_serial_number varchar(50)
+  started_at timestamptz
+  completed_at timestamptz
+  status varchar(30) [note: 'IN_PROGRESS, COMPLETED, ABORTED, ON_HOLD']
+  started_by_id bigint [ref: > users.id]
+  current_step_id bigint [ref: > procedure_steps.id]
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Runtime - each procedure execution'
+}
+
+Table step_executions {
+  id bigint [pk, increment]
+  execution_id bigint [ref: > procedure_executions.id, not null]
+  step_id bigint [ref: > procedure_steps.id, not null]
+  started_at timestamptz
+  completed_at timestamptz
+  status varchar(30) [note: 'PENDING, IN_PROGRESS, COMPLETED, SKIPPED, FAILED, ON_HOLD']
+  performed_by_id bigint [ref: > users.id]
+  qr_scan_start varchar(100)
+  qr_scan_end varchar(100)
+  signature_data text
+  duration_minutes int [note: 'DERIVED: Auto-calculated from started_at/completed_at']
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Runtime - each step execution'
+}
+
+Table checkpoint_results {
+  id bigint [pk, increment]
+  step_execution_id bigint [ref: > step_executions.id, not null]
+  checkpoint_id bigint [ref: > step_checkpoints.id, not null]
+  result varchar(30) [note: 'OK, NOT_OK, PASS, FAIL, NA']
+  measured_value varchar(100)
+  is_within_tolerance boolean
+  photo_path varchar(500)
+  remarks text
+  checked_by_id bigint [ref: > users.id]
+  checked_at timestamptz
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Runtime - checkpoint results'
+}
+
+Table branch_evaluations {
+  id bigint [pk, increment]
+  step_execution_id bigint [ref: > step_executions.id, not null]
+  branch_id bigint [ref: > step_branches.id, not null]
+  condition_met boolean
+  action_taken varchar(30)
+  target_step_id bigint [ref: > procedure_steps.id]
+  evaluated_at timestamptz
+  created_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Runtime - branch evaluation log'
+}
+
+Table form_submissions {
+  id bigint [pk, increment]
+  form_template_id bigint [ref: > form_templates.id, not null]
+  step_execution_id bigint [ref: > step_executions.id]
+  work_order_id bigint [ref: > work_orders.id]
+  reference_type varchar(50)
+  reference_id bigint
+  submission_number varchar(30) [unique]
+  submitted_by_id bigint [ref: > users.id]
+  submitted_at timestamptz
+  status varchar(20) [note: 'DRAFT, SUBMITTED, APPROVED, REJECTED']
+  approved_by_id bigint [ref: > users.id]
+  approved_at timestamptz
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Runtime - form submissions'
+}
+
+Table form_field_values {
+  id bigint [pk, increment]
+  submission_id bigint [ref: > form_submissions.id, not null]
+  field_id bigint [ref: > form_fields.id, not null]
+  field_code varchar(50)
+  value_text text
+  value_number decimal(15,4)
+  value_date date
+  value_datetime timestamptz
+  value_boolean boolean
+  value_json jsonb
+  value_file varchar(500)
+  repeat_index int [default: 0]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Runtime - field values'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UNIVERSAL SCAN CODE SYSTEM (QR, Barcodes, External Codes)
+// ─────────────────────────────────────────────────────────────────────────────
+// This system supports:
+// - Internal generated QR codes (our system)
+// - External QR codes from suppliers (USA, etc.)
+// - External barcodes on received items
+// - Legacy codes from old systems
+// One entity can have multiple codes (e.g., supplier barcode + our QR)
+
+Table scan_codes {
+  id bigint [pk, increment]
+  code_value varchar(255) [unique, not null, note: 'The actual scanned string - what the scanner reads']
+  
+  // Code classification
+  code_type varchar(30) [not null, note: 'QR, CODE128, CODE39, EAN13, EAN8, UPC_A, UPC_E, DATAMATRIX, PDF417']
+  code_source varchar(30) [not null, note: 'GENERATED (our system), EXTERNAL_SUPPLIER, EXTERNAL_CUSTOMER, LEGACY, IMPORTED']
+  
+  // Polymorphic link to any entity
+  entity_type varchar(50) [not null, note: 'BIT, INVENTORY_ITEM, EQUIPMENT, WORK_ORDER, EMPLOYEE, LOCATION, VEHICLE, DOCUMENT, PROCEDURE_STEP, WAREHOUSE, RIG']
+  entity_id bigint [not null]
+  
+  // Code properties
+  is_primary boolean [default: false, note: 'Primary/preferred code for this entity']
+  is_active boolean [default: true, note: 'Inactive codes still resolve but show warning']
+  
+  // Human-readable info
+  label varchar(100) [note: 'Display label: "Supplier Barcode", "Internal QR", "Serial Plate"']
+  description text [note: 'Additional context about this code']
+  
+  // For external codes - track origin
+  external_source varchar(100) [note: 'Supplier name, system name, etc.']
+  external_reference varchar(100) [note: 'Original reference/part number']
+  
+  // Metadata
+  data jsonb [note: 'Additional payload data if needed']
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  created_by_id bigint [ref: > users.id]
+  
+  indexes {
+    code_value [unique]
+    (entity_type, entity_id)
+    (code_source, code_type)
+    is_active
+  }
+  
+  Note: '🟢 P1: Universal barcode/QR registry - supports both internal and external codes. One entity can have multiple codes.'
+}
+
+Table scan_logs {
+  id bigint [pk, increment]
+  scan_code_id bigint [ref: > scan_codes.id, not null]
+  scanned_by_id bigint [ref: > users.id]
+  scanned_at timestamptz [default: `now()`]
+  
+  // What action was taken
+  action varchar(50) [note: 'VIEW, VERIFY, START_STEP, END_STEP, RECEIVE, ISSUE, CHECKIN, CHECKOUT, IDENTIFY, TRANSFER, PUNCH_IN, PUNCH_OUT']
+  
+  // Context - what was happening when scan occurred
+  context_type varchar(50) [note: 'EXECUTION_STEP, INVENTORY_TRANSACTION, ATTENDANCE, EQUIPMENT_CHECK, DELIVERY, GENERAL']
+  context_id bigint [note: 'ID of the context record (execution_id, transaction_id, etc.)']
+  
+  // Device/location info
+  device_info varchar(200) [note: 'Browser/app info']
+  device_type varchar(30) [note: 'MOBILE, TABLET, SCANNER, DESKTOP']
+  gps_lat decimal(10,8)
+  gps_lng decimal(11,8)
+  gps_accuracy decimal(8,2) [note: 'Accuracy in meters']
+  
+  // Result
+  result varchar(50) [note: 'SUCCESS, NOT_FOUND, INACTIVE, WRONG_TYPE, ERROR']
+  result_message text [note: 'Error message or additional info']
+  
+  // What happened after scan
+  resolved_to_url varchar(500) [note: 'URL user was redirected to']
+  
+  created_at timestamptz [default: `now()`]
+  
+  indexes {
+    scan_code_id
+    scanned_by_id
+    scanned_at
+    action
+    (context_type, context_id)
+  }
+  
+  Note: '🟢 P1: Scan audit log - tracks all scan events with full context'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTIFICATION ENGINE
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table notification_templates {
+  id bigint [pk, increment]
+  code varchar(50) [unique, not null]
+  name varchar(100)
+  category varchar(50) [note: 'APPROVAL, ALERT, REMINDER, INFO']
+  subject varchar(200)
+  body text
+  channels jsonb [note: '["in_app", "email", "whatsapp"]']
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Notification templates'
+}
+
+Table notifications {
+  id bigint [pk, increment]
+  template_id bigint [ref: > notification_templates.id]
+  user_id bigint [ref: > users.id, not null]
+  title varchar(200)
+  message text
+  reference_type varchar(100)
+  reference_id bigint
+  channels_sent jsonb
+  read_at timestamptz
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: User notifications'
+}
+
+Table notification_logs {
+  id bigint [pk, increment]
+  notification_id bigint [ref: > notifications.id, not null]
+  channel varchar(30) [note: 'IN_APP, EMAIL, WHATSAPP, PUSH']
+  sent_at timestamptz
+  delivered_at timestamptz
+  status varchar(30) [note: 'PENDING, SENT, DELIVERED, FAILED']
+  error_message text
+  external_id varchar(100) [note: 'WhatsApp msg ID, etc.']
+  created_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Notification delivery log'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TASK MANAGEMENT (Lightweight Pointers)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table tasks {
+  id bigint [pk, increment]
+  title varchar(200) [not null]
+  description text
+  
+  // Source - what created this task (polymorphic)
+  source_type varchar(50) [note: 'WORK_ORDER, EXECUTION, NCR, INSPECTION, DRSS_REQUEST, APPROVAL, MANUAL']
+  source_id bigint
+  
+  // Task classification
+  task_type varchar(30) [note: 'APPROVAL, REVIEW, ACTION, REMINDER, ESCALATION, FOLLOWUP']
+  priority varchar(20) [default: 'NORMAL', note: 'LOW, NORMAL, HIGH, URGENT']
+  
+  // Assignment
+  assigned_to_id bigint [ref: > users.id]
+  assigned_to_role_id bigint [ref: > roles.id, note: 'If assigned to role instead of user']
+  assigned_by_id bigint [ref: > users.id]
+  assigned_at timestamptz
+  
+  // Timing
+  due_date date
+  due_time time
+  reminder_at timestamptz [note: 'When to send reminder']
+  escalate_at timestamptz [note: 'When to escalate if not done']
+  escalate_to_id bigint [ref: > users.id]
+  
+  // Status
+  status varchar(30) [default: 'PENDING', note: 'PENDING, IN_PROGRESS, COMPLETED, CANCELLED, OVERDUE, ESCALATED']
+  started_at timestamptz
+  completed_at timestamptz
+  completed_by_id bigint [ref: > users.id]
+  
+  // Resolution
+  resolution_notes text
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  created_by_id bigint [ref: > users.id]
+  
+  indexes {
+    assigned_to_id
+    (source_type, source_id)
+    status
+    due_date
+    (assigned_to_id, status)
+  }
+  
+  Note: '🟢 P1: Lightweight task/reminder pointers. Tasks can be auto-generated from workflows or manually created.'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUDIT LOG (Full Audit Trail)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table audit_logs {
+  id bigint [pk, increment]
+  
+  // What changed
+  entity_type varchar(50) [not null, note: 'Table name: work_orders, ncrs, drss_requests, etc.']
+  entity_id bigint [not null]
+  entity_display varchar(200) [note: 'Human-readable identifier: WO-2024-0001, NCR-123']
+  
+  // What action
+  action varchar(30) [not null, note: 'CREATE, UPDATE, DELETE, STATUS_CHANGE, APPROVE, REJECT, ASSIGN, COMPLETE, CANCEL']
+  
+  // Who did it
+  user_id bigint [ref: > users.id]
+  user_display varchar(100) [note: 'Cached user name for display']
+  
+  // Change details
+  old_values jsonb [note: 'Previous field values (only changed fields)']
+  new_values jsonb [note: 'New field values (only changed fields)']
+  changed_fields text[] [note: 'Array of field names that changed']
+  
+  // Context
+  ip_address varchar(45) [note: 'IPv4 or IPv6']
+  user_agent varchar(500)
+  request_id varchar(100) [note: 'For request tracing']
+  session_id varchar(100)
+  
+  // Additional info
+  notes text [note: 'Optional notes about the change']
+  
+  created_at timestamptz [default: `now()`]
+  
+  indexes {
+    (entity_type, entity_id)
+    user_id
+    created_at
+    action
+    (entity_type, action)
+  }
+  
+  Note: '🟢 P1: Full audit trail with JSON diff - required for compliance and debugging'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UNIVERSAL COMMENTS SYSTEM
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table comments {
+  id bigint [pk, increment]
+  
+  // What is being commented on (polymorphic)
+  entity_type varchar(50) [not null, note: 'WORK_ORDER, NCR, DRSS_REQUEST, INSPECTION, EXECUTION, CAPA, DISPATCH']
+  entity_id bigint [not null]
+  
+  // Comment content
+  comment_text text [not null]
+  
+  // Comment type
+  comment_type varchar(30) [default: 'NOTE', note: 'NOTE, QUESTION, ANSWER, DECISION, ESCALATION, APPROVAL, REJECTION, INTERNAL']
+  is_internal boolean [default: false, note: 'Hidden from external users (customers)']
+  is_system boolean [default: false, note: 'Auto-generated system comment']
+  
+  // Author
+  created_by_id bigint [ref: > users.id, not null]
+  
+  // Reply chain (for threaded comments)
+  parent_comment_id bigint [ref: > comments.id]
+  
+  // Mentions
+  mentioned_user_ids jsonb [note: 'Array of user IDs mentioned: [123, 456]']
+  
+  // Status
+  is_edited boolean [default: false]
+  edited_at timestamptz
+  is_deleted boolean [default: false]
+  deleted_at timestamptz
+  deleted_by_id bigint [ref: > users.id]
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    (entity_type, entity_id)
+    created_by_id
+    parent_comment_id
+    created_at
+  }
+  
+  Note: '🟢 P1: Universal comments for any entity. Supports threading, mentions, and internal notes.'
+}
+
+Table comment_attachments {
+  id bigint [pk, increment]
+  comment_id bigint [ref: > comments.id, not null]
+  document_id bigint [ref: > documents.id, not null]
+  
+  created_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: File attachments on comments'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: ORGANIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table departments {
+  id bigint [pk, increment]
+  name varchar(100) [not null]
+  code varchar(20) [unique]
+  parent_id bigint [ref: > departments.id]
+  manager_id bigint [ref: > users.id]
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Department hierarchy'
+}
+
+Table positions {
+  id bigint [pk, increment]
+  department_id bigint [ref: > departments.id]
+  name varchar(100) [not null]
+  code varchar(30) [unique]
+  level int
+  reports_to_id bigint [ref: > positions.id]
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Job positions'
+}
+
+Table users {
+  id bigint [pk, increment]
+  employee_id varchar(20) [unique, not null]
+  username varchar(50) [unique, not null]
+  email varchar(100) [unique]
+  password_hash varchar(255)
+  name varchar(100) [not null]
+  position_id bigint [ref: > positions.id]
+  department_id bigint [ref: > departments.id]
+  phone varchar(20)
+  whatsapp_number varchar(20)
+  profile_photo varchar(500)
+  qr_code varchar(100) [unique, note: 'Badge QR']
+  hire_date date
+  is_active boolean [default: true]
+  is_staff boolean [default: false]
+  is_superuser boolean [default: false]
+  last_login timestamptz
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: User accounts'
+}
+
+Table roles {
+  id bigint [pk, increment]
+  name varchar(50) [unique, not null]
+  display_name varchar(100)
+  description text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Functional roles (Admin, Supervisor, Operator, QC, etc.)'
+}
+
+Table permissions {
+  id bigint [pk, increment]
+  codename varchar(100) [unique, not null]
+  name varchar(150)
+  module varchar(50)
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Granular permissions'
+}
+
+Table role_permissions {
+  id bigint [pk, increment]
+  role_id bigint [ref: > roles.id, not null]
+  permission_id bigint [ref: > permissions.id, not null]
+  
+  indexes {
+    (role_id, permission_id) [unique]
+  }
+  
+  Note: '🟢 P1: Role-permission mapping'
+}
+
+Table user_roles {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id, not null]
+  role_id bigint [ref: > roles.id, not null]
+  
+  indexes {
+    (user_id, role_id) [unique]
+  }
+  
+  Note: '🟢 P1: User-role mapping'
+}
+
+Table themes {
+  id bigint [pk, increment]
+  code varchar(30) [unique, not null, note: 'light, dark, high-contrast, ocean, forest']
+  name varchar(50) [not null]
+  description text
+  
+  // Core colors
+  primary_color varchar(7) [not null, note: 'Hex: #3B82F6']
+  secondary_color varchar(7) [not null, note: 'Hex: #10B981']
+  accent_color varchar(7) [note: 'Hex: #F59E0B']
+  
+  // Background colors
+  bg_primary varchar(7) [not null, note: 'Main page background']
+  bg_secondary varchar(7) [not null, note: 'Cards, modals']
+  bg_sidebar varchar(7) [not null, note: 'Sidebar background']
+  bg_header varchar(7) [not null, note: 'Top header background']
+  
+  // Text colors
+  text_primary varchar(7) [not null, note: 'Main text']
+  text_secondary varchar(7) [not null, note: 'Muted text']
+  text_inverse varchar(7) [not null, note: 'Text on dark backgrounds']
+  
+  // Interactive elements
+  link_color varchar(7) [not null]
+  link_hover_color varchar(7)
+  button_primary_bg varchar(7) [not null]
+  button_primary_text varchar(7) [not null]
+  button_secondary_bg varchar(7)
+  button_secondary_text varchar(7)
+  
+  // Status colors
+  success_color varchar(7) [default: '#10B981']
+  warning_color varchar(7) [default: '#F59E0B']
+  error_color varchar(7) [default: '#EF4444']
+  info_color varchar(7) [default: '#3B82F6']
+  
+  // Tab/Navigation colors
+  tab_active_bg varchar(7)
+  tab_active_text varchar(7)
+  tab_inactive_bg varchar(7)
+  tab_inactive_text varchar(7)
+  nav_active_bg varchar(7)
+  nav_hover_bg varchar(7)
+  
+  // Borders & Shadows
+  border_color varchar(7) [default: '#E5E7EB']
+  shadow_color varchar(20) [note: 'rgba format allowed']
+  
+  // Metadata
+  is_system boolean [default: false, note: 'System themes cannot be deleted']
+  is_dark_mode boolean [default: false]
+  is_high_contrast boolean [default: false]
+  is_active boolean [default: true]
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Predefined UI themes (light, dark, high-contrast, custom)'
+}
+
+Table user_preferences {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id, unique, not null]
+  
+  // Theme & Colors
+  theme_id bigint [ref: > themes.id, note: 'Selected predefined theme']
+  use_custom_colors boolean [default: false, note: 'Override theme with custom colors']
+  custom_primary_color varchar(7)
+  custom_bg_color varchar(7)
+  custom_sidebar_color varchar(7)
+  custom_text_color varchar(7)
+  custom_accent_color varchar(7)
+  
+  // Typography
+  font_family varchar(50) [default: 'Inter', note: 'Inter, Roboto, Open Sans, System']
+  font_size varchar(20) [default: 'medium', note: 'small, medium, large, x-large']
+  line_height varchar(20) [default: 'normal', note: 'compact, normal, relaxed']
+  
+  // Layout
+  sidebar_position varchar(10) [default: 'left', note: 'left, right']
+  sidebar_collapsed boolean [default: false]
+  sidebar_width varchar(20) [default: 'normal', note: 'narrow, normal, wide']
+  content_width varchar(20) [default: 'full', note: 'narrow, normal, wide, full']
+  density varchar(20) [default: 'comfortable', note: 'compact, comfortable, spacious']
+  
+  // Dashboard
+  dashboard_layout varchar(20) [default: 'default', note: 'default, compact, expanded']
+  default_landing_page varchar(100) [default: '/dashboard/', note: 'Where to redirect after login']
+  
+  // Tables & Lists
+  table_rows_per_page int [default: 25, note: '10, 25, 50, 100']
+  table_density varchar(20) [default: 'normal', note: 'compact, normal, spacious']
+  show_row_numbers boolean [default: false]
+  
+  // Accessibility
+  high_contrast_mode boolean [default: false]
+  reduced_motion boolean [default: false, note: 'Disable animations']
+  large_text_mode boolean [default: false]
+  screen_reader_mode boolean [default: false]
+  focus_highlight boolean [default: true, note: 'Visible focus indicators']
+  
+  // Notifications
+  notification_sound boolean [default: true]
+  notification_desktop boolean [default: false, note: 'Browser push notifications']
+  email_notifications boolean [default: true]
+  digest_frequency varchar(20) [default: 'daily', note: 'immediate, daily, weekly, none']
+  
+  // Date/Time
+  date_format varchar(20) [default: 'YYYY-MM-DD', note: 'YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY']
+  time_format varchar(10) [default: '24h', note: '12h, 24h']
+  timezone varchar(50) [default: 'Asia/Riyadh']
+  first_day_of_week int [default: 0, note: '0=Sunday, 1=Monday, 6=Saturday']
+  
+  // Language & Region
+  language varchar(10) [default: 'en', note: 'en, ar']
+  rtl_mode boolean [default: false, note: 'Right-to-left for Arabic']
+  number_format varchar(20) [default: 'en-US', note: 'Number formatting locale']
+  currency_display varchar(10) [default: 'SAR']
+  
+  // Work preferences
+  default_wo_view varchar(20) [default: 'list', note: 'list, kanban, calendar']
+  default_procedure_mode varchar(20) [default: 'guided', note: 'guided, advanced']
+  auto_save_forms boolean [default: true]
+  confirm_before_submit boolean [default: true]
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: User-specific UI preferences, theming, accessibility settings'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: CUSTOMERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table customers {
+  id bigint [pk, increment]
+  name varchar(100) [not null]
+  code varchar(20) [unique]
+  customer_type varchar(50) [note: 'OIL_GAS, OFFSHORE, LSTK, DRILLING_CONTRACTOR, ARAMCO']
+  address text
+  city varchar(100)
+  country varchar(100)
+  phone varchar(50)
+  email varchar(100)
+  is_active boolean [default: true]
+  
+  // PLACEHOLDER for future ERP integration
+  erp_customer_code varchar(30) [note: '[PLACEHOLDER_ERP] ERP customer code']
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Customer master'
+}
+
+Table customer_document_requirements {
+  id bigint [pk, increment]
+  customer_id bigint [ref: > customers.id, not null]
+  document_type varchar(50) [note: 'EXTERNAL_PAGE, INTERNAL_PAGE, CHECKLIST, ROUTER, DIE_CHECK']
+  form_template_id bigint [ref: > form_templates.id]
+  is_required boolean [default: true]
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Customer-specific document requirements (LSTK needs external page, etc.)'
+}
+
+Table customer_contacts {
+  id bigint [pk, increment]
+  customer_id bigint [ref: > customers.id, not null]
+  name varchar(100)
+  position varchar(100)
+  phone varchar(50)
+  email varchar(100)
+  is_primary boolean [default: false]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Customer contacts'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: RIGS, WELLS, WAREHOUSES (ARAMCO/Customer Sites)
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table rigs {
+  id bigint [pk, increment]
+  code varchar(50) [not null, unique, note: 'ST-120, ARDT-05']
+  name varchar(100)
+  customer_id bigint [ref: > customers.id, note: 'ARAMCO, LSTK contractor, etc.']
+  contractor varchar(100) [note: 'Drilling contractor operating the rig']
+  region varchar(100) [note: 'Area/field']
+  status varchar(20) [default: 'ACTIVE', note: 'ACTIVE, INACTIVE, MOBILIZING']
+  notes text
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Drilling rigs - critical for ARAMCO bit tracking'
+}
+
+Table wells {
+  id bigint [pk, increment]
+  code varchar(100) [not null, note: 'Well name/number']
+  rig_id bigint [ref: > rigs.id, note: 'Current/primary rig - rigs move between wells']
+  customer_id bigint [ref: > customers.id]
+  field_name varchar(100) [note: 'e.g. GHW, ASL']
+  area varchar(100) [note: 'Region/block']
+  
+  // GPS location for journey management
+  latitude decimal(9,6) [note: 'WGS84 decimal degrees, e.g. 26.325847']
+  longitude decimal(9,6) [note: 'WGS84 decimal degrees, e.g. 50.152394']
+  
+  spud_date date [note: 'When drilling started']
+  status varchar(20) [default: 'PLANNED', note: 'PLANNED, DRILLING, COMPLETED, SUSPENDED']
+  notes text
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    (code, customer_id) [unique]
+  }
+  
+  Note: '🟢 P1: Wells - ARAMCO bits tracked by well for dull grade'
+}
+
+Table warehouses {
+  id bigint [pk, increment]
+  code varchar(50) [not null, unique, note: 'ARAMCO-WH-ABQ, LSTK-WH-01']
+  name varchar(150) [not null]
+  warehouse_type varchar(20) [not null, note: 'ARAMCO, CUSTOMER']
+  customer_id bigint [ref: > customers.id, note: 'Owner of the warehouse']
+  
+  // Location
+  address text
+  city varchar(100)
+  latitude decimal(9,6) [note: 'WGS84 decimal degrees']
+  longitude decimal(9,6) [note: 'WGS84 decimal degrees']
+  
+  is_active boolean [default: true]
+  notes text
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: External warehouses only (ARAMCO, customer sites). Internal storage uses inventory_locations.'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟡 P2: ACCOUNT ASSIGNMENTS (Portfolio ownership)
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table account_assignments {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  
+  // At least one must be set (business rule)
+  rig_id bigint [ref: > rigs.id]
+  well_id bigint [ref: > wells.id]
+  warehouse_id bigint [ref: > warehouses.id]
+  
+  role varchar(30) [not null, note: 'ACCOUNT_OWNER, BACKUP, VIEW_ONLY']
+  is_primary boolean [default: false]
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: Account ownership - links users to their rig/well/warehouse portfolio. At least one of rig_id, well_id, warehouse_id must be set.'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: TECHNOLOGY / DESIGNS
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table designs {
+  id bigint [pk, increment]
+  design_number varchar(50) [unique, not null]
+  name varchar(100)
+  bit_type varchar(20) [not null, note: 'FC, RC']
+  size varchar(20)
+  connection_type varchar(50)
+  blade_count int
+  nozzle_count int
+  mat_level int [note: '1-5']
+  status varchar(20) [note: 'ACTIVE, DEVELOPMENT, OBSOLETE']
+  created_by_id bigint [ref: > users.id]
+  approved_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Bit design master'
+}
+
+Table boms {
+  id bigint [pk, increment]
+  design_id bigint [ref: > designs.id, not null]
+  bom_number varchar(30) [unique]
+  revision varchar(10)
+  status varchar(20) [note: 'DRAFT, ACTIVE, OBSOLETE']
+  effective_date date
+  created_by_id bigint [ref: > users.id]
+  approved_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Bill of Materials'
+}
+
+Table bom_lines {
+  id bigint [pk, increment]
+  bom_id bigint [ref: > boms.id, not null]
+  line_number int
+  item_id bigint [ref: > inventory_items.id, not null]
+  quantity decimal(10,4) [not null]
+  unit varchar(20)
+  is_critical boolean [default: false]
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: BOM line items'
+}
+
+Table design_cutter_layouts {
+  id bigint [pk, increment]
+  design_id bigint [ref: > designs.id, not null]
+  blade_number int
+  zone varchar(10) [note: 'C=Cone, N=Nose, S=Shoulder, G=Gage']
+  row varchar(5) [note: 'a, b, c']
+  position int
+  cutter_type varchar(50)
+  cutter_size varchar(20)
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Cutter layout per design'
+}
+
+Table bit_evaluations {
+  id bigint [pk, increment]
+  evaluation_number varchar(30) [unique]
+  work_order_id bigint [ref: > work_orders.id]
+  bit_serial_number varchar(50)
+  
+  // Design traceability - what type of bit is this?
+  design_id bigint [ref: > designs.id, note: 'Link to design for full BOM and cutter layout traceability']
+  
+  evaluation_type varchar(30) [note: 'PRE_REPAIR, POST_REPAIR, FINAL, DULL_GRADE']
+  form_submission_id bigint [ref: > form_submissions.id]
+  evaluator_id bigint [ref: > users.id]
+  evaluation_date timestamptz
+  
+  // ARAMCO context - where was the bit used?
+  rig_id bigint [ref: > rigs.id, note: 'Rig where bit was run - ARAMCO tracking']
+  well_id bigint [ref: > wells.id, note: 'Well where bit was run - ARAMCO tracking']
+  warehouse_id bigint [ref: > warehouses.id, note: 'ARAMCO warehouse for dull grade inspection']
+  
+  // Performance data
+  total_hours_run decimal(10,2) [note: 'Total drilling hours']
+  total_footage decimal(12,2) [note: 'Total footage drilled']
+  rate_of_penetration decimal(10,2) [note: 'Average ROP']
+  
+  iadc_grade varchar(30)
+  dull_grade varchar(50)
+  die_check_result varchar(20)
+  recommendation varchar(50) [note: 'REPAIR, RERUN, SCRAP']
+  accepted_defects text [note: 'Defects accepted by Tech team']
+  engineer_reviewed_by_id bigint [ref: > users.id]
+  engineer_notes text
+  estimated_cost decimal(12,2)
+  status varchar(30) [note: 'DRAFT, PENDING_APPROVAL, APPROVED, REJECTED']
+  approved_by_id bigint [ref: > users.id]
+  approved_at timestamptz
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    work_order_id
+    design_id
+    rig_id
+    well_id
+    evaluation_type
+  }
+  
+  Note: '🟢 P1: Bit evaluation for repairs - Technology team input. Includes design link and ARAMCO rig/well/warehouse for full traceability.'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: INVENTORY (Basic) + 🟡 P2: Extended
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table inventory_categories {
+  id bigint [pk, increment]
+  name varchar(100) [not null]
+  code varchar(20) [unique]
+  parent_id bigint [ref: > inventory_categories.id]
+  description text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Item categories'
+}
+
+Table inventory_locations {
+  id bigint [pk, increment]
+  name varchar(100) [not null]
+  code varchar(30) [unique]
+  location_type varchar(50) [note: 'WAREHOUSE, RACK, BIN, FLOOR']
+  parent_id bigint [ref: > inventory_locations.id]
+  qr_code varchar(100) [unique]
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: Internal storage locations - [PLACEHOLDER] basic location in P1'
+}
+
+Table inventory_items {
+  id bigint [pk, increment]
+  material_number varchar(50) [unique, not null]
+  description varchar(255) [not null]
+  category_id bigint [ref: > inventory_categories.id]
+  unit_of_measure varchar(20)
+  qr_code varchar(100) [unique]
+  is_serialized boolean [default: false]
+  is_lot_controlled boolean [default: false]
+  shelf_life_days int
+  is_active boolean [default: true]
+  
+  // PLACEHOLDER for P2
+  default_location_id bigint [ref: > inventory_locations.id, note: '[PLACEHOLDER_P2] Default location']
+  reorder_point decimal(10,2) [note: '[PLACEHOLDER_P2] Reorder alert']
+  reorder_quantity decimal(10,2) [note: '[PLACEHOLDER_P2]']
+  safety_stock decimal(10,2) [note: '[PLACEHOLDER_P2]']
+  lead_time_days int [note: '[PLACEHOLDER_P2]']
+  
+  // PLACEHOLDER for ERP
+  erp_material_number varchar(50) [note: '[PLACEHOLDER_ERP] ERP material code']
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Item master'
+}
+
+Table inventory_stock {
+  id bigint [pk, increment]
+  item_id bigint [ref: > inventory_items.id, not null]
+  location_id bigint [ref: > inventory_locations.id]
+  condition varchar(20) [default: 'NEW', note: 'NEW, SECOND_HAND']
+  lot_number varchar(50)
+  serial_number varchar(50)
+  quantity_on_hand decimal(10,2) [default: 0]
+  quantity_reserved decimal(10,2) [default: 0]
+  expiry_date date
+  received_date date
+  last_count_date date
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    (item_id, location_id, condition, lot_number) [unique]
+  }
+  
+  Note: '🟢 P1: Current stock levels'
+}
+
+Table inventory_transactions {
+  id bigint [pk, increment]
+  transaction_number varchar(30) [unique]
+  item_id bigint [ref: > inventory_items.id, not null]
+  location_id bigint [ref: > inventory_locations.id]
+  transaction_type varchar(20) [not null, note: 'RECEIVE, ISSUE, TRANSFER, ADJUST, SALVAGE, RETURN, SCRAP']
+  quantity decimal(10,2) [not null]
+  from_location_id bigint [ref: > inventory_locations.id]
+  to_location_id bigint [ref: > inventory_locations.id]
+  condition varchar(20) [note: 'NEW, GOOD, REFURBISHED, DAMAGED, SCRAPPED']
+  lot_number varchar(50)
+  serial_number varchar(50)
+  
+  // What triggered this transaction (enhanced linking)
+  link_type varchar(50) [not null, note: 'WO_ISSUE, WO_RETURN, GRN, PO_RECEIPT, DISPATCH, NCR_SCRAP, ADJUSTMENT, CYCLE_COUNT, TRANSFER, MAINTENANCE']
+  link_id bigint [note: 'ID of linked record']
+  link_number varchar(50) [note: 'Display number: WO-2024-0001, GRN-123']
+  
+  // DRSS traceability (for bits going to ARAMCO)
+  drss_request_line_id bigint [ref: > drss_request_lines.id, note: 'If fulfilling DRSS request']
+  
+  cost_per_unit decimal(12,4)
+  total_cost decimal(12,2)
+  performed_by_id bigint [ref: > users.id]
+  approved_by_id bigint [ref: > users.id, note: 'For adjustments requiring approval']
+  transaction_date timestamptz
+  notes text
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    item_id
+    (link_type, link_id)
+    transaction_type
+    transaction_date
+    location_id
+    drss_request_line_id
+  }
+  
+  Note: '🟢 P1: All inventory movements with full traceability'
+}
+
+Table inventory_reservations {
+  id bigint [pk, increment]
+  item_id bigint [ref: > inventory_items.id, not null]
+  location_id bigint [ref: > inventory_locations.id]
+  quantity decimal(10,2)
+  work_order_id bigint [ref: > work_orders.id]
+  reserved_by_id bigint [ref: > users.id]
+  reserved_at timestamptz
+  released_at timestamptz
+  status varchar(20) [note: 'ACTIVE, RELEASED, CANCELLED']
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟠 P3: Material reservations for WO'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: DRSS / SMI BIT REQUESTS (ARAMCO)
+// ═══════════════════════════════════════════════════════════════════════════
+// This is the entry point for ARAMCO business. ARAMCO sends SMI Bit Request
+// forms (DRSS) which we receive, evaluate, and fulfill through our system.
+// Flow: DRSS Request → Fulfillment Decision → Sales Order → Work Order
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table drss_requests {
+  id bigint [pk, increment]
+  request_number varchar(30) [unique, not null, note: 'ARAMCO SMI Request Number from PDF (e.g., 1004765013)']
+  request_year int [note: 'Year from DRSS form']
+  request_date date [not null, note: 'Date from DRSS form']
+  request_time time [note: 'Time from DRSS form']
+  required_date date [not null, note: 'When ARAMCO needs the bit']
+  required_time time
+  
+  // Requestor info (from ARAMCO form)
+  requestor_name varchar(100) [note: 'ARAMCO requestor name']
+  requestor_phone varchar(30)
+  
+  // Location mapping
+  customer_id bigint [ref: > customers.id, note: 'Usually ARAMCO']
+  rig_id bigint [ref: > rigs.id, note: 'Matched rig from our master data']
+  rig_code_original varchar(30) [note: 'Rig code as written on DRSS (e.g., ADC-21)']
+  rig_charge varchar(30) [note: 'ARAMCO rig charge code']
+  well_id bigint [ref: > wells.id, note: 'Matched well from our master data']
+  well_number_original varchar(50) [note: 'Well number as written on DRSS (e.g., MHWZ-216302)']
+  well_charge varchar(50) [note: 'ARAMCO well charge (e.g., 87-25644-4265)']
+  destination_warehouse_id bigint [ref: > warehouses.id, note: 'Where to deliver']
+  
+  // Vendor info (us)
+  vendor_code varchar(20) [note: 'ARAMCO vendor code for ARDT (e.g., 10012130)']
+  vendor_name varchar(100) [note: 'As written on DRSS']
+  
+  // Comments from ARAMCO
+  aramco_comments text [note: 'Comments from DRSS form']
+  
+  // Our workflow status
+  status varchar(30) [default: 'NEW', note: 'NEW, RECEIVED, REVIEWING, PARTIALLY_DECIDED, DECIDED, CLOSED, REJECTED']
+  
+  // Workflow tracking
+  received_by_id bigint [ref: > users.id, note: 'Logistics supervisor who received it']
+  received_at timestamptz
+  assigned_to_id bigint [ref: > users.id, note: 'Sales account lead assigned']
+  assigned_at timestamptz
+  reviewed_by_id bigint [ref: > users.id, note: 'Sales manager who reviewed']
+  reviewed_at timestamptz
+  decided_at timestamptz [note: 'When all lines were decided']
+  closed_at timestamptz
+  closed_by_id bigint [ref: > users.id]
+  
+  // Document attachment
+  source_document_id bigint [ref: > documents.id, note: 'Original PDF scan of DRSS form']
+  
+  // Internal notes
+  internal_notes text
+  rejection_reason text [note: 'If entire request rejected']
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  created_by_id bigint [ref: > users.id]
+  
+  indexes {
+    request_number
+    (request_year, request_number)
+    status
+    assigned_to_id
+    rig_id
+  }
+  
+  Note: '🟢 P1: ARAMCO SMI Bit Request - entry point for ARAMCO business. Each DRSS can have multiple line items (bits requested).'
+}
+
+Table drss_request_lines {
+  id bigint [pk, increment]
+  drss_request_id bigint [ref: > drss_requests.id, not null]
+  line_number int [not null, note: 'Item # from DRSS form (0010, 0020, etc.)']
+  
+  // Requested specifications (from DRSS form)
+  bit_size varchar(20) [note: 'e.g., 8-3/8", 12-1/4"']
+  bit_type varchar(30) [note: 'DBIT, PDC, ROLLER, TCI, etc.']
+  iadc_code varchar(10) [note: 'e.g., M425, S423']
+  manufacturer_requested varchar(100) [note: 'Requested/suggested manufacturer']
+  priority int [note: 'Priority level from DRSS (1, 2, 3...)']
+  
+  // Status info from DRSS (what ARAMCO sees)
+  drss_bit_status varchar(100) [note: 'Status text from DRSS: "NOT AVAILABLE IN DWMA", etc.']
+  drss_bit_serial varchar(50) [note: 'If specific serial was requested/mentioned']
+  
+  // Dates from DRSS
+  received_date date [note: 'Date bit was received (if returning)']
+  used_date date [note: 'Date bit was used (if returning)']
+  bit_return_date date [note: 'Expected return date']
+  
+  // PO info from DRSS (ARAMCO PO)
+  po_number varchar(30) [note: 'ARAMCO PO number']
+  po_item varchar(20) [note: 'PO line item (e.g., 00000)']
+  po_date date
+  
+  // ───────────────────────────────────────────────────────────────────────────
+  // OUR FULFILLMENT DECISION
+  // ───────────────────────────────────────────────────────────────────────────
+  
+  fulfillment_status varchar(30) [default: 'PENDING', note: 'PENDING, EVALUATING, DECIDED, FULFILLED, REJECTED']
+  
+  // Decision type - exactly one of these options:
+  fulfillment_type varchar(30) [note: 'STOCK (use existing), RETROFIT (modify existing), TRANSFER (from another consignment), BUILD (manufacture new), REJECT']
+  
+  fulfillment_notes text [note: 'Technical notes, reason for decision']
+  rejection_reason text [note: 'If line rejected: out of scope, no capacity, etc.']
+  
+  // Technical decisions (filled by Sales/Engineer)
+  nozzle_configuration varchar(100) [note: 'Calculated nozzle sizes']
+  special_requirements text [note: 'Any special requirements agreed with ARAMCO']
+  
+  decided_by_id bigint [ref: > users.id]
+  decided_at timestamptz
+  
+  // Links to our fulfillment records
+  source_bit_id bigint [ref: > inventory_items.id, note: 'For STOCK/RETROFIT/TRANSFER: which existing bit']
+  source_warehouse_id bigint [ref: > warehouses.id, note: 'For TRANSFER: from which warehouse/rig']
+  source_rig_id bigint [ref: > rigs.id, note: 'For TRANSFER: from which rig consignment']
+  
+  design_id bigint [ref: > designs.id, note: 'For BUILD: which design to manufacture']
+  
+  // Created output records
+  sales_order_id bigint [ref: > sales_orders.id, note: 'Created SO']
+  sales_order_line_id bigint [ref: > sales_order_lines.id, note: 'Created SO line']
+  work_order_id bigint [ref: > work_orders.id, note: 'Created WO (for BUILD/RETROFIT)']
+  
+  // Final fulfillment
+  fulfilled_bit_id bigint [ref: > inventory_items.id, note: 'Actual bit that was provided']
+  fulfilled_at timestamptz
+  fulfilled_by_id bigint [ref: > users.id]
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    (drss_request_id, line_number) [unique]
+    fulfillment_status
+    fulfillment_type
+  }
+  
+  Note: '🟢 P1: DRSS line items - each bit requested. For each line we make exactly one fulfillment decision.'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: SALES ORDERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table sales_orders {
+  id bigint [pk, increment]
+  so_number varchar(30) [unique, not null]
+  customer_id bigint [ref: > customers.id, not null]
+  order_date date
+  required_date date
+  status varchar(30) [note: 'DRAFT, CONFIRMED, IN_PRODUCTION, READY, SHIPPED, CLOSED']
+  priority varchar(20) [note: 'NORMAL, HIGH, URGENT']
+  
+  // Source - where did this SO come from?
+  source_type varchar(30) [default: 'DIRECT', note: 'DIRECT, DRSS, PORTAL, PHONE, EMAIL']
+  drss_request_id bigint [ref: > drss_requests.id, note: 'Source DRSS request if from ARAMCO']
+  
+  // Location context (inherited from DRSS or entered directly)
+  rig_id bigint [ref: > rigs.id, note: 'Destination rig']
+  well_id bigint [ref: > wells.id, note: 'Destination well']
+  destination_warehouse_id bigint [ref: > warehouses.id, note: 'Delivery warehouse']
+  
+  notes text
+  created_by_id bigint [ref: > users.id]
+  
+  // PLACEHOLDER for P2
+  total_amount decimal(12,2) [note: '[PLACEHOLDER_P2] Pricing']
+  customer_po_reference varchar(50) [note: '[PLACEHOLDER_P2]']
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    customer_id
+    status
+    drss_request_id
+    rig_id
+  }
+  
+  Note: '🟢 P1: Sales Order - can originate from DRSS request or direct entry'
+}
+
+Table sales_order_lines {
+  id bigint [pk, increment]
+  so_id bigint [ref: > sales_orders.id, not null]
+  line_number int
+  design_id bigint [ref: > designs.id]
+  description varchar(255)
+  quantity int [default: 1]
+  
+  // Link to DRSS line (if originated from DRSS)
+  drss_request_line_id bigint [ref: > drss_request_lines.id, note: 'Source DRSS line if from ARAMCO']
+  
+  // Fulfillment tracking
+  work_order_id bigint [ref: > work_orders.id]
+  fulfillment_status varchar(30) [default: 'PENDING', note: 'PENDING, IN_PRODUCTION, READY, SHIPPED']
+  
+  // PLACEHOLDER for P2
+  unit_price decimal(12,2) [note: '[PLACEHOLDER_P2]']
+  total_price decimal(12,2) [note: '[PLACEHOLDER_P2]']
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    so_id
+    drss_request_line_id
+  }
+  
+  Note: '🟢 P1: SO line items - can be linked to DRSS line'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: WORK ORDERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table work_orders {
+  id bigint [pk, increment]
+  wo_number varchar(30) [unique, not null]
+  wo_type varchar(20) [not null, note: 'NEW_FC, NEW_RC, REPAIR, RERUN, REWORK']
+  design_id bigint [ref: > designs.id]
+  bit_serial_number varchar(50)
+  customer_id bigint [ref: > customers.id]
+  sales_order_id bigint [ref: > sales_orders.id]
+  procedure_id bigint [ref: > procedures.id, note: 'Linked procedure for execution']
+  
+  // ARAMCO context - where is the bit going/coming from?
+  rig_id bigint [ref: > rigs.id, note: 'Source/destination rig - ARAMCO tracking']
+  well_id bigint [ref: > wells.id, note: 'Source/destination well - ARAMCO tracking']
+  source_warehouse_id bigint [ref: > warehouses.id, note: 'Where bit came from (for repairs)']
+  destination_warehouse_id bigint [ref: > warehouses.id, note: 'Where bit will be delivered']
+  
+  status varchar(30) [note: 'DRAFT, PENDING, IN_PROGRESS, QC_HOLD, COMPLETED, SHIPPED, CANCELLED']
+  priority varchar(20) [note: 'NORMAL, HIGH, URGENT']
+  assigned_supervisor_id bigint [ref: > users.id]
+  start_date date
+  due_date date
+  actual_start timestamptz
+  actual_end timestamptz
+  qr_code varchar(100) [unique]
+  created_by_id bigint [ref: > users.id]
+  
+  // PLACEHOLDER for ERP
+  erp_production_order varchar(50) [note: '[PLACEHOLDER_ERP] ERP Production Order reference']
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Work Order - heart of the system. Includes rig/well/warehouse for ARAMCO workflow.'
+}
+
+Table work_order_documents {
+  id bigint [pk, increment]
+  work_order_id bigint [ref: > work_orders.id, not null]
+  document_type varchar(50) [note: 'Customer packet document type']
+  form_submission_id bigint [ref: > form_submissions.id]
+  file_path varchar(500)
+  file_name varchar(200)
+  uploaded_by_id bigint [ref: > users.id]
+  uploaded_at timestamptz
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: WO document attachments'
+}
+
+Table work_order_photos {
+  id bigint [pk, increment]
+  work_order_id bigint [ref: > work_orders.id, not null]
+  photo_type varchar(50) [note: 'TOP_VIEW, BLADE_CONE, BLADE_SHOULDER, BLADE_GAGE, NOGO_TOP, NOGO_SIDE, BEFORE, AFTER']
+  blade_number int
+  file_path varchar(500)
+  thumbnail_path varchar(500)
+  uploaded_by_id bigint [ref: > users.id]
+  uploaded_at timestamptz
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Bit photos per SA-PP-1001'
+}
+
+Table work_order_materials {
+  id bigint [pk, increment]
+  work_order_id bigint [ref: > work_orders.id, not null]
+  item_id bigint [ref: > inventory_items.id, not null]
+  quantity_planned decimal(10,2)
+  quantity_issued decimal(10,2) [default: 0]
+  quantity_returned decimal(10,2) [default: 0]
+  inventory_transaction_id bigint [ref: > inventory_transactions.id]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Materials consumed by WO'
+}
+
+Table work_order_time_logs {
+  id bigint [pk, increment]
+  work_order_id bigint [ref: > work_orders.id, not null]
+  step_execution_id bigint [ref: > step_executions.id]
+  employee_id bigint [ref: > users.id, not null]
+  clock_in timestamptz
+  clock_out timestamptz
+  duration_minutes int [note: 'DERIVED: Auto-calculated from clock_in/clock_out']
+  qr_scan_in varchar(100)
+  qr_scan_out varchar(100)
+  is_overtime boolean [default: false]
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Time tracking per WO'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: QUALITY
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table inspections {
+  id bigint [pk, increment]
+  inspection_number varchar(30) [unique]
+  inspection_type varchar(30) [not null, note: 'RECEIVING, IN_PROCESS, FINAL_FC, FINAL_RC, DISPATCH']
+  work_order_id bigint [ref: > work_orders.id]
+  grn_id bigint [ref: > goods_receipts.id]
+  form_template_id bigint [ref: > form_templates.id]
+  form_submission_id bigint [ref: > form_submissions.id]
+  inspector_id bigint [ref: > users.id]
+  inspection_date timestamptz
+  overall_result varchar(20) [note: 'PASS, FAIL, PARTIAL']
+  released_by_id bigint [ref: > users.id]
+  released_at timestamptz
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: All inspection types'
+}
+
+Table ncrs {
+  id bigint [pk, increment]
+  ncr_number varchar(30) [unique, not null]
+  work_order_id bigint [ref: > work_orders.id]
+  grn_id bigint [ref: > goods_receipts.id]
+  inspection_id bigint [ref: > inspections.id]
+  form_submission_id bigint [ref: > form_submissions.id, note: 'QAS/053']
+  
+  // Issue 1
+  issue1_description text
+  issue1_location varchar(100)
+  issue1_type varchar(30) [note: 'PRODUCT, PROCESS, DOCUMENT']
+  issue1_immediate_action text
+  issue1_root_cause text
+  issue1_disposition varchar(30) [note: 'REWORK, USE_AS_IS, SCRAP, NA']
+  issue1_capa_required boolean [default: false]
+  issue1_rework_verified_by_id bigint [ref: > users.id]
+  
+  // Issue 2
+  issue2_description text
+  issue2_location varchar(100)
+  issue2_type varchar(30)
+  issue2_immediate_action text
+  issue2_root_cause text
+  issue2_disposition varchar(30)
+  issue2_capa_required boolean [default: false]
+  issue2_rework_verified_by_id bigint [ref: > users.id]
+  
+  severity varchar(20) [note: 'MINOR, MODERATE, MAJOR, CRITICAL']
+  requires_technical boolean [default: false]
+  technical_approved_by_id bigint [ref: > users.id]
+  technical_approved_at timestamptz
+  
+  // HDBS integration placeholder
+  is_imported_product boolean [default: false]
+  sent_to_hdbs boolean [default: false, note: '[PLACEHOLDER_HDBS]']
+  hdbs_cpi_number varchar(50) [note: '[PLACEHOLDER_HDBS]']
+  
+  status varchar(30) [note: 'OPEN, IN_PROGRESS, CLOSED']
+  issued_by_id bigint [ref: > users.id]
+  issued_at timestamptz
+  closed_by_id bigint [ref: > users.id]
+  closed_at timestamptz
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Non-Conformance Records'
+}
+
+Table ncr_photos {
+  id bigint [pk, increment]
+  ncr_id bigint [ref: > ncrs.id, not null]
+  photo_path varchar(500)
+  description varchar(200)
+  uploaded_by_id bigint [ref: > users.id]
+  uploaded_at timestamptz
+  created_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: NCR evidence photos'
+}
+
+Table capas {
+  id bigint [pk, increment]
+  capa_number varchar(30) [unique]
+  ncr_id bigint [ref: > ncrs.id]
+  capa_type varchar(20) [note: 'CORRECTIVE, PREVENTIVE']
+  description text
+  root_cause text
+  action_plan text
+  responsible_id bigint [ref: > users.id]
+  target_date date
+  actual_date date
+  effectiveness_review text
+  effectiveness_reviewed_by_id bigint [ref: > users.id]
+  effectiveness_reviewed_at timestamptz
+  status varchar(30) [note: 'OPEN, IN_PROGRESS, COMPLETED, VERIFIED']
+  created_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: Corrective/Preventive Actions'
+}
+
+Table calibration_instruments {
+  id bigint [pk, increment]
+  instrument_id varchar(30) [unique, not null]
+  name varchar(100) [not null]
+  instrument_type varchar(50)
+  manufacturer varchar(100)
+  model varchar(100)
+  serial_number varchar(50)
+  location varchar(100)
+  calibration_interval_months int
+  last_calibration_date date
+  next_calibration_date date
+  status varchar(30) [note: 'VALID, DUE, OVERDUE, OUT_OF_SERVICE']
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: Calibration instrument register'
+}
+
+Table calibration_records {
+  id bigint [pk, increment]
+  instrument_id bigint [ref: > calibration_instruments.id, not null]
+  calibration_date date [not null]
+  calibrated_by varchar(100)
+  calibration_type varchar(30) [note: 'INTERNAL, EXTERNAL']
+  certificate_number varchar(50)
+  result varchar(30) [note: 'PASS, FAIL, ADJUSTED']
+  next_due_date date
+  notes text
+  certificate_file varchar(500)
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: Calibration records'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: EQUIPMENT & MAINTENANCE (Basic)
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table equipment_categories {
+  id bigint [pk, increment]
+  name varchar(100) [not null]
+  code varchar(20) [unique]
+  parent_id bigint [ref: > equipment_categories.id]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Equipment categories'
+}
+
+Table equipment {
+  id bigint [pk, increment]
+  equipment_code varchar(30) [unique, not null]
+  name varchar(100) [not null]
+  category_id bigint [ref: > equipment_categories.id]
+  manufacturer varchar(100)
+  model varchar(100)
+  serial_number varchar(50)
+  location varchar(100)
+  installation_date date
+  warranty_expiry date
+  qr_code varchar(100) [unique]
+  status varchar(20) [note: 'OPERATIONAL, DOWN, MAINTENANCE, RETIRED']
+  criticality varchar(20) [note: 'LOW, MEDIUM, HIGH, CRITICAL']
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Equipment register'
+}
+
+Table maintenance_requests {
+  id bigint [pk, increment]
+  request_number varchar(30) [unique, not null]
+  equipment_id bigint [ref: > equipment.id, not null]
+  form_submission_id bigint [ref: > form_submissions.id, note: 'QAS/052']
+  reported_by_id bigint [ref: > users.id]
+  reported_at timestamptz
+  last_task_performed varchar(200)
+  last_task_job_order varchar(30) [note: 'WO reference']
+  last_task_performed_by_id bigint [ref: > users.id]
+  problem_description text
+  photo_path varchar(500)
+  severity varchar(20) [note: 'CRITICAL, HIGH, MEDIUM, LOW']
+  status varchar(30) [note: 'REPORTED, ASSIGNED, IN_PROGRESS, COMPLETED, CANCELLED']
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Maintenance problem reports'
+}
+
+Table maintenance_work_orders {
+  id bigint [pk, increment]
+  mwo_number varchar(30) [unique, not null]
+  request_id bigint [ref: > maintenance_requests.id]
+  schedule_id bigint [ref: > maintenance_schedules.id]
+  equipment_id bigint [ref: > equipment.id, not null]
+  mwo_type varchar(30) [note: 'CORRECTIVE, PREVENTIVE, EMERGENCY']
+  assigned_to_id bigint [ref: > users.id]
+  priority varchar(20) [note: 'LOW, NORMAL, HIGH, URGENT']
+  
+  // QR time tracking
+  started_at timestamptz
+  qr_scan_start varchar(100)
+  completed_at timestamptz
+  qr_scan_end varchar(100)
+  time_spent_minutes int [note: 'DERIVED: Auto-calculated from started_at/completed_at']
+  
+  // Resolution
+  action_taken text
+  root_cause text
+  parts_replaced text
+  
+  // Downtime
+  equipment_downtime_minutes int
+  backup_equipment_used boolean [default: false]
+  production_lost_minutes int
+  
+  supervisor_remarks text
+  supervisor_id bigint [ref: > users.id]
+  
+  status varchar(30) [note: 'OPEN, IN_PROGRESS, COMPLETED, VERIFIED']
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Maintenance work orders'
+}
+
+Table maintenance_parts_used {
+  id bigint [pk, increment]
+  mwo_id bigint [ref: > maintenance_work_orders.id, not null]
+  item_id bigint [ref: > inventory_items.id, not null]
+  quantity decimal(10,2)
+  inventory_transaction_id bigint [ref: > inventory_transactions.id]
+  is_salvaged boolean [default: false, note: 'Returned as second-hand']
+  salvage_transaction_id bigint [ref: > inventory_transactions.id]
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Parts used in maintenance'
+}
+
+Table maintenance_schedules {
+  id bigint [pk, increment]
+  equipment_id bigint [ref: > equipment.id, not null]
+  schedule_type varchar(30) [note: 'DAILY, WEEKLY, MONTHLY, QUARTERLY, ANNUAL']
+  description text
+  procedure_id bigint [ref: > procedures.id]
+  last_performed date
+  next_due date
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: Preventive maintenance schedules'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: DOCUMENT LIBRARY (Consolidated)
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table document_categories {
+  id bigint [pk, increment]
+  name varchar(100) [not null]
+  code varchar(30) [unique]
+  parent_id bigint [ref: > document_categories.id]
+  description text
+  sequence int
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Document categories'
+}
+
+Table documents {
+  id bigint [pk, increment]
+  document_number varchar(30) [unique]
+  title varchar(200) [not null]
+  document_type varchar(50) [not null, note: 'PROCEDURE, WORK_INSTRUCTION, GUIDELINE, POLICY, TRAINING, LESSON_LEARNED, MANUAL']
+  category_id bigint [ref: > document_categories.id]
+  description text
+  current_version varchar(10)
+  file_path varchar(500)
+  file_type varchar(20)
+  qr_code varchar(100) [unique]
+  view_count int [default: 0]
+  status varchar(30) [note: 'DRAFT, REVIEW, APPROVED, OBSOLETE']
+  created_by_id bigint [ref: > users.id]
+  reviewed_by_id bigint [ref: > users.id]
+  approved_by_id bigint [ref: > users.id]
+  approved_at timestamptz
+  effective_date date
+  review_date date
+  keywords text
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Unified document library (procedures, WIs, guides, training, lessons learned)'
+}
+
+Table document_versions {
+  id bigint [pk, increment]
+  document_id bigint [ref: > documents.id, not null]
+  version varchar(10)
+  file_path varchar(500)
+  change_summary text
+  created_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: Document version history'
+}
+
+Table document_acknowledgments {
+  id bigint [pk, increment]
+  document_id bigint [ref: > documents.id, not null]
+  employee_id bigint [ref: > users.id, not null]
+  acknowledged_at timestamptz
+  signature text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    (document_id, employee_id) [unique]
+  }
+  
+  Note: '🟡 P2: Read & understood tracking'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟡 P2: SUPPLY CHAIN
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table suppliers {
+  id bigint [pk, increment]
+  name varchar(100) [not null]
+  code varchar(20) [unique]
+  supplier_type varchar(50)
+  address text
+  city varchar(100)
+  country varchar(100)
+  phone varchar(50)
+  email varchar(100)
+  is_approved boolean [default: false]
+  approval_scope text
+  approval_date date
+  approval_expiry date
+  is_active boolean [default: true]
+  
+  // PLACEHOLDER for ERP
+  erp_supplier_code varchar(30) [note: '[PLACEHOLDER_ERP]']
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: Supplier master'
+}
+
+Table purchase_requisitions {
+  id bigint [pk, increment]
+  pr_number varchar(30) [unique, not null]
+  requested_by_id bigint [ref: > users.id]
+  department_id bigint [ref: > departments.id]
+  request_date date
+  required_date date
+  priority varchar(20) [note: 'LOW, NORMAL, HIGH, URGENT']
+  justification text
+  total_estimated_cost decimal(12,2)
+  status varchar(30) [note: 'DRAFT, PENDING_SC, PENDING_FIN, PENDING_DEPT, PENDING_GM, APPROVED, REJECTED']
+  
+  // Approval workflow
+  sc_approved_by_id bigint [ref: > users.id]
+  sc_approved_at timestamptz
+  finance_approved_by_id bigint [ref: > users.id]
+  finance_approved_at timestamptz
+  dept_approved_by_id bigint [ref: > users.id]
+  dept_approved_at timestamptz
+  gm_required boolean [default: false]
+  gm_approved_by_id bigint [ref: > users.id]
+  gm_approved_at timestamptz
+  
+  rejection_reason text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: Purchase Requisitions'
+}
+
+Table pr_lines {
+  id bigint [pk, increment]
+  pr_id bigint [ref: > purchase_requisitions.id, not null]
+  line_number int
+  item_id bigint [ref: > inventory_items.id]
+  description varchar(255)
+  quantity decimal(10,2) [not null]
+  unit varchar(20)
+  estimated_unit_cost decimal(12,4)
+  estimated_total decimal(12,2)
+  work_order_id bigint [ref: > work_orders.id]
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: PR line items'
+}
+
+Table purchase_orders {
+  id bigint [pk, increment]
+  po_number varchar(30) [unique, not null]
+  pr_id bigint [ref: > purchase_requisitions.id]
+  supplier_id bigint [ref: > suppliers.id, not null]
+  issued_by_id bigint [ref: > users.id]
+  issue_date date
+  expected_delivery_date date
+  currency varchar(10) [default: 'SAR']
+  subtotal decimal(12,2)
+  tax_amount decimal(12,2)
+  total_amount decimal(12,2)
+  payment_terms varchar(100)
+  delivery_address text
+  status varchar(30) [note: 'DRAFT, APPROVED, SENT, PARTIAL, RECEIVED, CLOSED, CANCELLED']
+  approved_by_id bigint [ref: > users.id]
+  approved_at timestamptz
+  sent_at timestamptz
+  notes text
+  
+  // PLACEHOLDER for ERP
+  erp_po_number varchar(30) [note: '[PLACEHOLDER_ERP]']
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: Purchase Orders'
+}
+
+Table po_lines {
+  id bigint [pk, increment]
+  po_id bigint [ref: > purchase_orders.id, not null]
+  line_number int
+  item_id bigint [ref: > inventory_items.id]
+  description varchar(255)
+  quantity decimal(10,2) [not null]
+  unit varchar(20)
+  unit_price decimal(12,4)
+  total_price decimal(12,2)
+  quantity_received decimal(10,2) [default: 0]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: PO line items'
+}
+
+Table goods_receipts {
+  id bigint [pk, increment]
+  grn_number varchar(30) [unique, not null]
+  po_id bigint [ref: > purchase_orders.id]
+  supplier_id bigint [ref: > suppliers.id]
+  received_by_id bigint [ref: > users.id]
+  received_at timestamptz
+  delivery_note_number varchar(50)
+  status varchar(20) [note: 'PENDING_QC, PASSED, FAILED, PARTIAL']
+  qc_status varchar(20) [note: 'PENDING, PASSED, FAILED']
+  inspection_id bigint [ref: > inspections.id]
+  has_q_note boolean [default: false]
+  q_note_approved_by_id bigint [ref: > users.id]
+  notes text
+  
+  // PLACEHOLDER for ERP
+  erp_grn_number varchar(30) [note: '[PLACEHOLDER_ERP]']
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: Goods Receipt Notes'
+}
+
+Table grn_lines {
+  id bigint [pk, increment]
+  grn_id bigint [ref: > goods_receipts.id, not null]
+  po_line_id bigint [ref: > po_lines.id]
+  item_id bigint [ref: > inventory_items.id]
+  quantity_received decimal(10,2)
+  quantity_accepted decimal(10,2)
+  quantity_rejected decimal(10,2)
+  location_id bigint [ref: > inventory_locations.id]
+  lot_number varchar(50)
+  notes text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟡 P2: GRN line items'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟠 P3: DISPATCH
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table vehicles {
+  id bigint [pk, increment]
+  plate_number varchar(20) [unique, not null]
+  vehicle_type varchar(50)
+  make varchar(50)
+  model varchar(50)
+  year int
+  capacity varchar(50)
+  qr_code varchar(100) [unique]
+  default_driver_id bigint [ref: > users.id]
+  status varchar(20) [note: 'AVAILABLE, IN_USE, MAINTENANCE']
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟠 P3: Vehicle fleet'
+}
+
+Table dispatches {
+  id bigint [pk, increment]
+  dispatch_number varchar(30) [unique, not null]
+  sales_order_id bigint [ref: > sales_orders.id]
+  customer_id bigint [ref: > customers.id]
+  vehicle_id bigint [ref: > vehicles.id]
+  driver_id bigint [ref: > users.id]
+  dispatch_inspection_id bigint [ref: > form_submissions.id]
+  gate_pass_number varchar(30)
+  
+  // Destination (ARAMCO warehouse, customer site, rig)
+  destination_warehouse_id bigint [ref: > warehouses.id, note: 'ARAMCO warehouse or customer warehouse']
+  destination_rig_id bigint [ref: > rigs.id, note: 'Direct to rig delivery']
+  
+  // Tracking
+  departure_time timestamptz
+  departure_qr_scan varchar(100)
+  departure_gps_lat decimal(10,8)
+  departure_gps_lng decimal(11,8)
+  arrival_time timestamptz
+  arrival_qr_scan varchar(100)
+  arrival_gps_lat decimal(10,8)
+  arrival_gps_lng decimal(11,8)
+  gps_location_verified boolean [default: false]
+  
+  // Delivery
+  delivered_to varchar(100)
+  delivery_signature text
+  delivery_photo varchar(500)
+  delivery_notes text
+  
+  status varchar(30) [note: 'PENDING, READY, IN_TRANSIT, DELIVERED, RETURNED']
+  created_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟠 P3: Dispatch & delivery tracking - includes ARAMCO warehouse/rig destination'
+}
+
+Table dispatch_items {
+  id bigint [pk, increment]
+  dispatch_id bigint [ref: > dispatches.id, not null]
+  work_order_id bigint [ref: > work_orders.id]
+  bit_serial_number varchar(50)
+  description varchar(255)
+  quantity int [default: 1]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟠 P3: Items in dispatch'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 P4: HR (Political - needs approval)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// REFACTORED: Simplified attendance + separate punches table
+
+Table attendance {
+  id bigint [pk, increment]
+  employee_id bigint [not null, ref: > users.id]
+  date date [not null, note: 'Working day - use date not timestamptz']
+  
+  // Summary fields (derived from punches)
+  first_clock_in timestamptz [note: 'First IN punch of the day']
+  last_clock_out timestamptz [note: 'Last OUT punch of the day']
+  total_hours decimal(6,2) [note: 'DERIVED: Calculated from punches, not manual entry']
+  
+  status varchar(20) [note: 'PRESENT, ABSENT, LATE, HALF_DAY, LEAVE, OFF']
+  notes text
+  
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    (employee_id, date) [unique]
+  }
+  
+  Note: '🔴 P4: Daily attendance summary - POLITICAL: needs HR approval. Derived from attendance_punches.'
+}
+
+Table attendance_punches {
+  id bigint [pk, increment]
+  employee_id bigint [not null, ref: > users.id]
+  work_date date [not null]
+  
+  punch_time timestamptz [not null]
+  punch_type varchar(10) [not null, note: 'IN, OUT']
+  
+  source varchar(20) [note: 'QR, BIOMETRIC, MANUAL, SYSTEM']
+  location varchar(100) [note: 'Gate name, kiosk, etc.']
+  
+  created_at timestamptz [default: `now()`]
+  
+  Note: '🔴 P4: Individual clock punches. Multiple IN/OUT per day supported. Used to derive attendance.total_hours.'
+}
+
+Table leave_types {
+  id bigint [pk, increment]
+  name varchar(50) [not null]
+  code varchar(20) [unique]
+  days_per_year int
+  is_paid boolean [default: true]
+  requires_document boolean [default: false]
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🔴 P4: Leave types'
+}
+
+Table leave_requests {
+  id bigint [pk, increment]
+  request_number varchar(30) [unique]
+  employee_id bigint [ref: > users.id, not null]
+  leave_type_id bigint [ref: > leave_types.id, not null]
+  start_date date [not null]
+  end_date date [not null]
+  days decimal(5,2) [not null]
+  reason text
+  medical_document varchar(500)
+  status varchar(30) [note: 'DRAFT, PENDING, APPROVED, REJECTED, CANCELLED']
+  approved_by_id bigint [ref: > users.id]
+  approved_at timestamptz
+  rejection_reason text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🔴 P4: Leave requests - POLITICAL: needs HR approval'
+}
+
+Table overtime_requests {
+  id bigint [pk, increment]
+  request_number varchar(30) [unique]
+  employee_id bigint [ref: > users.id, not null]
+  date date [not null]
+  hours decimal(5,2) [not null]
+  reason text
+  work_order_id bigint [ref: > work_orders.id]
+  task_reference varchar(100)
+  status varchar(30) [note: 'DRAFT, PENDING, APPROVED, REJECTED']
+  approved_by_id bigint [ref: > users.id]
+  approved_at timestamptz
+  rejection_reason text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🔴 P4: Overtime requests'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 P4: HSSE (Political - needs approval)
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table hoc_reports {
+  id bigint [pk, increment]
+  hoc_number varchar(30) [unique, not null]
+  reported_by_id bigint [ref: > users.id]
+  reported_at timestamptz
+  hazard_type varchar(50) [note: 'UNSAFE_ACT, UNSAFE_CONDITION, ENVIRONMENTAL']
+  hazard_category varchar(100)
+  location varchar(200)
+  description text
+  photo_path varchar(500)
+  immediate_action_taken text
+  corrective_action text
+  assigned_to_id bigint [ref: > users.id]
+  target_date date
+  completion_date date
+  status varchar(30) [note: 'OPEN, IN_PROGRESS, CLOSED, VERIFIED']
+  closed_by_id bigint [ref: > users.id]
+  closed_at timestamptz
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🔴 P4: Hazard Observation Cards - POLITICAL: needs HSSE buy-in'
+}
+
+Table incidents {
+  id bigint [pk, increment]
+  incident_number varchar(30) [unique, not null]
+  reported_by_id bigint [ref: > users.id]
+  reported_at timestamptz
+  incident_date timestamptz
+  incident_type varchar(50) [note: 'INJURY, ILLNESS, PROPERTY_DAMAGE, ENVIRONMENTAL, FIRE']
+  severity varchar(20) [note: 'FIRST_AID, MEDICAL_TREATMENT, LOST_TIME, FATALITY']
+  location varchar(200)
+  description text
+  injured_person_name varchar(100)
+  injured_person_employee_id bigint [ref: > users.id]
+  investigation_status varchar(30) [note: 'PENDING, IN_PROGRESS, COMPLETED']
+  investigated_by_id bigint [ref: > users.id]
+  root_cause text
+  corrective_actions text
+  status varchar(30) [note: 'REPORTED, INVESTIGATING, ACTIONS_PENDING, CLOSED']
+  closed_by_id bigint [ref: > users.id]
+  closed_at timestamptz
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🔴 P4: Incident reports'
+}
+
+Table journeys {
+  id bigint [pk, increment]
+  journey_number varchar(30) [unique, not null]
+  driver_id bigint [ref: > users.id]
+  vehicle_id bigint [ref: > vehicles.id]
+  purpose text
+  start_location varchar(200)
+  end_location varchar(200)
+  planned_start timestamptz
+  planned_end timestamptz
+  actual_start timestamptz
+  actual_end timestamptz
+  vehicle_checklist_id bigint [ref: > form_submissions.id]
+  driver_fit_to_drive boolean
+  status varchar(30) [note: 'PLANNED, IN_PROGRESS, COMPLETED, CANCELLED, OVERDUE']
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🔴 P4: Journey Management - POLITICAL: needs management approval'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: SYSTEM / AUDIT
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table activity_logs {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  action varchar(50) [note: 'CREATE, UPDATE, DELETE, VIEW, LOGIN, LOGOUT']
+  model_type varchar(100)
+  model_id bigint
+  description text
+  old_values jsonb
+  new_values jsonb
+  ip_address varchar(50)
+  user_agent varchar(500)
+  created_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Audit trail - all changes logged'
+}
+
+Table system_settings {
+  id bigint [pk, increment]
+  key varchar(100) [unique, not null]
+  value text
+  value_type varchar(30) [note: 'STRING, INTEGER, BOOLEAN, JSON']
+  group_name varchar(50)
+  description text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: System configuration'
+}
+
+Table number_sequences {
+  id bigint [pk, increment]
+  sequence_type varchar(50) [unique, not null, note: 'WO, NCR, PO, PR, GRN, SO, etc.']
+  prefix varchar(20)
+  suffix varchar(20)
+  current_number int [default: 0]
+  padding int [default: 4]
+  reset_frequency varchar(20) [note: 'NEVER, YEARLY, MONTHLY']
+  last_reset_at timestamptz
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Auto-number generation'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟢 P1: PLANNING MODULE (Notion-Style)
+// ═══════════════════════════════════════════════════════════════════════════
+// Internal project planning - same data, multiple views (Table/Kanban/Calendar/Timeline)
+// Replaces external tools like Notion, Trello, Jira
+// Fully offline, secure, self-contained
+
+Table sprints {
+  id bigint [pk, increment]
+  name varchar(100) [not null, note: 'Sprint 01, Sprint 02, etc.']
+  code varchar(20) [unique, note: 'SP-001, SP-002']
+  description text
+  
+  // Sprint dates
+  start_date date [not null]
+  end_date date [not null]
+  
+  // Status
+  status varchar(30) [default: 'PLANNING', note: 'PLANNING, ACTIVE, COMPLETED, CANCELLED']
+  
+  // Goals
+  goal text [note: 'Sprint goal/objective']
+  
+  // Capacity
+  total_points int [default: 0, note: 'Total story points planned']
+  completed_points int [default: 0, note: 'Points completed']
+  
+  // Phase link
+  phase varchar(10) [note: 'P1, P2, P3, P4, FUT']
+  
+  created_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    status
+    start_date
+    phase
+  }
+  
+  Note: '🟢 P1: Sprint planning - time-boxed development cycles'
+}
+
+Table planning_boards {
+  id bigint [pk, increment]
+  name varchar(100) [not null, note: 'Development Board, QA Board, etc.']
+  code varchar(30) [unique]
+  description text
+  
+  board_type varchar(30) [default: 'KANBAN', note: 'KANBAN, SCRUM, CUSTOM']
+  
+  // Filters
+  default_sprint_id bigint [ref: > sprints.id]
+  default_assignee_id bigint [ref: > users.id]
+  
+  // Settings
+  settings jsonb [note: '{"show_labels": true, "show_points": true, "wip_limits": {}}']
+  
+  is_default boolean [default: false]
+  is_active boolean [default: true]
+  
+  created_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Kanban/Scrum boards - multiple boards for different purposes'
+}
+
+Table planning_columns {
+  id bigint [pk, increment]
+  board_id bigint [ref: > planning_boards.id, not null]
+  name varchar(50) [not null, note: 'To Do, In Progress, Review, Done']
+  code varchar(30) [note: 'TODO, IN_PROGRESS, REVIEW, DONE']
+  
+  position int [not null, note: 'Column order: 1, 2, 3...']
+  color varchar(20) [note: 'Tailwind color: gray, blue, yellow, green']
+  
+  // WIP limit (Work In Progress)
+  wip_limit int [note: 'Max items in this column (0 = unlimited)']
+  
+  // Maps to task status
+  maps_to_status varchar(30) [note: 'Links to tasks.status value']
+  
+  is_done_column boolean [default: false, note: 'Items here are considered done']
+  
+  created_at timestamptz [default: `now()`]
+  
+  indexes {
+    (board_id, position) [unique]
+  }
+  
+  Note: '🟢 P1: Board columns - customizable workflow stages'
+}
+
+Table planning_labels {
+  id bigint [pk, increment]
+  name varchar(50) [not null, note: 'Bug, Feature, Enhancement, Documentation']
+  color varchar(20) [not null, note: 'red, orange, yellow, green, blue, purple, pink, gray']
+  description text
+  
+  is_active boolean [default: true]
+  
+  created_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Labels/tags for categorizing planning items'
+}
+
+Table planning_items {
+  id bigint [pk, increment]
+  title varchar(200) [not null]
+  description text
+  
+  // Type
+  item_type varchar(30) [not null, note: 'EPIC, STORY, TASK, BUG, SUBTASK']
+  
+  // Hierarchy
+  parent_id bigint [ref: > planning_items.id, note: 'For subtasks under stories']
+  epic_id bigint [ref: > planning_items.id, note: 'Which epic this belongs to']
+  
+  // Board & Column
+  board_id bigint [ref: > planning_boards.id]
+  column_id bigint [ref: > planning_columns.id]
+  position_in_column int [note: 'Order within column']
+  
+  // Sprint
+  sprint_id bigint [ref: > sprints.id]
+  
+  // Assignment
+  assignee_id bigint [ref: > users.id]
+  reporter_id bigint [ref: > users.id]
+  
+  // Status (independent of column for cross-board use)
+  status varchar(30) [default: 'BACKLOG', note: 'BACKLOG, TODO, IN_PROGRESS, REVIEW, DONE, CANCELLED']
+  
+  // Priority
+  priority varchar(20) [default: 'MEDIUM', note: 'LOWEST, LOW, MEDIUM, HIGH, HIGHEST']
+  
+  // Estimation
+  story_points int [note: '1, 2, 3, 5, 8, 13, 21']
+  estimated_hours decimal(6,2)
+  actual_hours decimal(6,2)
+  
+  // Dates
+  start_date date
+  due_date date
+  completed_at timestamptz
+  
+  // Phase
+  phase varchar(10) [note: 'P1, P2, P3, P4, FUT']
+  
+  // Module/App reference
+  module varchar(50) [note: 'workorders, quality, inventory, etc.']
+  
+  // External links
+  related_page varchar(100) [note: 'URL path: /work-orders/<id>/']
+  related_table varchar(50) [note: 'Table name: work_orders']
+  related_id bigint [note: 'Record ID']
+  
+  created_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    sprint_id
+    assignee_id
+    status
+    item_type
+    phase
+    (board_id, column_id)
+  }
+  
+  Note: '🟢 P1: Planning items - Epics, Stories, Tasks, Bugs (Notion/Jira style)'
+}
+
+Table planning_item_labels {
+  id bigint [pk, increment]
+  item_id bigint [ref: > planning_items.id, not null]
+  label_id bigint [ref: > planning_labels.id, not null]
+  
+  created_at timestamptz [default: `now()`]
+  
+  indexes {
+    (item_id, label_id) [unique]
+  }
+  
+  Note: '🟢 P1: Many-to-many: items ↔ labels'
+}
+
+Table planning_item_watchers {
+  id bigint [pk, increment]
+  item_id bigint [ref: > planning_items.id, not null]
+  user_id bigint [ref: > users.id, not null]
+  
+  created_at timestamptz [default: `now()`]
+  
+  indexes {
+    (item_id, user_id) [unique]
+  }
+  
+  Note: '🟢 P1: Users watching/following items for notifications'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WIKI / KNOWLEDGE BASE (Notion-style pages)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table wiki_spaces {
+  id bigint [pk, increment]
+  name varchar(100) [not null, note: 'Technical Docs, Meeting Notes, etc.']
+  code varchar(30) [unique]
+  description text
+  icon varchar(50) [note: 'Emoji or icon name']
+  
+  is_public boolean [default: true, note: 'Visible to all authenticated users']
+  
+  created_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  Note: '🟢 P1: Wiki spaces - containers for wiki pages'
+}
+
+Table wiki_pages {
+  id bigint [pk, increment]
+  space_id bigint [ref: > wiki_spaces.id, not null]
+  
+  title varchar(200) [not null]
+  slug varchar(200) [note: 'URL-friendly: getting-started']
+  
+  // Hierarchy
+  parent_id bigint [ref: > wiki_pages.id]
+  position int [note: 'Order among siblings']
+  
+  // Content (Markdown or JSON blocks)
+  content text [note: 'Markdown content']
+  content_format varchar(20) [default: 'MARKDOWN', note: 'MARKDOWN, BLOCKS']
+  
+  // Metadata
+  icon varchar(50) [note: 'Emoji or icon']
+  cover_image varchar(500) [note: 'Header image URL']
+  
+  // Status
+  status varchar(30) [default: 'DRAFT', note: 'DRAFT, PUBLISHED, ARCHIVED']
+  published_at timestamptz
+  
+  // Version tracking
+  current_version int [default: 1]
+  
+  // Access
+  is_template boolean [default: false]
+  
+  created_by_id bigint [ref: > users.id]
+  last_edited_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    space_id
+    parent_id
+    (space_id, slug) [unique]
+    status
+  }
+  
+  Note: '🟢 P1: Wiki pages - Notion-style documentation'
+}
+
+Table wiki_page_versions {
+  id bigint [pk, increment]
+  page_id bigint [ref: > wiki_pages.id, not null]
+  version_number int [not null]
+  
+  title varchar(200)
+  content text
+  
+  change_summary varchar(500) [note: 'What changed in this version']
+  
+  created_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  
+  indexes {
+    (page_id, version_number) [unique]
+  }
+  
+  Note: '🟢 P1: Wiki page version history'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VERSIONING FOR PROCEDURES & FORMS
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table procedure_versions {
+  id bigint [pk, increment]
+  procedure_id bigint [ref: > procedures.id, not null]
+  version_number int [not null]
+  
+  // Snapshot of procedure at this version
+  name varchar(200)
+  revision varchar(10)
+  scope text
+  purpose text
+  safety_notes text
+  
+  // Steps snapshot (JSON array)
+  steps_snapshot jsonb [note: 'Full steps data at this version']
+  
+  change_summary text
+  change_type varchar(30) [note: 'MAJOR, MINOR, PATCH, EDITORIAL']
+  
+  // Approval
+  approved_by_id bigint [ref: > users.id]
+  approved_at timestamptz
+  
+  created_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  
+  indexes {
+    (procedure_id, version_number) [unique]
+  }
+  
+  Note: '🟢 P1: Procedure version history - audit trail for procedure changes'
+}
+
+Table form_template_versions {
+  id bigint [pk, increment]
+  form_template_id bigint [ref: > form_templates.id, not null]
+  version_number int [not null]
+  
+  // Snapshot
+  name varchar(200)
+  description text
+  
+  // Fields snapshot (JSON)
+  fields_snapshot jsonb [note: 'Full fields/sections data at this version']
+  
+  change_summary text
+  
+  created_by_id bigint [ref: > users.id]
+  created_at timestamptz [default: `now()`]
+  
+  indexes {
+    (form_template_id, version_number) [unique]
+  }
+  
+  Note: '🟢 P1: Form template version history'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚪ FUTURE: ERP INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table erp_mappings {
+  id bigint [pk, increment]
+  entity_type varchar(50) [note: 'MATERIAL, CUSTOMER, SUPPLIER, COST_CENTER, GL_ACCOUNT']
+  internal_id bigint
+  internal_code varchar(50)
+  erp_code varchar(50)
+  erp_description varchar(200)
+  sync_direction varchar(20) [note: 'PUSH, PULL, BOTH']
+  last_synced_at timestamptz
+  is_active boolean [default: true]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  
+  indexes {
+    (entity_type, internal_id) [unique]
+  }
+  
+  Note: '⚪ FUTURE: ERP code mapping'
+}
+
+Table erp_sync_logs {
+  id bigint [pk, increment]
+  entity_type varchar(50)
+  entity_id bigint
+  action varchar(30) [note: 'CREATE, UPDATE, DELETE']
+  direction varchar(20) [note: 'TO_ERP, FROM_ERP']
+  payload jsonb
+  status varchar(30) [note: 'SUCCESS, FAILED, PENDING']
+  error_message text
+  erp_reference varchar(100)
+  synced_at timestamptz
+  created_at timestamptz [default: `now()`]
+  
+  Note: '⚪ FUTURE: ERP sync audit log'
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// END OF SCHEMA v5.4
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// SUMMARY BY PHASE (VERIFIED COUNTS):
+// 🟢 P1: 91 tables (+12 new in v5.4)
+//     v5.4 NEW: sprints, planning_boards, planning_columns, planning_labels
+//               planning_items, planning_item_labels, planning_item_watchers
+//               wiki_spaces, wiki_pages, wiki_page_versions
+//               procedure_versions, form_template_versions
+//     v5.3 NEW: drss_requests, drss_request_lines
+//               scan_codes, scan_logs, tasks, audit_logs
+//               comments, comment_attachments
+// 🟡 P2: 15 tables (unchanged)
+// 🟠 P3: 4 tables (unchanged)
+// 🔴 P4: 8 tables (unchanged)
+// ⚪ FUTURE: 2 tables (unchanged)
+// TOTAL: 114 tables
+//
+// v5.4 CHANGES SUMMARY:
+// 1. NEW P1: Planning Module - sprints, planning_boards, planning_columns
+// 2. NEW P1: Planning Items - planning_items, planning_labels, planning_item_labels
+// 3. NEW P1: Wiki/Knowledge Base - wiki_spaces, wiki_pages, wiki_page_versions
+// 4. NEW P1: Versioning - procedure_versions, form_template_versions
+// 5. UI DESIGN: Fiori-style (production UI) + Notion-style (planning UI)
+//
+// v5.3 CHANGES SUMMARY:
+// 1. NEW P1: drss_requests, drss_request_lines (ARAMCO SMI Bit Request workflow)
+// 2. NEW P1: scan_codes, scan_logs (universal barcode/QR - supports external codes)
+// 3. NEW P1: tasks (lightweight task/reminder system)
+// 4. NEW P1: audit_logs (full audit trail with JSON diff)
+// 5. NEW P1: comments, comment_attachments (universal commenting)
+// 6. MODIFIED: sales_orders - added drss_request_id, rig_id, well_id
+// 7. MODIFIED: procedure_steps - added depends_on_step_id, expected_output
+// 8. MODIFIED: bit_evaluations - added design_id
+// 9. MODIFIED: inventory_transactions - enhanced link_type/link_id
+//
+// DJANGO APPS (25 total):
+// P1 Apps (19): 
+//   core, accounts, organization, procedures, forms_engine, execution, 
+//   scancodes, notifications, customers, locations, technology, inventory, 
+//   sales, drss, workorders, quality, maintenance, documents, planning
+// P2+ Apps (6): 
+//   supplychain, dispatch, hr, hsse, erp_integration, analytics
+//
+// KEY BUSINESS FLOWS:
+// 1. ARAMCO: DRSS Request → Sales Order → Work Order → Execution → Quality → Dispatch
+// 2. DIRECT: Sales Order → Work Order → Execution → Quality → Dispatch
+// 3. REPAIR: Bit Return → Evaluation → Work Order (REWORK) → Quality → Dispatch
+// 4. PLANNING: Sprint → Planning Items → Tasks → Execution (internal dev workflow)
+//
+// UI DESIGN APPROACH:
+// - Production UI: SAP Fiori-inspired (List Reports, Object Pages, Wizards)
+// - Planning UI: Notion-inspired (Multi-view database, Kanban, Wiki)
+// - Both implemented with: Django + HTMX + Alpine.js + Tailwind CSS
+//
+// ═══════════════════════════════════════════════════════════════════════════
