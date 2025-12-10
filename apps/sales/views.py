@@ -996,7 +996,7 @@ class FieldTechnicianListView(LoginRequiredMixin, ListView):
         search = self.request.GET.get("q")
         if search:
             queryset = queryset.filter(
-                Q(tech_id__icontains=search)
+                Q(employee_id__icontains=search)
                 | Q(employee__first_name__icontains=search)
                 | Q(employee__last_name__icontains=search)
             )
@@ -1005,7 +1005,7 @@ class FieldTechnicianListView(LoginRequiredMixin, ListView):
         if status:
             queryset = queryset.filter(status=status)
 
-        return queryset.order_by("tech_id")
+        return queryset.order_by("employee_id")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1026,7 +1026,7 @@ class FieldTechnicianDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Field Technician: {self.object.tech_id}"
+        context["page_title"] = f"Field Technician: {self.object.employee_id}"
         return context
 
 
@@ -1045,7 +1045,7 @@ class FieldTechnicianCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-        messages.success(self.request, f"Field technician '{form.instance.tech_id}' created.")
+        messages.success(self.request, f"Field technician '{form.instance.employee_id}' created.")
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -1061,12 +1061,12 @@ class FieldTechnicianUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Edit Field Technician: {self.object.tech_id}"
+        context["page_title"] = f"Edit Field Technician: {self.object.employee_id}"
         context["submit_text"] = "Update Technician"
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"Field technician '{form.instance.tech_id}' updated.")
+        messages.success(self.request, f"Field technician '{form.instance.employee_id}' updated.")
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -1082,11 +1082,11 @@ class FieldTechnicianDeleteView(LoginRequiredMixin, DeleteView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Delete Field Technician: {self.object.tech_id}"
+        context["page_title"] = f"Delete Field Technician: {self.object.employee_id}"
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"Field technician '{self.object.tech_id}' deleted.")
+        messages.success(self.request, f"Field technician '{self.object.employee_id}' deleted.")
         return super().form_valid(form)
 
 
