@@ -31,10 +31,10 @@
     <!-- Right: Actions & Profile -->
     <div class="flex items-center space-x-3">
         <!-- Dark Mode Toggle -->
-        <button @click="darkMode = !darkMode" 
+        <button @click="darkMode = !darkMode"
                 class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-            <i x-show="!darkMode" data-lucide="moon" class="w-5 h-5 text-gray-600"></i>
-            <i x-show="darkMode" data-lucide="sun" class="w-5 h-5 text-yellow-400"></i>
+            <i x-show="!darkMode" x-cloak data-lucide="moon" class="w-5 h-5 text-gray-600"></i>
+            <i x-show="darkMode" x-cloak data-lucide="sun" class="w-5 h-5 text-yellow-400"></i>
         </button>
         
         <!-- Notifications -->
@@ -45,10 +45,11 @@
                 <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
             </button>
             
-            <div x-show="open" 
+            <div x-show="open"
+                 x-cloak
                  x-transition
                  @click.outside="open = false"
-                 class="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700">
+                 class="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700 z-50">
                 <div class="p-4 border-b dark:border-gray-700">
                     <h3 class="font-semibold text-gray-900 dark:text-white">Notifications</h3>
                 </div>
@@ -81,7 +82,8 @@
                 <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
             </button>
             
-            <div x-show="open" 
+            <div x-show="open"
+                 x-cloak
                  x-transition
                  @click.outside="open = false"
                  class="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700">
