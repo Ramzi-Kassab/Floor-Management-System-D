@@ -694,13 +694,16 @@ def get_widget_data(widget_id, user):
         }
 
     elif widget_id == "low_stock_alerts":
-        from django.db.models import F as ModelF
-        from apps.inventory.models import Stock
+        from django.db.models import Sum
+        from apps.inventory.models import InventoryItem
 
         try:
-            return {
-                "count": Stock.objects.filter(quantity_on_hand__lte=ModelF("reorder_point")).count()
-            }
+            # Count items where total stock is below reorder point
+            items_below_reorder = 0
+            for item in InventoryItem.objects.filter(is_active=True, reorder_point__gt=0):
+                if item.total_stock < item.reorder_point:
+                    items_below_reorder += 1
+            return {"count": items_below_reorder}
         except Exception:
             return {"count": 0}
 
