@@ -48,6 +48,7 @@
                          data-widget-id="{{ widget.id }}"
                          data-visible="true"
                          data-color="{{ widget.color|default:'blue' }}"
+                         data-intensity="{{ widget.color_intensity|default:'medium' }}"
                          data-bg-style="{{ widget.bg_style|default:'solid' }}"
                          data-border-style="{{ widget.border_style|default:'none' }}"
                          data-border-size="{{ widget.border_size|default:'medium' }}"
@@ -124,16 +125,29 @@
                                         <!-- Background Style -->
                                         <div class="mb-4">
                                             <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Background</label>
-                                            <div class="grid grid-cols-3 gap-2">
-                                                <button type="button" class="bg-style-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors flex items-center justify-center gap-1" data-bg-style="solid">
+                                            <div class="grid grid-cols-4 gap-2">
+                                                <button type="button" class="bg-style-option px-2 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors flex items-center justify-center gap-1" data-bg-style="solid">
                                                     <i data-lucide="square" class="w-3 h-3"></i> Solid
                                                 </button>
-                                                <button type="button" class="bg-style-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors flex items-center justify-center gap-1" data-bg-style="flat">
+                                                <button type="button" class="bg-style-option px-2 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors flex items-center justify-center gap-1" data-bg-style="flat">
                                                     <i data-lucide="minus" class="w-3 h-3"></i> Flat
                                                 </button>
-                                                <button type="button" class="bg-style-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors flex items-center justify-center gap-1" data-bg-style="glass">
+                                                <button type="button" class="bg-style-option px-2 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors flex items-center justify-center gap-1" data-bg-style="glass">
                                                     <i data-lucide="sparkles" class="w-3 h-3"></i> Glass
                                                 </button>
+                                                <button type="button" class="bg-style-option px-2 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors flex items-center justify-center gap-1" data-bg-style="filled">
+                                                    <i data-lucide="paint-bucket" class="w-3 h-3"></i> Filled
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Color Intensity -->
+                                        <div class="mb-4">
+                                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Color Intensity</label>
+                                            <div class="grid grid-cols-3 gap-2">
+                                                <button type="button" class="intensity-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-intensity="light">Light</button>
+                                                <button type="button" class="intensity-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-intensity="medium">Medium</button>
+                                                <button type="button" class="intensity-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-intensity="strong">Strong</button>
                                             </div>
                                         </div>
 
@@ -566,6 +580,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 order: index + 1,
                 visible: true,
                 color: card.dataset.color || 'blue',
+                color_intensity: card.dataset.intensity || 'medium',
                 bg_style: card.dataset.bgStyle || 'solid',
                 border_style: card.dataset.borderStyle || 'none',
                 border_size: card.dataset.borderSize || 'medium',
@@ -579,6 +594,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const hiddenWidgets = widgetLayout.filter(w => !w.visible).map(w => ({
             ...w,
             color: w.color || 'blue',
+            color_intensity: w.color_intensity || 'medium',
             bg_style: w.bg_style || 'solid',
             border_style: w.border_style || 'none',
             border_size: w.border_size || 'medium',
@@ -779,9 +795,33 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
 
+        // Color intensity option handlers
+        document.querySelectorAll('.intensity-option').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const intensity = this.dataset.intensity;
+                const card = this.closest('.widget-card');
+                if (!card) return;
+
+                card.dataset.intensity = intensity;
+
+                // Highlight selected
+                const buttons = this.closest('.grid').querySelectorAll('.intensity-option');
+                buttons.forEach(b => {
+                    b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                    b.classList.add('border-gray-200', 'dark:border-gray-600');
+                });
+                this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                this.classList.remove('border-gray-200', 'dark:border-gray-600');
+
+                updateLayoutFromDOM();
+            });
+        });
+
         // Initialize active states on settings dropdowns
         document.querySelectorAll('.widget-card').forEach(card => {
             const color = card.dataset.color || 'blue';
+            const intensity = card.dataset.intensity || 'medium';
             const bgStyle = card.dataset.bgStyle || 'solid';
             const borderStyle = card.dataset.borderStyle || 'none';
             const borderSize = card.dataset.borderSize || 'medium';
@@ -792,6 +832,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // Set active color button
             const colorBtn = card.querySelector(`.color-option[data-color="${color}"]`);
             if (colorBtn) colorBtn.classList.add('ring-2', 'ring-offset-2');
+
+            // Set active intensity button
+            const intensityBtn = card.querySelector(`.intensity-option[data-intensity="${intensity}"]`);
+            if (intensityBtn) {
+                intensityBtn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                intensityBtn.classList.remove('border-gray-200', 'dark:border-gray-600');
+            }
 
             // Set active background style button
             const bgStyleBtn = card.querySelector(`.bg-style-option[data-bg-style="${bgStyle}"]`);
@@ -1024,6 +1071,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 order: widgetLayout.length + 1,
                 visible: true,
                 color: 'blue',
+                color_intensity: 'medium',
                 bg_style: 'solid',
                 border_style: 'none',
                 border_size: 'medium',
@@ -1112,6 +1160,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 order: index + 1,
                 visible: true,
                 color: card.dataset.color || 'blue',
+                color_intensity: card.dataset.intensity || 'medium',
                 bg_style: card.dataset.bgStyle || 'solid',
                 border_style: card.dataset.borderStyle || 'none',
                 border_size: card.dataset.borderSize || 'medium',
@@ -1130,6 +1179,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     order: domWidgets.length + 1,
                     visible: true,
                     color: w.color || 'blue',
+                    color_intensity: w.color_intensity || 'medium',
                     bg_style: w.bg_style || 'solid',
                     border_style: w.border_style || 'none',
                     border_size: w.border_size || 'medium',
@@ -1145,6 +1195,7 @@ document.addEventListener('DOMContentLoaded', function() {
             domWidgets.push({
                 ...w,
                 color: w.color || 'blue',
+                color_intensity: w.color_intensity || 'medium',
                 bg_style: w.bg_style || 'solid',
                 border_style: w.border_style || 'none',
                 border_size: w.border_size || 'medium',

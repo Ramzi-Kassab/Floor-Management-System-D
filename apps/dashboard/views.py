@@ -69,6 +69,7 @@ def main_dashboard(request):
                 "data": get_widget_data(widget_id, user),
                 # Style properties
                 "color": widget_config.get("color", "blue"),
+                "color_intensity": widget_config.get("color_intensity", "medium"),
                 "bg_style": widget_config.get("bg_style", "solid"),
                 "border_style": widget_config.get("border_style", "none"),
                 "border_size": widget_config.get("border_size", "medium"),
