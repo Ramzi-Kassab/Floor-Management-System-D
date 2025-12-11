@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static role_tags %}
 
 {% block title %}{{ page_title }} | ARDT FMS{% endblock %}
 
@@ -17,6 +17,9 @@
             <p class="text-gray-600 dark:text-gray-400 mt-1">Drag and drop widgets to customize your dashboard layout</p>
         </div>
         <div class="flex items-center space-x-3">
+            <span class="text-sm text-gray-500 dark:text-gray-400">
+                {{ active_widget_count }} of {{ total_widgets }} widgets active
+            </span>
             <a href="{% url 'dashboard:reset_dashboard' %}"
                onclick="return confirm('Are you sure you want to reset to the default layout?')"
                class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
@@ -43,11 +46,15 @@
                     {% if widget.visible %}
                     <div class="widget-card bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-4 cursor-move"
                          data-widget-id="{{ widget.id }}"
-                         data-visible="true">
+                         data-visible="true"
+                         draggable="true">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
-                                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                    <i data-lucide="{{ widget.icon }}" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+                                <div class="drag-handle p-1 text-gray-400 cursor-grab hover:text-gray-600 dark:hover:text-gray-300">
+                                    <i data-lucide="grip-vertical" class="w-5 h-5"></i>
+                                </div>
+                                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                    <i data-lucide="{{ widget.icon }}" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
                                 </div>
                                 <div>
                                     <p class="font-medium text-gray-900 dark:text-white">{{ widget.name }}</p>
@@ -55,72 +62,266 @@
                                 </div>
                             </div>
                             <div class="flex items-center space-x-2">
-                                <select class="size-select text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                <select class="size-select text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:ring-blue-500 focus:border-blue-500"
                                         data-widget-id="{{ widget.id }}">
                                     <option value="small" {% if widget.size == "small" %}selected{% endif %}>Small</option>
                                     <option value="medium" {% if widget.size == "medium" %}selected{% endif %}>Medium</option>
                                     <option value="large" {% if widget.size == "large" %}selected{% endif %}>Large</option>
                                 </select>
-                                <button type="button" class="toggle-visibility p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                                        data-widget-id="{{ widget.id }}">
-                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                <button type="button" class="toggle-visibility p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                        data-widget-id="{{ widget.id }}"
+                                        title="Hide widget">
+                                    <i data-lucide="eye-off" class="w-4 h-4"></i>
                                 </button>
-                                <div class="drag-handle p-1 text-gray-400 cursor-grab">
-                                    <i data-lucide="grip-vertical" class="w-4 h-4"></i>
-                                </div>
                             </div>
                         </div>
                     </div>
                     {% endif %}
                     {% endfor %}
                 </div>
+
+                <!-- Empty state -->
+                <div id="empty-state" class="hidden text-center py-12 text-gray-500 dark:text-gray-400">
+                    <i data-lucide="layout-dashboard" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                    <p class="text-lg font-medium">No widgets added yet</p>
+                    <p class="text-sm mt-1">Click "Browse Widgets" to add some!</p>
+                </div>
             </div>
         </div>
 
-        <!-- Available Widgets Sidebar -->
-        <div class="lg:col-span-1">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 sticky top-4">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Available Widgets</h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Click to add to dashboard</p>
+        <!-- Sidebar -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Browse Widgets Button -->
+            <button type="button" id="open-widget-browser"
+                    class="w-full flex items-center justify-center px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg transition-all transform hover:scale-[1.02]">
+                <i data-lucide="layout-grid" class="w-6 h-6 mr-3"></i>
+                <div class="text-left">
+                    <p class="font-semibold text-lg">Browse Widgets</p>
+                    <p class="text-sm text-blue-100">{{ total_widgets }} widgets available</p>
+                </div>
+                <i data-lucide="chevron-right" class="w-5 h-5 ml-auto"></i>
+            </button>
 
+            <!-- Quick Add by Category -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Add</h2>
                 <div class="space-y-2">
-                    {% for widget_id, widget_info in available_widgets.items %}
-                    <button type="button" class="add-widget w-full flex items-center p-3 text-left rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                            data-widget-id="{{ widget_id }}"
-                            data-widget-name="{{ widget_info.name }}"
-                            data-widget-description="{{ widget_info.description }}"
-                            data-widget-icon="{{ widget_info.icon }}"
-                            data-widget-size="{{ widget_info.default_size }}">
-                        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mr-3">
-                            <i data-lucide="{{ widget_info.icon }}" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
+                    {% for cat_id, cat_info in widget_categories.items %}
+                    <button type="button" class="category-quick-add w-full flex items-center p-3 text-left rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                            data-category="{{ cat_id }}">
+                        <div class="flex-shrink-0 w-8 h-8 rounded-lg
+                            {% if cat_info.color == 'blue' %}bg-blue-100 dark:bg-blue-900/30{% endif %}
+                            {% if cat_info.color == 'green' %}bg-green-100 dark:bg-green-900/30{% endif %}
+                            {% if cat_info.color == 'red' %}bg-red-100 dark:bg-red-900/30{% endif %}
+                            {% if cat_info.color == 'purple' %}bg-purple-100 dark:bg-purple-900/30{% endif %}
+                            {% if cat_info.color == 'orange' %}bg-orange-100 dark:bg-orange-900/30{% endif %}
+                            {% if cat_info.color == 'cyan' %}bg-cyan-100 dark:bg-cyan-900/30{% endif %}
+                            {% if cat_info.color == 'pink' %}bg-pink-100 dark:bg-pink-900/30{% endif %}
+                            {% if cat_info.color == 'gray' %}bg-gray-100 dark:bg-gray-700{% endif %}
+                            flex items-center justify-center mr-3">
+                            <i data-lucide="{{ cat_info.icon }}" class="w-4 h-4
+                                {% if cat_info.color == 'blue' %}text-blue-600 dark:text-blue-400{% endif %}
+                                {% if cat_info.color == 'green' %}text-green-600 dark:text-green-400{% endif %}
+                                {% if cat_info.color == 'red' %}text-red-600 dark:text-red-400{% endif %}
+                                {% if cat_info.color == 'purple' %}text-purple-600 dark:text-purple-400{% endif %}
+                                {% if cat_info.color == 'orange' %}text-orange-600 dark:text-orange-400{% endif %}
+                                {% if cat_info.color == 'cyan' %}text-cyan-600 dark:text-cyan-400{% endif %}
+                                {% if cat_info.color == 'pink' %}text-pink-600 dark:text-pink-400{% endif %}
+                                {% if cat_info.color == 'gray' %}text-gray-600 dark:text-gray-400{% endif %}
+                            "></i>
                         </div>
-                        <div>
-                            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ widget_info.name }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ widget_info.description }}</p>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ cat_info.name }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                {% with widgets_by_category|get_item:cat_id as cat_widgets %}
+                                    {{ cat_widgets|length }} widget{{ cat_widgets|length|pluralize }}
+                                {% endwith %}
+                            </p>
                         </div>
+                        <i data-lucide="plus" class="w-4 h-4 text-gray-400"></i>
                     </button>
                     {% endfor %}
                 </div>
+            </div>
 
-                <!-- Hidden Widgets -->
-                <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Hidden Widgets</h3>
-                    <div id="hidden-widgets" class="space-y-2">
-                        {% for widget in current_layout %}
-                        {% if not widget.visible %}
-                        <div class="hidden-widget-card flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded"
-                             data-widget-id="{{ widget.id }}">
+            <!-- Hidden Widgets -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                    <i data-lucide="eye-off" class="w-4 h-4 mr-2"></i>
+                    Hidden Widgets
+                </h3>
+                <div id="hidden-widgets" class="space-y-2">
+                    {% for widget in current_layout %}
+                    {% if not widget.visible %}
+                    <div class="hidden-widget-card flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600"
+                         data-widget-id="{{ widget.id }}">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="{{ widget.icon }}" class="w-4 h-4 text-gray-400"></i>
                             <span class="text-sm text-gray-600 dark:text-gray-400">{{ widget.name }}</span>
-                            <button type="button" class="restore-widget text-blue-600 hover:text-blue-700 text-sm"
-                                    data-widget-id="{{ widget.id }}">
-                                Restore
+                        </div>
+                        <button type="button" class="restore-widget text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium"
+                                data-widget-id="{{ widget.id }}">
+                            Restore
+                        </button>
+                    </div>
+                    {% endif %}
+                    {% empty %}
+                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hidden widgets</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Widget Browser Modal -->
+<div id="widget-browser-modal" class="fixed inset-0 z-50 hidden">
+    <!-- Backdrop -->
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" id="modal-backdrop"></div>
+
+    <!-- Modal Content -->
+    <div class="absolute inset-4 md:inset-8 lg:inset-12 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div>
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white">Widget Library</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400">{{ total_widgets }} widgets available across {{ widget_categories|length }} categories</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <!-- Search -->
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                    <input type="text" id="widget-search"
+                           placeholder="Search widgets..."
+                           class="pl-10 pr-4 py-2 w-64 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <button type="button" id="close-widget-browser" class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="flex-1 flex overflow-hidden">
+            <!-- Category Sidebar -->
+            <div class="w-64 border-r border-gray-200 dark:border-gray-700 p-4 overflow-y-auto">
+                <div class="space-y-1">
+                    <button type="button" class="category-filter w-full flex items-center p-3 text-left rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium"
+                            data-category="all">
+                        <i data-lucide="layout-grid" class="w-4 h-4 mr-3"></i>
+                        All Widgets
+                        <span class="ml-auto text-xs bg-blue-100 dark:bg-blue-800 px-2 py-0.5 rounded-full">{{ total_widgets }}</span>
+                    </button>
+                    {% for cat_id, cat_info in widget_categories.items %}
+                    <button type="button" class="category-filter w-full flex items-center p-3 text-left rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                            data-category="{{ cat_id }}">
+                        <i data-lucide="{{ cat_info.icon }}" class="w-4 h-4 mr-3"></i>
+                        {{ cat_info.name }}
+                        <span class="ml-auto text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                            {% with widgets_by_category|get_item:cat_id as cat_widgets %}{{ cat_widgets|length }}{% endwith %}
+                        </span>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Widgets Grid -->
+            <div class="flex-1 p-6 overflow-y-auto">
+                <div id="widgets-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {% for cat_id, widgets in widgets_by_category.items %}
+                    {% for widget in widgets %}
+                    <div class="widget-item bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 border-2 transition-all hover:shadow-lg
+                                {% if widget.is_active %}border-blue-500 dark:border-blue-400{% else %}border-transparent hover:border-gray-300 dark:hover:border-gray-600{% endif %}"
+                         data-widget-id="{{ widget.id }}"
+                         data-category="{{ cat_id }}"
+                         data-name="{{ widget.name|lower }}"
+                         data-description="{{ widget.description|lower }}">
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 w-12 h-12 rounded-xl
+                                    {% if cat_id == 'operations' %}bg-blue-100 dark:bg-blue-900/30{% endif %}
+                                    {% if cat_id == 'inventory' %}bg-green-100 dark:bg-green-900/30{% endif %}
+                                    {% if cat_id == 'quality' %}bg-red-100 dark:bg-red-900/30{% endif %}
+                                    {% if cat_id == 'sales' %}bg-purple-100 dark:bg-purple-900/30{% endif %}
+                                    {% if cat_id == 'maintenance' %}bg-orange-100 dark:bg-orange-900/30{% endif %}
+                                    {% if cat_id == 'analytics' %}bg-cyan-100 dark:bg-cyan-900/30{% endif %}
+                                    {% if cat_id == 'team' %}bg-pink-100 dark:bg-pink-900/30{% endif %}
+                                    {% if cat_id == 'utilities' %}bg-gray-100 dark:bg-gray-700{% endif %}
+                                    flex items-center justify-center mr-3">
+                                    <i data-lucide="{{ widget.icon }}" class="w-6 h-6
+                                        {% if cat_id == 'operations' %}text-blue-600 dark:text-blue-400{% endif %}
+                                        {% if cat_id == 'inventory' %}text-green-600 dark:text-green-400{% endif %}
+                                        {% if cat_id == 'quality' %}text-red-600 dark:text-red-400{% endif %}
+                                        {% if cat_id == 'sales' %}text-purple-600 dark:text-purple-400{% endif %}
+                                        {% if cat_id == 'maintenance' %}text-orange-600 dark:text-orange-400{% endif %}
+                                        {% if cat_id == 'analytics' %}text-cyan-600 dark:text-cyan-400{% endif %}
+                                        {% if cat_id == 'team' %}text-pink-600 dark:text-pink-400{% endif %}
+                                        {% if cat_id == 'utilities' %}text-gray-600 dark:text-gray-400{% endif %}
+                                    "></i>
+                                </div>
+                            </div>
+                            {% if widget.is_active %}
+                            <span class="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-full">
+                                <i data-lucide="check" class="w-3 h-3 mr-1"></i>
+                                Active
+                            </span>
+                            {% endif %}
+                        </div>
+                        <h3 class="font-semibold text-gray-900 dark:text-white mb-1">{{ widget.name }}</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ widget.description }}</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-gray-400 dark:text-gray-500 capitalize">
+                                {% for c_id, c_info in widget_categories.items %}
+                                    {% if c_id == cat_id %}{{ c_info.name }}{% endif %}
+                                {% endfor %}
+                            </span>
+                            <button type="button" class="add-widget-btn inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg transition-colors
+                                    {% if widget.is_active %}
+                                    bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed
+                                    {% else %}
+                                    bg-blue-600 hover:bg-blue-700 text-white
+                                    {% endif %}"
+                                    data-widget-id="{{ widget.id }}"
+                                    data-widget-name="{{ widget.name }}"
+                                    data-widget-icon="{{ widget.icon }}"
+                                    data-widget-size="{{ widget.default_size }}"
+                                    data-widget-description="{{ widget.description }}"
+                                    {% if widget.is_active %}disabled{% endif %}>
+                                {% if widget.is_active %}
+                                <i data-lucide="check" class="w-4 h-4 mr-1"></i>
+                                Added
+                                {% else %}
+                                <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
+                                Add
+                                {% endif %}
                             </button>
                         </div>
-                        {% endif %}
-                        {% empty %}
-                        <p class="text-sm text-gray-500 dark:text-gray-400">No hidden widgets</p>
-                        {% endfor %}
                     </div>
+                    {% endfor %}
+                    {% endfor %}
+                </div>
+
+                <!-- No results message -->
+                <div id="no-results" class="hidden text-center py-12">
+                    <i data-lucide="search-x" class="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600"></i>
+                    <p class="text-gray-500 dark:text-gray-400">No widgets found matching your search</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+            <div class="flex items-center justify-between">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    <span id="selected-count">0</span> widgets selected
+                </p>
+                <div class="flex items-center space-x-3">
+                    <button type="button" id="cancel-browser" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                        Cancel
+                    </button>
+                    <button type="button" id="apply-widgets" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                        Done
+                    </button>
                 </div>
             </div>
         </div>
@@ -139,23 +340,60 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveBtn = document.getElementById('save-layout-btn');
     const saveForm = document.getElementById('save-form');
     const widgetConfigInput = document.getElementById('widget-config-input');
+    const emptyState = document.getElementById('empty-state');
+
+    // Modal elements
+    const modal = document.getElementById('widget-browser-modal');
+    const openModalBtn = document.getElementById('open-widget-browser');
+    const closeModalBtn = document.getElementById('close-widget-browser');
+    const modalBackdrop = document.getElementById('modal-backdrop');
+    const cancelBtn = document.getElementById('cancel-browser');
+    const applyBtn = document.getElementById('apply-widgets');
+    const searchInput = document.getElementById('widget-search');
+    const widgetsGrid = document.getElementById('widgets-grid');
+    const noResults = document.getElementById('no-results');
 
     // Current layout state
     let widgetLayout = {{ current_layout_json|safe }};
 
-    // Simple drag and drop using HTML5 API
+    // Available widgets data
+    const availableWidgets = {
+        {% for widget_id, widget_info in available_widgets.items %}
+        "{{ widget_id }}": {
+            name: "{{ widget_info.name }}",
+            description: "{{ widget_info.description }}",
+            icon: "{{ widget_info.icon }}",
+            default_size: "{{ widget_info.default_size }}",
+            category: "{{ widget_info.category }}"
+        },
+        {% endfor %}
+    };
+
+    // Check empty state
+    function checkEmptyState() {
+        const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
+        if (cards.length === 0) {
+            emptyState.classList.remove('hidden');
+        } else {
+            emptyState.classList.add('hidden');
+        }
+    }
+    checkEmptyState();
+
+    // Drag and drop
     let draggedElement = null;
 
     activeWidgetsContainer.addEventListener('dragstart', function(e) {
         if (e.target.classList.contains('widget-card')) {
             draggedElement = e.target;
-            e.target.classList.add('opacity-50');
+            e.target.classList.add('opacity-50', 'ring-2', 'ring-blue-500');
+            e.dataTransfer.effectAllowed = 'move';
         }
     });
 
     activeWidgetsContainer.addEventListener('dragend', function(e) {
         if (e.target.classList.contains('widget-card')) {
-            e.target.classList.remove('opacity-50');
+            e.target.classList.remove('opacity-50', 'ring-2', 'ring-blue-500');
             draggedElement = null;
             updateLayoutFromDOM();
         }
@@ -163,22 +401,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     activeWidgetsContainer.addEventListener('dragover', function(e) {
         e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
         const afterElement = getDragAfterElement(activeWidgetsContainer, e.clientY);
-        if (afterElement == null) {
-            activeWidgetsContainer.appendChild(draggedElement);
-        } else {
-            activeWidgetsContainer.insertBefore(draggedElement, afterElement);
+        if (draggedElement) {
+            if (afterElement == null) {
+                activeWidgetsContainer.appendChild(draggedElement);
+            } else {
+                activeWidgetsContainer.insertBefore(draggedElement, afterElement);
+            }
         }
-    });
-
-    // Make widget cards draggable
-    document.querySelectorAll('.widget-card').forEach(card => {
-        card.setAttribute('draggable', 'true');
     });
 
     function getDragAfterElement(container, y) {
         const draggableElements = [...container.querySelectorAll('.widget-card:not(.opacity-50)')];
-
         return draggableElements.reduce((closest, child) => {
             const box = child.getBoundingClientRect();
             const offset = y - box.top - box.height / 2;
@@ -192,17 +427,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateLayoutFromDOM() {
         const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
-        widgetLayout = [];
+        const visibleWidgets = [];
         cards.forEach((card, index) => {
             const widgetId = card.dataset.widgetId;
             const sizeSelect = card.querySelector('.size-select');
-            widgetLayout.push({
+            visibleWidgets.push({
                 id: widgetId,
                 size: sizeSelect ? sizeSelect.value : 'medium',
                 order: index + 1,
                 visible: true
             });
         });
+
+        // Keep hidden widgets
+        const hiddenWidgets = widgetLayout.filter(w => !w.visible);
+        widgetLayout = [...visibleWidgets, ...hiddenWidgets];
     }
 
     // Size select change
@@ -210,68 +449,172 @@ document.addEventListener('DOMContentLoaded', function() {
         select.addEventListener('change', updateLayoutFromDOM);
     });
 
-    // Toggle visibility
-    document.querySelectorAll('.toggle-visibility').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const widgetId = this.dataset.widgetId;
-            const card = this.closest('.widget-card');
+    // Toggle visibility (hide widget)
+    function attachToggleHandlers() {
+        document.querySelectorAll('.toggle-visibility').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const widgetId = this.dataset.widgetId;
+                const card = this.closest('.widget-card');
+                const widgetName = card.querySelector('.font-medium').textContent;
+                const widgetIcon = card.querySelector('[data-lucide]').getAttribute('data-lucide');
 
-            // Find and update the widget in layout
-            const widget = widgetLayout.find(w => w.id === widgetId);
-            if (widget) {
-                widget.visible = false;
+                // Update layout
+                const widget = widgetLayout.find(w => w.id === widgetId);
+                if (widget) {
+                    widget.visible = false;
+                }
+
+                // Remove from active
+                card.remove();
+                checkEmptyState();
+
+                // Add to hidden section
+                const hiddenContainer = document.getElementById('hidden-widgets');
+                const emptyMsg = hiddenContainer.querySelector('p');
+                if (emptyMsg) emptyMsg.remove();
+
+                const hiddenCard = document.createElement('div');
+                hiddenCard.className = 'hidden-widget-card flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600';
+                hiddenCard.dataset.widgetId = widgetId;
+                hiddenCard.innerHTML = `
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="${widgetIcon}" class="w-4 h-4 text-gray-400"></i>
+                        <span class="text-sm text-gray-600 dark:text-gray-400">${widgetName}</span>
+                    </div>
+                    <button type="button" class="restore-widget text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium" data-widget-id="${widgetId}">
+                        Restore
+                    </button>
+                `;
+                hiddenContainer.appendChild(hiddenCard);
+
+                // Reinit icons and handlers
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+                attachRestoreHandlers();
+            });
+        });
+    }
+    attachToggleHandlers();
+
+    // Restore widget
+    function attachRestoreHandlers() {
+        document.querySelectorAll('.restore-widget').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const widgetId = this.dataset.widgetId;
+                const widget = widgetLayout.find(w => w.id === widgetId);
+                if (widget) {
+                    widget.visible = true;
+                }
+                // Save and reload to properly restore
+                widgetConfigInput.value = JSON.stringify(widgetLayout);
+                saveForm.submit();
+            });
+        });
+    }
+    attachRestoreHandlers();
+
+    // Modal handling
+    function openModal() {
+        modal.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+        setTimeout(() => {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
             }
+        }, 100);
+    }
 
-            // Move card to hidden section
-            card.remove();
+    function closeModal() {
+        modal.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+        searchInput.value = '';
+        filterWidgets('', 'all');
+    }
 
-            // Add to hidden widgets
-            const hiddenContainer = document.getElementById('hidden-widgets');
-            const hiddenCard = document.createElement('div');
-            hiddenCard.className = 'hidden-widget-card flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded';
-            hiddenCard.dataset.widgetId = widgetId;
-            hiddenCard.innerHTML = `
-                <span class="text-sm text-gray-600 dark:text-gray-400">${card.querySelector('.font-medium').textContent}</span>
-                <button type="button" class="restore-widget text-blue-600 hover:text-blue-700 text-sm" data-widget-id="${widgetId}">
-                    Restore
-                </button>
-            `;
-            hiddenContainer.appendChild(hiddenCard);
+    openModalBtn.addEventListener('click', openModal);
+    closeModalBtn.addEventListener('click', closeModal);
+    modalBackdrop.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    applyBtn.addEventListener('click', closeModal);
 
-            // Attach restore handler
-            hiddenCard.querySelector('.restore-widget').addEventListener('click', restoreWidget);
+    // Category quick add buttons
+    document.querySelectorAll('.category-quick-add').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const category = this.dataset.category;
+            openModal();
+            // Set active category filter
+            document.querySelectorAll('.category-filter').forEach(f => {
+                f.classList.remove('bg-blue-50', 'dark:bg-blue-900/30', 'text-blue-700', 'dark:text-blue-300', 'font-medium');
+                f.classList.add('text-gray-600', 'dark:text-gray-400');
+            });
+            const targetFilter = document.querySelector(`.category-filter[data-category="${category}"]`);
+            if (targetFilter) {
+                targetFilter.classList.add('bg-blue-50', 'dark:bg-blue-900/30', 'text-blue-700', 'dark:text-blue-300', 'font-medium');
+                targetFilter.classList.remove('text-gray-600', 'dark:text-gray-400');
+            }
+            filterWidgets('', category);
         });
     });
 
-    // Restore widget function
-    function restoreWidget() {
-        const widgetId = this.dataset.widgetId;
-        const hiddenCard = this.closest('.hidden-widget-card');
+    // Category filter in modal
+    document.querySelectorAll('.category-filter').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const category = this.dataset.category;
 
-        // Find and update the widget in layout
-        const widget = widgetLayout.find(w => w.id === widgetId);
-        if (widget) {
-            widget.visible = true;
-        }
+            // Update active state
+            document.querySelectorAll('.category-filter').forEach(f => {
+                f.classList.remove('bg-blue-50', 'dark:bg-blue-900/30', 'text-blue-700', 'dark:text-blue-300', 'font-medium');
+                f.classList.add('text-gray-600', 'dark:text-gray-400');
+            });
+            this.classList.add('bg-blue-50', 'dark:bg-blue-900/30', 'text-blue-700', 'dark:text-blue-300', 'font-medium');
+            this.classList.remove('text-gray-600', 'dark:text-gray-400');
 
-        hiddenCard.remove();
-        // Reload page to properly restore widget
-        location.reload();
-    }
-
-    // Attach restore handlers to existing hidden widgets
-    document.querySelectorAll('.restore-widget').forEach(btn => {
-        btn.addEventListener('click', restoreWidget);
+            filterWidgets(searchInput.value, category);
+        });
     });
 
-    // Add widget from available widgets
-    document.querySelectorAll('.add-widget').forEach(btn => {
+    // Search
+    searchInput.addEventListener('input', function() {
+        const activeCategory = document.querySelector('.category-filter.bg-blue-50')?.dataset.category || 'all';
+        filterWidgets(this.value, activeCategory);
+    });
+
+    function filterWidgets(search, category) {
+        const items = widgetsGrid.querySelectorAll('.widget-item');
+        let visibleCount = 0;
+
+        items.forEach(item => {
+            const matchesCategory = category === 'all' || item.dataset.category === category;
+            const matchesSearch = !search ||
+                item.dataset.name.includes(search.toLowerCase()) ||
+                item.dataset.description.includes(search.toLowerCase());
+
+            if (matchesCategory && matchesSearch) {
+                item.classList.remove('hidden');
+                visibleCount++;
+            } else {
+                item.classList.add('hidden');
+            }
+        });
+
+        // Show/hide no results message
+        if (visibleCount === 0) {
+            noResults.classList.remove('hidden');
+        } else {
+            noResults.classList.add('hidden');
+        }
+    }
+
+    // Add widget from modal
+    document.querySelectorAll('.add-widget-btn').forEach(btn => {
         btn.addEventListener('click', function() {
+            if (this.disabled) return;
+
             const widgetId = this.dataset.widgetId;
 
             // Check if already in layout
             if (widgetLayout.some(w => w.id === widgetId)) {
-                alert('This widget is already in your dashboard.');
                 return;
             }
 
@@ -283,31 +626,50 @@ document.addEventListener('DOMContentLoaded', function() {
                 visible: true
             });
 
-            // Save and reload
-            widgetConfigInput.value = JSON.stringify(widgetLayout);
-            saveForm.submit();
+            // Update button state
+            this.disabled = true;
+            this.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            this.classList.add('bg-gray-200', 'dark:bg-gray-600', 'text-gray-500', 'dark:text-gray-400', 'cursor-not-allowed');
+            this.innerHTML = '<i data-lucide="check" class="w-4 h-4 mr-1"></i> Added';
+
+            // Update parent card
+            const card = this.closest('.widget-item');
+            card.classList.add('border-blue-500', 'dark:border-blue-400');
+            card.classList.remove('border-transparent');
+
+            // Add badge
+            const header = card.querySelector('.flex.items-start');
+            const badge = document.createElement('span');
+            badge.className = 'inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-full';
+            badge.innerHTML = '<i data-lucide="check" class="w-3 h-3 mr-1"></i>Active';
+            header.appendChild(badge);
+
+            // Reinit icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+
+            // Update selected count
+            const countEl = document.getElementById('selected-count');
+            countEl.textContent = widgetLayout.filter(w => w.visible).length;
         });
     });
+
+    // Update selected count on load
+    document.getElementById('selected-count').textContent = widgetLayout.filter(w => w.visible).length;
 
     // Save layout
     saveBtn.addEventListener('click', function() {
         updateLayoutFromDOM();
-
-        // Include hidden widgets in layout
-        document.querySelectorAll('.hidden-widget-card').forEach(card => {
-            const widgetId = card.dataset.widgetId;
-            if (!widgetLayout.some(w => w.id === widgetId)) {
-                widgetLayout.push({
-                    id: widgetId,
-                    size: 'medium',
-                    order: widgetLayout.length + 1,
-                    visible: false
-                });
-            }
-        });
-
         widgetConfigInput.value = JSON.stringify(widgetLayout);
         saveForm.submit();
+    });
+
+    // Keyboard shortcut to close modal
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+            closeModal();
+        }
     });
 });
 </script>

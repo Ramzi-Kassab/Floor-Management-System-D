@@ -224,55 +224,370 @@ def index(request):
 # Dashboard Customization Views
 # =============================================================================
 
-# Available widgets configuration
+# Widget Categories
+WIDGET_CATEGORIES = {
+    "operations": {
+        "name": "Operations",
+        "description": "Work orders, production, and workflow tracking",
+        "icon": "factory",
+        "color": "blue",
+    },
+    "inventory": {
+        "name": "Inventory & Equipment",
+        "description": "Stock levels, drill bits, and equipment",
+        "icon": "package",
+        "color": "green",
+    },
+    "quality": {
+        "name": "Quality & Compliance",
+        "description": "NCRs, inspections, and quality metrics",
+        "icon": "shield-check",
+        "color": "red",
+    },
+    "sales": {
+        "name": "Sales & Customers",
+        "description": "Customer activity and sales metrics",
+        "icon": "users",
+        "color": "purple",
+    },
+    "maintenance": {
+        "name": "Maintenance",
+        "description": "Equipment maintenance and scheduling",
+        "icon": "wrench",
+        "color": "orange",
+    },
+    "analytics": {
+        "name": "Analytics & Reports",
+        "description": "Charts, KPIs, and performance metrics",
+        "icon": "bar-chart-2",
+        "color": "cyan",
+    },
+    "team": {
+        "name": "Team & Resources",
+        "description": "Staff activity and workload",
+        "icon": "users-2",
+        "color": "pink",
+    },
+    "utilities": {
+        "name": "Utilities",
+        "description": "Quick links and shortcuts",
+        "icon": "grid-3x3",
+        "color": "gray",
+    },
+}
+
+# Available widgets configuration - Enhanced with categories
 AVAILABLE_WIDGETS = {
+    # =========================================================================
+    # OPERATIONS WIDGETS
+    # =========================================================================
     "work_orders_summary": {
         "name": "Work Orders Summary",
         "description": "Active, completed, and overdue work order counts",
         "icon": "clipboard-list",
         "default_size": "medium",
-    },
-    "drill_bits_status": {
-        "name": "Drill Bits Status",
-        "description": "Overview of drill bit inventory status",
-        "icon": "tool",
-        "default_size": "small",
+        "category": "operations",
     },
     "recent_work_orders": {
         "name": "Recent Work Orders",
         "description": "List of recently created work orders",
         "icon": "clock",
         "default_size": "large",
+        "category": "operations",
     },
-    "maintenance_due": {
-        "name": "Maintenance Due",
-        "description": "Equipment due for maintenance",
-        "icon": "wrench",
+    "work_orders_by_status": {
+        "name": "Work Orders by Status",
+        "description": "Visual breakdown of work orders by current status",
+        "icon": "pie-chart",
         "default_size": "medium",
+        "category": "operations",
     },
+    "work_orders_by_priority": {
+        "name": "Work Orders by Priority",
+        "description": "High, medium, and low priority work order counts",
+        "icon": "signal",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "overdue_work_orders": {
+        "name": "Overdue Work Orders",
+        "description": "Work orders past their due date requiring attention",
+        "icon": "alert-circle",
+        "default_size": "medium",
+        "category": "operations",
+    },
+    "todays_schedule": {
+        "name": "Today's Schedule",
+        "description": "Work orders scheduled for today",
+        "icon": "calendar-check",
+        "default_size": "large",
+        "category": "operations",
+    },
+    "weekly_production": {
+        "name": "Weekly Production",
+        "description": "Production metrics for the current week",
+        "icon": "trending-up",
+        "default_size": "medium",
+        "category": "operations",
+    },
+
+    # =========================================================================
+    # INVENTORY & EQUIPMENT WIDGETS
+    # =========================================================================
+    "drill_bits_status": {
+        "name": "Drill Bits Status",
+        "description": "Overview of drill bit inventory status",
+        "icon": "tool",
+        "default_size": "small",
+        "category": "inventory",
+    },
+    "low_stock_alerts": {
+        "name": "Low Stock Alerts",
+        "description": "Inventory items below reorder point",
+        "icon": "package-x",
+        "default_size": "medium",
+        "category": "inventory",
+    },
+    "inventory_value": {
+        "name": "Inventory Value",
+        "description": "Total inventory value and breakdown",
+        "icon": "wallet",
+        "default_size": "small",
+        "category": "inventory",
+    },
+    "stock_movements": {
+        "name": "Stock Movements",
+        "description": "Recent stock ins and outs",
+        "icon": "arrow-left-right",
+        "default_size": "medium",
+        "category": "inventory",
+    },
+    "equipment_status": {
+        "name": "Equipment Status",
+        "description": "Overview of equipment operational status",
+        "icon": "cpu",
+        "default_size": "medium",
+        "category": "inventory",
+    },
+    "drill_bit_lifecycle": {
+        "name": "Drill Bit Lifecycle",
+        "description": "Bits by lifecycle stage: new, in-use, refurbished",
+        "icon": "refresh-cw",
+        "default_size": "medium",
+        "category": "inventory",
+    },
+
+    # =========================================================================
+    # QUALITY & COMPLIANCE WIDGETS
+    # =========================================================================
     "open_ncrs": {
         "name": "Open NCRs",
         "description": "Non-conformance reports requiring attention",
         "icon": "alert-triangle",
         "default_size": "medium",
+        "category": "quality",
     },
-    "low_stock_alerts": {
-        "name": "Low Stock Alerts",
-        "description": "Inventory items below reorder point",
-        "icon": "package",
+    "ncr_trends": {
+        "name": "NCR Trends",
+        "description": "NCR count trends over the past 30 days",
+        "icon": "activity",
+        "default_size": "large",
+        "category": "quality",
+    },
+    "pending_inspections": {
+        "name": "Pending Inspections",
+        "description": "Items awaiting quality inspection",
+        "icon": "clipboard-check",
         "default_size": "medium",
+        "category": "quality",
+    },
+    "quality_metrics": {
+        "name": "Quality Metrics",
+        "description": "Pass rate, rejection rate, and rework statistics",
+        "icon": "gauge",
+        "default_size": "medium",
+        "category": "quality",
+    },
+    "compliance_status": {
+        "name": "Compliance Status",
+        "description": "Document expiry and compliance alerts",
+        "icon": "file-check",
+        "default_size": "small",
+        "category": "quality",
+    },
+
+    # =========================================================================
+    # SALES & CUSTOMERS WIDGETS
+    # =========================================================================
+    "customer_activity": {
+        "name": "Customer Activity",
+        "description": "Recent customer orders and interactions",
+        "icon": "building-2",
+        "default_size": "large",
+        "category": "sales",
+    },
+    "top_customers": {
+        "name": "Top Customers",
+        "description": "Most active customers by work order count",
+        "icon": "star",
+        "default_size": "medium",
+        "category": "sales",
+    },
+    "customer_count": {
+        "name": "Customer Count",
+        "description": "Total active and inactive customer count",
+        "icon": "users",
+        "default_size": "small",
+        "category": "sales",
+    },
+    "work_orders_by_customer": {
+        "name": "Work Orders by Customer",
+        "description": "Distribution of work orders across customers",
+        "icon": "bar-chart",
+        "default_size": "large",
+        "category": "sales",
+    },
+
+    # =========================================================================
+    # MAINTENANCE WIDGETS
+    # =========================================================================
+    "maintenance_due": {
+        "name": "Maintenance Due",
+        "description": "Equipment due for maintenance",
+        "icon": "wrench",
+        "default_size": "medium",
+        "category": "maintenance",
+    },
+    "maintenance_calendar": {
+        "name": "Maintenance Calendar",
+        "description": "Upcoming maintenance schedule this week",
+        "icon": "calendar",
+        "default_size": "large",
+        "category": "maintenance",
+    },
+    "equipment_health": {
+        "name": "Equipment Health",
+        "description": "Overall equipment effectiveness metrics",
+        "icon": "heart-pulse",
+        "default_size": "medium",
+        "category": "maintenance",
+    },
+    "maintenance_history": {
+        "name": "Maintenance History",
+        "description": "Recent maintenance activities completed",
+        "icon": "history",
+        "default_size": "medium",
+        "category": "maintenance",
+    },
+
+    # =========================================================================
+    # ANALYTICS & REPORTS WIDGETS
+    # =========================================================================
+    "kpi_summary": {
+        "name": "KPI Summary",
+        "description": "Key performance indicators at a glance",
+        "icon": "target",
+        "default_size": "large",
+        "category": "analytics",
+    },
+    "performance_chart": {
+        "name": "Performance Chart",
+        "description": "Weekly/monthly performance trends",
+        "icon": "line-chart",
+        "default_size": "large",
+        "category": "analytics",
+    },
+    "efficiency_metrics": {
+        "name": "Efficiency Metrics",
+        "description": "Production efficiency and cycle time metrics",
+        "icon": "zap",
+        "default_size": "medium",
+        "category": "analytics",
+    },
+    "monthly_summary": {
+        "name": "Monthly Summary",
+        "description": "Month-to-date production and quality summary",
+        "icon": "calendar-days",
+        "default_size": "medium",
+        "category": "analytics",
+    },
+
+    # =========================================================================
+    # TEAM & RESOURCES WIDGETS
+    # =========================================================================
+    "team_workload": {
+        "name": "Team Workload",
+        "description": "Work distribution across team members",
+        "icon": "users-2",
+        "default_size": "large",
+        "category": "team",
+    },
+    "technician_stats": {
+        "name": "Technician Stats",
+        "description": "Individual technician performance metrics",
+        "icon": "user-check",
+        "default_size": "medium",
+        "category": "team",
+    },
+    "staff_availability": {
+        "name": "Staff Availability",
+        "description": "Team members currently on shift",
+        "icon": "user-cog",
+        "default_size": "small",
+        "category": "team",
     },
     "pending_approvals": {
         "name": "Pending Approvals",
         "description": "Items awaiting your approval",
         "icon": "check-circle",
         "default_size": "small",
+        "category": "team",
     },
+
+    # =========================================================================
+    # UTILITIES WIDGETS
+    # =========================================================================
     "quick_links": {
         "name": "Quick Links",
         "description": "Shortcuts to frequently used modules",
         "icon": "link",
         "default_size": "small",
+        "category": "utilities",
+    },
+    "recent_activity": {
+        "name": "Recent Activity",
+        "description": "Your recent actions in the system",
+        "icon": "scroll",
+        "default_size": "medium",
+        "category": "utilities",
+    },
+    "notifications": {
+        "name": "Notifications",
+        "description": "Unread notifications and alerts",
+        "icon": "bell",
+        "default_size": "small",
+        "category": "utilities",
+    },
+    "system_status": {
+        "name": "System Status",
+        "description": "System health and service status",
+        "icon": "server",
+        "default_size": "small",
+        "category": "utilities",
+    },
+    "weather": {
+        "name": "Weather",
+        "description": "Current weather conditions at facility",
+        "icon": "cloud-sun",
+        "default_size": "small",
+        "category": "utilities",
+    },
+    "clock": {
+        "name": "Clock",
+        "description": "Current date and time display",
+        "icon": "clock-3",
+        "default_size": "small",
+        "category": "utilities",
     },
 }
 
@@ -409,12 +724,39 @@ def customize_dashboard(request):
         widget["name"] = widget_info.get("name", widget["id"])
         widget["description"] = widget_info.get("description", "")
         widget["icon"] = widget_info.get("icon", "square")
+        widget["category"] = widget_info.get("category", "utilities")
+
+    # Get list of active widget IDs
+    active_widget_ids = [w["id"] for w in current_layout]
+
+    # Organize widgets by category for the browser
+    widgets_by_category = {}
+    for widget_id, widget_info in AVAILABLE_WIDGETS.items():
+        category = widget_info.get("category", "utilities")
+        if category not in widgets_by_category:
+            widgets_by_category[category] = []
+        widgets_by_category[category].append({
+            "id": widget_id,
+            "name": widget_info.get("name", widget_id),
+            "description": widget_info.get("description", ""),
+            "icon": widget_info.get("icon", "square"),
+            "default_size": widget_info.get("default_size", "medium"),
+            "is_active": widget_id in active_widget_ids,
+        })
+
+    # Sort widgets within each category by name
+    for category in widgets_by_category:
+        widgets_by_category[category].sort(key=lambda x: x["name"])
 
     context = {
         "page_title": "Customize Dashboard",
         "available_widgets": AVAILABLE_WIDGETS,
+        "widget_categories": WIDGET_CATEGORIES,
+        "widgets_by_category": widgets_by_category,
         "current_layout": current_layout,
         "current_layout_json": json.dumps(current_layout),
+        "total_widgets": len(AVAILABLE_WIDGETS),
+        "active_widget_count": len(active_widget_ids),
     }
     return render(request, "dashboard/customize.html", context)
 
