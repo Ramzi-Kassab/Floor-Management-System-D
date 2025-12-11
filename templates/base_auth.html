@@ -62,13 +62,13 @@
 </head>
 <body class="min-h-screen bg-gradient-to-br from-ardt-blue via-ardt-blue-dark to-blue-900 bg-pattern font-sans">
 
-    <div class="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8">
-        <div class="w-full max-w-md">
+    <div class="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 lg:p-6">
+        <div class="w-full max-w-sm sm:max-w-md">
             <!-- Logo & Branding -->
-            <div class="text-center mb-8">
+            <div class="text-center mb-4 sm:mb-6">
                 <!-- ARDT Logo (SVG) -->
-                <div class="inline-flex items-center justify-center mb-4">
-                    <svg class="w-20 h-20" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <div class="inline-flex items-center justify-center mb-2 sm:mb-4">
+                    <svg class="w-16 h-16 sm:w-20 sm:h-20" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                         <!-- Outer ring -->
                         <circle cx="50" cy="50" r="48" fill="none" stroke="#FFB81C" stroke-width="3"/>
                         <!-- Inner background -->
@@ -93,12 +93,12 @@
             </div>
 
             <!-- Card -->
-            <div class="bg-white/95 login-card rounded-2xl shadow-2xl shadow-black/20 p-6 sm:p-8 border border-white/20">
+            <div class="bg-white/95 login-card rounded-xl sm:rounded-2xl shadow-2xl shadow-black/20 p-4 sm:p-6 border border-white/20">
                 {% block auth_content %}{% endblock %}
             </div>
 
             <!-- Footer -->
-            <div class="text-center mt-6 space-y-2">
+            <div class="text-center mt-4 space-y-1">
                 <p class="text-blue-200 text-sm">
                     &copy; {% now "Y" %} Arabian Drilling Technology Co.
                 </p>

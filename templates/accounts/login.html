@@ -15,12 +15,12 @@
     {% endif %}
 
     <!-- Login Form -->
-    <form method="post" action="{% url 'accounts:login' %}" class="space-y-5" @submit="loading = true">
+    <form method="post" action="{% url 'accounts:login' %}" class="space-y-4" @submit="loading = true">
         {% csrf_token %}
 
         <!-- Header -->
-        <div class="text-center mb-6">
-            <h2 class="text-2xl font-bold text-gray-900">Welcome Back</h2>
+        <div class="text-center mb-4">
+            <h2 class="text-xl sm:text-2xl font-bold text-gray-900">Welcome Back</h2>
             <p class="text-gray-500 text-sm mt-1">Sign in to access your dashboard</p>
         </div>
 
@@ -35,7 +35,7 @@
                        name="username"
                        id="id_username"
                        value="{{ form.username.value|default:'' }}"
-                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-ardt-blue transition-colors text-gray-900 placeholder-gray-400 {% if form.username.errors %}border-red-500 focus:ring-red-500 focus:border-red-500{% endif %}"
+                       class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-ardt-blue transition-colors text-gray-900 placeholder-gray-400 text-sm {% if form.username.errors %}border-red-500 focus:ring-red-500 focus:border-red-500{% endif %}"
                        placeholder="Enter your username"
                        autocomplete="username"
                        required
@@ -59,7 +59,7 @@
                 <input :type="showPassword ? 'text' : 'password'"
                        name="password"
                        id="id_password"
-                       class="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-ardt-blue transition-colors text-gray-900 placeholder-gray-400 {% if form.password.errors %}border-red-500 focus:ring-red-500 focus:border-red-500{% endif %}"
+                       class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-ardt-blue transition-colors text-gray-900 placeholder-gray-400 text-sm {% if form.password.errors %}border-red-500 focus:ring-red-500 focus:border-red-500{% endif %}"
                        placeholder="Enter your password"
                        autocomplete="current-password"
                        required>
@@ -108,7 +108,7 @@
         <!-- Submit Button -->
         <button type="submit"
                 :disabled="loading"
-                class="w-full text-white bg-ardt-blue hover:bg-ardt-blue-dark focus:ring-4 focus:outline-none focus:ring-blue-300 font-semibold rounded-lg px-5 py-3.5 text-center transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-ardt-blue/30 hover:shadow-xl hover:shadow-ardt-blue/40">
+                class="w-full text-white bg-ardt-blue hover:bg-ardt-blue-dark focus:ring-4 focus:outline-none focus:ring-blue-300 font-semibold rounded-lg px-4 py-2.5 text-center transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-ardt-blue/30 hover:shadow-xl hover:shadow-ardt-blue/40 text-sm">
             <template x-if="!loading">
                 <span class="flex items-center gap-2">
                     <i data-lucide="log-in" class="w-5 h-5"></i>
@@ -128,25 +128,22 @@
     </form>
 
     <!-- Divider -->
-    <div class="relative my-6">
+    <div class="relative my-4">
         <div class="absolute inset-0 flex items-center">
             <div class="w-full border-t border-gray-200"></div>
         </div>
-        <div class="relative flex justify-center text-sm">
-            <span class="px-4 bg-white text-gray-500">Need assistance?</span>
+        <div class="relative flex justify-center text-xs">
+            <span class="px-3 bg-white text-gray-500">Need assistance?</span>
         </div>
     </div>
 
     <!-- Help Text -->
-    <div class="text-center space-y-2">
-        <p class="text-sm text-gray-600">
+    <div class="text-center space-y-1">
+        <p class="text-xs text-gray-600">
             Contact IT Support:
             <a href="mailto:it@ardt.com" class="text-ardt-blue hover:underline font-medium">
                 it@ardt.com
             </a>
-        </p>
-        <p class="text-xs text-gray-400">
-            For new accounts, please contact your department manager
         </p>
     </div>
 </div>
