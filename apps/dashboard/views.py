@@ -46,11 +46,34 @@ def home_view(request):
 def main_dashboard(request):
     """
     Main dashboard view for all users.
-    Shows general overview and quick links.
+    Shows customized widgets based on user preferences.
     """
+    user = request.user
+
+    # Get user's widget layout
+    widget_layout = get_user_widget_layout(user)
+
+    # Build widgets with data
+    widgets = []
+    for widget_config in widget_layout:
+        if widget_config.get("visible", True):
+            widget_id = widget_config["id"]
+            widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
+            widgets.append({
+                "id": widget_id,
+                "name": widget_info.get("name", widget_id),
+                "description": widget_info.get("description", ""),
+                "icon": widget_info.get("icon", "square"),
+                "size": widget_config.get("size", "medium"),
+                "category": widget_info.get("category", "utilities"),
+                "data": get_widget_data(widget_id, user),
+            })
+
     context = {
         "page_title": "Dashboard",
-        "user": request.user,
+        "user": user,
+        "widgets": widgets,
+        "total_widgets": len(AVAILABLE_WIDGETS),
     }
     return render(request, "dashboard/main.html", context)
 
@@ -639,6 +662,13 @@ def get_widget_data(widget_id, user):
     elif widget_id == "recent_work_orders":
         return {
             "work_orders": WorkOrder.objects.select_related("customer", "assigned_to").order_by("-created_at")[:5]
+        }
+
+    elif widget_id == "overdue_work_orders":
+        return {
+            "overdue": WorkOrder.objects.filter(
+                due_date__lt=today, status__in=["PLANNED", "IN_PROGRESS", "ON_HOLD"]
+            ).count(),
         }
 
     elif widget_id == "maintenance_due":
