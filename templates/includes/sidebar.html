@@ -46,24 +46,38 @@
                 <a href="{% url 'sales:rig_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Rigs</a>
                 <a href="{% url 'sales:well_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Wells</a>
                 <a href="{% url 'sales:salesorder_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Sales Orders</a>
-                <!-- Field Services -->
-                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Field Services</span>
-                <a href="{% url 'sales:servicesite_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Sites</a>
-                <a href="{% url 'sales:fieldservicerequest_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Requests</a>
-                <a href="{% url 'sales:sitevisit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Site Visits</a>
-                <a href="{% url 'sales:servicereport_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Reports</a>
-                <a href="{% url 'sales:serviceschedule_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Schedules</a>
-                <a href="{% url 'sales:fieldtechnician_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Engineers</a>
-                <a href="{% url 'sales:fieldworkorder_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Work Orders</a>
-                <a href="{% url 'sales:fieldassetassignment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Asset Assignments</a>
-                <!-- Field Data -->
-                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Field Data</span>
-                <a href="{% url 'sales:fielddrillstringrun_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Drill Runs</a>
-                <a href="{% url 'sales:fieldrundata_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Run Data</a>
-                <a href="{% url 'sales:runhours_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Run Hours</a>
-                <a href="{% url 'sales:fieldperformancelog_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Performance Logs</a>
-                <a href="{% url 'sales:fieldinspection_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Inspections</a>
-                <a href="{% url 'sales:fieldincident_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Incidents</a>
+                <!-- Field Services (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Field Services</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'sales:servicesite_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Sites</a>
+                        <a href="{% url 'sales:fieldservicerequest_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Requests</a>
+                        <a href="{% url 'sales:sitevisit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Site Visits</a>
+                        <a href="{% url 'sales:servicereport_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Reports</a>
+                        <a href="{% url 'sales:serviceschedule_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Schedules</a>
+                        <a href="{% url 'sales:fieldtechnician_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Engineers</a>
+                        <a href="{% url 'sales:fieldworkorder_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Work Orders</a>
+                        <a href="{% url 'sales:fieldassetassignment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Asset Assignments</a>
+                    </div>
+                </div>
+                <!-- Field Data (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Field Data</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'sales:fielddrillstringrun_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Drill Runs</a>
+                        <a href="{% url 'sales:fieldrundata_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Run Data</a>
+                        <a href="{% url 'sales:runhours_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Run Hours</a>
+                        <a href="{% url 'sales:fieldperformancelog_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Performance Logs</a>
+                        <a href="{% url 'sales:fieldinspection_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Inspections</a>
+                        <a href="{% url 'sales:fieldincident_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Incidents</a>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -84,18 +98,32 @@
                 <a href="{% url 'execution:list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">WIP</a>
                 <a href="{% url 'workorders:processroute_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Process Routes</a>
                 <a href="{% url 'workorders:workordercost_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Order Costs</a>
-                <!-- Repair Operations -->
-                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Repair Operations</span>
-                <a href="{% url 'workorders:repairevaluation_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Repair Evaluations</a>
-                <a href="{% url 'workorders:repairbom_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Repair BOM</a>
-                <a href="{% url 'workorders:bitrepairhistory_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Bit Repair History</a>
-                <a href="{% url 'workorders:salvageitem_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Salvage Items</a>
-                <!-- Maintenance (sub-dept) -->
-                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Maintenance</span>
-                <a href="{% url 'maintenance:equipment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Equipment</a>
-                <a href="{% url 'maintenance:request_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance Requests</a>
-                <a href="{% url 'maintenance:mwo_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance Work Orders</a>
-                <a href="{% url 'maintenance:pm_schedule' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">PM Schedule</a>
+                <!-- Repair Operations (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Repair Operations</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'workorders:repairevaluation_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Repair Evaluations</a>
+                        <a href="{% url 'workorders:repairbom_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Repair BOM</a>
+                        <a href="{% url 'workorders:bitrepairhistory_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Bit Repair History</a>
+                        <a href="{% url 'workorders:salvageitem_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Salvage Items</a>
+                    </div>
+                </div>
+                <!-- Maintenance (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Maintenance</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'maintenance:equipment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Equipment</a>
+                        <a href="{% url 'maintenance:request_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance Requests</a>
+                        <a href="{% url 'maintenance:mwo_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance Work Orders</a>
+                        <a href="{% url 'maintenance:pm_schedule' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">PM Schedule</a>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -154,14 +182,21 @@
                 <a href="{% url 'supplychain:capa_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">CAPA</a>
                 <a href="{% url 'procedures:procedure_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Procedures</a>
                 <a href="{% url 'forms_engine:template-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Form Templates</a>
-                <!-- Compliance -->
-                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Compliance</span>
-                <a href="{% url 'compliance:compliancerequirement_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requirements</a>
-                <a href="{% url 'compliance:inspectionchecklist_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Checklists</a>
-                <a href="{% url 'compliance:audittrail_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Audits</a>
-                <a href="{% url 'compliance:certification_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Certifications</a>
-                <a href="{% url 'compliance:trainingrecord_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Training Records</a>
-                <a href="{% url 'compliance:qualitymetric_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Metrics</a>
+                <!-- Compliance (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Compliance</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'compliance:compliancerequirement_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requirements</a>
+                        <a href="{% url 'compliance:inspectionchecklist_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Checklists</a>
+                        <a href="{% url 'compliance:audittrail_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Audits</a>
+                        <a href="{% url 'compliance:certification_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Certifications</a>
+                        <a href="{% url 'compliance:trainingrecord_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Training Records</a>
+                        <a href="{% url 'compliance:qualitymetric_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Metrics</a>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -178,30 +213,65 @@
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <!-- Inventory -->
-                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Inventory</span>
-                <a href="{% url 'inventory:item_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Items</a>
-                <a href="{% url 'inventory:stock_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Levels</a>
-                <a href="{% url 'inventory:category_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Categories</a>
-                <a href="{% url 'inventory:location_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Locations</a>
-                <a href="{% url 'inventory:transaction_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Transactions</a>
-                <a href="{% url 'sales:warehouse_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Warehouses</a>
-                <!-- Drill Bits Inventory -->
-                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Drill Bits Inventory</span>
-                <a href="{% url 'workorders:drillbit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Drill Bits</a>
-                <!-- Purchasing -->
-                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Purchasing</span>
-                <a href="{% url 'supplychain:supplier_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Vendors</a>
-                <a href="{% url 'supplychain:pr_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requisitions</a>
-                <a href="{% url 'supplychain:po_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Purchase Orders</a>
-                <a href="{% url 'supplychain:grn_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Goods Receipts</a>
-                <!-- DRSS -->
-                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">DRSS</span>
-                <a href="{% url 'drss:drss_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">DRSS Requests</a>
-                <!-- Dispatch -->
-                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Dispatch</span>
-                <a href="{% url 'dispatch:dispatch-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Dispatches</a>
-                <a href="{% url 'dispatch:vehicle-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Vehicles</a>
+                <!-- Inventory (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Inventory</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'inventory:item_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Items</a>
+                        <a href="{% url 'inventory:stock_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Levels</a>
+                        <a href="{% url 'inventory:category_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Categories</a>
+                        <a href="{% url 'inventory:location_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Locations</a>
+                        <a href="{% url 'inventory:transaction_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Transactions</a>
+                        <a href="{% url 'sales:warehouse_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Warehouses</a>
+                    </div>
+                </div>
+                <!-- Drill Bits Inventory (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Drill Bits Inventory</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'workorders:drillbit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Drill Bits</a>
+                    </div>
+                </div>
+                <!-- Purchasing (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Purchasing</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'supplychain:supplier_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Vendors</a>
+                        <a href="{% url 'supplychain:pr_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requisitions</a>
+                        <a href="{% url 'supplychain:po_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Purchase Orders</a>
+                        <a href="{% url 'supplychain:grn_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Goods Receipts</a>
+                    </div>
+                </div>
+                <!-- DRSS (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>DRSS</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'drss:drss_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">DRSS Requests</a>
+                    </div>
+                </div>
+                <!-- Dispatch (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Dispatch</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'dispatch:dispatch-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Dispatches</a>
+                        <a href="{% url 'dispatch:vehicle-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Vehicles</a>
+                    </div>
+                </div>
             </div>
         </div>
 
