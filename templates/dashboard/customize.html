@@ -39,7 +39,7 @@
         <div class="lg:col-span-2">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Active Widgets</h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Drag to reorder. Click the eye icon to hide.</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Drag to reorder. Click <i data-lucide="settings" class="w-3 h-3 inline"></i> to customize style.</p>
 
                 <div id="active-widgets" class="space-y-3 min-h-[200px]">
                     {% for widget in current_layout %}
@@ -47,14 +47,19 @@
                     <div class="widget-card bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-4 cursor-move"
                          data-widget-id="{{ widget.id }}"
                          data-visible="true"
+                         data-color="{{ widget.color|default:'blue' }}"
+                         data-style="{{ widget.style|default:'card' }}"
+                         data-text-size="{{ widget.text_size|default:'normal' }}"
+                         data-border-radius="{{ widget.border_radius|default:'rounded' }}"
+                         data-show-header="{{ widget.show_header|default:'true' }}"
                          draggable="true">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <div class="drag-handle p-1 text-gray-400 cursor-grab hover:text-gray-600 dark:hover:text-gray-300">
                                     <i data-lucide="grip-vertical" class="w-5 h-5"></i>
                                 </div>
-                                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                    <i data-lucide="{{ widget.icon }}" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                                <div class="widget-icon-preview flex-shrink-0 w-10 h-10 rounded-lg bg-{{ widget.color|default:'blue' }}-100 dark:bg-{{ widget.color|default:'blue' }}-900/30 flex items-center justify-center">
+                                    <i data-lucide="{{ widget.icon }}" class="w-5 h-5 text-{{ widget.color|default:'blue' }}-600 dark:text-{{ widget.color|default:'blue' }}-400"></i>
                                 </div>
                                 <div>
                                     <p class="font-medium text-gray-900 dark:text-white">{{ widget.name }}</p>
@@ -62,12 +67,92 @@
                                 </div>
                             </div>
                             <div class="flex items-center space-x-2">
+                                <!-- Size Select -->
                                 <select class="size-select text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:ring-blue-500 focus:border-blue-500"
                                         data-widget-id="{{ widget.id }}">
                                     <option value="small" {% if widget.size == "small" %}selected{% endif %}>Small</option>
                                     <option value="medium" {% if widget.size == "medium" %}selected{% endif %}>Medium</option>
                                     <option value="large" {% if widget.size == "large" %}selected{% endif %}>Large</option>
+                                    <option value="full" {% if widget.size == "full" %}selected{% endif %}>Full Width</option>
                                 </select>
+                                <!-- Settings Button -->
+                                <div class="relative" x-data="{ open: false }">
+                                    <button @click="open = !open" type="button"
+                                            class="widget-settings p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                            title="Widget settings">
+                                        <i data-lucide="settings" class="w-4 h-4"></i>
+                                    </button>
+                                    <!-- Settings Dropdown -->
+                                    <div x-show="open" @click.away="open = false"
+                                         x-transition:enter="transition ease-out duration-100"
+                                         x-transition:enter-start="opacity-0 scale-95"
+                                         x-transition:enter-end="opacity-100 scale-100"
+                                         x-transition:leave="transition ease-in duration-75"
+                                         x-transition:leave-start="opacity-100 scale-100"
+                                         x-transition:leave-end="opacity-0 scale-95"
+                                         class="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 p-4"
+                                         style="display: none;">
+                                        <h4 class="font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                                            <i data-lucide="palette" class="w-4 h-4 mr-2"></i>
+                                            Widget Style
+                                        </h4>
+
+                                        <!-- Color Theme -->
+                                        <div class="mb-4">
+                                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Color Theme</label>
+                                            <div class="flex flex-wrap gap-2">
+                                                <button type="button" class="color-option w-7 h-7 rounded-full bg-blue-500 hover:ring-2 hover:ring-offset-2 hover:ring-blue-500 transition-all" data-color="blue" title="Blue"></button>
+                                                <button type="button" class="color-option w-7 h-7 rounded-full bg-green-500 hover:ring-2 hover:ring-offset-2 hover:ring-green-500 transition-all" data-color="green" title="Green"></button>
+                                                <button type="button" class="color-option w-7 h-7 rounded-full bg-red-500 hover:ring-2 hover:ring-offset-2 hover:ring-red-500 transition-all" data-color="red" title="Red"></button>
+                                                <button type="button" class="color-option w-7 h-7 rounded-full bg-purple-500 hover:ring-2 hover:ring-offset-2 hover:ring-purple-500 transition-all" data-color="purple" title="Purple"></button>
+                                                <button type="button" class="color-option w-7 h-7 rounded-full bg-orange-500 hover:ring-2 hover:ring-offset-2 hover:ring-orange-500 transition-all" data-color="orange" title="Orange"></button>
+                                                <button type="button" class="color-option w-7 h-7 rounded-full bg-cyan-500 hover:ring-2 hover:ring-offset-2 hover:ring-cyan-500 transition-all" data-color="cyan" title="Cyan"></button>
+                                                <button type="button" class="color-option w-7 h-7 rounded-full bg-pink-500 hover:ring-2 hover:ring-offset-2 hover:ring-pink-500 transition-all" data-color="pink" title="Pink"></button>
+                                                <button type="button" class="color-option w-7 h-7 rounded-full bg-gray-500 hover:ring-2 hover:ring-offset-2 hover:ring-gray-500 transition-all" data-color="gray" title="Gray"></button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Widget Style -->
+                                        <div class="mb-4">
+                                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Style</label>
+                                            <div class="grid grid-cols-3 gap-2">
+                                                <button type="button" class="style-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-style="flat">Flat</button>
+                                                <button type="button" class="style-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-style="card">Card</button>
+                                                <button type="button" class="style-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-style="gradient">Gradient</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Text Size -->
+                                        <div class="mb-4">
+                                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Text Size</label>
+                                            <div class="grid grid-cols-3 gap-2">
+                                                <button type="button" class="text-size-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-text-size="small">Small</button>
+                                                <button type="button" class="text-size-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-text-size="normal">Normal</button>
+                                                <button type="button" class="text-size-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-text-size="large">Large</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Border Radius -->
+                                        <div class="mb-4">
+                                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Corner Style</label>
+                                            <div class="grid grid-cols-3 gap-2">
+                                                <button type="button" class="radius-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-radius="square">Square</button>
+                                                <button type="button" class="radius-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-radius="rounded">Rounded</button>
+                                                <button type="button" class="radius-option px-3 py-2 text-xs rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-radius="pill">Pill</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Show Header Toggle -->
+                                        <div class="flex items-center justify-between">
+                                            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">Show Header</label>
+                                            <button type="button" class="header-toggle relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 dark:bg-gray-600 transition-colors"
+                                                    data-show-header="true">
+                                                <span class="header-toggle-dot inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform translate-x-6"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Hide Button -->
                                 <button type="button" class="toggle-visibility p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                                         data-widget-id="{{ widget.id }}"
                                         title="Hide widget">
@@ -435,12 +520,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 id: widgetId,
                 size: sizeSelect ? sizeSelect.value : 'medium',
                 order: index + 1,
-                visible: true
+                visible: true,
+                color: card.dataset.color || 'blue',
+                style: card.dataset.style || 'card',
+                text_size: card.dataset.textSize || 'normal',
+                border_radius: card.dataset.borderRadius || 'rounded',
+                show_header: card.dataset.showHeader !== 'false'
             });
         });
 
-        // Keep hidden widgets
-        const hiddenWidgets = widgetLayout.filter(w => !w.visible);
+        // Keep hidden widgets with their style properties
+        const hiddenWidgets = widgetLayout.filter(w => !w.visible).map(w => ({
+            ...w,
+            color: w.color || 'blue',
+            style: w.style || 'card',
+            text_size: w.text_size || 'normal',
+            border_radius: w.border_radius || 'rounded',
+            show_header: w.show_header !== false
+        }));
         widgetLayout = [...visibleWidgets, ...hiddenWidgets];
     }
 
@@ -448,6 +545,198 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.size-select').forEach(select => {
         select.addEventListener('change', updateLayoutFromDOM);
     });
+
+    // Widget style option handlers
+    function attachStyleHandlers() {
+        // Color option handlers
+        document.querySelectorAll('.color-option').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const color = this.dataset.color;
+                const card = this.closest('.widget-card');
+                if (!card) return;
+
+                // Update data attribute
+                card.dataset.color = color;
+
+                // Update visual preview - icon background and color
+                const iconPreview = card.querySelector('.widget-icon-preview');
+                if (iconPreview) {
+                    // Remove old color classes
+                    const colorClasses = ['bg-blue-100', 'bg-green-100', 'bg-red-100', 'bg-purple-100', 'bg-orange-100', 'bg-cyan-100', 'bg-pink-100', 'bg-gray-100',
+                                          'dark:bg-blue-900/30', 'dark:bg-green-900/30', 'dark:bg-red-900/30', 'dark:bg-purple-900/30', 'dark:bg-orange-900/30', 'dark:bg-cyan-900/30', 'dark:bg-pink-900/30', 'dark:bg-gray-700'];
+                    iconPreview.classList.remove(...colorClasses);
+                    iconPreview.classList.add(`bg-${color}-100`, `dark:bg-${color}-900/30`);
+
+                    // Update icon color
+                    const icon = iconPreview.querySelector('[data-lucide]');
+                    if (icon) {
+                        const iconColorClasses = ['text-blue-600', 'text-green-600', 'text-red-600', 'text-purple-600', 'text-orange-600', 'text-cyan-600', 'text-pink-600', 'text-gray-600',
+                                                  'dark:text-blue-400', 'dark:text-green-400', 'dark:text-red-400', 'dark:text-purple-400', 'dark:text-orange-400', 'dark:text-cyan-400', 'dark:text-pink-400', 'dark:text-gray-400'];
+                        icon.classList.remove(...iconColorClasses);
+                        icon.classList.add(`text-${color}-600`, `dark:text-${color}-400`);
+                    }
+                }
+
+                // Highlight selected color
+                const colorButtons = this.closest('.flex').querySelectorAll('.color-option');
+                colorButtons.forEach(b => b.classList.remove('ring-2', 'ring-offset-2'));
+                this.classList.add('ring-2', 'ring-offset-2');
+
+                updateLayoutFromDOM();
+            });
+        });
+
+        // Style option handlers (flat, card, gradient)
+        document.querySelectorAll('.style-option').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const style = this.dataset.style;
+                const card = this.closest('.widget-card');
+                if (!card) return;
+
+                card.dataset.style = style;
+
+                // Highlight selected style
+                const styleButtons = this.closest('.grid').querySelectorAll('.style-option');
+                styleButtons.forEach(b => {
+                    b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                    b.classList.add('border-gray-200', 'dark:border-gray-600');
+                });
+                this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                this.classList.remove('border-gray-200', 'dark:border-gray-600');
+
+                updateLayoutFromDOM();
+            });
+        });
+
+        // Text size option handlers
+        document.querySelectorAll('.text-size-option').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const textSize = this.dataset.textSize;
+                const card = this.closest('.widget-card');
+                if (!card) return;
+
+                card.dataset.textSize = textSize;
+
+                // Highlight selected text size
+                const sizeButtons = this.closest('.grid').querySelectorAll('.text-size-option');
+                sizeButtons.forEach(b => {
+                    b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                    b.classList.add('border-gray-200', 'dark:border-gray-600');
+                });
+                this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                this.classList.remove('border-gray-200', 'dark:border-gray-600');
+
+                updateLayoutFromDOM();
+            });
+        });
+
+        // Border radius option handlers
+        document.querySelectorAll('.radius-option').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const radius = this.dataset.radius;
+                const card = this.closest('.widget-card');
+                if (!card) return;
+
+                card.dataset.borderRadius = radius;
+
+                // Highlight selected radius
+                const radiusButtons = this.closest('.grid').querySelectorAll('.radius-option');
+                radiusButtons.forEach(b => {
+                    b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                    b.classList.add('border-gray-200', 'dark:border-gray-600');
+                });
+                this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                this.classList.remove('border-gray-200', 'dark:border-gray-600');
+
+                updateLayoutFromDOM();
+            });
+        });
+
+        // Header toggle handlers
+        document.querySelectorAll('.header-toggle').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const card = this.closest('.widget-card');
+                if (!card) return;
+
+                const currentState = card.dataset.showHeader === 'true';
+                const newState = !currentState;
+                card.dataset.showHeader = newState;
+
+                // Update toggle visual
+                const dot = this.querySelector('.header-toggle-dot');
+                if (newState) {
+                    this.classList.remove('bg-gray-200', 'dark:bg-gray-600');
+                    this.classList.add('bg-blue-600');
+                    dot.classList.remove('translate-x-1');
+                    dot.classList.add('translate-x-6');
+                } else {
+                    this.classList.add('bg-gray-200', 'dark:bg-gray-600');
+                    this.classList.remove('bg-blue-600');
+                    dot.classList.add('translate-x-1');
+                    dot.classList.remove('translate-x-6');
+                }
+
+                updateLayoutFromDOM();
+            });
+        });
+
+        // Initialize active states on settings dropdowns
+        document.querySelectorAll('.widget-card').forEach(card => {
+            const color = card.dataset.color || 'blue';
+            const style = card.dataset.style || 'card';
+            const textSize = card.dataset.textSize || 'normal';
+            const borderRadius = card.dataset.borderRadius || 'rounded';
+            const showHeader = card.dataset.showHeader !== 'false';
+
+            // Set active color button
+            const colorBtn = card.querySelector(`.color-option[data-color="${color}"]`);
+            if (colorBtn) colorBtn.classList.add('ring-2', 'ring-offset-2');
+
+            // Set active style button
+            const styleBtn = card.querySelector(`.style-option[data-style="${style}"]`);
+            if (styleBtn) {
+                styleBtn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                styleBtn.classList.remove('border-gray-200', 'dark:border-gray-600');
+            }
+
+            // Set active text size button
+            const textSizeBtn = card.querySelector(`.text-size-option[data-text-size="${textSize}"]`);
+            if (textSizeBtn) {
+                textSizeBtn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                textSizeBtn.classList.remove('border-gray-200', 'dark:border-gray-600');
+            }
+
+            // Set active radius button
+            const radiusBtn = card.querySelector(`.radius-option[data-radius="${borderRadius}"]`);
+            if (radiusBtn) {
+                radiusBtn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                radiusBtn.classList.remove('border-gray-200', 'dark:border-gray-600');
+            }
+
+            // Set header toggle state
+            const headerToggle = card.querySelector('.header-toggle');
+            if (headerToggle) {
+                const dot = headerToggle.querySelector('.header-toggle-dot');
+                if (showHeader) {
+                    headerToggle.classList.remove('bg-gray-200', 'dark:bg-gray-600');
+                    headerToggle.classList.add('bg-blue-600');
+                    dot.classList.remove('translate-x-1');
+                    dot.classList.add('translate-x-6');
+                } else {
+                    headerToggle.classList.add('bg-gray-200', 'dark:bg-gray-600');
+                    headerToggle.classList.remove('bg-blue-600');
+                    dot.classList.add('translate-x-1');
+                    dot.classList.remove('translate-x-6');
+                }
+            }
+        });
+    }
+    attachStyleHandlers();
 
     // Toggle visibility (hide widget)
     function attachToggleHandlers() {
@@ -618,12 +907,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // Add to layout
+            // Add to layout with default styles
             widgetLayout.push({
                 id: widgetId,
                 size: this.dataset.widgetSize,
                 order: widgetLayout.length + 1,
-                visible: true
+                visible: true,
+                color: 'blue',
+                style: 'card',
+                text_size: 'normal',
+                border_radius: 'rounded',
+                show_header: true
             });
 
             // Update button state immediately for visual feedback
@@ -704,7 +998,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 id: widgetId,
                 size: sizeSelect ? sizeSelect.value : 'medium',
                 order: index + 1,
-                visible: true
+                visible: true,
+                color: card.dataset.color || 'blue',
+                style: card.dataset.style || 'card',
+                text_size: card.dataset.textSize || 'normal',
+                border_radius: card.dataset.borderRadius || 'rounded',
+                show_header: card.dataset.showHeader !== 'false'
             });
         });
 
@@ -715,14 +1014,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     id: w.id,
                     size: w.size,
                     order: domWidgets.length + 1,
-                    visible: true
+                    visible: true,
+                    color: w.color || 'blue',
+                    style: w.style || 'card',
+                    text_size: w.text_size || 'normal',
+                    border_radius: w.border_radius || 'rounded',
+                    show_header: w.show_header !== false
                 });
             }
         });
 
-        // Add hidden widgets
+        // Add hidden widgets with their style properties
         widgetLayout.filter(w => !w.visible).forEach(w => {
-            domWidgets.push(w);
+            domWidgets.push({
+                ...w,
+                color: w.color || 'blue',
+                style: w.style || 'card',
+                text_size: w.text_size || 'normal',
+                border_radius: w.border_radius || 'rounded',
+                show_header: w.show_header !== false
+            });
         });
 
         widgetConfigInput.value = JSON.stringify(domWidgets);

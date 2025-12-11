@@ -24,59 +24,67 @@
 <!-- Dynamic Widget Grid -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
     {% for widget in widgets %}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6
+    <div class="widget-container p-6 shadow-sm
                 {% if widget.size == 'large' %}md:col-span-2{% endif %}
-                {% if widget.size == 'small' %}{% endif %}">
+                {% if widget.size == 'full' %}md:col-span-2 lg:col-span-3 xl:col-span-4{% endif %}
+                {% if widget.border_radius == 'square' %}rounded-none{% elif widget.border_radius == 'pill' %}rounded-3xl{% else %}rounded-xl{% endif %}
+                {% if widget.style == 'flat' %}bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700
+                {% elif widget.style == 'gradient' %}bg-gradient-to-br from-{{ widget.color }}-50 to-{{ widget.color }}-100 dark:from-{{ widget.color }}-900/20 dark:to-{{ widget.color }}-800/20 border border-{{ widget.color }}-200 dark:border-{{ widget.color }}-800
+                {% else %}bg-white dark:bg-gray-800{% endif %}">
 
+        {% if widget.show_header %}
         <!-- Widget Header -->
         <div class="flex items-center justify-between mb-4">
             <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-lg flex items-center justify-center
-                    {% if widget.category == 'operations' %}bg-blue-100 dark:bg-blue-900/30{% endif %}
-                    {% if widget.category == 'inventory' %}bg-green-100 dark:bg-green-900/30{% endif %}
-                    {% if widget.category == 'quality' %}bg-red-100 dark:bg-red-900/30{% endif %}
-                    {% if widget.category == 'sales' %}bg-purple-100 dark:bg-purple-900/30{% endif %}
-                    {% if widget.category == 'maintenance' %}bg-orange-100 dark:bg-orange-900/30{% endif %}
-                    {% if widget.category == 'analytics' %}bg-cyan-100 dark:bg-cyan-900/30{% endif %}
-                    {% if widget.category == 'team' %}bg-pink-100 dark:bg-pink-900/30{% endif %}
-                    {% if widget.category == 'utilities' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                <div class="w-10 h-10 flex items-center justify-center
+                    {% if widget.border_radius == 'square' %}rounded-none{% elif widget.border_radius == 'pill' %}rounded-full{% else %}rounded-lg{% endif %}
+                    {% if widget.color == 'blue' %}bg-blue-100 dark:bg-blue-900/30{% endif %}
+                    {% if widget.color == 'green' %}bg-green-100 dark:bg-green-900/30{% endif %}
+                    {% if widget.color == 'red' %}bg-red-100 dark:bg-red-900/30{% endif %}
+                    {% if widget.color == 'purple' %}bg-purple-100 dark:bg-purple-900/30{% endif %}
+                    {% if widget.color == 'orange' %}bg-orange-100 dark:bg-orange-900/30{% endif %}
+                    {% if widget.color == 'cyan' %}bg-cyan-100 dark:bg-cyan-900/30{% endif %}
+                    {% if widget.color == 'pink' %}bg-pink-100 dark:bg-pink-900/30{% endif %}
+                    {% if widget.color == 'gray' %}bg-gray-100 dark:bg-gray-700{% endif %}">
                     <i data-lucide="{{ widget.icon }}" class="w-5 h-5
-                        {% if widget.category == 'operations' %}text-blue-600 dark:text-blue-400{% endif %}
-                        {% if widget.category == 'inventory' %}text-green-600 dark:text-green-400{% endif %}
-                        {% if widget.category == 'quality' %}text-red-600 dark:text-red-400{% endif %}
-                        {% if widget.category == 'sales' %}text-purple-600 dark:text-purple-400{% endif %}
-                        {% if widget.category == 'maintenance' %}text-orange-600 dark:text-orange-400{% endif %}
-                        {% if widget.category == 'analytics' %}text-cyan-600 dark:text-cyan-400{% endif %}
-                        {% if widget.category == 'team' %}text-pink-600 dark:text-pink-400{% endif %}
-                        {% if widget.category == 'utilities' %}text-gray-600 dark:text-gray-400{% endif %}"></i>
+                        {% if widget.color == 'blue' %}text-blue-600 dark:text-blue-400{% endif %}
+                        {% if widget.color == 'green' %}text-green-600 dark:text-green-400{% endif %}
+                        {% if widget.color == 'red' %}text-red-600 dark:text-red-400{% endif %}
+                        {% if widget.color == 'purple' %}text-purple-600 dark:text-purple-400{% endif %}
+                        {% if widget.color == 'orange' %}text-orange-600 dark:text-orange-400{% endif %}
+                        {% if widget.color == 'cyan' %}text-cyan-600 dark:text-cyan-400{% endif %}
+                        {% if widget.color == 'pink' %}text-pink-600 dark:text-pink-400{% endif %}
+                        {% if widget.color == 'gray' %}text-gray-600 dark:text-gray-400{% endif %}"></i>
                 </div>
-                <h3 class="font-semibold text-gray-900 dark:text-white">{{ widget.name }}</h3>
+                <h3 class="font-semibold text-gray-900 dark:text-white
+                    {% if widget.text_size == 'small' %}text-sm{% elif widget.text_size == 'large' %}text-xl{% else %}text-base{% endif %}">{{ widget.name }}</h3>
             </div>
         </div>
+        {% endif %}
 
         <!-- Widget Content -->
-        <div class="widget-content">
+        <div class="widget-content {% if widget.text_size == 'small' %}text-sm{% elif widget.text_size == 'large' %}text-lg{% endif %}">
             {% if widget.id == 'work_orders_summary' %}
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ widget.data.active|default:"0" }}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Active</p>
+                        <p class="{% if widget.text_size == 'small' %}text-2xl{% elif widget.text_size == 'large' %}text-4xl{% else %}text-3xl{% endif %} font-bold text-gray-900 dark:text-white">{{ widget.data.active|default:"0" }}</p>
+                        <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400">Active</p>
                     </div>
                     <div>
-                        <p class="text-3xl font-bold text-green-600 dark:text-green-400">{{ widget.data.completed_week|default:"0" }}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">This Week</p>
+                        <p class="{% if widget.text_size == 'small' %}text-2xl{% elif widget.text_size == 'large' %}text-4xl{% else %}text-3xl{% endif %} font-bold text-green-600 dark:text-green-400">{{ widget.data.completed_week|default:"0" }}</p>
+                        <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400">This Week</p>
                     </div>
                     <div>
-                        <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ widget.data.total|default:"0" }}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Total</p>
+                        <p class="{% if widget.text_size == 'small' %}text-2xl{% elif widget.text_size == 'large' %}text-4xl{% else %}text-3xl{% endif %} font-bold text-gray-900 dark:text-white">{{ widget.data.total|default:"0" }}</p>
+                        <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400">Total</p>
                     </div>
                     <div>
-                        <p class="text-3xl font-bold {% if widget.data.overdue > 0 %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %}">{{ widget.data.overdue|default:"0" }}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Overdue</p>
+                        <p class="{% if widget.text_size == 'small' %}text-2xl{% elif widget.text_size == 'large' %}text-4xl{% else %}text-3xl{% endif %} font-bold {% if widget.data.overdue > 0 %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %}">{{ widget.data.overdue|default:"0" }}</p>
+                        <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400">Overdue</p>
                     </div>
                 </div>
                 <div class="mt-4">
-                    <a href="{% url 'workorders:list' %}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">View all work orders</a>
+                    <a href="{% url 'workorders:list' %}" class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-blue-600 dark:text-blue-400 hover:underline">View all work orders</a>
                 </div>
 
             {% elif widget.id == 'drill_bits_status' %}
@@ -122,12 +130,12 @@
 
             {% elif widget.id == 'overdue_work_orders' %}
                 <div class="text-center">
-                    <p class="text-4xl font-bold {% if widget.data.overdue > 0 %}text-red-600 dark:text-red-400{% else %}text-green-600 dark:text-green-400{% endif %}">
+                    <p class="{% if widget.text_size == 'small' %}text-3xl{% elif widget.text_size == 'large' %}text-5xl{% else %}text-4xl{% endif %} font-bold {% if widget.data.overdue > 0 %}text-red-600 dark:text-red-400{% else %}text-green-600 dark:text-green-400{% endif %}">
                         {{ widget.data.overdue|default:"0" }}
                     </p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">work orders past due</p>
+                    <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400 mt-1">work orders past due</p>
                     {% if widget.data.overdue > 0 %}
-                    <a href="{% url 'workorders:list' %}?status=overdue" class="inline-flex items-center mt-3 text-sm text-red-600 dark:text-red-400 hover:underline">
+                    <a href="{% url 'workorders:list' %}?status=overdue" class="inline-flex items-center mt-3 {% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-red-600 dark:text-red-400 hover:underline">
                         <i data-lucide="alert-circle" class="w-4 h-4 mr-1"></i>
                         View overdue
                     </a>
@@ -137,39 +145,39 @@
             {% elif widget.id == 'open_ncrs' %}
                 <div class="grid grid-cols-2 gap-4">
                     <div class="text-center">
-                        <p class="text-3xl font-bold text-orange-600 dark:text-orange-400">{{ widget.data.open|default:"0" }}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Open</p>
+                        <p class="{% if widget.text_size == 'small' %}text-2xl{% elif widget.text_size == 'large' %}text-4xl{% else %}text-3xl{% endif %} font-bold text-orange-600 dark:text-orange-400">{{ widget.data.open|default:"0" }}</p>
+                        <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400">Open</p>
                     </div>
                     <div class="text-center">
-                        <p class="text-3xl font-bold text-red-600 dark:text-red-400">{{ widget.data.critical|default:"0" }}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Critical</p>
+                        <p class="{% if widget.text_size == 'small' %}text-2xl{% elif widget.text_size == 'large' %}text-4xl{% else %}text-3xl{% endif %} font-bold text-red-600 dark:text-red-400">{{ widget.data.critical|default:"0" }}</p>
+                        <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400">Critical</p>
                     </div>
                 </div>
 
             {% elif widget.id == 'maintenance_due' %}
                 <div class="grid grid-cols-2 gap-4">
                     <div class="text-center">
-                        <p class="text-3xl font-bold text-red-600 dark:text-red-400">{{ widget.data.overdue|default:"0" }}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Overdue</p>
+                        <p class="{% if widget.text_size == 'small' %}text-2xl{% elif widget.text_size == 'large' %}text-4xl{% else %}text-3xl{% endif %} font-bold text-red-600 dark:text-red-400">{{ widget.data.overdue|default:"0" }}</p>
+                        <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400">Overdue</p>
                     </div>
                     <div class="text-center">
-                        <p class="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{{ widget.data.due_soon|default:"0" }}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Due Soon</p>
+                        <p class="{% if widget.text_size == 'small' %}text-2xl{% elif widget.text_size == 'large' %}text-4xl{% else %}text-3xl{% endif %} font-bold text-yellow-600 dark:text-yellow-400">{{ widget.data.due_soon|default:"0" }}</p>
+                        <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400">Due Soon</p>
                     </div>
                 </div>
 
             {% elif widget.id == 'low_stock_alerts' %}
                 <div class="text-center">
-                    <p class="text-4xl font-bold {% if widget.data.count > 0 %}text-yellow-600 dark:text-yellow-400{% else %}text-green-600 dark:text-green-400{% endif %}">
+                    <p class="{% if widget.text_size == 'small' %}text-3xl{% elif widget.text_size == 'large' %}text-5xl{% else %}text-4xl{% endif %} font-bold {% if widget.data.count > 0 %}text-yellow-600 dark:text-yellow-400{% else %}text-green-600 dark:text-green-400{% endif %}">
                         {{ widget.data.count|default:"0" }}
                     </p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">items below reorder point</p>
+                    <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400 mt-1">items below reorder point</p>
                 </div>
 
             {% elif widget.id == 'pending_approvals' %}
                 <div class="text-center">
-                    <p class="text-4xl font-bold text-blue-600 dark:text-blue-400">{{ widget.data.pr_count|default:"0" }}</p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">pending approvals</p>
+                    <p class="{% if widget.text_size == 'small' %}text-3xl{% elif widget.text_size == 'large' %}text-5xl{% else %}text-4xl{% endif %} font-bold text-blue-600 dark:text-blue-400">{{ widget.data.pr_count|default:"0" }}</p>
+                    <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400 mt-1">pending approvals</p>
                 </div>
 
             {% elif widget.id == 'quick_links' %}

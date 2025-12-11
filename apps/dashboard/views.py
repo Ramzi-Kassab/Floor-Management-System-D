@@ -53,7 +53,7 @@ def main_dashboard(request):
     # Get user's widget layout
     widget_layout = get_user_widget_layout(user)
 
-    # Build widgets with data
+    # Build widgets with data and styles
     widgets = []
     for widget_config in widget_layout:
         if widget_config.get("visible", True):
@@ -67,6 +67,12 @@ def main_dashboard(request):
                 "size": widget_config.get("size", "medium"),
                 "category": widget_info.get("category", "utilities"),
                 "data": get_widget_data(widget_id, user),
+                # Style properties
+                "color": widget_config.get("color", "blue"),
+                "style": widget_config.get("style", "card"),
+                "text_size": widget_config.get("text_size", "normal"),
+                "border_radius": widget_config.get("border_radius", "rounded"),
+                "show_header": widget_config.get("show_header", True),
             })
 
     context = {
