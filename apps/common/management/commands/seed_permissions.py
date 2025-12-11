@@ -152,8 +152,8 @@ class Command(BaseCommand):
         "a.chisti": "MANAGER",     # Quality Manager
         "m.asad": "MANAGER",       # Procurement & Logistics Manager
         "w.khan": "MANAGER",       # Finance Controller
-        "a.alfarhan": "MANAGER",   # HR & Admin Manager
-        "k.almansour": "MANAGER",  # HSSE Manager
+        "b.setmoni": "MANAGER",    # HR & Admin Manager (Bahebak Ya Setmoni)
+        "m.lamouni": "MANAGER",    # HSSE Manager (Mahma Elnas Lamouni)
         "m.irshad": "MANAGER",     # IT & ERP Manager
         # Supervisors (Level 3 positions)
         "r.kassab": "SUPERVISOR",  # Repair Supervisor

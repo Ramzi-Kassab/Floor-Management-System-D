@@ -273,10 +273,10 @@ class Command(BaseCommand):
 
         # ============ HR & ADMINISTRATION ============
         {
-            "username": "a.alfarhan",
-            "first_name": "Abdullah",
-            "last_name": "Al Farhan",
-            "email": "hr.manager@ardtco.com",
+            "username": "b.setmoni",
+            "first_name": "Bahebak Ya",
+            "last_name": "Setmoni",
+            "email": "Bahebak.Ya.Setmoni@elkayf.com",
             "mobile": "555-000-001",
             "position_code": "HRM",
             "department_code": "HR",
@@ -285,10 +285,10 @@ class Command(BaseCommand):
 
         # ============ HSSE ============
         {
-            "username": "k.almansour",
-            "first_name": "Khalid",
-            "last_name": "Al Mansour",
-            "email": "hsse.manager@ardtco.com",
+            "username": "m.lamouni",
+            "first_name": "Mahma Elnas",
+            "last_name": "Lamouni",
+            "email": "Mahma.Elnas.Lamouni@elkayf.com",
             "mobile": "555-000-002",
             "position_code": "HSM",
             "department_code": "HSSE",
