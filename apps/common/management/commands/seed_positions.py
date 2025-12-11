@@ -1,6 +1,6 @@
 """
 ARDT FMS - Seed Positions Command
-Creates real ARDT job positions from company structure
+Creates all 54 real ARDT positions from QAS-105 Rev R
 
 Usage: python manage.py seed_positions
 """
@@ -10,114 +10,86 @@ from apps.organization.models import Department, Position
 
 
 class Command(BaseCommand):
-    help = "Seed real ARDT positions from company structure"
+    help = "Seed all 54 real ARDT positions from QAS-105"
 
-    # Real ARDT Positions from MASTER_PLAN.md
-    # Level: 1=Executive, 2=Manager, 3=Supervisor, 4=Staff
+    # All 54 positions from QAS-105 Rev R organized by department
+    # Level: 1=Executive, 2=Manager, 3=Supervisor/Coordinator, 4=Specialist, 5=Technician/Staff, 6=General
     POSITIONS = [
-        # Executive Management
-        {
-            "code": "GM",
-            "title": "General Manager",
-            "title_ar": "المدير العام",
-            "department_code": "EXEC",
-            "level": 1,
-            "description": "Overall company leadership and strategic direction",
-        },
-        # Production
-        {
-            "code": "PROD-MGR",
-            "title": "Production Manager",
-            "title_ar": "مدير الإنتاج",
-            "department_code": "PROD",
-            "level": 2,
-            "description": "Manages all production operations",
-        },
-        {
-            "code": "PROD-SUP",
-            "title": "Production Supervisor",
-            "title_ar": "مشرف الإنتاج",
-            "department_code": "PROD",
-            "level": 3,
-            "description": "Supervises production floor operations",
-        },
-        {
-            "code": "PROD-TECH",
-            "title": "Production Technician",
-            "title_ar": "فني الإنتاج",
-            "department_code": "PROD",
-            "level": 4,
-            "description": "Operates production equipment and processes",
-        },
-        # Quality Control
-        {
-            "code": "QC-MGR",
-            "title": "QC Manager",
-            "title_ar": "مدير مراقبة الجودة",
-            "department_code": "QC",
-            "level": 2,
-            "description": "Manages quality control department",
-        },
-        {
-            "code": "QC-INSP",
-            "title": "QC Inspector",
-            "title_ar": "مفتش الجودة",
-            "department_code": "QC",
-            "level": 4,
-            "description": "Performs quality inspections and tests",
-        },
-        # Technical/Engineering
-        {
-            "code": "TECH-ENG",
-            "title": "Design Engineer",
-            "title_ar": "مهندس التصميم",
-            "department_code": "TECH",
-            "level": 3,
-            "description": "Designs drill bits and components",
-        },
-        # Sales
-        {
-            "code": "SALES-MGR",
-            "title": "Sales Manager",
-            "title_ar": "مدير المبيعات",
-            "department_code": "SALES",
-            "level": 2,
-            "description": "Manages sales and customer relationships",
-        },
-        # Logistics
-        {
-            "code": "LOG-MGR",
-            "title": "Logistics Manager",
-            "title_ar": "مدير اللوجستيات",
-            "department_code": "LOG",
-            "level": 2,
-            "description": "Manages warehouse and supply chain operations",
-        },
-        # Field Operations
-        {
-            "code": "FIELD-MGR",
-            "title": "Field Manager",
-            "title_ar": "مدير العمليات الميدانية",
-            "department_code": "FIELD",
-            "level": 2,
-            "description": "Manages all field operations and rig site activities",
-        },
-        {
-            "code": "FIELD-FOR",
-            "title": "Field Foreman",
-            "title_ar": "ملاحظ ميداني",
-            "department_code": "FIELD",
-            "level": 3,
-            "description": "Supervises field crews at rig sites",
-        },
-        {
-            "code": "FIELD-ENG",
-            "title": "Field Engineer",
-            "title_ar": "مهندس ميداني",
-            "department_code": "FIELD",
-            "level": 3,
-            "description": "Provides technical support at rig sites",
-        },
+        # ============ EXECUTIVE ============
+        {"code": "GM", "title": "General Manager", "department_code": "EXEC", "level": 1, "reports_to": "Board of Directors"},
+
+        # ============ TECHNOLOGY ============
+        {"code": "TM", "title": "Technology Manager", "department_code": "TECH", "level": 2, "reports_to": "GM"},
+        {"code": "ADE", "title": "Application Design Engineer", "department_code": "TECH", "level": 4, "reports_to": "TM"},
+        {"code": "AE", "title": "Application Engineer", "department_code": "TECH", "level": 4, "reports_to": "TM"},
+
+        # ============ SALES ============
+        {"code": "SM", "title": "Sales Manager", "department_code": "SALES", "level": 2, "reports_to": "GM"},
+        {"code": "SAL", "title": "Sales Account Lead", "department_code": "SALES", "level": 3, "reports_to": "SM"},
+        {"code": "SAR", "title": "Sales Accounts Rep", "department_code": "SALES", "level": 4, "reports_to": "SM"},
+        {"code": "FOC", "title": "Field Operation Coordinator", "department_code": "SALES", "level": 3, "reports_to": "SM"},
+        {"code": "FOS", "title": "Field Operation Specialist", "department_code": "SALES", "level": 4, "reports_to": "FOC"},
+        {"code": "DBO", "title": "Database Operator", "department_code": "SALES", "level": 4, "reports_to": "SM"},
+
+        # ============ OPERATIONS ============
+        {"code": "OPM", "title": "Operations Manager", "department_code": "OPS", "level": 2, "reports_to": "GM"},
+        {"code": "MFS", "title": "Manufacturing Supervisor", "department_code": "OPS", "level": 3, "reports_to": "OPM"},
+        {"code": "WLD", "title": "Welder", "department_code": "OPS", "level": 5, "reports_to": "MFS"},
+        {"code": "MCH", "title": "Machinist", "department_code": "OPS", "level": 5, "reports_to": "MFS"},
+        {"code": "FLT", "title": "Floor Technician", "department_code": "OPS", "level": 5, "reports_to": "MFS"},
+        {"code": "CRP", "title": "Carpenter", "department_code": "OPS", "level": 5, "reports_to": "MFS"},
+        {"code": "MNT", "title": "Maintenance Man", "department_code": "OPS", "level": 5, "reports_to": "MFS"},
+        {"code": "RPS", "title": "Repair Supervisor", "department_code": "OPS", "level": 3, "reports_to": "OPM"},
+        {"code": "RPC", "title": "Repair Coordinator", "department_code": "OPS", "level": 4, "reports_to": "RPS"},
+        {"code": "RPT", "title": "Repair Technician", "department_code": "OPS", "level": 5, "reports_to": "RPS"},
+
+        # ============ QUALITY ============
+        {"code": "QM", "title": "Quality Manager", "department_code": "QC", "level": 2, "reports_to": "GM"},
+        {"code": "QCC", "title": "Quality Control Coordinator", "department_code": "QC", "level": 3, "reports_to": "QM"},
+        {"code": "FNI", "title": "Final Inspector", "department_code": "QC", "level": 4, "reports_to": "QCC"},
+        {"code": "QCI", "title": "QC Inspector", "department_code": "QC", "level": 4, "reports_to": "QCC"},
+        {"code": "QAC", "title": "Quality Assurance Coordinator", "department_code": "QC", "level": 3, "reports_to": "QM"},
+        {"code": "DOC", "title": "Document Controller", "department_code": "QC", "level": 4, "reports_to": "QAC"},
+
+        # ============ PROCUREMENT & LOGISTICS ============
+        {"code": "PLM", "title": "Procurement & Logistics Manager", "department_code": "PROC", "level": 2, "reports_to": "GM"},
+        {"code": "APL", "title": "Assistant Procurement & Logistics Manager", "department_code": "PROC", "level": 3, "reports_to": "PLM"},
+        {"code": "LGC", "title": "Logistics Coordinator", "department_code": "PROC", "level": 4, "reports_to": "PLM"},
+        {"code": "DSP", "title": "Dispatch Inspector", "department_code": "PROC", "level": 4, "reports_to": "PLM"},
+        {"code": "DRV", "title": "Driver", "department_code": "PROC", "level": 5, "reports_to": "PLM"},
+        {"code": "OPC", "title": "Operations Coordinator", "department_code": "PROC", "level": 4, "reports_to": "PLM"},
+        {"code": "AOC", "title": "Assistant Operations Coordinator", "department_code": "PROC", "level": 4, "reports_to": "PLM"},
+        {"code": "STK", "title": "Storekeeper", "department_code": "PROC", "level": 5, "reports_to": "PLM"},
+        {"code": "PRS", "title": "Procurement Supervisor", "department_code": "PROC", "level": 3, "reports_to": "PLM"},
+        {"code": "PRC", "title": "Procurement Specialist", "department_code": "PROC", "level": 4, "reports_to": "PRS"},
+
+        # ============ FINANCE ============
+        {"code": "FC", "title": "Finance Controller", "department_code": "FIN", "level": 2, "reports_to": "GM"},
+        {"code": "CAC", "title": "Chief Accountant", "department_code": "FIN", "level": 3, "reports_to": "FC"},
+        {"code": "SAC", "title": "Senior Accountant", "department_code": "FIN", "level": 4, "reports_to": "FC"},
+        {"code": "ACC", "title": "Accountant", "department_code": "FIN", "level": 4, "reports_to": "SAC"},
+        {"code": "ACK", "title": "Accounts Clerk", "department_code": "FIN", "level": 5, "reports_to": "ACC"},
+
+        # ============ HR & ADMINISTRATION ============
+        {"code": "HRM", "title": "HR & Administration Manager", "department_code": "HR", "level": 2, "reports_to": "GM"},
+        {"code": "HRS", "title": "HR Supervisor", "department_code": "HR", "level": 3, "reports_to": "HRM"},
+        {"code": "HRC", "title": "HR Coordinator", "department_code": "HR", "level": 4, "reports_to": "HRS"},
+        {"code": "ADS", "title": "Admin Supervisor", "department_code": "HR", "level": 3, "reports_to": "HRM"},
+        {"code": "ADC", "title": "Admin Coordinator", "department_code": "HR", "level": 4, "reports_to": "ADS"},
+
+        # ============ IT ============
+        {"code": "ITM", "title": "IT & ERP Manager", "department_code": "IT", "level": 2, "reports_to": "GM"},
+        {"code": "ITC", "title": "IT Control Engineer", "department_code": "IT", "level": 4, "reports_to": "ITM"},
+        {"code": "PRE", "title": "Production Encoder", "department_code": "IT", "level": 4, "reports_to": "ITM"},
+
+        # ============ HSSE ============
+        {"code": "HSM", "title": "HSSE Manager", "department_code": "HSSE", "level": 2, "reports_to": "GM"},
+        {"code": "HSS", "title": "HSE Supervisor", "department_code": "HSSE", "level": 3, "reports_to": "HSM"},
+
+        # ============ GENERAL/SUPPORT ============
+        {"code": "GWK", "title": "General Worker", "department_code": "OPS", "level": 6, "reports_to": "Supervisors"},
+        {"code": "GRD", "title": "Guard", "department_code": "HSSE", "level": 6, "reports_to": "HSS"},
+        {"code": "OFB", "title": "Office Boy", "department_code": "HR", "level": 6, "reports_to": "ADS"},
     ]
 
     def add_arguments(self, parser):
@@ -128,7 +100,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.MIGRATE_HEADING("\n=== Seeding ARDT Positions ===\n"))
+        self.stdout.write(self.style.MIGRATE_HEADING("\n=== Seeding ARDT Positions (QAS-105 - 54 Total) ===\n"))
 
         force = options.get("force", False)
         created_count = 0
@@ -142,20 +114,24 @@ class Command(BaseCommand):
         for pos_data in self.POSITIONS:
             code = pos_data["code"]
             dept_code = pos_data.pop("department_code")
-
-            # Get department
-            department = departments.get(dept_code)
-            if not department:
-                self.stdout.write(
-                    self.style.WARNING(f"  ⚠ Department {dept_code} not found for position {code}")
-                )
-                error_count += 1
-                pos_data["department_code"] = dept_code  # restore
-                continue
-
-            pos_data["department"] = department
+            reports_to = pos_data.pop("reports_to", "")
 
             try:
+                # Get department
+                department = departments.get(dept_code)
+                if not department:
+                    self.stdout.write(
+                        self.style.ERROR(f"  ✗ Department not found: {dept_code} for position {code}")
+                    )
+                    error_count += 1
+                    pos_data["department_code"] = dept_code
+                    pos_data["reports_to"] = reports_to
+                    continue
+
+                # Add description with reports_to info
+                pos_data["description"] = f"Reports to: {reports_to}"
+                pos_data["department"] = department
+
                 position, created = Position.objects.get_or_create(
                     code=code,
                     defaults=pos_data,
@@ -167,7 +143,6 @@ class Command(BaseCommand):
                         self.style.SUCCESS(f"  ✓ Created: {code} - {position.title} ({dept_code})")
                     )
                 elif force:
-                    # Update existing position
                     for key, value in pos_data.items():
                         setattr(position, key, value)
                     position.save()
@@ -181,9 +156,11 @@ class Command(BaseCommand):
                         self.style.NOTICE(f"  - Skipped (exists): {code}")
                     )
 
-                # Restore department_code for reference
+                # Restore for reference
                 pos_data["department_code"] = dept_code
-                del pos_data["department"]
+                pos_data["reports_to"] = reports_to
+                if "department" in pos_data:
+                    del pos_data["department"]
 
             except Exception as e:
                 self.stdout.write(
@@ -191,6 +168,7 @@ class Command(BaseCommand):
                 )
                 error_count += 1
                 pos_data["department_code"] = dept_code
+                pos_data["reports_to"] = reports_to
                 if "department" in pos_data:
                     del pos_data["department"]
 
@@ -203,17 +181,15 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"  Errors: {error_count}"))
         self.stdout.write("-" * 50)
 
-        # Position hierarchy
-        self.stdout.write(self.style.MIGRATE_HEADING("\n=== Position Hierarchy ===\n"))
-        self.stdout.write("  Level | Code        | Title                        | Department")
-        self.stdout.write("  " + "-" * 75)
+        # Position count by department
+        self.stdout.write(self.style.MIGRATE_HEADING("\n=== Positions by Department ===\n"))
+        dept_counts = {}
+        for pos in self.POSITIONS:
+            dept = pos.get("department_code", "Unknown")
+            dept_counts[dept] = dept_counts.get(dept, 0) + 1
 
-        level_names = {1: "Executive", 2: "Manager", 3: "Supervisor", 4: "Staff"}
-        for pos in sorted(self.POSITIONS, key=lambda x: (x["level"], x["code"])):
-            level = pos["level"]
-            level_str = f"L{level}"
-            self.stdout.write(
-                f"  {level_str:<5} | {pos['code']:<11} | {pos['title']:<28} | {pos['department_code']}"
-            )
+        for dept, count in sorted(dept_counts.items()):
+            self.stdout.write(f"  {dept:<8}: {count} positions")
 
+        self.stdout.write(f"\n  Total: {len(self.POSITIONS)} positions")
         self.stdout.write(self.style.SUCCESS("\n✓ Position seeding complete!\n"))

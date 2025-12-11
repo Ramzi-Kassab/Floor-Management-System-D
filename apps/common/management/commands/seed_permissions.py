@@ -140,13 +140,40 @@ class Command(BaseCommand):
         ],
     }
 
-    # User-Role mappings based on position level
+    # User-Role mappings based on QAS-105 positions
     USER_ROLE_MAPPING = {
+        # Executive
         "admin": "EXECUTIVE",
-        "t.eldeeb": "MANAGER",      # Field Manager
-        "r.ibrahim": "SUPERVISOR",   # Day Foreman
-        "a.aljafary": "SUPERVISOR",  # Night Foreman
-        "b.jaroudi": "SUPERVISOR",   # Engineer
+        "g.escobar": "EXECUTIVE",  # General Manager
+        # Managers (Level 2 positions)
+        "s.jamal": "MANAGER",      # Technology Manager
+        "o.abdelbaset": "MANAGER", # Sales Manager
+        "a.buobaid": "MANAGER",    # Operations Manager
+        "a.chisti": "MANAGER",     # Quality Manager
+        "m.asad": "MANAGER",       # Procurement & Logistics Manager
+        "w.khan": "MANAGER",       # Finance Controller
+        "a.alfarhan": "MANAGER",   # HR & Admin Manager
+        "k.almansour": "MANAGER",  # HSSE Manager
+        "m.irshad": "MANAGER",     # IT & ERP Manager
+        # Supervisors (Level 3 positions)
+        "r.kassab": "SUPERVISOR",  # Repair Supervisor
+        "r.shetty": "SUPERVISOR",  # Manufacturing Supervisor
+        "f.alhammad": "SUPERVISOR", # Procurement Supervisor
+        "j.lohar": "SUPERVISOR",   # QA Coordinator
+        # Staff (Others)
+        "a.elsafi": "STAFF",       # Sales Account Lead
+        "j.kunjur": "STAFF",       # Field Operation Specialist
+        "r.alwasmi": "STAFF",      # Repair Technician
+        "h.alsaba": "STAFF",       # Repair Technician
+        "h.almuhnna": "STAFF",     # Repair Technician
+        "a.khan": "STAFF",         # Final Inspector
+        "a.alhammad": "STAFF",     # QC Inspector
+        "r.badaam": "STAFF",       # Procurement Specialist
+        "p.peer": "STAFF",         # Logistics Coordinator
+        "j.alghafly": "STAFF",     # Logistics Coordinator
+        "a.vangali": "STAFF",      # Dispatch Inspector
+        "a.mirza": "STAFF",        # Storekeeper
+        "l.aljubran": "STAFF",     # Assistant Ops Coordinator
     }
 
     def handle(self, *args, **options):
@@ -205,6 +232,7 @@ class Command(BaseCommand):
 
         # 4. Assign Roles to Users
         self.stdout.write("\nAssigning roles to users...")
+        assigned_count = 0
         for username, role_code in self.USER_ROLE_MAPPING.items():
             try:
                 user = User.objects.get(username=username)
@@ -215,15 +243,14 @@ class Command(BaseCommand):
                         role=role,
                     )
                     if created:
+                        assigned_count += 1
                         self.stdout.write(self.style.SUCCESS(f"  ✓ {username} → {role_code}"))
                     else:
                         self.stdout.write(f"  - {username} already has {role_code}")
             except User.DoesNotExist:
                 self.stdout.write(self.style.WARNING(f"  ⚠ User {username} not found"))
 
-        # 5. Update user departments and positions
-        self.stdout.write("\nUpdating user departments and positions...")
-        self._assign_user_departments()
+        self.stdout.write(self.style.SUCCESS(f"\n  Total role assignments: {assigned_count}"))
 
         # Summary
         self.stdout.write("\n" + "-" * 50)
@@ -235,35 +262,3 @@ class Command(BaseCommand):
         self.stdout.write("-" * 50)
 
         self.stdout.write(self.style.SUCCESS("\n✓ Permissions seeding complete!\n"))
-
-    def _assign_user_departments(self):
-        """Assign departments and positions to seeded users."""
-        assignments = [
-            {"username": "admin", "dept": "EXEC", "position": "GM"},
-            {"username": "t.eldeeb", "dept": "FIELD", "position": "FIELD-MGR"},
-            {"username": "r.ibrahim", "dept": "FIELD", "position": "FIELD-FOR"},
-            {"username": "a.aljafary", "dept": "FIELD", "position": "FIELD-FOR"},
-            {"username": "b.jaroudi", "dept": "FIELD", "position": "FIELD-ENG"},
-        ]
-
-        for assignment in assignments:
-            try:
-                user = User.objects.get(username=assignment["username"])
-                dept = Department.objects.filter(code=assignment["dept"]).first()
-                position = Position.objects.filter(code=assignment["position"]).first()
-
-                updated = False
-                if dept and user.department != dept:
-                    user.department = dept
-                    updated = True
-                if position and user.position != position:
-                    user.position = position
-                    updated = True
-
-                if updated:
-                    user.save()
-                    self.stdout.write(
-                        self.style.SUCCESS(f"  ✓ {assignment['username']} → {assignment['dept']}/{assignment['position']}")
-                    )
-            except User.DoesNotExist:
-                pass

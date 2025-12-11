@@ -1,6 +1,6 @@
 """
 ARDT FMS - Seed Departments Command
-Creates real ARDT departments from company structure
+Creates real ARDT departments from QAS-105 company structure
 
 Usage: python manage.py seed_departments
 """
@@ -10,69 +10,69 @@ from apps.organization.models import Department
 
 
 class Command(BaseCommand):
-    help = "Seed real ARDT departments from company structure"
+    help = "Seed real ARDT departments from QAS-105 company structure"
 
-    # Real ARDT Departments from MASTER_PLAN.md
+    # Real ARDT Departments from MASTER_PLAN v3.0 / QAS-105
     DEPARTMENTS = [
         {
             "code": "EXEC",
             "name": "Executive Management",
             "name_ar": "الإدارة التنفيذية",
-            "location": "Head Office - Al Khobar",
-        },
-        {
-            "code": "PROD",
-            "name": "Production",
-            "name_ar": "الإنتاج",
-            "location": "Factory Floor",
-        },
-        {
-            "code": "QC",
-            "name": "Quality Control",
-            "name_ar": "مراقبة الجودة",
-            "location": "QC Lab",
+            "location": "Head Office - Dammam",
         },
         {
             "code": "TECH",
-            "name": "Technical/Engineering",
-            "name_ar": "الهندسة والتقنية",
+            "name": "Technology",
+            "name_ar": "التقنية",
             "location": "Engineering Office",
         },
         {
             "code": "SALES",
-            "name": "Sales & Commercial",
-            "name_ar": "المبيعات والتجارة",
-            "location": "Head Office - Al Khobar",
+            "name": "Sales",
+            "name_ar": "المبيعات",
+            "location": "Head Office - Dammam",
         },
         {
-            "code": "LOG",
-            "name": "Logistics & Warehouse",
-            "name_ar": "اللوجستيات والمستودعات",
+            "code": "OPS",
+            "name": "Operations",
+            "name_ar": "العمليات",
+            "location": "Factory Floor",
+        },
+        {
+            "code": "QC",
+            "name": "Quality",
+            "name_ar": "الجودة",
+            "location": "QC Lab",
+        },
+        {
+            "code": "PROC",
+            "name": "Procurement & Logistics",
+            "name_ar": "المشتريات واللوجستيات",
             "location": "Warehouse",
         },
         {
+            "code": "FIN",
+            "name": "Finance",
+            "name_ar": "المالية",
+            "location": "Head Office - Dammam",
+        },
+        {
             "code": "HR",
-            "name": "Human Resources",
-            "name_ar": "الموارد البشرية",
-            "location": "Head Office - Al Khobar",
+            "name": "HR & Administration",
+            "name_ar": "الموارد البشرية والإدارة",
+            "location": "Head Office - Dammam",
+        },
+        {
+            "code": "IT",
+            "name": "Information Technology",
+            "name_ar": "تقنية المعلومات",
+            "location": "IT Office",
         },
         {
             "code": "HSSE",
             "name": "Health, Safety, Security, Environment",
             "name_ar": "الصحة والسلامة والأمن والبيئة",
             "location": "HSSE Office",
-        },
-        {
-            "code": "FIN",
-            "name": "Finance & Accounting",
-            "name_ar": "المالية والمحاسبة",
-            "location": "Head Office - Al Khobar",
-        },
-        {
-            "code": "FIELD",
-            "name": "Field Operations",
-            "name_ar": "العمليات الميدانية",
-            "location": "Rig Sites",
         },
     ]
 
@@ -84,7 +84,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.MIGRATE_HEADING("\n=== Seeding ARDT Departments ===\n"))
+        self.stdout.write(self.style.MIGRATE_HEADING("\n=== Seeding ARDT Departments (QAS-105) ===\n"))
 
         force = options.get("force", False)
         created_count = 0
@@ -136,7 +136,7 @@ class Command(BaseCommand):
         self.stdout.write("-" * 40)
 
         # Department list
-        self.stdout.write(self.style.MIGRATE_HEADING("\n=== ARDT Departments ===\n"))
+        self.stdout.write(self.style.MIGRATE_HEADING("\n=== ARDT Departments (10 Total) ===\n"))
         self.stdout.write("  Code   | Name                                    | Arabic")
         self.stdout.write("  " + "-" * 70)
         for dept_data in self.DEPARTMENTS:

@@ -14,13 +14,13 @@ class Command(BaseCommand):
 
     # Commands to run in order
     SEED_COMMANDS = [
-        ("seed_departments", "Departments"),
-        ("seed_positions", "Positions"),
-        ("seed_users", "Users"),
+        ("seed_departments", "Departments (10)"),
+        ("seed_positions", "Positions (54)"),
+        ("seed_users", "Users (27)"),
         ("seed_permissions", "Permissions & Roles"),
-        ("seed_customers", "Customers"),
-        ("seed_rigs", "Rigs"),
-        ("seed_wells", "Wells"),
+        ("seed_customers", "Customers (8)"),
+        ("seed_rigs", "Rigs (5)"),
+        ("seed_wells", "Wells (21)"),
     ]
 
     def add_arguments(self, parser):
@@ -32,7 +32,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.MIGRATE_HEADING("\n" + "=" * 60))
-        self.stdout.write(self.style.MIGRATE_HEADING("  ARDT FMS - Seeding All Data"))
+        self.stdout.write(self.style.MIGRATE_HEADING("  ARDT FMS - Seeding All Data (QAS-105)"))
         self.stdout.write(self.style.MIGRATE_HEADING("=" * 60 + "\n"))
 
         force = options.get("force", False)
@@ -61,13 +61,19 @@ class Command(BaseCommand):
         self.stdout.write("=" * 60)
 
         self.stdout.write(self.style.MIGRATE_HEADING("\n=== Login Credentials ===\n"))
-        self.stdout.write("  Admin User:")
-        self.stdout.write("    Username: admin")
-        self.stdout.write("    Password: admin123")
-        self.stdout.write("\n  Regular Users (password: ardt2025):")
-        self.stdout.write("    - t.eldeeb (Field Manager)")
-        self.stdout.write("    - r.ibrahim (Day Foreman)")
-        self.stdout.write("    - a.aljafary (Night Foreman)")
-        self.stdout.write("    - b.jaroudi (Field Engineer)")
+        self.stdout.write("  Password for ALL users: Ardt@2025")
+        self.stdout.write("\n  Sample Logins:")
+        self.stdout.write("    - r.kassab (Ramzi Kassab - Repair Supervisor)")
+        self.stdout.write("    - g.escobar (Gustavo Escobar - General Manager)")
+        self.stdout.write("    - m.irshad (Mohammad Irshad - IT & ERP Manager)")
+        self.stdout.write("    - a.chisti (Ahmed Faizan Chisti - Quality Manager)")
+
+        self.stdout.write(self.style.MIGRATE_HEADING("\n=== Data Summary ===\n"))
+        self.stdout.write("  - 10 Departments")
+        self.stdout.write("  - 54 Positions")
+        self.stdout.write("  - 27 Employees")
+        self.stdout.write("  - 8 Companies")
+        self.stdout.write("  - 5 Rigs")
+        self.stdout.write("  - 21 Wells")
 
         self.stdout.write(self.style.SUCCESS("\n✓ All seeding complete! System is ready.\n"))
