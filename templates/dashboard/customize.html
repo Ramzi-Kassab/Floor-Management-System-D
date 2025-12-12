@@ -587,6 +587,16 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Dashboard configuration - store dashboard type for all operations
+    const DASHBOARD_CONFIG = {
+        type: '{{ dashboard_type|default:"main" }}',
+        saveUrl: '{% if dashboard_type == "main" %}{% url "dashboard:save_widget_order" %}{% else %}{% url "dashboard:save_widget_order_type" dashboard_type %}{% endif %}',
+        isMain: '{{ dashboard_type|default:"main" }}' === 'main'
+    };
+
+    // Debug: log configuration
+    console.log('Dashboard Config:', DASHBOARD_CONFIG);
+
     const activeWidgetsContainer = document.getElementById('active-widgets');
     const saveBtn = document.getElementById('save-layout-btn');
     const saveForm = document.getElementById('save-form');
@@ -1198,13 +1208,13 @@ document.addEventListener('DOMContentLoaded', function() {
             widgetConfigInput.value = JSON.stringify(widgetLayout);
 
             // Use fetch to save without page reload
-            fetch('{% if dashboard_type == "main" %}{% url "dashboard:save_widget_order" %}{% else %}{% url "dashboard:save_widget_order_type" dashboard_type %}{% endif %}', {
+            fetch(DASHBOARD_CONFIG.saveUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                 },
-                body: JSON.stringify({ widgets: widgetLayout, dashboard_type: '{{ dashboard_type }}' })
+                body: JSON.stringify({ widgets: widgetLayout, dashboard_type: DASHBOARD_CONFIG.type })
             })
             .then(response => response.json())
             .then(data => {
@@ -1328,137 +1338,205 @@ document.addEventListener('DOMContentLoaded', function() {
     // Global Style Handlers
     // =====================
 
+    // Auto-save function for global style changes
+    function autoSaveGlobalStyles() {
+        console.log('Auto-saving global styles for dashboard:', DASHBOARD_CONFIG.type);
+        updateLayoutFromDOM();
+
+        fetch(DASHBOARD_CONFIG.saveUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({ widgets: widgetLayout, dashboard_type: DASHBOARD_CONFIG.type })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Global styles saved successfully');
+                if (window.showToast) {
+                    window.showToast('Styles applied and saved!', 'success', 2000);
+                }
+            } else {
+                console.error('Failed to save global styles:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error saving global styles:', error);
+        });
+    }
+
     // Apply color to all widgets
     document.querySelectorAll('.global-color').forEach(btn => {
         btn.addEventListener('click', function() {
+            console.log('Global color clicked:', this.dataset.color);
             const color = this.dataset.color;
             const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
+            console.log('Found widget cards:', cards.length);
+
             cards.forEach(card => {
                 card.dataset.color = color;
                 // Update icon preview colors
                 const iconPreview = card.querySelector('.widget-icon-preview');
                 if (iconPreview) {
-                    iconPreview.className = iconPreview.className.replace(/bg-\w+-100/g, `bg-${color}-100`);
-                    iconPreview.className = iconPreview.className.replace(/dark:bg-\w+-900\/30/g, `dark:bg-${color}-900/30`);
+                    // Use more specific regex to avoid matching unrelated classes
+                    const bgClasses = iconPreview.className.match(/bg-[a-z]+-100/g) || [];
+                    bgClasses.forEach(cls => {
+                        iconPreview.classList.remove(cls);
+                    });
+                    iconPreview.classList.add(`bg-${color}-100`);
+
+                    const darkBgClasses = iconPreview.className.match(/dark:bg-[a-z]+-900\/30/g) || [];
+                    darkBgClasses.forEach(cls => {
+                        iconPreview.classList.remove(cls);
+                    });
+                    iconPreview.classList.add(`dark:bg-${color}-900/30`);
+
                     const icon = iconPreview.querySelector('[data-lucide]');
                     if (icon) {
-                        icon.className = icon.className.replace(/text-\w+-600/g, `text-${color}-600`);
-                        icon.className = icon.className.replace(/dark:text-\w+-400/g, `dark:text-${color}-400`);
+                        const textClasses = icon.className.match(/text-[a-z]+-600/g) || [];
+                        textClasses.forEach(cls => {
+                            icon.classList.remove(cls);
+                        });
+                        icon.classList.add(`text-${color}-600`);
+
+                        const darkTextClasses = icon.className.match(/dark:text-[a-z]+-400/g) || [];
+                        darkTextClasses.forEach(cls => {
+                            icon.classList.remove(cls);
+                        });
+                        icon.classList.add(`dark:text-${color}-400`);
                     }
                 }
             });
-            updateLayoutFromDOM();
+
             // Highlight selected
             document.querySelectorAll('.global-color').forEach(b => b.classList.remove('ring-2', 'ring-offset-2'));
             this.classList.add('ring-2', 'ring-offset-2');
+
+            // Auto-save
+            autoSaveGlobalStyles();
         });
     });
 
     // Apply background style to all widgets
     document.querySelectorAll('.global-bg-style').forEach(btn => {
         btn.addEventListener('click', function() {
+            console.log('Global bg-style clicked:', this.dataset.bgStyle);
             const bgStyle = this.dataset.bgStyle;
             const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
             cards.forEach(card => {
                 card.dataset.bgStyle = bgStyle;
             });
-            updateLayoutFromDOM();
             // Highlight selected
             document.querySelectorAll('.global-bg-style').forEach(b => {
                 b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
             });
             this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            // Auto-save
+            autoSaveGlobalStyles();
         });
     });
 
     // Apply border style to all widgets
     document.querySelectorAll('.global-border-style').forEach(btn => {
         btn.addEventListener('click', function() {
+            console.log('Global border-style clicked:', this.dataset.borderStyle);
             const borderStyle = this.dataset.borderStyle;
             const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
             cards.forEach(card => {
                 card.dataset.borderStyle = borderStyle;
             });
-            updateLayoutFromDOM();
             // Highlight selected
             document.querySelectorAll('.global-border-style').forEach(b => {
                 b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
             });
             this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            // Auto-save
+            autoSaveGlobalStyles();
         });
     });
 
     // Apply color intensity to all widgets
     document.querySelectorAll('.global-intensity').forEach(btn => {
         btn.addEventListener('click', function() {
+            console.log('Global intensity clicked:', this.dataset.intensity);
             const intensity = this.dataset.intensity;
             const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
             cards.forEach(card => {
                 card.dataset.intensity = intensity;
             });
-            updateLayoutFromDOM();
             // Highlight selected
             document.querySelectorAll('.global-intensity').forEach(b => {
                 b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
             });
             this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            // Auto-save
+            autoSaveGlobalStyles();
         });
     });
 
     // Apply border size to all widgets
     document.querySelectorAll('.global-border-size').forEach(btn => {
         btn.addEventListener('click', function() {
+            console.log('Global border-size clicked:', this.dataset.borderSize);
             const borderSize = this.dataset.borderSize;
             const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
             cards.forEach(card => {
                 card.dataset.borderSize = borderSize;
             });
-            updateLayoutFromDOM();
             // Highlight selected
             document.querySelectorAll('.global-border-size').forEach(b => {
                 b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
             });
             this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            // Auto-save
+            autoSaveGlobalStyles();
         });
     });
 
     // Apply text size to all widgets
     document.querySelectorAll('.global-text-size').forEach(btn => {
         btn.addEventListener('click', function() {
+            console.log('Global text-size clicked:', this.dataset.textSize);
             const textSize = this.dataset.textSize;
             const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
             cards.forEach(card => {
                 card.dataset.textSize = textSize;
             });
-            updateLayoutFromDOM();
             // Highlight selected
             document.querySelectorAll('.global-text-size').forEach(b => {
                 b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
             });
             this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            // Auto-save
+            autoSaveGlobalStyles();
         });
     });
 
     // Apply corner style to all widgets
     document.querySelectorAll('.global-radius').forEach(btn => {
         btn.addEventListener('click', function() {
+            console.log('Global radius clicked:', this.dataset.radius);
             const radius = this.dataset.radius;
             const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
             cards.forEach(card => {
                 card.dataset.borderRadius = radius;
             });
-            updateLayoutFromDOM();
             // Highlight selected
             document.querySelectorAll('.global-radius').forEach(b => {
                 b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
             });
             this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            // Auto-save
+            autoSaveGlobalStyles();
         });
     });
 
     // Toggle headers for all widgets
     document.querySelectorAll('.global-header-toggle').forEach(btn => {
         btn.addEventListener('click', function() {
+            console.log('Global header-toggle clicked:', this.dataset.showHeader);
             const showHeader = this.dataset.showHeader === 'true';
             const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
             cards.forEach(card => {
@@ -1480,7 +1558,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             });
-            updateLayoutFromDOM();
+            // Auto-save
+            autoSaveGlobalStyles();
         });
     });
 
@@ -1520,13 +1599,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 dot.classList.add('translate-x-6');
             }
         });
-        updateLayoutFromDOM();
         // Clear global button highlights
         document.querySelectorAll('.global-color').forEach(b => b.classList.remove('ring-2', 'ring-offset-2'));
         document.querySelectorAll('.global-bg-style, .global-border-style, .global-intensity, .global-border-size, .global-text-size, .global-radius').forEach(b => {
             b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
         });
+        // Auto-save the reset
+        autoSaveGlobalStyles();
     });
+
+    // Log that all handlers are attached
+    console.log('All global style handlers attached successfully');
 });
 </script>
 {% endblock %}
