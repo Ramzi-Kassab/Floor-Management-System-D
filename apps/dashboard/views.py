@@ -631,16 +631,44 @@ DEFAULT_WIDGET_LAYOUT = [
 ]
 
 
-def get_user_widget_layout(user):
-    """Get the widget layout for a user, or return default."""
+def get_user_widget_layout(user, dashboard_type="main"):
+    """Get the widget layout for a user and dashboard type, or return default."""
     try:
         preferences = UserPreference.objects.get(user=user)
         widgets = preferences.dashboard_widgets
-        if widgets and isinstance(widgets, list) and len(widgets) > 0:
-            return widgets
+
+        # New format: dict with dashboard_type keys
+        if widgets and isinstance(widgets, dict):
+            dashboard_widgets = widgets.get(dashboard_type)
+            if dashboard_widgets and isinstance(dashboard_widgets, list) and len(dashboard_widgets) > 0:
+                return dashboard_widgets
+        # Legacy format: just a list (treat as main dashboard)
+        elif widgets and isinstance(widgets, list) and len(widgets) > 0:
+            if dashboard_type == "main":
+                return widgets
     except UserPreference.DoesNotExist:
         pass
-    return DEFAULT_WIDGET_LAYOUT
+    return [w.copy() for w in DEFAULT_WIDGET_LAYOUT]
+
+
+def save_user_widget_layout(user, widget_config, dashboard_type="main"):
+    """Save widget layout for a specific dashboard type."""
+    preferences, created = UserPreference.objects.get_or_create(user=user)
+
+    # Get existing config or initialize as dict
+    existing = preferences.dashboard_widgets
+    if not isinstance(existing, dict):
+        # Migrate legacy format (list) to new format (dict)
+        if isinstance(existing, list) and len(existing) > 0:
+            existing = {"main": existing}
+        else:
+            existing = {}
+
+    # Update the specific dashboard type
+    existing[dashboard_type] = widget_config
+    preferences.dashboard_widgets = existing
+    preferences.save()
+    return preferences
 
 
 def get_widget_data(widget_id, user):
@@ -736,29 +764,54 @@ def get_widget_data(widget_id, user):
     return {}
 
 
+DASHBOARD_TYPE_NAMES = {
+    "main": "Main Dashboard",
+    "manager": "Manager Dashboard",
+    "planner": "Planner Dashboard",
+    "technician": "Technician Dashboard",
+    "qc": "QC Dashboard",
+}
+
+
 @login_required
-def customize_dashboard(request):
+def customize_dashboard(request, dashboard_type="main"):
     """
     Dashboard customization page - allows users to configure their widgets.
+    Supports per-dashboard customization based on dashboard_type.
     """
     user = request.user
 
-    # Get or create preferences
-    preferences, created = UserPreference.objects.get_or_create(user=user)
+    # Validate dashboard_type
+    valid_types = ["main", "manager", "planner", "technician", "qc"]
+    if dashboard_type not in valid_types and not dashboard_type.startswith("saved_"):
+        dashboard_type = "main"
+
+    # Determine redirect URL after save
+    redirect_url_map = {
+        "main": "dashboard:main",
+        "manager": "dashboard:manager",
+        "planner": "dashboard:planner",
+        "technician": "dashboard:technician",
+        "qc": "dashboard:qc",
+    }
 
     if request.method == "POST":
         # Parse the widget configuration from POST
         try:
             widget_config = json.loads(request.POST.get("widget_config", "[]"))
-            preferences.dashboard_widgets = widget_config
-            preferences.save()
+            save_user_widget_layout(user, widget_config, dashboard_type)
             messages.success(request, "Dashboard layout saved successfully!")
-            return redirect("dashboard:main")
+
+            # Redirect to the appropriate dashboard
+            if dashboard_type.startswith("saved_"):
+                saved_id = dashboard_type.replace("saved_", "")
+                return redirect("dashboard:saved_view", pk=int(saved_id))
+            return redirect(redirect_url_map.get(dashboard_type, "dashboard:main"))
         except json.JSONDecodeError:
             messages.error(request, "Invalid widget configuration.")
 
-    # Get current layout
-    current_layout = get_user_widget_layout(user)
+    # Get current layout for this dashboard type
+    current_layout = get_user_widget_layout(user, dashboard_type)
 
     # Add widget metadata to current layout
     for widget in current_layout:
@@ -790,8 +843,22 @@ def customize_dashboard(request):
     for category in widgets_by_category:
         widgets_by_category[category].sort(key=lambda x: x["name"])
 
+    # Get dashboard name for title
+    if dashboard_type.startswith("saved_"):
+        saved_id = dashboard_type.replace("saved_", "")
+        try:
+            from .models import SavedDashboard
+            saved_dash = SavedDashboard.objects.get(pk=int(saved_id))
+            dashboard_name = saved_dash.name
+        except (SavedDashboard.DoesNotExist, ValueError):
+            dashboard_name = "Custom Dashboard"
+    else:
+        dashboard_name = DASHBOARD_TYPE_NAMES.get(dashboard_type, "Dashboard")
+
     context = {
-        "page_title": "Customize Dashboard",
+        "page_title": f"Customize {dashboard_name}",
+        "dashboard_type": dashboard_type,
+        "dashboard_name": dashboard_name,
         "available_widgets": AVAILABLE_WIDGETS,
         "widget_categories": WIDGET_CATEGORIES,
         "widgets_by_category": widgets_by_category,
@@ -805,19 +872,19 @@ def customize_dashboard(request):
 
 @login_required
 @require_POST
-def save_widget_order(request):
+def save_widget_order(request, dashboard_type="main"):
     """
-    AJAX endpoint to save widget order.
+    AJAX endpoint to save widget order for a specific dashboard type.
     """
     user = request.user
 
     try:
         data = json.loads(request.body)
         widget_config = data.get("widgets", [])
+        # Allow dashboard_type override from request body
+        dashboard_type = data.get("dashboard_type", dashboard_type)
 
-        preferences, created = UserPreference.objects.get_or_create(user=user)
-        preferences.dashboard_widgets = widget_config
-        preferences.save()
+        save_user_widget_layout(user, widget_config, dashboard_type)
 
         return JsonResponse({"success": True})
     except (json.JSONDecodeError, Exception) as e:
@@ -859,18 +926,29 @@ def toggle_widget(request, widget_id):
 
 
 @login_required
-def reset_dashboard(request):
+def reset_dashboard(request, dashboard_type="main"):
     """
-    Reset dashboard to default layout.
+    Reset dashboard to default layout for a specific dashboard type.
     """
     user = request.user
 
-    preferences, created = UserPreference.objects.get_or_create(user=user)
-    preferences.dashboard_widgets = DEFAULT_WIDGET_LAYOUT.copy()
-    preferences.save()
+    # Reset the specific dashboard type to default
+    save_user_widget_layout(user, [w.copy() for w in DEFAULT_WIDGET_LAYOUT], dashboard_type)
 
     messages.success(request, "Dashboard reset to default layout.")
-    return redirect("dashboard:main")
+
+    # Redirect to the appropriate dashboard
+    redirect_url_map = {
+        "main": "dashboard:main",
+        "manager": "dashboard:manager",
+        "planner": "dashboard:planner",
+        "technician": "dashboard:technician",
+        "qc": "dashboard:qc",
+    }
+    if dashboard_type.startswith("saved_"):
+        saved_id = dashboard_type.replace("saved_", "")
+        return redirect("dashboard:saved_view", pk=int(saved_id))
+    return redirect(redirect_url_map.get(dashboard_type, "dashboard:main"))
 
 
 # =============================================================================

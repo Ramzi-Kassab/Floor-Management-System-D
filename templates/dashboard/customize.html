@@ -9,7 +9,7 @@
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
             <div class="flex items-center space-x-2">
-                <a href="{% url 'dashboard:main' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <a href="{% if dashboard_type == 'manager' %}{% url 'dashboard:manager' %}{% elif dashboard_type == 'planner' %}{% url 'dashboard:planner' %}{% elif dashboard_type == 'technician' %}{% url 'dashboard:technician' %}{% elif dashboard_type == 'qc' %}{% url 'dashboard:qc' %}{% elif dashboard_type|slice:':6' == 'saved_' %}{% url 'dashboard:saved_view' dashboard_type|slice:'6:' %}{% else %}{% url 'dashboard:main' %}{% endif %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
                     <i data-lucide="arrow-left" class="w-5 h-5"></i>
                 </a>
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
@@ -20,7 +20,7 @@
             <span class="text-sm text-gray-500 dark:text-gray-400">
                 {{ active_widget_count }} of {{ total_widgets }} widgets active
             </span>
-            <a href="{% url 'dashboard:reset_dashboard' %}"
+            <a href="{% if dashboard_type == 'main' %}{% url 'dashboard:reset_dashboard' %}{% else %}{% url 'dashboard:reset_dashboard_type' dashboard_type %}{% endif %}"
                onclick="return confirm('Are you sure you want to reset to the default layout?')"
                class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                 <i data-lucide="rotate-ccw" class="w-4 h-4 mr-2"></i>
@@ -302,10 +302,17 @@
                         <button type="button" class="global-color w-6 h-6 rounded-full bg-blue-500 hover:ring-2 hover:ring-offset-1 hover:ring-blue-500 transition-all" data-color="blue" title="Blue"></button>
                         <button type="button" class="global-color w-6 h-6 rounded-full bg-indigo-500 hover:ring-2 hover:ring-offset-1 hover:ring-indigo-500 transition-all" data-color="indigo" title="Indigo"></button>
                         <button type="button" class="global-color w-6 h-6 rounded-full bg-purple-500 hover:ring-2 hover:ring-offset-1 hover:ring-purple-500 transition-all" data-color="purple" title="Purple"></button>
-                        <button type="button" class="global-color w-6 h-6 rounded-full bg-green-500 hover:ring-2 hover:ring-offset-1 hover:ring-green-500 transition-all" data-color="green" title="Green"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-pink-500 hover:ring-2 hover:ring-offset-1 hover:ring-pink-500 transition-all" data-color="pink" title="Pink"></button>
                         <button type="button" class="global-color w-6 h-6 rounded-full bg-red-500 hover:ring-2 hover:ring-offset-1 hover:ring-red-500 transition-all" data-color="red" title="Red"></button>
                         <button type="button" class="global-color w-6 h-6 rounded-full bg-orange-500 hover:ring-2 hover:ring-offset-1 hover:ring-orange-500 transition-all" data-color="orange" title="Orange"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-amber-500 hover:ring-2 hover:ring-offset-1 hover:ring-amber-500 transition-all" data-color="amber" title="Amber"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-yellow-500 hover:ring-2 hover:ring-offset-1 hover:ring-yellow-500 transition-all" data-color="yellow" title="Yellow"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-lime-500 hover:ring-2 hover:ring-offset-1 hover:ring-lime-500 transition-all" data-color="lime" title="Lime"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-green-500 hover:ring-2 hover:ring-offset-1 hover:ring-green-500 transition-all" data-color="green" title="Green"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-teal-500 hover:ring-2 hover:ring-offset-1 hover:ring-teal-500 transition-all" data-color="teal" title="Teal"></button>
                         <button type="button" class="global-color w-6 h-6 rounded-full bg-cyan-500 hover:ring-2 hover:ring-offset-1 hover:ring-cyan-500 transition-all" data-color="cyan" title="Cyan"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-sky-500 hover:ring-2 hover:ring-offset-1 hover:ring-sky-500 transition-all" data-color="sky" title="Sky"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-slate-500 hover:ring-2 hover:ring-offset-1 hover:ring-slate-500 transition-all" data-color="slate" title="Slate"></button>
                         <button type="button" class="global-color w-6 h-6 rounded-full bg-gray-500 hover:ring-2 hover:ring-offset-1 hover:ring-gray-500 transition-all" data-color="gray" title="Gray"></button>
                     </div>
                 </div>
@@ -321,6 +328,16 @@
                     </div>
                 </div>
 
+                <!-- Global Color Intensity -->
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Color Intensity</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" class="global-intensity px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-intensity="light">Light</button>
+                        <button type="button" class="global-intensity px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-intensity="medium">Medium</button>
+                        <button type="button" class="global-intensity px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-intensity="strong">Strong</button>
+                    </div>
+                </div>
+
                 <!-- Global Border Accent -->
                 <div class="mb-4">
                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Border Accent</label>
@@ -329,6 +346,36 @@
                         <button type="button" class="global-border-style px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-border-style="top">Top</button>
                         <button type="button" class="global-border-style px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-border-style="left">Left</button>
                         <button type="button" class="global-border-style px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-border-style="full">Full</button>
+                    </div>
+                </div>
+
+                <!-- Global Border Size -->
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Border Size</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" class="global-border-size px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-border-size="thin">Thin</button>
+                        <button type="button" class="global-border-size px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-border-size="medium">Medium</button>
+                        <button type="button" class="global-border-size px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-border-size="thick">Thick</button>
+                    </div>
+                </div>
+
+                <!-- Global Text Size -->
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Text Size</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" class="global-text-size px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-text-size="small">Small</button>
+                        <button type="button" class="global-text-size px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-text-size="normal">Normal</button>
+                        <button type="button" class="global-text-size px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-text-size="large">Large</button>
+                    </div>
+                </div>
+
+                <!-- Global Corner Style -->
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Corner Style</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" class="global-radius px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-radius="square">Square</button>
+                        <button type="button" class="global-radius px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-radius="rounded">Rounded</button>
+                        <button type="button" class="global-radius px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-radius="pill">Pill</button>
                     </div>
                 </div>
 
@@ -533,7 +580,7 @@
 </div>
 
 <!-- Hidden form for saving -->
-<form id="save-form" method="post" class="hidden">
+<form id="save-form" method="post" action="{% if dashboard_type == 'main' %}{% url 'dashboard:customize' %}{% else %}{% url 'dashboard:customize_type' dashboard_type %}{% endif %}" class="hidden">
     {% csrf_token %}
     <input type="hidden" name="widget_config" id="widget-config-input">
 </form>
@@ -1151,13 +1198,13 @@ document.addEventListener('DOMContentLoaded', function() {
             widgetConfigInput.value = JSON.stringify(widgetLayout);
 
             // Use fetch to save without page reload
-            fetch('{% url "dashboard:save_widget_order" %}', {
+            fetch('{% if dashboard_type == "main" %}{% url "dashboard:save_widget_order" %}{% else %}{% url "dashboard:save_widget_order_type" dashboard_type %}{% endif %}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                 },
-                body: JSON.stringify({ widgets: widgetLayout })
+                body: JSON.stringify({ widgets: widgetLayout, dashboard_type: '{{ dashboard_type }}' })
             })
             .then(response => response.json())
             .then(data => {
@@ -1341,6 +1388,74 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Apply color intensity to all widgets
+    document.querySelectorAll('.global-intensity').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const intensity = this.dataset.intensity;
+            const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
+            cards.forEach(card => {
+                card.dataset.intensity = intensity;
+            });
+            updateLayoutFromDOM();
+            // Highlight selected
+            document.querySelectorAll('.global-intensity').forEach(b => {
+                b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            });
+            this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        });
+    });
+
+    // Apply border size to all widgets
+    document.querySelectorAll('.global-border-size').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const borderSize = this.dataset.borderSize;
+            const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
+            cards.forEach(card => {
+                card.dataset.borderSize = borderSize;
+            });
+            updateLayoutFromDOM();
+            // Highlight selected
+            document.querySelectorAll('.global-border-size').forEach(b => {
+                b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            });
+            this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        });
+    });
+
+    // Apply text size to all widgets
+    document.querySelectorAll('.global-text-size').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const textSize = this.dataset.textSize;
+            const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
+            cards.forEach(card => {
+                card.dataset.textSize = textSize;
+            });
+            updateLayoutFromDOM();
+            // Highlight selected
+            document.querySelectorAll('.global-text-size').forEach(b => {
+                b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            });
+            this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        });
+    });
+
+    // Apply corner style to all widgets
+    document.querySelectorAll('.global-radius').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const radius = this.dataset.radius;
+            const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
+            cards.forEach(card => {
+                card.dataset.borderRadius = radius;
+            });
+            updateLayoutFromDOM();
+            // Highlight selected
+            document.querySelectorAll('.global-radius').forEach(b => {
+                b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            });
+            this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        });
+    });
+
     // Toggle headers for all widgets
     document.querySelectorAll('.global-header-toggle').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -1408,7 +1523,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateLayoutFromDOM();
         // Clear global button highlights
         document.querySelectorAll('.global-color').forEach(b => b.classList.remove('ring-2', 'ring-offset-2'));
-        document.querySelectorAll('.global-bg-style, .global-border-style').forEach(b => {
+        document.querySelectorAll('.global-bg-style, .global-border-style, .global-intensity, .global-border-size, .global-text-size, .global-radius').forEach(b => {
             b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
         });
     });
