@@ -23,6 +23,14 @@ urlpatterns = [
     path("customize/save/", views.save_widget_order, name="save_widget_order"),
     path("customize/toggle/<str:widget_id>/", views.toggle_widget, name="toggle_widget"),
     path("customize/reset/", views.reset_dashboard, name="reset_dashboard"),
+    # Saved Dashboards
+    path("saved/", views.saved_dashboard_list, name="saved_list"),
+    path("saved/create/", views.saved_dashboard_create, name="saved_create"),
+    path("saved/<int:pk>/", views.saved_dashboard_view, name="saved_view"),
+    path("saved/<int:pk>/edit/", views.saved_dashboard_edit, name="saved_edit"),
+    path("saved/<int:pk>/delete/", views.saved_dashboard_delete, name="saved_delete"),
+    path("saved/<int:pk>/favorite/", views.toggle_dashboard_favorite, name="toggle_favorite"),
+    path("save-as/", views.save_as_dashboard, name="save_as"),
     # Legacy support
     path("index/", views.index, name="index"),
 ]
