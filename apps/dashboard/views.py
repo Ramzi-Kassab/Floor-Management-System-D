@@ -1088,10 +1088,11 @@ def saved_dashboard_edit(request, pk):
 
 
 @login_required
-@require_POST
 def saved_dashboard_delete(request, pk):
     """
     Delete a saved dashboard.
+    GET: Show confirmation page
+    POST: Actually delete
     """
     user = request.user
 
@@ -1104,10 +1105,18 @@ def saved_dashboard_delete(request, pk):
         messages.error(request, "You don't have permission to delete this dashboard.")
         return redirect("dashboard:saved_list")
 
-    name = dashboard.name
-    dashboard.delete()
-    messages.success(request, f'Dashboard "{name}" deleted successfully!')
-    return redirect("dashboard:saved_list")
+    if request.method == "POST":
+        name = dashboard.name
+        dashboard.delete()
+        messages.success(request, f'Dashboard "{name}" deleted successfully!')
+        return redirect("dashboard:saved_list")
+
+    # GET request - show confirmation page
+    context = {
+        "page_title": f"Delete {dashboard.name}",
+        "dashboard": dashboard,
+    }
+    return render(request, "dashboard/saved_delete.html", context)
 
 
 @login_required
