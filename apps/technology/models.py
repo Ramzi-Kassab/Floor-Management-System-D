@@ -20,7 +20,7 @@ class Design(models.Model):
     Contains specifications for drill bit designs.
     """
 
-    class BitType(models.TextChoices):
+    class BitCategory(models.TextChoices):
         FC = "FC", "Fixed Cutter (PDC)"
         RC = "RC", "Roller Cone"
 
@@ -31,7 +31,7 @@ class Design(models.Model):
 
     code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=200)
-    bit_type = models.CharField(max_length=20, choices=BitType.choices)
+    bit_type = models.CharField(max_length=20, choices=BitCategory.choices)
 
     # Specifications
     size = models.DecimalField(max_digits=6, decimal_places=3, help_text="Size in inches")

@@ -54,7 +54,7 @@ class DesignListView(LoginRequiredMixin, ListView):
         context["search_query"] = self.request.GET.get("q", "")
         context["current_bit_type"] = self.request.GET.get("bit_type", "")
         context["current_status"] = self.request.GET.get("status", "")
-        context["bit_type_choices"] = Design.BitType.choices
+        context["bit_type_choices"] = Design.BitCategory.choices
         context["status_choices"] = Design.Status.choices
         return context
 

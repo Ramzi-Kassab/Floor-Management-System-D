@@ -136,7 +136,7 @@ class DrillBit(models.Model):
     🟢 P1: Drill bit master - tracks individual bits through their lifecycle.
     """
 
-    class BitType(models.TextChoices):
+    class BitCategory(models.TextChoices):
         FC = "FC", "Fixed Cutter (PDC)"
         RC = "RC", "Roller Cone"
 
@@ -153,7 +153,7 @@ class DrillBit(models.Model):
         SCRAPPED = "SCRAPPED", "Scrapped"
 
     serial_number = models.CharField(max_length=50, unique=True)
-    bit_type = models.CharField(max_length=20, choices=BitType.choices)
+    bit_type = models.CharField(max_length=20, choices=BitCategory.choices)
 
     # Sprint 4: Serial number tracking for Aramco contract
     base_serial_number = models.CharField(
