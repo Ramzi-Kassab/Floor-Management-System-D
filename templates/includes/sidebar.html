@@ -21,12 +21,38 @@
 
     <nav class="p-4 space-y-2">
         <!-- Dashboard -->
-        <a href="{% url 'dashboard:index' %}"
-           class="flex items-center px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700
-                  {% if request.resolver_match.app_name == 'dashboard' %}bg-primary-50 dark:bg-primary-900 text-primary-700 dark:text-primary-200{% endif %}">
-            <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i>
-            <span x-show="sidebarOpen" x-transition class="ml-3">Dashboard</span>
-        </a>
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'dashboard' %}true{% else %}false{% endif %} }" class="space-y-1">
+            <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700
+                           {% if request.resolver_match.app_name == 'dashboard' %}bg-primary-50 dark:bg-primary-900/50 text-primary-700 dark:text-primary-200{% endif %}">
+                <div class="flex items-center">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Dashboard</span>
+                </div>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+            </button>
+            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
+                <a href="{% url 'dashboard:main' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="home" class="w-4 h-4 inline mr-2"></i>Main Dashboard
+                </a>
+                <a href="{% url 'dashboard:manager' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="briefcase" class="w-4 h-4 inline mr-2"></i>Manager
+                </a>
+                <a href="{% url 'dashboard:planner' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="calendar" class="w-4 h-4 inline mr-2"></i>Planner
+                </a>
+                <a href="{% url 'dashboard:technician' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="wrench" class="w-4 h-4 inline mr-2"></i>Technician
+                </a>
+                <a href="{% url 'dashboard:qc' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="clipboard-check" class="w-4 h-4 inline mr-2"></i>QC Inspector
+                </a>
+                <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+                <a href="{% url 'dashboard:customize' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="settings" class="w-4 h-4 inline mr-2"></i>Customize
+                </a>
+            </div>
+        </div>
 
         <!-- ============================================================ -->
         <!-- SALES - Sales & Commercial -->
