@@ -4,6 +4,13 @@
 {% block title %}{{ page_title }} | ARDT FMS{% endblock %}
 
 {% block content %}
+<!-- Tailwind safelist: These classes are dynamically applied via JavaScript -->
+<!-- Ring colors for color selection highlighting -->
+<div class="hidden">
+    <span class="ring-blue-500 ring-indigo-500 ring-purple-500 ring-pink-500 ring-red-500"></span>
+    <span class="ring-orange-500 ring-amber-500 ring-yellow-500 ring-lime-500 ring-green-500"></span>
+    <span class="ring-teal-500 ring-cyan-500 ring-sky-500 ring-slate-500 ring-gray-500"></span>
+</div>
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -1338,7 +1345,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Global Style Handlers
     // =====================
 
-    // Auto-save function for global style changes
+    // All available colors for class manipulation
+    const ALL_COLORS = ['blue', 'indigo', 'purple', 'pink', 'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'teal', 'cyan', 'sky', 'slate', 'gray'];
+
+    // Auto-save function for global style changes (silent - no toast)
     function autoSaveGlobalStyles() {
         console.log('Auto-saving global styles for dashboard:', DASHBOARD_CONFIG.type);
         updateLayoutFromDOM();
@@ -1355,9 +1365,6 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 console.log('Global styles saved successfully');
-                if (window.showToast) {
-                    window.showToast('Styles applied and saved!', 'success', 2000);
-                }
             } else {
                 console.error('Failed to save global styles:', data.error);
             }
@@ -1377,42 +1384,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
             cards.forEach(card => {
                 card.dataset.color = color;
-                // Update icon preview colors
+                // Update icon preview colors using explicit class names
                 const iconPreview = card.querySelector('.widget-icon-preview');
                 if (iconPreview) {
-                    // Use more specific regex to avoid matching unrelated classes
-                    const bgClasses = iconPreview.className.match(/bg-[a-z]+-100/g) || [];
-                    bgClasses.forEach(cls => {
-                        iconPreview.classList.remove(cls);
+                    // Remove all color classes explicitly
+                    ALL_COLORS.forEach(c => {
+                        iconPreview.classList.remove(`bg-${c}-100`, `dark:bg-${c}-900/30`);
                     });
-                    iconPreview.classList.add(`bg-${color}-100`);
-
-                    const darkBgClasses = iconPreview.className.match(/dark:bg-[a-z]+-900\/30/g) || [];
-                    darkBgClasses.forEach(cls => {
-                        iconPreview.classList.remove(cls);
-                    });
-                    iconPreview.classList.add(`dark:bg-${color}-900/30`);
+                    iconPreview.classList.add(`bg-${color}-100`, `dark:bg-${color}-900/30`);
 
                     const icon = iconPreview.querySelector('[data-lucide]');
                     if (icon) {
-                        const textClasses = icon.className.match(/text-[a-z]+-600/g) || [];
-                        textClasses.forEach(cls => {
-                            icon.classList.remove(cls);
+                        ALL_COLORS.forEach(c => {
+                            icon.classList.remove(`text-${c}-600`, `dark:text-${c}-400`);
                         });
-                        icon.classList.add(`text-${color}-600`);
-
-                        const darkTextClasses = icon.className.match(/dark:text-[a-z]+-400/g) || [];
-                        darkTextClasses.forEach(cls => {
-                            icon.classList.remove(cls);
-                        });
-                        icon.classList.add(`dark:text-${color}-400`);
+                        icon.classList.add(`text-${color}-600`, `dark:text-${color}-400`);
                     }
                 }
             });
 
-            // Highlight selected
-            document.querySelectorAll('.global-color').forEach(b => b.classList.remove('ring-2', 'ring-offset-2'));
-            this.classList.add('ring-2', 'ring-offset-2');
+            // Highlight selected - must include ring COLOR for visibility
+            document.querySelectorAll('.global-color').forEach(b => {
+                b.classList.remove('ring-2', 'ring-offset-2');
+                // Remove any existing ring color
+                ALL_COLORS.forEach(c => b.classList.remove(`ring-${c}-500`));
+            });
+            this.classList.add('ring-2', 'ring-offset-2', `ring-${color}-500`);
 
             // Auto-save
             autoSaveGlobalStyles();
