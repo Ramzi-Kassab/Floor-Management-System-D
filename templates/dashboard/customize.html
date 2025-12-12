@@ -287,6 +287,67 @@
                 </div>
             </div>
 
+            <!-- Global Styles -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                    <i data-lucide="wand-2" class="w-5 h-5 mr-2"></i>
+                    Apply to All Widgets
+                </h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Apply styles to all active widgets at once</p>
+
+                <!-- Global Color -->
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Color Theme</label>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-blue-500 hover:ring-2 hover:ring-offset-1 hover:ring-blue-500 transition-all" data-color="blue" title="Blue"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-indigo-500 hover:ring-2 hover:ring-offset-1 hover:ring-indigo-500 transition-all" data-color="indigo" title="Indigo"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-purple-500 hover:ring-2 hover:ring-offset-1 hover:ring-purple-500 transition-all" data-color="purple" title="Purple"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-green-500 hover:ring-2 hover:ring-offset-1 hover:ring-green-500 transition-all" data-color="green" title="Green"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-red-500 hover:ring-2 hover:ring-offset-1 hover:ring-red-500 transition-all" data-color="red" title="Red"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-orange-500 hover:ring-2 hover:ring-offset-1 hover:ring-orange-500 transition-all" data-color="orange" title="Orange"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-cyan-500 hover:ring-2 hover:ring-offset-1 hover:ring-cyan-500 transition-all" data-color="cyan" title="Cyan"></button>
+                        <button type="button" class="global-color w-6 h-6 rounded-full bg-gray-500 hover:ring-2 hover:ring-offset-1 hover:ring-gray-500 transition-all" data-color="gray" title="Gray"></button>
+                    </div>
+                </div>
+
+                <!-- Global Background Style -->
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Background Style</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" class="global-bg-style px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-bg-style="solid">Solid</button>
+                        <button type="button" class="global-bg-style px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-bg-style="flat">Flat</button>
+                        <button type="button" class="global-bg-style px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-bg-style="glass">Glass</button>
+                        <button type="button" class="global-bg-style px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-bg-style="filled">Filled</button>
+                    </div>
+                </div>
+
+                <!-- Global Border Accent -->
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Border Accent</label>
+                    <div class="grid grid-cols-4 gap-1">
+                        <button type="button" class="global-border-style px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-border-style="none">None</button>
+                        <button type="button" class="global-border-style px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-border-style="top">Top</button>
+                        <button type="button" class="global-border-style px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-border-style="left">Left</button>
+                        <button type="button" class="global-border-style px-2 py-1.5 text-xs rounded border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors" data-border-style="full">Full</button>
+                    </div>
+                </div>
+
+                <!-- Global Header Toggle -->
+                <div class="mb-4 flex items-center justify-between">
+                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400">Show All Headers</label>
+                    <div class="flex space-x-2">
+                        <button type="button" class="global-header-toggle px-3 py-1 text-xs rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors" data-show-header="true">Show</button>
+                        <button type="button" class="global-header-toggle px-3 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors" data-show-header="false">Hide</button>
+                    </div>
+                </div>
+
+                <!-- Reset All to Default -->
+                <button type="button" id="reset-all-styles" class="w-full mt-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center justify-center">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                    Reset All Styles to Default
+                </button>
+            </div>
+
             <!-- Hidden Widgets -->
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
@@ -1214,6 +1275,142 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
             closeModal();
         }
+    });
+
+    // =====================
+    // Global Style Handlers
+    // =====================
+
+    // Apply color to all widgets
+    document.querySelectorAll('.global-color').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const color = this.dataset.color;
+            const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
+            cards.forEach(card => {
+                card.dataset.color = color;
+                // Update icon preview colors
+                const iconPreview = card.querySelector('.widget-icon-preview');
+                if (iconPreview) {
+                    iconPreview.className = iconPreview.className.replace(/bg-\w+-100/g, `bg-${color}-100`);
+                    iconPreview.className = iconPreview.className.replace(/dark:bg-\w+-900\/30/g, `dark:bg-${color}-900/30`);
+                    const icon = iconPreview.querySelector('[data-lucide]');
+                    if (icon) {
+                        icon.className = icon.className.replace(/text-\w+-600/g, `text-${color}-600`);
+                        icon.className = icon.className.replace(/dark:text-\w+-400/g, `dark:text-${color}-400`);
+                    }
+                }
+            });
+            updateLayoutFromDOM();
+            // Highlight selected
+            document.querySelectorAll('.global-color').forEach(b => b.classList.remove('ring-2', 'ring-offset-2'));
+            this.classList.add('ring-2', 'ring-offset-2');
+        });
+    });
+
+    // Apply background style to all widgets
+    document.querySelectorAll('.global-bg-style').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const bgStyle = this.dataset.bgStyle;
+            const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
+            cards.forEach(card => {
+                card.dataset.bgStyle = bgStyle;
+            });
+            updateLayoutFromDOM();
+            // Highlight selected
+            document.querySelectorAll('.global-bg-style').forEach(b => {
+                b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            });
+            this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        });
+    });
+
+    // Apply border style to all widgets
+    document.querySelectorAll('.global-border-style').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const borderStyle = this.dataset.borderStyle;
+            const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
+            cards.forEach(card => {
+                card.dataset.borderStyle = borderStyle;
+            });
+            updateLayoutFromDOM();
+            // Highlight selected
+            document.querySelectorAll('.global-border-style').forEach(b => {
+                b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+            });
+            this.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        });
+    });
+
+    // Toggle headers for all widgets
+    document.querySelectorAll('.global-header-toggle').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const showHeader = this.dataset.showHeader === 'true';
+            const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
+            cards.forEach(card => {
+                card.dataset.showHeader = showHeader;
+                // Update individual toggle states
+                const headerToggle = card.querySelector('.header-toggle');
+                if (headerToggle) {
+                    const dot = headerToggle.querySelector('.header-toggle-dot');
+                    if (showHeader) {
+                        headerToggle.classList.remove('bg-gray-200', 'dark:bg-gray-600');
+                        headerToggle.classList.add('bg-blue-600');
+                        dot.classList.remove('translate-x-1');
+                        dot.classList.add('translate-x-6');
+                    } else {
+                        headerToggle.classList.add('bg-gray-200', 'dark:bg-gray-600');
+                        headerToggle.classList.remove('bg-blue-600');
+                        dot.classList.add('translate-x-1');
+                        dot.classList.remove('translate-x-6');
+                    }
+                }
+            });
+            updateLayoutFromDOM();
+        });
+    });
+
+    // Reset all styles to default
+    document.getElementById('reset-all-styles').addEventListener('click', function() {
+        if (!confirm('Reset all widget styles to default? This will set all widgets to blue color, solid background, no border, and show headers.')) {
+            return;
+        }
+        const cards = activeWidgetsContainer.querySelectorAll('.widget-card');
+        cards.forEach(card => {
+            card.dataset.color = 'blue';
+            card.dataset.intensity = 'medium';
+            card.dataset.bgStyle = 'solid';
+            card.dataset.borderStyle = 'none';
+            card.dataset.borderSize = 'medium';
+            card.dataset.textSize = 'normal';
+            card.dataset.borderRadius = 'rounded';
+            card.dataset.showHeader = 'true';
+            // Update icon preview
+            const iconPreview = card.querySelector('.widget-icon-preview');
+            if (iconPreview) {
+                iconPreview.className = iconPreview.className.replace(/bg-\w+-100/g, 'bg-blue-100');
+                iconPreview.className = iconPreview.className.replace(/dark:bg-\w+-900\/30/g, 'dark:bg-blue-900/30');
+                const icon = iconPreview.querySelector('[data-lucide]');
+                if (icon) {
+                    icon.className = icon.className.replace(/text-\w+-600/g, 'text-blue-600');
+                    icon.className = icon.className.replace(/dark:text-\w+-400/g, 'dark:text-blue-400');
+                }
+            }
+            // Reset header toggle
+            const headerToggle = card.querySelector('.header-toggle');
+            if (headerToggle) {
+                const dot = headerToggle.querySelector('.header-toggle-dot');
+                headerToggle.classList.remove('bg-gray-200', 'dark:bg-gray-600');
+                headerToggle.classList.add('bg-blue-600');
+                dot.classList.remove('translate-x-1');
+                dot.classList.add('translate-x-6');
+            }
+        });
+        updateLayoutFromDOM();
+        // Clear global button highlights
+        document.querySelectorAll('.global-color').forEach(b => b.classList.remove('ring-2', 'ring-offset-2'));
+        document.querySelectorAll('.global-bg-style, .global-border-style').forEach(b => {
+            b.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        });
     });
 });
 </script>
