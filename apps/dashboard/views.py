@@ -46,11 +46,43 @@ def home_view(request):
 def main_dashboard(request):
     """
     Main dashboard view for all users.
-    Shows general overview and quick links.
+    Shows customized widgets based on user preferences.
     """
+    user = request.user
+
+    # Get user's widget layout
+    widget_layout = get_user_widget_layout(user)
+
+    # Build widgets with data and styles
+    widgets = []
+    for widget_config in widget_layout:
+        if widget_config.get("visible", True):
+            widget_id = widget_config["id"]
+            widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
+            widgets.append({
+                "id": widget_id,
+                "name": widget_info.get("name", widget_id),
+                "description": widget_info.get("description", ""),
+                "icon": widget_info.get("icon", "square"),
+                "size": widget_config.get("size", "medium"),
+                "category": widget_info.get("category", "utilities"),
+                "data": get_widget_data(widget_id, user),
+                # Style properties
+                "color": widget_config.get("color", "blue"),
+                "color_intensity": widget_config.get("color_intensity", "medium"),
+                "bg_style": widget_config.get("bg_style", "solid"),
+                "border_style": widget_config.get("border_style", "none"),
+                "border_size": widget_config.get("border_size", "medium"),
+                "text_size": widget_config.get("text_size", "normal"),
+                "border_radius": widget_config.get("border_radius", "rounded"),
+                "show_header": widget_config.get("show_header", True),
+            })
+
     context = {
         "page_title": "Dashboard",
-        "user": request.user,
+        "user": user,
+        "widgets": widgets,
+        "total_widgets": len(AVAILABLE_WIDGETS),
     }
     return render(request, "dashboard/main.html", context)
 
@@ -224,55 +256,370 @@ def index(request):
 # Dashboard Customization Views
 # =============================================================================
 
-# Available widgets configuration
+# Widget Categories
+WIDGET_CATEGORIES = {
+    "operations": {
+        "name": "Operations",
+        "description": "Work orders, production, and workflow tracking",
+        "icon": "factory",
+        "color": "blue",
+    },
+    "inventory": {
+        "name": "Inventory & Equipment",
+        "description": "Stock levels, drill bits, and equipment",
+        "icon": "package",
+        "color": "green",
+    },
+    "quality": {
+        "name": "Quality & Compliance",
+        "description": "NCRs, inspections, and quality metrics",
+        "icon": "shield-check",
+        "color": "red",
+    },
+    "sales": {
+        "name": "Sales & Customers",
+        "description": "Customer activity and sales metrics",
+        "icon": "users",
+        "color": "purple",
+    },
+    "maintenance": {
+        "name": "Maintenance",
+        "description": "Equipment maintenance and scheduling",
+        "icon": "wrench",
+        "color": "orange",
+    },
+    "analytics": {
+        "name": "Analytics & Reports",
+        "description": "Charts, KPIs, and performance metrics",
+        "icon": "bar-chart-2",
+        "color": "cyan",
+    },
+    "team": {
+        "name": "Team & Resources",
+        "description": "Staff activity and workload",
+        "icon": "users-2",
+        "color": "pink",
+    },
+    "utilities": {
+        "name": "Utilities",
+        "description": "Quick links and shortcuts",
+        "icon": "grid-3x3",
+        "color": "gray",
+    },
+}
+
+# Available widgets configuration - Enhanced with categories
 AVAILABLE_WIDGETS = {
+    # =========================================================================
+    # OPERATIONS WIDGETS
+    # =========================================================================
     "work_orders_summary": {
         "name": "Work Orders Summary",
         "description": "Active, completed, and overdue work order counts",
         "icon": "clipboard-list",
         "default_size": "medium",
-    },
-    "drill_bits_status": {
-        "name": "Drill Bits Status",
-        "description": "Overview of drill bit inventory status",
-        "icon": "tool",
-        "default_size": "small",
+        "category": "operations",
     },
     "recent_work_orders": {
         "name": "Recent Work Orders",
         "description": "List of recently created work orders",
         "icon": "clock",
         "default_size": "large",
+        "category": "operations",
     },
-    "maintenance_due": {
-        "name": "Maintenance Due",
-        "description": "Equipment due for maintenance",
-        "icon": "wrench",
+    "work_orders_by_status": {
+        "name": "Work Orders by Status",
+        "description": "Visual breakdown of work orders by current status",
+        "icon": "pie-chart",
         "default_size": "medium",
+        "category": "operations",
     },
+    "work_orders_by_priority": {
+        "name": "Work Orders by Priority",
+        "description": "High, medium, and low priority work order counts",
+        "icon": "signal",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "overdue_work_orders": {
+        "name": "Overdue Work Orders",
+        "description": "Work orders past their due date requiring attention",
+        "icon": "alert-circle",
+        "default_size": "medium",
+        "category": "operations",
+    },
+    "todays_schedule": {
+        "name": "Today's Schedule",
+        "description": "Work orders scheduled for today",
+        "icon": "calendar-check",
+        "default_size": "large",
+        "category": "operations",
+    },
+    "weekly_production": {
+        "name": "Weekly Production",
+        "description": "Production metrics for the current week",
+        "icon": "trending-up",
+        "default_size": "medium",
+        "category": "operations",
+    },
+
+    # =========================================================================
+    # INVENTORY & EQUIPMENT WIDGETS
+    # =========================================================================
+    "drill_bits_status": {
+        "name": "Drill Bits Status",
+        "description": "Overview of drill bit inventory status",
+        "icon": "tool",
+        "default_size": "small",
+        "category": "inventory",
+    },
+    "low_stock_alerts": {
+        "name": "Low Stock Alerts",
+        "description": "Inventory items below reorder point",
+        "icon": "package-x",
+        "default_size": "medium",
+        "category": "inventory",
+    },
+    "inventory_value": {
+        "name": "Inventory Value",
+        "description": "Total inventory value and breakdown",
+        "icon": "wallet",
+        "default_size": "small",
+        "category": "inventory",
+    },
+    "stock_movements": {
+        "name": "Stock Movements",
+        "description": "Recent stock ins and outs",
+        "icon": "arrow-left-right",
+        "default_size": "medium",
+        "category": "inventory",
+    },
+    "equipment_status": {
+        "name": "Equipment Status",
+        "description": "Overview of equipment operational status",
+        "icon": "cpu",
+        "default_size": "medium",
+        "category": "inventory",
+    },
+    "drill_bit_lifecycle": {
+        "name": "Drill Bit Lifecycle",
+        "description": "Bits by lifecycle stage: new, in-use, refurbished",
+        "icon": "refresh-cw",
+        "default_size": "medium",
+        "category": "inventory",
+    },
+
+    # =========================================================================
+    # QUALITY & COMPLIANCE WIDGETS
+    # =========================================================================
     "open_ncrs": {
         "name": "Open NCRs",
         "description": "Non-conformance reports requiring attention",
         "icon": "alert-triangle",
         "default_size": "medium",
+        "category": "quality",
     },
-    "low_stock_alerts": {
-        "name": "Low Stock Alerts",
-        "description": "Inventory items below reorder point",
-        "icon": "package",
+    "ncr_trends": {
+        "name": "NCR Trends",
+        "description": "NCR count trends over the past 30 days",
+        "icon": "activity",
+        "default_size": "large",
+        "category": "quality",
+    },
+    "pending_inspections": {
+        "name": "Pending Inspections",
+        "description": "Items awaiting quality inspection",
+        "icon": "clipboard-check",
         "default_size": "medium",
+        "category": "quality",
+    },
+    "quality_metrics": {
+        "name": "Quality Metrics",
+        "description": "Pass rate, rejection rate, and rework statistics",
+        "icon": "gauge",
+        "default_size": "medium",
+        "category": "quality",
+    },
+    "compliance_status": {
+        "name": "Compliance Status",
+        "description": "Document expiry and compliance alerts",
+        "icon": "file-check",
+        "default_size": "small",
+        "category": "quality",
+    },
+
+    # =========================================================================
+    # SALES & CUSTOMERS WIDGETS
+    # =========================================================================
+    "customer_activity": {
+        "name": "Customer Activity",
+        "description": "Recent customer orders and interactions",
+        "icon": "building-2",
+        "default_size": "large",
+        "category": "sales",
+    },
+    "top_customers": {
+        "name": "Top Customers",
+        "description": "Most active customers by work order count",
+        "icon": "star",
+        "default_size": "medium",
+        "category": "sales",
+    },
+    "customer_count": {
+        "name": "Customer Count",
+        "description": "Total active and inactive customer count",
+        "icon": "users",
+        "default_size": "small",
+        "category": "sales",
+    },
+    "work_orders_by_customer": {
+        "name": "Work Orders by Customer",
+        "description": "Distribution of work orders across customers",
+        "icon": "bar-chart",
+        "default_size": "large",
+        "category": "sales",
+    },
+
+    # =========================================================================
+    # MAINTENANCE WIDGETS
+    # =========================================================================
+    "maintenance_due": {
+        "name": "Maintenance Due",
+        "description": "Equipment due for maintenance",
+        "icon": "wrench",
+        "default_size": "medium",
+        "category": "maintenance",
+    },
+    "maintenance_calendar": {
+        "name": "Maintenance Calendar",
+        "description": "Upcoming maintenance schedule this week",
+        "icon": "calendar",
+        "default_size": "large",
+        "category": "maintenance",
+    },
+    "equipment_health": {
+        "name": "Equipment Health",
+        "description": "Overall equipment effectiveness metrics",
+        "icon": "heart-pulse",
+        "default_size": "medium",
+        "category": "maintenance",
+    },
+    "maintenance_history": {
+        "name": "Maintenance History",
+        "description": "Recent maintenance activities completed",
+        "icon": "history",
+        "default_size": "medium",
+        "category": "maintenance",
+    },
+
+    # =========================================================================
+    # ANALYTICS & REPORTS WIDGETS
+    # =========================================================================
+    "kpi_summary": {
+        "name": "KPI Summary",
+        "description": "Key performance indicators at a glance",
+        "icon": "target",
+        "default_size": "large",
+        "category": "analytics",
+    },
+    "performance_chart": {
+        "name": "Performance Chart",
+        "description": "Weekly/monthly performance trends",
+        "icon": "line-chart",
+        "default_size": "large",
+        "category": "analytics",
+    },
+    "efficiency_metrics": {
+        "name": "Efficiency Metrics",
+        "description": "Production efficiency and cycle time metrics",
+        "icon": "zap",
+        "default_size": "medium",
+        "category": "analytics",
+    },
+    "monthly_summary": {
+        "name": "Monthly Summary",
+        "description": "Month-to-date production and quality summary",
+        "icon": "calendar-days",
+        "default_size": "medium",
+        "category": "analytics",
+    },
+
+    # =========================================================================
+    # TEAM & RESOURCES WIDGETS
+    # =========================================================================
+    "team_workload": {
+        "name": "Team Workload",
+        "description": "Work distribution across team members",
+        "icon": "users-2",
+        "default_size": "large",
+        "category": "team",
+    },
+    "technician_stats": {
+        "name": "Technician Stats",
+        "description": "Individual technician performance metrics",
+        "icon": "user-check",
+        "default_size": "medium",
+        "category": "team",
+    },
+    "staff_availability": {
+        "name": "Staff Availability",
+        "description": "Team members currently on shift",
+        "icon": "user-cog",
+        "default_size": "small",
+        "category": "team",
     },
     "pending_approvals": {
         "name": "Pending Approvals",
         "description": "Items awaiting your approval",
         "icon": "check-circle",
         "default_size": "small",
+        "category": "team",
     },
+
+    # =========================================================================
+    # UTILITIES WIDGETS
+    # =========================================================================
     "quick_links": {
         "name": "Quick Links",
         "description": "Shortcuts to frequently used modules",
         "icon": "link",
         "default_size": "small",
+        "category": "utilities",
+    },
+    "recent_activity": {
+        "name": "Recent Activity",
+        "description": "Your recent actions in the system",
+        "icon": "scroll",
+        "default_size": "medium",
+        "category": "utilities",
+    },
+    "notifications": {
+        "name": "Notifications",
+        "description": "Unread notifications and alerts",
+        "icon": "bell",
+        "default_size": "small",
+        "category": "utilities",
+    },
+    "system_status": {
+        "name": "System Status",
+        "description": "System health and service status",
+        "icon": "server",
+        "default_size": "small",
+        "category": "utilities",
+    },
+    "weather": {
+        "name": "Weather",
+        "description": "Current weather conditions at facility",
+        "icon": "cloud-sun",
+        "default_size": "small",
+        "category": "utilities",
+    },
+    "clock": {
+        "name": "Clock",
+        "description": "Current date and time display",
+        "icon": "clock-3",
+        "default_size": "small",
+        "category": "utilities",
     },
 }
 
@@ -326,6 +673,13 @@ def get_widget_data(widget_id, user):
             "work_orders": WorkOrder.objects.select_related("customer", "assigned_to").order_by("-created_at")[:5]
         }
 
+    elif widget_id == "overdue_work_orders":
+        return {
+            "overdue": WorkOrder.objects.filter(
+                due_date__lt=today, status__in=["PLANNED", "IN_PROGRESS", "ON_HOLD"]
+            ).count(),
+        }
+
     elif widget_id == "maintenance_due":
         from apps.maintenance.models import Equipment
 
@@ -349,13 +703,16 @@ def get_widget_data(widget_id, user):
         }
 
     elif widget_id == "low_stock_alerts":
-        from django.db.models import F as ModelF
-        from apps.inventory.models import Stock
+        from django.db.models import Sum
+        from apps.inventory.models import InventoryItem
 
         try:
-            return {
-                "count": Stock.objects.filter(quantity_on_hand__lte=ModelF("reorder_point")).count()
-            }
+            # Count items where total stock is below reorder point
+            items_below_reorder = 0
+            for item in InventoryItem.objects.filter(is_active=True, reorder_point__gt=0):
+                if item.total_stock < item.reorder_point:
+                    items_below_reorder += 1
+            return {"count": items_below_reorder}
         except Exception:
             return {"count": 0}
 
@@ -409,12 +766,39 @@ def customize_dashboard(request):
         widget["name"] = widget_info.get("name", widget["id"])
         widget["description"] = widget_info.get("description", "")
         widget["icon"] = widget_info.get("icon", "square")
+        widget["category"] = widget_info.get("category", "utilities")
+
+    # Get list of active widget IDs
+    active_widget_ids = [w["id"] for w in current_layout]
+
+    # Organize widgets by category for the browser
+    widgets_by_category = {}
+    for widget_id, widget_info in AVAILABLE_WIDGETS.items():
+        category = widget_info.get("category", "utilities")
+        if category not in widgets_by_category:
+            widgets_by_category[category] = []
+        widgets_by_category[category].append({
+            "id": widget_id,
+            "name": widget_info.get("name", widget_id),
+            "description": widget_info.get("description", ""),
+            "icon": widget_info.get("icon", "square"),
+            "default_size": widget_info.get("default_size", "medium"),
+            "is_active": widget_id in active_widget_ids,
+        })
+
+    # Sort widgets within each category by name
+    for category in widgets_by_category:
+        widgets_by_category[category].sort(key=lambda x: x["name"])
 
     context = {
         "page_title": "Customize Dashboard",
         "available_widgets": AVAILABLE_WIDGETS,
+        "widget_categories": WIDGET_CATEGORIES,
+        "widgets_by_category": widgets_by_category,
         "current_layout": current_layout,
         "current_layout_json": json.dumps(current_layout),
+        "total_widgets": len(AVAILABLE_WIDGETS),
+        "active_widget_count": len(active_widget_ids),
     }
     return render(request, "dashboard/customize.html", context)
 
@@ -493,32 +877,36 @@ def reset_dashboard(request):
 # Saved Dashboard Views
 # =============================================================================
 
-from django.shortcuts import get_object_or_404
-from .models import SavedDashboard, DashboardFavorite
+from django.db.models import Q
+from django.http import Http404
+from .models import DashboardFavorite, SavedDashboard
 
 
 @login_required
 def saved_dashboard_list(request):
     """
-    List all dashboards accessible to the user.
+    List all dashboards the user can access.
     """
     user = request.user
+
+    # Get dashboards the user can see
     user_roles = user.roles.all()
 
-    # Get dashboards user can view
     dashboards = SavedDashboard.objects.filter(
-        Q(created_by=user) |
-        Q(visibility=SavedDashboard.Visibility.PUBLIC) |
-        Q(visibility=SavedDashboard.Visibility.SHARED, shared_with_roles__in=user_roles)
-    ).filter(is_active=True).distinct().order_by("-is_default", "name")
+        Q(created_by=user) |  # Own dashboards
+        Q(visibility=SavedDashboard.Visibility.PUBLIC) |  # Public dashboards
+        Q(visibility=SavedDashboard.Visibility.SHARED, shared_with_roles__in=user_roles)  # Shared with user's roles
+    ).distinct().select_related("created_by")
 
     # Get user's favorites
-    favorites = DashboardFavorite.objects.filter(user=user).values_list("dashboard_id", flat=True)
+    favorite_ids = DashboardFavorite.objects.filter(user=user).values_list("dashboard_id", flat=True)
 
     context = {
         "page_title": "My Dashboards",
         "dashboards": dashboards,
-        "favorites": list(favorites),
+        "favorite_ids": list(favorite_ids),
+        "my_dashboards": dashboards.filter(created_by=user),
+        "shared_dashboards": dashboards.exclude(created_by=user),
     }
     return render(request, "dashboard/saved_list.html", context)
 
@@ -528,7 +916,7 @@ def saved_dashboard_create(request):
     """
     Create a new saved dashboard.
     """
-    from apps.accounts.models import Role
+    user = request.user
 
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
@@ -536,43 +924,48 @@ def saved_dashboard_create(request):
         icon = request.POST.get("icon", "layout-dashboard")
         visibility = request.POST.get("visibility", SavedDashboard.Visibility.PRIVATE)
         show_in_sidebar = request.POST.get("show_in_sidebar") == "on"
-        shared_roles = request.POST.getlist("shared_roles")
 
         if not name:
             messages.error(request, "Dashboard name is required.")
-        else:
-            # Get current widget layout
-            widget_config = get_user_widget_layout(request.user)
+            return redirect("dashboard:saved_create")
 
-            dashboard = SavedDashboard.objects.create(
-                name=name,
-                description=description,
-                icon=icon,
-                created_by=request.user,
-                widget_config=widget_config,
-                visibility=visibility,
-                show_in_sidebar=show_in_sidebar,
-            )
+        # Get current layout from user preferences
+        preferences, _ = UserPreference.objects.get_or_create(user=user)
+        widget_config = get_user_widget_layout(user)
 
-            # Add shared roles
-            if shared_roles and visibility == SavedDashboard.Visibility.SHARED:
-                dashboard.shared_with_roles.set(shared_roles)
+        dashboard = SavedDashboard.objects.create(
+            name=name,
+            description=description,
+            icon=icon,
+            created_by=user,
+            widget_config=widget_config,
+            visibility=visibility,
+            show_in_sidebar=show_in_sidebar,
+        )
 
-            messages.success(request, f"Dashboard '{name}' created successfully!")
-            return redirect("dashboard:saved_view", pk=dashboard.pk)
+        # Handle role sharing
+        if visibility == SavedDashboard.Visibility.SHARED:
+            role_ids = request.POST.getlist("shared_roles")
+            if role_ids:
+                from apps.accounts.models import Role
+                roles = Role.objects.filter(id__in=role_ids)
+                dashboard.shared_with_roles.set(roles)
 
-    roles = Role.objects.all()
-    icons = [
-        "layout-dashboard", "bar-chart", "pie-chart", "activity",
-        "target", "trending-up", "clipboard-list", "tool",
-        "settings", "star", "home", "grid"
-    ]
+        messages.success(request, f'Dashboard "{name}" created successfully!')
+        return redirect("dashboard:saved_list")
+
+    # Get available roles for sharing
+    from apps.accounts.models import Role
+    roles = Role.objects.filter(is_active=True)
 
     context = {
         "page_title": "Create Dashboard",
         "roles": roles,
-        "icons": icons,
-        "visibility_choices": SavedDashboard.Visibility.choices,
+        "available_icons": [
+            "layout-dashboard", "grid-3x3", "bar-chart-2", "pie-chart",
+            "line-chart", "activity", "target", "zap", "users", "briefcase",
+            "factory", "wrench", "package", "shield-check", "clipboard-list"
+        ],
     }
     return render(request, "dashboard/saved_create.html", context)
 
@@ -580,44 +973,53 @@ def saved_dashboard_create(request):
 @login_required
 def saved_dashboard_view(request, pk):
     """
-    View a saved dashboard with its widgets.
+    View a saved dashboard.
     """
-    dashboard = get_object_or_404(SavedDashboard, pk=pk, is_active=True)
+    user = request.user
 
-    # Check permission
-    if not dashboard.can_view(request.user):
+    try:
+        dashboard = SavedDashboard.objects.select_related("created_by").get(pk=pk)
+    except SavedDashboard.DoesNotExist:
+        raise Http404("Dashboard not found")
+
+    if not dashboard.can_view(user):
         messages.error(request, "You don't have permission to view this dashboard.")
         return redirect("dashboard:saved_list")
 
-    # Check if user has favorited this dashboard
-    is_favorite = DashboardFavorite.objects.filter(
-        user=request.user,
-        dashboard=dashboard
-    ).exists()
-
-    # Get widget data for each widget in the config
+    # Build widgets with data
     widgets = []
-    for widget_cfg in dashboard.widget_config:
-        if widget_cfg.get("visible", True):
-            widget_id = widget_cfg.get("id")
+    for widget_config in dashboard.widget_config:
+        if widget_config.get("visible", True):
+            widget_id = widget_config["id"]
             widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
-            widget_data = get_widget_data(widget_id, request.user)
-
             widgets.append({
                 "id": widget_id,
                 "name": widget_info.get("name", widget_id),
                 "description": widget_info.get("description", ""),
                 "icon": widget_info.get("icon", "square"),
-                "size": widget_cfg.get("size", "medium"),
-                "data": widget_data,
+                "size": widget_config.get("size", "medium"),
+                "category": widget_info.get("category", "utilities"),
+                "data": get_widget_data(widget_id, user),
+                # Style properties
+                "color": widget_config.get("color", "blue"),
+                "color_intensity": widget_config.get("color_intensity", "medium"),
+                "bg_style": widget_config.get("bg_style", "solid"),
+                "border_style": widget_config.get("border_style", "none"),
+                "border_size": widget_config.get("border_size", "medium"),
+                "text_size": widget_config.get("text_size", "normal"),
+                "border_radius": widget_config.get("border_radius", "rounded"),
+                "show_header": widget_config.get("show_header", True),
             })
+
+    # Check if user has favorited this dashboard
+    is_favorite = DashboardFavorite.objects.filter(user=user, dashboard=dashboard).exists()
 
     context = {
         "page_title": dashboard.name,
         "dashboard": dashboard,
         "widgets": widgets,
         "is_favorite": is_favorite,
-        "can_edit": dashboard.can_edit(request.user),
+        "can_edit": dashboard.can_edit(user),
     }
     return render(request, "dashboard/saved_view.html", context)
 
@@ -625,94 +1027,109 @@ def saved_dashboard_view(request, pk):
 @login_required
 def saved_dashboard_edit(request, pk):
     """
-    Edit a saved dashboard's settings.
+    Edit a saved dashboard.
     """
-    from apps.accounts.models import Role
+    user = request.user
 
-    dashboard = get_object_or_404(SavedDashboard, pk=pk)
+    try:
+        dashboard = SavedDashboard.objects.get(pk=pk)
+    except SavedDashboard.DoesNotExist:
+        raise Http404("Dashboard not found")
 
-    # Check permission
-    if not dashboard.can_edit(request.user):
+    if not dashboard.can_edit(user):
         messages.error(request, "You don't have permission to edit this dashboard.")
         return redirect("dashboard:saved_list")
 
     if request.method == "POST":
-        dashboard.name = request.POST.get("name", "").strip() or dashboard.name
+        dashboard.name = request.POST.get("name", dashboard.name).strip()
         dashboard.description = request.POST.get("description", "").strip()
         dashboard.icon = request.POST.get("icon", "layout-dashboard")
         dashboard.visibility = request.POST.get("visibility", SavedDashboard.Visibility.PRIVATE)
         dashboard.show_in_sidebar = request.POST.get("show_in_sidebar") == "on"
+
+        # Handle widget config if provided
+        widget_config = request.POST.get("widget_config")
+        if widget_config:
+            try:
+                dashboard.widget_config = json.loads(widget_config)
+            except json.JSONDecodeError:
+                pass
+
         dashboard.save()
 
-        # Update shared roles
-        shared_roles = request.POST.getlist("shared_roles")
+        # Handle role sharing
         if dashboard.visibility == SavedDashboard.Visibility.SHARED:
-            dashboard.shared_with_roles.set(shared_roles)
+            role_ids = request.POST.getlist("shared_roles")
+            from apps.accounts.models import Role
+            roles = Role.objects.filter(id__in=role_ids)
+            dashboard.shared_with_roles.set(roles)
         else:
             dashboard.shared_with_roles.clear()
 
-        messages.success(request, f"Dashboard '{dashboard.name}' updated successfully!")
-        return redirect("dashboard:saved_view", pk=dashboard.pk)
+        messages.success(request, f'Dashboard "{dashboard.name}" updated successfully!')
+        return redirect("dashboard:saved_list")
 
-    roles = Role.objects.all()
-    icons = [
-        "layout-dashboard", "bar-chart", "pie-chart", "activity",
-        "target", "trending-up", "clipboard-list", "tool",
-        "settings", "star", "home", "grid"
-    ]
+    # Get available roles for sharing
+    from apps.accounts.models import Role
+    roles = Role.objects.filter(is_active=True)
 
     context = {
         "page_title": f"Edit {dashboard.name}",
         "dashboard": dashboard,
         "roles": roles,
-        "icons": icons,
-        "visibility_choices": SavedDashboard.Visibility.choices,
-        "selected_roles": list(dashboard.shared_with_roles.values_list("id", flat=True)),
+        "selected_role_ids": list(dashboard.shared_with_roles.values_list("id", flat=True)),
+        "available_icons": [
+            "layout-dashboard", "grid-3x3", "bar-chart-2", "pie-chart",
+            "line-chart", "activity", "target", "zap", "users", "briefcase",
+            "factory", "wrench", "package", "shield-check", "clipboard-list"
+        ],
     }
     return render(request, "dashboard/saved_edit.html", context)
 
 
 @login_required
+@require_POST
 def saved_dashboard_delete(request, pk):
     """
     Delete a saved dashboard.
     """
-    dashboard = get_object_or_404(SavedDashboard, pk=pk)
+    user = request.user
 
-    # Check permission
-    if not dashboard.can_edit(request.user):
+    try:
+        dashboard = SavedDashboard.objects.get(pk=pk)
+    except SavedDashboard.DoesNotExist:
+        raise Http404("Dashboard not found")
+
+    if not dashboard.can_edit(user):
         messages.error(request, "You don't have permission to delete this dashboard.")
         return redirect("dashboard:saved_list")
 
-    if request.method == "POST":
-        name = dashboard.name
-        dashboard.is_active = False
-        dashboard.save()
-        messages.success(request, f"Dashboard '{name}' deleted.")
-        return redirect("dashboard:saved_list")
-
-    context = {
-        "page_title": f"Delete {dashboard.name}",
-        "dashboard": dashboard,
-    }
-    return render(request, "dashboard/saved_delete.html", context)
+    name = dashboard.name
+    dashboard.delete()
+    messages.success(request, f'Dashboard "{name}" deleted successfully!')
+    return redirect("dashboard:saved_list")
 
 
 @login_required
 @require_POST
 def toggle_dashboard_favorite(request, pk):
     """
-    Toggle a dashboard's favorite status for the user.
+    Toggle favorite status for a dashboard.
     """
-    dashboard = get_object_or_404(SavedDashboard, pk=pk, is_active=True)
+    user = request.user
 
-    # Check permission
-    if not dashboard.can_view(request.user):
+    try:
+        dashboard = SavedDashboard.objects.get(pk=pk)
+    except SavedDashboard.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Dashboard not found"}, status=404)
+
+    if not dashboard.can_view(user):
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
     favorite, created = DashboardFavorite.objects.get_or_create(
-        user=request.user,
-        dashboard=dashboard
+        user=user,
+        dashboard=dashboard,
+        defaults={"order": 0}
     )
 
     if not created:
@@ -720,3 +1137,56 @@ def toggle_dashboard_favorite(request, pk):
         return JsonResponse({"success": True, "favorited": False})
 
     return JsonResponse({"success": True, "favorited": True})
+
+
+@login_required
+@require_POST
+def save_as_dashboard(request):
+    """
+    Save current layout as a new dashboard.
+    """
+    user = request.user
+
+    try:
+        data = json.loads(request.body)
+        name = data.get("name", "").strip()
+        description = data.get("description", "").strip()
+        widget_config = data.get("widgets", [])
+
+        if not name:
+            return JsonResponse({"success": False, "error": "Name is required"}, status=400)
+
+        dashboard = SavedDashboard.objects.create(
+            name=name,
+            description=description,
+            created_by=user,
+            widget_config=widget_config,
+            visibility=SavedDashboard.Visibility.PRIVATE,
+        )
+
+        return JsonResponse({
+            "success": True,
+            "dashboard_id": dashboard.id,
+            "message": f'Dashboard "{name}" saved successfully!'
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+
+def get_user_accessible_dashboards(user):
+    """
+    Get all dashboards a user can access for sidebar display.
+    """
+    user_roles = user.roles.all()
+
+    dashboards = SavedDashboard.objects.filter(
+        Q(created_by=user) |
+        Q(visibility=SavedDashboard.Visibility.PUBLIC) |
+        Q(visibility=SavedDashboard.Visibility.SHARED, shared_with_roles__in=user_roles)
+    ).filter(
+        is_active=True,
+        show_in_sidebar=True
+    ).distinct().order_by("-is_default", "name")[:10]  # Limit to 10 for sidebar
+
+    return dashboards

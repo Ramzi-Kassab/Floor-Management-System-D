@@ -39,7 +39,7 @@
                 Icon
             </label>
             <div class="flex flex-wrap gap-2">
-                {% for icon in icons %}
+                {% for icon in available_icons %}
                 <label class="cursor-pointer">
                     <input type="radio" name="icon" value="{{ icon }}" class="sr-only peer" {% if forloop.first %}checked{% endif %}>
                     <div class="w-10 h-10 rounded-lg border-2 border-gray-200 dark:border-gray-600 flex items-center justify-center

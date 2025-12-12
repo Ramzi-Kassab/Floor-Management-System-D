@@ -67,11 +67,16 @@ class CustomLogoutView(LogoutView):
     """Custom logout view with message"""
 
     next_page = "accounts:login"
+    http_method_names = ["get", "post", "options"]  # Allow GET for logout
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
             messages.info(request, "You have been logged out successfully.")
         return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        """Handle GET request for logout (redirect to POST behavior)"""
+        return self.post(request, *args, **kwargs)
 
 
 @login_required
