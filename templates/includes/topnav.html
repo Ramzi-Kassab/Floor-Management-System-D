@@ -7,7 +7,7 @@
             <i data-lucide="menu" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
         </button>
         
-        <a href="{% url 'dashboard:index' %}" class="flex items-center space-x-2">
+        <a href="{% url 'dashboard:home' %}" class="flex items-center space-x-2">
             <span class="text-xl font-bold text-ardt-blue dark:text-white">ARDT</span>
             <span class="text-sm text-gray-500 dark:text-gray-400">FMS v5.4</span>
         </a>
@@ -92,10 +92,10 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400">{{ user.email }}</p>
                 </div>
                 <div class="py-2">
-                    <a href="#" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <a href="{% url 'accounts:profile' %}" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                         <i data-lucide="user" class="w-4 h-4 mr-3"></i> Profile
                     </a>
-                    <a href="#" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <a href="{% url 'accounts:settings' %}" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                         <i data-lucide="settings" class="w-4 h-4 mr-3"></i> Settings
                     </a>
                 </div>
