@@ -800,7 +800,7 @@ def customize_dashboard(request, dashboard_type="main"):
         try:
             widget_config = json.loads(request.POST.get("widget_config", "[]"))
             save_user_widget_layout(user, widget_config, dashboard_type)
-            messages.success(request, "Dashboard layout saved successfully!")
+            # No success message - saves happen frequently and messages are annoying
 
             # Redirect to the appropriate dashboard
             if dashboard_type.startswith("saved_"):
@@ -934,8 +934,7 @@ def reset_dashboard(request, dashboard_type="main"):
 
     # Reset the specific dashboard type to default
     save_user_widget_layout(user, [w.copy() for w in DEFAULT_WIDGET_LAYOUT], dashboard_type)
-
-    messages.success(request, "Dashboard reset to default layout.")
+    # No success message - user will see the reset visually
 
     # Redirect to the appropriate dashboard
     redirect_url_map = {
