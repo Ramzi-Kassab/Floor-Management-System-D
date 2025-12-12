@@ -18,13 +18,14 @@ urlpatterns = [
     path("planner/", views.planner_dashboard, name="planner"),
     path("technician/", views.technician_dashboard, name="technician"),
     path("qc/", views.qc_dashboard, name="qc"),
-    # Dashboard Customization
+    # Dashboard Customization - specific paths MUST come before generic <str:dashboard_type>
     path("customize/", views.customize_dashboard, name="customize"),
-    path("customize/<str:dashboard_type>/", views.customize_dashboard, name="customize_type"),
     path("customize/save/", views.save_widget_order, name="save_widget_order"),
-    path("customize/<str:dashboard_type>/save/", views.save_widget_order, name="save_widget_order_type"),
     path("customize/toggle/<str:widget_id>/", views.toggle_widget, name="toggle_widget"),
     path("customize/reset/", views.reset_dashboard, name="reset_dashboard"),
+    # Dashboard type-specific customization paths (must come after specific paths above)
+    path("customize/<str:dashboard_type>/", views.customize_dashboard, name="customize_type"),
+    path("customize/<str:dashboard_type>/save/", views.save_widget_order, name="save_widget_order_type"),
     path("customize/<str:dashboard_type>/reset/", views.reset_dashboard, name="reset_dashboard_type"),
     # Saved Dashboards
     path("saved/", views.saved_dashboard_list, name="saved_list"),
