@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Create Dashboard - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+    <p class="text-gray-600 dark:text-gray-400">Create a new custom dashboard from your current layout</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+    <form method="post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 space-y-6">
+        {% csrf_token %}
+
+        <!-- Basic Info -->
+        <div>
+            <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Dashboard Name <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="name" id="name" required
+                   class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                   placeholder="e.g., My Operations View">
+        </div>
+
+        <div>
+            <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Description
+            </label>
+            <textarea name="description" id="description" rows="3"
+                      class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Brief description of this dashboard..."></textarea>
+        </div>
+
+        <!-- Icon Selection -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Icon
+            </label>
+            <div class="flex flex-wrap gap-2">
+                {% for icon in icons %}
+                <label class="cursor-pointer">
+                    <input type="radio" name="icon" value="{{ icon }}" class="sr-only peer" {% if forloop.first %}checked{% endif %}>
+                    <div class="w-10 h-10 rounded-lg border-2 border-gray-200 dark:border-gray-600 flex items-center justify-center
+                                peer-checked:border-blue-500 peer-checked:bg-blue-50 dark:peer-checked:bg-blue-900/30
+                                hover:border-gray-300 dark:hover:border-gray-500 transition-colors">
+                        <i data-lucide="{{ icon }}" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Visibility -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Visibility
+            </label>
+            <div class="space-y-2">
+                <label class="flex items-center p-3 border dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <input type="radio" name="visibility" value="PRIVATE" checked class="w-4 h-4 text-blue-600">
+                    <div class="ml-3">
+                        <span class="text-sm font-medium text-gray-900 dark:text-white">Private</span>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Only you can see this dashboard</p>
+                    </div>
+                </label>
+                <label class="flex items-center p-3 border dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <input type="radio" name="visibility" value="SHARED" class="w-4 h-4 text-blue-600">
+                    <div class="ml-3">
+                        <span class="text-sm font-medium text-gray-900 dark:text-white">Shared</span>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Share with specific roles</p>
+                    </div>
+                </label>
+                <label class="flex items-center p-3 border dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <input type="radio" name="visibility" value="PUBLIC" class="w-4 h-4 text-blue-600">
+                    <div class="ml-3">
+                        <span class="text-sm font-medium text-gray-900 dark:text-white">Public</span>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">All users can see this dashboard</p>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <!-- Role Sharing (shown when SHARED is selected) -->
+        <div id="role-sharing" class="hidden">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Share with Roles
+            </label>
+            <div class="grid grid-cols-2 gap-2 p-3 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                {% for role in roles %}
+                <label class="flex items-center">
+                    <input type="checkbox" name="shared_roles" value="{{ role.id }}" class="w-4 h-4 text-blue-600 rounded">
+                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ role.name }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Settings -->
+        <div>
+            <label class="flex items-center">
+                <input type="checkbox" name="show_in_sidebar" checked class="w-4 h-4 text-blue-600 rounded">
+                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Show in sidebar navigation</span>
+            </label>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-end space-x-3 pt-4 border-t dark:border-gray-700">
+            <a href="{% url 'dashboard:saved_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                Cancel
+            </a>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                Create Dashboard
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const visibilityRadios = document.querySelectorAll('input[name="visibility"]');
+    const roleSharing = document.getElementById('role-sharing');
+
+    visibilityRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'SHARED') {
+                roleSharing.classList.remove('hidden');
+            } else {
+                roleSharing.classList.add('hidden');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

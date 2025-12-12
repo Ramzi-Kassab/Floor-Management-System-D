@@ -487,3 +487,236 @@ def reset_dashboard(request):
 
     messages.success(request, "Dashboard reset to default layout.")
     return redirect("dashboard:main")
+
+
+# =============================================================================
+# Saved Dashboard Views
+# =============================================================================
+
+from django.shortcuts import get_object_or_404
+from .models import SavedDashboard, DashboardFavorite
+
+
+@login_required
+def saved_dashboard_list(request):
+    """
+    List all dashboards accessible to the user.
+    """
+    user = request.user
+    user_roles = user.roles.all()
+
+    # Get dashboards user can view
+    dashboards = SavedDashboard.objects.filter(
+        Q(created_by=user) |
+        Q(visibility=SavedDashboard.Visibility.PUBLIC) |
+        Q(visibility=SavedDashboard.Visibility.SHARED, shared_with_roles__in=user_roles)
+    ).filter(is_active=True).distinct().order_by("-is_default", "name")
+
+    # Get user's favorites
+    favorites = DashboardFavorite.objects.filter(user=user).values_list("dashboard_id", flat=True)
+
+    context = {
+        "page_title": "My Dashboards",
+        "dashboards": dashboards,
+        "favorites": list(favorites),
+    }
+    return render(request, "dashboard/saved_list.html", context)
+
+
+@login_required
+def saved_dashboard_create(request):
+    """
+    Create a new saved dashboard.
+    """
+    from apps.accounts.models import Role
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        description = request.POST.get("description", "").strip()
+        icon = request.POST.get("icon", "layout-dashboard")
+        visibility = request.POST.get("visibility", SavedDashboard.Visibility.PRIVATE)
+        show_in_sidebar = request.POST.get("show_in_sidebar") == "on"
+        shared_roles = request.POST.getlist("shared_roles")
+
+        if not name:
+            messages.error(request, "Dashboard name is required.")
+        else:
+            # Get current widget layout
+            widget_config = get_user_widget_layout(request.user)
+
+            dashboard = SavedDashboard.objects.create(
+                name=name,
+                description=description,
+                icon=icon,
+                created_by=request.user,
+                widget_config=widget_config,
+                visibility=visibility,
+                show_in_sidebar=show_in_sidebar,
+            )
+
+            # Add shared roles
+            if shared_roles and visibility == SavedDashboard.Visibility.SHARED:
+                dashboard.shared_with_roles.set(shared_roles)
+
+            messages.success(request, f"Dashboard '{name}' created successfully!")
+            return redirect("dashboard:saved_view", pk=dashboard.pk)
+
+    roles = Role.objects.all()
+    icons = [
+        "layout-dashboard", "bar-chart", "pie-chart", "activity",
+        "target", "trending-up", "clipboard-list", "tool",
+        "settings", "star", "home", "grid"
+    ]
+
+    context = {
+        "page_title": "Create Dashboard",
+        "roles": roles,
+        "icons": icons,
+        "visibility_choices": SavedDashboard.Visibility.choices,
+    }
+    return render(request, "dashboard/saved_create.html", context)
+
+
+@login_required
+def saved_dashboard_view(request, pk):
+    """
+    View a saved dashboard with its widgets.
+    """
+    dashboard = get_object_or_404(SavedDashboard, pk=pk, is_active=True)
+
+    # Check permission
+    if not dashboard.can_view(request.user):
+        messages.error(request, "You don't have permission to view this dashboard.")
+        return redirect("dashboard:saved_list")
+
+    # Check if user has favorited this dashboard
+    is_favorite = DashboardFavorite.objects.filter(
+        user=request.user,
+        dashboard=dashboard
+    ).exists()
+
+    # Get widget data for each widget in the config
+    widgets = []
+    for widget_cfg in dashboard.widget_config:
+        if widget_cfg.get("visible", True):
+            widget_id = widget_cfg.get("id")
+            widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
+            widget_data = get_widget_data(widget_id, request.user)
+
+            widgets.append({
+                "id": widget_id,
+                "name": widget_info.get("name", widget_id),
+                "description": widget_info.get("description", ""),
+                "icon": widget_info.get("icon", "square"),
+                "size": widget_cfg.get("size", "medium"),
+                "data": widget_data,
+            })
+
+    context = {
+        "page_title": dashboard.name,
+        "dashboard": dashboard,
+        "widgets": widgets,
+        "is_favorite": is_favorite,
+        "can_edit": dashboard.can_edit(request.user),
+    }
+    return render(request, "dashboard/saved_view.html", context)
+
+
+@login_required
+def saved_dashboard_edit(request, pk):
+    """
+    Edit a saved dashboard's settings.
+    """
+    from apps.accounts.models import Role
+
+    dashboard = get_object_or_404(SavedDashboard, pk=pk)
+
+    # Check permission
+    if not dashboard.can_edit(request.user):
+        messages.error(request, "You don't have permission to edit this dashboard.")
+        return redirect("dashboard:saved_list")
+
+    if request.method == "POST":
+        dashboard.name = request.POST.get("name", "").strip() or dashboard.name
+        dashboard.description = request.POST.get("description", "").strip()
+        dashboard.icon = request.POST.get("icon", "layout-dashboard")
+        dashboard.visibility = request.POST.get("visibility", SavedDashboard.Visibility.PRIVATE)
+        dashboard.show_in_sidebar = request.POST.get("show_in_sidebar") == "on"
+        dashboard.save()
+
+        # Update shared roles
+        shared_roles = request.POST.getlist("shared_roles")
+        if dashboard.visibility == SavedDashboard.Visibility.SHARED:
+            dashboard.shared_with_roles.set(shared_roles)
+        else:
+            dashboard.shared_with_roles.clear()
+
+        messages.success(request, f"Dashboard '{dashboard.name}' updated successfully!")
+        return redirect("dashboard:saved_view", pk=dashboard.pk)
+
+    roles = Role.objects.all()
+    icons = [
+        "layout-dashboard", "bar-chart", "pie-chart", "activity",
+        "target", "trending-up", "clipboard-list", "tool",
+        "settings", "star", "home", "grid"
+    ]
+
+    context = {
+        "page_title": f"Edit {dashboard.name}",
+        "dashboard": dashboard,
+        "roles": roles,
+        "icons": icons,
+        "visibility_choices": SavedDashboard.Visibility.choices,
+        "selected_roles": list(dashboard.shared_with_roles.values_list("id", flat=True)),
+    }
+    return render(request, "dashboard/saved_edit.html", context)
+
+
+@login_required
+def saved_dashboard_delete(request, pk):
+    """
+    Delete a saved dashboard.
+    """
+    dashboard = get_object_or_404(SavedDashboard, pk=pk)
+
+    # Check permission
+    if not dashboard.can_edit(request.user):
+        messages.error(request, "You don't have permission to delete this dashboard.")
+        return redirect("dashboard:saved_list")
+
+    if request.method == "POST":
+        name = dashboard.name
+        dashboard.is_active = False
+        dashboard.save()
+        messages.success(request, f"Dashboard '{name}' deleted.")
+        return redirect("dashboard:saved_list")
+
+    context = {
+        "page_title": f"Delete {dashboard.name}",
+        "dashboard": dashboard,
+    }
+    return render(request, "dashboard/saved_delete.html", context)
+
+
+@login_required
+@require_POST
+def toggle_dashboard_favorite(request, pk):
+    """
+    Toggle a dashboard's favorite status for the user.
+    """
+    dashboard = get_object_or_404(SavedDashboard, pk=pk, is_active=True)
+
+    # Check permission
+    if not dashboard.can_view(request.user):
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    favorite, created = DashboardFavorite.objects.get_or_create(
+        user=request.user,
+        dashboard=dashboard
+    )
+
+    if not created:
+        favorite.delete()
+        return JsonResponse({"success": True, "favorited": False})
+
+    return JsonResponse({"success": True, "favorited": True})
