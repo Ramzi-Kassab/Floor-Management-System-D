@@ -51,35 +51,14 @@ def main_dashboard(request):
     user = request.user
 
     # Get user's widget layout
-    widget_layout = get_user_widget_layout(user)
+    widget_layout = get_user_widget_layout(user, "main")
 
     # Build widgets with data and styles
-    widgets = []
-    for widget_config in widget_layout:
-        if widget_config.get("visible", True):
-            widget_id = widget_config["id"]
-            widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
-            widgets.append({
-                "id": widget_id,
-                "name": widget_info.get("name", widget_id),
-                "description": widget_info.get("description", ""),
-                "icon": widget_info.get("icon", "square"),
-                "size": widget_config.get("size", "medium"),
-                "category": widget_info.get("category", "utilities"),
-                "data": get_widget_data(widget_id, user),
-                # Style properties
-                "color": widget_config.get("color", "blue"),
-                "color_intensity": widget_config.get("color_intensity", "medium"),
-                "bg_style": widget_config.get("bg_style", "solid"),
-                "border_style": widget_config.get("border_style", "none"),
-                "border_size": widget_config.get("border_size", "medium"),
-                "text_size": widget_config.get("text_size", "normal"),
-                "border_radius": widget_config.get("border_radius", "rounded"),
-                "show_header": widget_config.get("show_header", True),
-            })
+    widgets = build_widgets_from_layout(widget_layout, user)
 
     context = {
         "page_title": "Dashboard",
+        "dashboard_type": "main",
         "user": user,
         "widgets": widgets,
         "total_widgets": len(AVAILABLE_WIDGETS),
@@ -91,42 +70,22 @@ def main_dashboard(request):
 def manager_dashboard(request):
     """
     Manager dashboard with KPIs and overview statistics.
+    Uses dynamic widget system for customization.
     """
-    from apps.workorders.models import DrillBit, WorkOrder
+    user = request.user
 
-    today = timezone.now().date()
-    week_ago = today - timedelta(days=7)
+    # Get user's widget layout for manager dashboard
+    widget_layout = get_user_widget_layout(user, "manager")
 
-    # Work order statistics
-    total_work_orders = WorkOrder.objects.count()
-    active_work_orders = WorkOrder.objects.filter(status__in=["IN_PROGRESS", "PLANNED", "RELEASED"]).count()
-    completed_this_week = WorkOrder.objects.filter(status="COMPLETED", actual_end__date__gte=week_ago).count()
-    overdue_work_orders = WorkOrder.objects.filter(
-        due_date__lt=today, status__in=["PLANNED", "IN_PROGRESS", "ON_HOLD"]
-    ).count()
-
-    # Drill bit statistics
-    total_drill_bits = DrillBit.objects.count()
-    in_stock_bits = DrillBit.objects.filter(status="IN_STOCK").count()
-    in_production_bits = DrillBit.objects.filter(status="IN_PRODUCTION").count()
-
-    # Status breakdown for chart
-    status_breakdown = WorkOrder.objects.values("status").annotate(count=Count("id")).order_by("status")
-
-    # Recent work orders
-    recent_work_orders = WorkOrder.objects.select_related("customer", "assigned_to", "drill_bit").order_by("-created_at")[:10]
+    # Build widgets with data and styles
+    widgets = build_widgets_from_layout(widget_layout, user)
 
     context = {
         "page_title": "Manager Dashboard",
-        "total_work_orders": total_work_orders,
-        "active_work_orders": active_work_orders,
-        "completed_this_week": completed_this_week,
-        "overdue_work_orders": overdue_work_orders,
-        "total_drill_bits": total_drill_bits,
-        "in_stock_bits": in_stock_bits,
-        "in_production_bits": in_production_bits,
-        "status_breakdown": list(status_breakdown),
-        "recent_work_orders": recent_work_orders,
+        "dashboard_type": "manager",
+        "user": user,
+        "widgets": widgets,
+        "total_widgets": len(AVAILABLE_WIDGETS),
     }
     return render(request, "dashboard/manager.html", context)
 
@@ -135,47 +94,22 @@ def manager_dashboard(request):
 def planner_dashboard(request):
     """
     Planner dashboard focused on scheduling and planning.
-    Optimized to avoid N+1 queries.
+    Uses dynamic widget system for customization.
     """
-    from apps.workorders.models import WorkOrder
+    user = request.user
 
-    today = timezone.now().date()
-    week_end = today + timedelta(days=7)
+    # Get user's widget layout for planner dashboard
+    widget_layout = get_user_widget_layout(user, "planner")
 
-    # Get all counts in a single query using aggregate
-    status_counts = WorkOrder.objects.aggregate(
-        pending=Count("id", filter=Q(status__in=["DRAFT", "PLANNED"])),
-        in_progress=Count("id", filter=Q(status="IN_PROGRESS")),
-        overdue=Count("id", filter=Q(due_date__lt=today, status__in=["PLANNED", "IN_PROGRESS", "ON_HOLD"])),
-        due_this_week=Count("id", filter=Q(due_date__range=[today, week_end], status__in=["PLANNED", "IN_PROGRESS"])),
-    )
-
-    # Work order lists (separate queries for display)
-    pending_work_orders = (
-        WorkOrder.objects.filter(status__in=["DRAFT", "PLANNED"])
-        .select_related("customer", "drill_bit")
-        .order_by("due_date")[:20]
-    )
-
-    in_progress_work_orders = (
-        WorkOrder.objects.filter(status="IN_PROGRESS").select_related("customer", "assigned_to").order_by("due_date")[:10]
-    )
-
-    overdue_work_orders = (
-        WorkOrder.objects.filter(due_date__lt=today, status__in=["PLANNED", "IN_PROGRESS", "ON_HOLD"])
-        .select_related("customer", "assigned_to")
-        .order_by("due_date")[:10]
-    )
+    # Build widgets with data and styles
+    widgets = build_widgets_from_layout(widget_layout, user)
 
     context = {
         "page_title": "Planner Dashboard",
-        "pending_work_orders": pending_work_orders,
-        "in_progress_work_orders": in_progress_work_orders,
-        "overdue_work_orders": overdue_work_orders,
-        "pending_count": status_counts["pending"],
-        "in_progress_count": status_counts["in_progress"],
-        "overdue_count": status_counts["overdue"],
-        "due_this_week": status_counts["due_this_week"],
+        "dashboard_type": "planner",
+        "user": user,
+        "widgets": widgets,
+        "total_widgets": len(AVAILABLE_WIDGETS),
     }
     return render(request, "dashboard/planner.html", context)
 
@@ -184,32 +118,22 @@ def planner_dashboard(request):
 def technician_dashboard(request):
     """
     Technician dashboard showing assigned work orders.
+    Uses dynamic widget system for customization.
     """
-    from apps.workorders.models import WorkOrder
-
     user = request.user
 
-    # My assigned work orders
-    my_work_orders = (
-        WorkOrder.objects.filter(assigned_to=user)
-        .exclude(status__in=["COMPLETED", "CANCELLED"])
-        .select_related("customer", "drill_bit")
-        .order_by("-priority", "due_date")
-    )
+    # Get user's widget layout for technician dashboard
+    widget_layout = get_user_widget_layout(user, "technician")
 
-    # Completed today
-    today = timezone.now().date()
-    completed_today = WorkOrder.objects.filter(assigned_to=user, status="COMPLETED", actual_end__date=today).count()
-
-    # In progress
-    in_progress = WorkOrder.objects.filter(assigned_to=user, status="IN_PROGRESS").first()
+    # Build widgets with data and styles
+    widgets = build_widgets_from_layout(widget_layout, user)
 
     context = {
         "page_title": "My Dashboard",
-        "my_work_orders": my_work_orders,
-        "assigned_count": my_work_orders.count(),
-        "completed_today": completed_today,
-        "current_work_order": in_progress,
+        "dashboard_type": "technician",
+        "user": user,
+        "widgets": widgets,
+        "total_widgets": len(AVAILABLE_WIDGETS),
     }
     return render(request, "dashboard/technician.html", context)
 
@@ -218,29 +142,22 @@ def technician_dashboard(request):
 def qc_dashboard(request):
     """
     QC Inspector dashboard showing inspections and NCRs.
+    Uses dynamic widget system for customization.
     """
-    from apps.quality.models import NCR
-    from apps.workorders.models import WorkOrder
+    user = request.user
 
-    # Pending QC
-    pending_qc = (
-        WorkOrder.objects.filter(status="QC_PENDING")
-        .select_related("customer", "assigned_to", "drill_bit")
-        .order_by("due_date")
-    )
+    # Get user's widget layout for QC dashboard
+    widget_layout = get_user_widget_layout(user, "qc")
 
-    # Recent NCRs
-    recent_ncrs = NCR.objects.select_related("work_order", "detected_by").order_by("-created_at")[:10]
-
-    # Statistics
-    open_ncrs = NCR.objects.filter(status__in=["OPEN", "INVESTIGATING", "PENDING_DISPOSITION", "IN_REWORK"]).count()
+    # Build widgets with data and styles
+    widgets = build_widgets_from_layout(widget_layout, user)
 
     context = {
         "page_title": "QC Dashboard",
-        "pending_qc": pending_qc,
-        "pending_qc_count": pending_qc.count(),
-        "recent_ncrs": recent_ncrs,
-        "open_ncrs": open_ncrs,
+        "dashboard_type": "qc",
+        "user": user,
+        "widgets": widgets,
+        "total_widgets": len(AVAILABLE_WIDGETS),
     }
     return render(request, "dashboard/qc.html", context)
 
@@ -621,14 +538,221 @@ AVAILABLE_WIDGETS = {
         "default_size": "small",
         "category": "utilities",
     },
+
+    # =========================================================================
+    # PLANNER-SPECIFIC WIDGETS
+    # =========================================================================
+    "planner_pending_kpi": {
+        "name": "Pending Planning",
+        "description": "Count of work orders awaiting scheduling",
+        "icon": "clock",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "planner_in_progress_kpi": {
+        "name": "In Progress",
+        "description": "Count of currently active work orders",
+        "icon": "loader",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "planner_overdue_kpi": {
+        "name": "Overdue",
+        "description": "Count of overdue work orders needing attention",
+        "icon": "alert-circle",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "planner_due_this_week_kpi": {
+        "name": "Due This Week",
+        "description": "Count of work orders due within 7 days",
+        "icon": "calendar",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "pending_work_orders_list": {
+        "name": "Pending Work Orders",
+        "description": "List of work orders awaiting scheduling",
+        "icon": "list",
+        "default_size": "large",
+        "category": "operations",
+    },
+    "in_progress_work_orders_list": {
+        "name": "In Progress Work Orders",
+        "description": "List of currently active work orders",
+        "icon": "play-circle",
+        "default_size": "large",
+        "category": "operations",
+    },
+    "overdue_work_orders_table": {
+        "name": "Overdue Work Orders Table",
+        "description": "Detailed table of overdue work orders",
+        "icon": "alert-triangle",
+        "default_size": "full",
+        "category": "operations",
+    },
+
+    # =========================================================================
+    # MANAGER-SPECIFIC WIDGETS
+    # =========================================================================
+    "manager_total_wo_kpi": {
+        "name": "Total Work Orders",
+        "description": "Total count of all work orders",
+        "icon": "clipboard-list",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "manager_active_wo_kpi": {
+        "name": "Active Work Orders",
+        "description": "Count of active work orders",
+        "icon": "activity",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "manager_completed_week_kpi": {
+        "name": "Completed This Week",
+        "description": "Work orders completed in the past 7 days",
+        "icon": "check-circle",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "manager_overdue_kpi": {
+        "name": "Overdue Work Orders",
+        "description": "Count of overdue work orders",
+        "icon": "alert-circle",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "manager_drill_bits_kpi": {
+        "name": "Drill Bits Overview",
+        "description": "Total, in stock, and in production drill bits",
+        "icon": "tool",
+        "default_size": "small",
+        "category": "inventory",
+    },
+    "work_orders_status_chart": {
+        "name": "Work Orders Status Chart",
+        "description": "Visual breakdown of work orders by status",
+        "icon": "pie-chart",
+        "default_size": "large",
+        "category": "analytics",
+    },
+
+    # =========================================================================
+    # TECHNICIAN-SPECIFIC WIDGETS
+    # =========================================================================
+    "tech_assigned_count_kpi": {
+        "name": "My Assigned",
+        "description": "Count of work orders assigned to you",
+        "icon": "briefcase",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "tech_completed_today_kpi": {
+        "name": "Completed Today",
+        "description": "Work orders you completed today",
+        "icon": "check-circle",
+        "default_size": "small",
+        "category": "operations",
+    },
+    "tech_current_work_order": {
+        "name": "Current Work Order",
+        "description": "Your currently active work order",
+        "icon": "play",
+        "default_size": "large",
+        "category": "operations",
+    },
+    "tech_my_work_orders_list": {
+        "name": "My Work Orders",
+        "description": "List of work orders assigned to you",
+        "icon": "list",
+        "default_size": "full",
+        "category": "operations",
+    },
+
+    # =========================================================================
+    # QC-SPECIFIC WIDGETS
+    # =========================================================================
+    "qc_pending_count_kpi": {
+        "name": "Pending QC",
+        "description": "Count of items awaiting QC inspection",
+        "icon": "clipboard-check",
+        "default_size": "small",
+        "category": "quality",
+    },
+    "qc_open_ncrs_kpi": {
+        "name": "Open NCRs",
+        "description": "Count of open non-conformance reports",
+        "icon": "alert-triangle",
+        "default_size": "small",
+        "category": "quality",
+    },
+    "qc_pending_list": {
+        "name": "Pending QC List",
+        "description": "Work orders awaiting quality inspection",
+        "icon": "list-checks",
+        "default_size": "large",
+        "category": "quality",
+    },
+    "qc_recent_ncrs_list": {
+        "name": "Recent NCRs",
+        "description": "Recently created non-conformance reports",
+        "icon": "file-warning",
+        "default_size": "large",
+        "category": "quality",
+    },
 }
 
+# Default widget layouts for each dashboard type
 DEFAULT_WIDGET_LAYOUT = [
     {"id": "work_orders_summary", "size": "medium", "order": 1, "visible": True},
     {"id": "drill_bits_status", "size": "small", "order": 2, "visible": True},
     {"id": "recent_work_orders", "size": "large", "order": 3, "visible": True},
     {"id": "quick_links", "size": "small", "order": 4, "visible": True},
 ]
+
+DEFAULT_PLANNER_WIDGET_LAYOUT = [
+    {"id": "planner_pending_kpi", "size": "small", "order": 1, "visible": True},
+    {"id": "planner_in_progress_kpi", "size": "small", "order": 2, "visible": True},
+    {"id": "planner_overdue_kpi", "size": "small", "order": 3, "visible": True},
+    {"id": "planner_due_this_week_kpi", "size": "small", "order": 4, "visible": True},
+    {"id": "pending_work_orders_list", "size": "large", "order": 5, "visible": True},
+    {"id": "in_progress_work_orders_list", "size": "large", "order": 6, "visible": True},
+    {"id": "overdue_work_orders_table", "size": "full", "order": 7, "visible": True},
+]
+
+DEFAULT_MANAGER_WIDGET_LAYOUT = [
+    {"id": "manager_total_wo_kpi", "size": "small", "order": 1, "visible": True},
+    {"id": "manager_active_wo_kpi", "size": "small", "order": 2, "visible": True},
+    {"id": "manager_completed_week_kpi", "size": "small", "order": 3, "visible": True},
+    {"id": "manager_overdue_kpi", "size": "small", "order": 4, "visible": True},
+    {"id": "manager_drill_bits_kpi", "size": "medium", "order": 5, "visible": True},
+    {"id": "work_orders_status_chart", "size": "large", "order": 6, "visible": True},
+    {"id": "recent_work_orders", "size": "large", "order": 7, "visible": True},
+]
+
+DEFAULT_TECHNICIAN_WIDGET_LAYOUT = [
+    {"id": "tech_assigned_count_kpi", "size": "small", "order": 1, "visible": True},
+    {"id": "tech_completed_today_kpi", "size": "small", "order": 2, "visible": True},
+    {"id": "tech_current_work_order", "size": "large", "order": 3, "visible": True},
+    {"id": "tech_my_work_orders_list", "size": "full", "order": 4, "visible": True},
+]
+
+DEFAULT_QC_WIDGET_LAYOUT = [
+    {"id": "qc_pending_count_kpi", "size": "small", "order": 1, "visible": True},
+    {"id": "qc_open_ncrs_kpi", "size": "small", "order": 2, "visible": True},
+    {"id": "qc_pending_list", "size": "large", "order": 3, "visible": True},
+    {"id": "qc_recent_ncrs_list", "size": "large", "order": 4, "visible": True},
+]
+
+# Map dashboard types to their default layouts
+DEFAULT_LAYOUTS = {
+    "main": DEFAULT_WIDGET_LAYOUT,
+    "planner": DEFAULT_PLANNER_WIDGET_LAYOUT,
+    "manager": DEFAULT_MANAGER_WIDGET_LAYOUT,
+    "technician": DEFAULT_TECHNICIAN_WIDGET_LAYOUT,
+    "qc": DEFAULT_QC_WIDGET_LAYOUT,
+}
 
 
 def get_user_widget_layout(user, dashboard_type="main"):
@@ -648,7 +772,38 @@ def get_user_widget_layout(user, dashboard_type="main"):
                 return widgets
     except UserPreference.DoesNotExist:
         pass
-    return [w.copy() for w in DEFAULT_WIDGET_LAYOUT]
+
+    # Return appropriate default layout for dashboard type
+    default_layout = DEFAULT_LAYOUTS.get(dashboard_type, DEFAULT_WIDGET_LAYOUT)
+    return [w.copy() for w in default_layout]
+
+
+def build_widgets_from_layout(widget_layout, user):
+    """Build widgets with data and styles from a layout configuration."""
+    widgets = []
+    for widget_config in widget_layout:
+        if widget_config.get("visible", True):
+            widget_id = widget_config["id"]
+            widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
+            widgets.append({
+                "id": widget_id,
+                "name": widget_info.get("name", widget_id),
+                "description": widget_info.get("description", ""),
+                "icon": widget_info.get("icon", "square"),
+                "size": widget_config.get("size", "medium"),
+                "category": widget_info.get("category", "utilities"),
+                "data": get_widget_data(widget_id, user),
+                # Style properties
+                "color": widget_config.get("color", "blue"),
+                "color_intensity": widget_config.get("color_intensity", "medium"),
+                "bg_style": widget_config.get("bg_style", "solid"),
+                "border_style": widget_config.get("border_style", "none"),
+                "border_size": widget_config.get("border_size", "medium"),
+                "text_size": widget_config.get("text_size", "normal"),
+                "border_radius": widget_config.get("border_radius", "rounded"),
+                "show_header": widget_config.get("show_header", True),
+            })
+    return widgets
 
 
 def save_user_widget_layout(user, widget_config, dashboard_type="main"):
@@ -759,6 +914,170 @@ def get_widget_data(widget_id, user):
                 {"name": "Quality", "url": "quality:ncr_list", "icon": "shield-check"},
                 {"name": "Reports", "url": "reports:dashboard", "icon": "bar-chart"},
             ]
+        }
+
+    # =========================================================================
+    # PLANNER-SPECIFIC WIDGETS
+    # =========================================================================
+    elif widget_id == "planner_pending_kpi":
+        return {
+            "count": WorkOrder.objects.filter(status__in=["DRAFT", "PLANNED"]).count(),
+            "label": "awaiting scheduling",
+        }
+
+    elif widget_id == "planner_in_progress_kpi":
+        return {
+            "count": WorkOrder.objects.filter(status="IN_PROGRESS").count(),
+            "label": "currently active",
+        }
+
+    elif widget_id == "planner_overdue_kpi":
+        return {
+            "count": WorkOrder.objects.filter(
+                due_date__lt=today, status__in=["PLANNED", "IN_PROGRESS", "ON_HOLD"]
+            ).count(),
+            "label": "needs attention",
+        }
+
+    elif widget_id == "planner_due_this_week_kpi":
+        week_end = today + timedelta(days=7)
+        return {
+            "count": WorkOrder.objects.filter(
+                due_date__range=[today, week_end], status__in=["PLANNED", "IN_PROGRESS"]
+            ).count(),
+            "label": "upcoming deadlines",
+        }
+
+    elif widget_id == "pending_work_orders_list":
+        return {
+            "work_orders": WorkOrder.objects.filter(status__in=["DRAFT", "PLANNED"])
+            .select_related("customer", "drill_bit")
+            .order_by("due_date")[:20],
+            "count": WorkOrder.objects.filter(status__in=["DRAFT", "PLANNED"]).count(),
+        }
+
+    elif widget_id == "in_progress_work_orders_list":
+        return {
+            "work_orders": WorkOrder.objects.filter(status="IN_PROGRESS")
+            .select_related("customer", "assigned_to")
+            .order_by("due_date")[:10],
+            "count": WorkOrder.objects.filter(status="IN_PROGRESS").count(),
+        }
+
+    elif widget_id == "overdue_work_orders_table":
+        return {
+            "work_orders": WorkOrder.objects.filter(
+                due_date__lt=today, status__in=["PLANNED", "IN_PROGRESS", "ON_HOLD"]
+            )
+            .select_related("customer", "assigned_to")
+            .order_by("due_date")[:10],
+            "count": WorkOrder.objects.filter(
+                due_date__lt=today, status__in=["PLANNED", "IN_PROGRESS", "ON_HOLD"]
+            ).count(),
+        }
+
+    # =========================================================================
+    # MANAGER-SPECIFIC WIDGETS
+    # =========================================================================
+    elif widget_id == "manager_total_wo_kpi":
+        return {
+            "count": WorkOrder.objects.count(),
+            "label": "total work orders",
+        }
+
+    elif widget_id == "manager_active_wo_kpi":
+        return {
+            "count": WorkOrder.objects.filter(status__in=["IN_PROGRESS", "PLANNED", "RELEASED"]).count(),
+            "label": "active",
+        }
+
+    elif widget_id == "manager_completed_week_kpi":
+        return {
+            "count": WorkOrder.objects.filter(status="COMPLETED", actual_end__date__gte=week_ago).count(),
+            "label": "completed this week",
+        }
+
+    elif widget_id == "manager_overdue_kpi":
+        return {
+            "count": WorkOrder.objects.filter(
+                due_date__lt=today, status__in=["PLANNED", "IN_PROGRESS", "ON_HOLD"]
+            ).count(),
+            "label": "overdue",
+        }
+
+    elif widget_id == "manager_drill_bits_kpi":
+        return {
+            "total": DrillBit.objects.count(),
+            "in_stock": DrillBit.objects.filter(status="IN_STOCK").count(),
+            "in_production": DrillBit.objects.filter(status="IN_PRODUCTION").count(),
+        }
+
+    elif widget_id == "work_orders_status_chart":
+        status_breakdown = WorkOrder.objects.values("status").annotate(count=Count("id")).order_by("status")
+        return {
+            "status_breakdown": list(status_breakdown),
+        }
+
+    # =========================================================================
+    # TECHNICIAN-SPECIFIC WIDGETS
+    # =========================================================================
+    elif widget_id == "tech_assigned_count_kpi":
+        return {
+            "count": WorkOrder.objects.filter(assigned_to=user)
+            .exclude(status__in=["COMPLETED", "CANCELLED"])
+            .count(),
+            "label": "assigned to you",
+        }
+
+    elif widget_id == "tech_completed_today_kpi":
+        return {
+            "count": WorkOrder.objects.filter(
+                assigned_to=user, status="COMPLETED", actual_end__date=today
+            ).count(),
+            "label": "completed today",
+        }
+
+    elif widget_id == "tech_current_work_order":
+        current_wo = WorkOrder.objects.filter(assigned_to=user, status="IN_PROGRESS").first()
+        return {
+            "work_order": current_wo,
+        }
+
+    elif widget_id == "tech_my_work_orders_list":
+        return {
+            "work_orders": WorkOrder.objects.filter(assigned_to=user)
+            .exclude(status__in=["COMPLETED", "CANCELLED"])
+            .select_related("customer", "drill_bit")
+            .order_by("-priority", "due_date"),
+        }
+
+    # =========================================================================
+    # QC-SPECIFIC WIDGETS
+    # =========================================================================
+    elif widget_id == "qc_pending_count_kpi":
+        return {
+            "count": WorkOrder.objects.filter(status="QC_PENDING").count(),
+            "label": "awaiting inspection",
+        }
+
+    elif widget_id == "qc_open_ncrs_kpi":
+        return {
+            "count": NCR.objects.filter(
+                status__in=["OPEN", "INVESTIGATING", "PENDING_DISPOSITION", "IN_REWORK"]
+            ).count(),
+            "label": "open NCRs",
+        }
+
+    elif widget_id == "qc_pending_list":
+        return {
+            "work_orders": WorkOrder.objects.filter(status="QC_PENDING")
+            .select_related("customer", "assigned_to", "drill_bit")
+            .order_by("due_date"),
+        }
+
+    elif widget_id == "qc_recent_ncrs_list":
+        return {
+            "ncrs": NCR.objects.select_related("work_order", "detected_by").order_by("-created_at")[:10],
         }
 
     return {}
@@ -932,8 +1251,9 @@ def reset_dashboard(request, dashboard_type="main"):
     """
     user = request.user
 
-    # Reset the specific dashboard type to default
-    save_user_widget_layout(user, [w.copy() for w in DEFAULT_WIDGET_LAYOUT], dashboard_type)
+    # Get the appropriate default layout for this dashboard type
+    default_layout = DEFAULT_LAYOUTS.get(dashboard_type, DEFAULT_WIDGET_LAYOUT)
+    save_user_widget_layout(user, [w.copy() for w in default_layout], dashboard_type)
     # No success message - user will see the reset visually
 
     # Redirect to the appropriate dashboard
@@ -1051,6 +1371,7 @@ def saved_dashboard_create(request):
 def saved_dashboard_view(request, pk):
     """
     View a saved dashboard.
+    Uses dynamic widget system for customization.
     """
     user = request.user
 
@@ -1063,30 +1384,8 @@ def saved_dashboard_view(request, pk):
         messages.error(request, "You don't have permission to view this dashboard.")
         return redirect("dashboard:saved_list")
 
-    # Build widgets with data
-    widgets = []
-    for widget_config in dashboard.widget_config:
-        if widget_config.get("visible", True):
-            widget_id = widget_config["id"]
-            widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
-            widgets.append({
-                "id": widget_id,
-                "name": widget_info.get("name", widget_id),
-                "description": widget_info.get("description", ""),
-                "icon": widget_info.get("icon", "square"),
-                "size": widget_config.get("size", "medium"),
-                "category": widget_info.get("category", "utilities"),
-                "data": get_widget_data(widget_id, user),
-                # Style properties
-                "color": widget_config.get("color", "blue"),
-                "color_intensity": widget_config.get("color_intensity", "medium"),
-                "bg_style": widget_config.get("bg_style", "solid"),
-                "border_style": widget_config.get("border_style", "none"),
-                "border_size": widget_config.get("border_size", "medium"),
-                "text_size": widget_config.get("text_size", "normal"),
-                "border_radius": widget_config.get("border_radius", "rounded"),
-                "show_header": widget_config.get("show_header", True),
-            })
+    # Build widgets with data using helper function
+    widgets = build_widgets_from_layout(dashboard.widget_config, user)
 
     # Check if user has favorited this dashboard
     is_favorite = DashboardFavorite.objects.filter(user=user, dashboard=dashboard).exists()
@@ -1094,6 +1393,7 @@ def saved_dashboard_view(request, pk):
     context = {
         "page_title": dashboard.name,
         "dashboard": dashboard,
+        "dashboard_type": dashboard.dashboard_type_key,
         "widgets": widgets,
         "is_favorite": is_favorite,
         "can_edit": dashboard.can_edit(user),
