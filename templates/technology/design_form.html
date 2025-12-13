@@ -3,7 +3,7 @@
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto">
+<div class="max-w-5xl mx-auto">
     <div class="mb-6">
         <div class="flex items-center gap-4">
             <a href="{% url 'technology:design_list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">
@@ -13,7 +13,7 @@
         </div>
     </div>
 
-    <form method="post" class="space-y-6">
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
         {% csrf_token %}
 
         <!-- Form Errors -->
@@ -41,7 +41,10 @@
         <!-- IDENTITY -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Identity</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="tag" class="w-5 h-5"></i>
+                    Identity
+                </h3>
             </div>
             <div class="px-6 py-4 space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -62,6 +65,7 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">HDBS Type <span class="text-red-500">*</span></label>
                         <div class="mt-1">{{ form.hdbs_type }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Auto-fills Series, Blades, Cutter Grade</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMI Type</label>
@@ -70,6 +74,7 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Series</label>
                         <div class="mt-1">{{ form.series }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Auto-filled from HDBS Type</p>
                     </div>
                 </div>
             </div>
@@ -78,7 +83,10 @@
         <!-- CATEGORY & SIZE -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Category & Size</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                    Category & Classification
+                </h3>
             </div>
             <div class="px-6 py-4">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -105,7 +113,10 @@
         <!-- TECHNICAL SPECS (FC Only) -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow" id="fc-specs">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Technical Specs (Fixed Cutter Only)</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                    Technical Specs (Fixed Cutter)
+                </h3>
             </div>
             <div class="px-6 py-4">
                 <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
@@ -116,22 +127,26 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">No. of Blades</label>
                         <div class="mt-1">{{ form.no_of_blades }}</div>
+                        <p class="mt-1 text-xs text-gray-500">From HDBS Type</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Cutter Size (mm)</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Cutter Size Grade</label>
                         <div class="mt-1">{{ form.cutter_size }}</div>
+                        <p class="mt-1 text-xs text-gray-500">From HDBS Type</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Length</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Length (in)</label>
                         <div class="mt-1">{{ form.gage_length }}</div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Relief</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Relief (thou)</label>
                         <div class="mt-1">{{ form.gage_relief }}</div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gauge Protection</label>
-                        <div class="mt-1">{{ form.gauge_protection }}</div>
+                    <div class="flex items-center pt-6">
+                        <div class="flex items-center gap-2">
+                            {{ form.erosion_sleeve }}
+                            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Erosion Sleeve</label>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -140,17 +155,20 @@
         <!-- NOZZLES & PORTS -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Nozzles & Ports</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="droplets" class="w-5 h-5"></i>
+                    Hydraulics (Nozzles & Ports)
+                </h3>
             </div>
-            <div class="px-6 py-4">
-                <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Count</label>
                         <div class="mt-1">{{ form.nozzle_count }}</div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Size</label>
-                        <div class="mt-1">{{ form.nozzle_size }}</div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Bore Size</label>
+                        <div class="mt-1">{{ form.nozzle_bore_size }}</div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">TFA (sq.in)</label>
@@ -164,9 +182,17 @@
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Port Size</label>
                         <div class="mt-1">{{ form.port_size }}</div>
                     </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Config</label>
                         <div class="mt-1">{{ form.nozzle_config }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Layout of nozzles (see Milling Drawing)</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Milling Drawing (PDF)</label>
+                        <div class="mt-1">{{ form.milling_drawing }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Upload PDF of milling/nozzle layout</p>
                     </div>
                 </div>
             </div>
@@ -175,10 +201,17 @@
         <!-- CONNECTION -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Connection</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="link" class="w-5 h-5"></i>
+                    Connection
+                </h3>
             </div>
             <div class="px-6 py-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection MAT No.</label>
+                        <div class="mt-1">{{ form.connection_mat_no }}</div>
+                    </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection Type</label>
                         <div class="mt-1">{{ form.connection_type_ref }}</div>
@@ -194,7 +227,10 @@
         <!-- APPLICATION -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Application</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="target" class="w-5 h-5"></i>
+                    Application
+                </h3>
             </div>
             <div class="px-6 py-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -210,10 +246,38 @@
             </div>
         </div>
 
+        <!-- SPECIAL TECHNOLOGIES -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-5 h-5"></i>
+                    Special Technologies
+                </h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-500 mb-3">Select all applicable special technologies:</p>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {% for checkbox in form.special_technologies %}
+                    <div class="flex items-center">
+                        {{ checkbox.tag }}
+                        <label for="{{ checkbox.id_for_label }}" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                            {{ checkbox.choice_label }}
+                        </label>
+                    </div>
+                    {% empty %}
+                    <p class="text-sm text-gray-400 col-span-4">No special technologies defined yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
         <!-- STATUS -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Status</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                    Status
+                </h3>
             </div>
             <div class="px-6 py-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -232,7 +296,10 @@
         <!-- NOTES -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Notes</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-5 h-5"></i>
+                    Notes
+                </h3>
             </div>
             <div class="px-6 py-4 space-y-4">
                 <div>
@@ -247,12 +314,60 @@
         </div>
 
         <!-- Actions -->
-        <div class="flex justify-end gap-3">
+        <div class="flex justify-end gap-3 sticky bottom-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg shadow-lg">
             <a href="{% url 'technology:design_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</a>
-            <button type="submit" class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+            <button type="submit" class="px-6 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2">
+                <i data-lucide="save" class="w-4 h-4"></i>
                 {% if object %}Update Design{% else %}Create Design{% endif %}
             </button>
         </div>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const hdbsInput = document.getElementById('id_hdbs_type');
+    const seriesInput = document.getElementById('id_series');
+    const bladesInput = document.getElementById('id_no_of_blades');
+    const cutterSizeInput = document.getElementById('id_cutter_size');
+
+    function parseHDBSType(hdbsType) {
+        // Pattern: Series (letters) + Blades (first digit) + Cutter Grade (second digit) + rest
+        // Examples: GT65RHS, HD76MX, EM85S, MM66R
+        const match = hdbsType.match(/^([A-Z]+)(\d)(\d)?/i);
+
+        if (match) {
+            return {
+                series: match[1].toUpperCase(),
+                blades: parseInt(match[2]),
+                cutterGrade: match[3] ? parseInt(match[3]) : null
+            };
+        }
+        return null;
+    }
+
+    function updateAutoFields() {
+        const hdbsType = hdbsInput.value.trim();
+        const parsed = parseHDBSType(hdbsType);
+
+        if (parsed) {
+            seriesInput.value = parsed.series;
+            bladesInput.value = parsed.blades;
+            if (parsed.cutterGrade !== null) {
+                cutterSizeInput.value = parsed.cutterGrade;
+            }
+        }
+    }
+
+    if (hdbsInput) {
+        hdbsInput.addEventListener('input', updateAutoFields);
+        hdbsInput.addEventListener('blur', updateAutoFields);
+
+        // Run on page load if editing existing design
+        if (hdbsInput.value) {
+            updateAutoFields();
+        }
+    }
+});
+</script>
 {% endblock %}

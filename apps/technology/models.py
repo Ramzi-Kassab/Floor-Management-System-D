@@ -15,6 +15,7 @@ Tables:
 """
 
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 
 
@@ -105,6 +106,26 @@ class Application(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+
+class SpecialTechnology(models.Model):
+    """
+    Special technologies available for drill bit designs.
+    Examples: Cerebro Puck, Cerebro Force, Torpedo, etc.
+    """
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "special_technologies"
+        ordering = ['name']
+        verbose_name = "Special Technology"
+        verbose_name_plural = "Special Technologies"
+
+    def __str__(self):
+        return self.name
 
 
 class IADCCode(models.Model):
@@ -258,25 +279,31 @@ class Design(models.Model):
     cutter_size = models.PositiveIntegerField(
         null=True,
         blank=True,
-        verbose_name='Cutter Size',
-        help_text='Primary cutter size in mm'
+        verbose_name='Cutter Size Grade',
+        help_text='Cutter size grade (from HDBS Type 2nd digit)'
     )
     gage_length = models.DecimalField(
-        max_digits=4,
+        max_digits=5,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        verbose_name='Gage Length (in)',
+        help_text='Gage length in inches (positive values only)',
+        validators=[MinValueValidator(0)]
+    )
+    gage_relief = models.DecimalField(
+        max_digits=6,
         decimal_places=1,
         null=True,
         blank=True,
-        verbose_name='Gage Length'
+        verbose_name='Gage Relief (thou)',
+        help_text='Gage relief in inch thou (positive values only)',
+        validators=[MinValueValidator(0)]
     )
-    gage_relief = models.CharField(
-        max_length=50,
-        blank=True,
-        verbose_name='Gage Relief'
-    )
-    gauge_protection = models.CharField(
-        max_length=100,
-        blank=True,
-        verbose_name='Gauge Protection'
+    erosion_sleeve = models.BooleanField(
+        default=False,
+        verbose_name='Erosion Sleeve',
+        help_text='Has erosion sleeve protection'
     )
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -287,24 +314,33 @@ class Design(models.Model):
         blank=True,
         verbose_name='Nozzle Count'
     )
-    nozzle_size = models.CharField(
+    nozzle_bore_size = models.CharField(
         max_length=50,
         blank=True,
-        verbose_name='Nozzle Size',
-        help_text='e.g., 12/32, 14/32, or multiple sizes'
+        verbose_name='Nozzle Bore Size',
+        help_text='Fixed bore size in design (e.g., 12/32, 14/32)'
     )
     nozzle_config = models.CharField(
         max_length=100,
         blank=True,
-        verbose_name='Nozzle Configuration'
+        verbose_name='Nozzle Configuration',
+        help_text='Layout of nozzles (reference Milling drawing)'
+    )
+    milling_drawing = models.FileField(
+        upload_to="designs/milling/",
+        null=True,
+        blank=True,
+        verbose_name='Milling Drawing',
+        help_text='PDF of milling/nozzle layout drawing'
     )
     tfa = models.DecimalField(
         max_digits=6,
         decimal_places=3,
         null=True,
         blank=True,
-        verbose_name='TFA',
-        help_text='Total Flow Area (sq. inches)'
+        verbose_name='TFA (sq.in)',
+        help_text='Total Flow Area - positive values only',
+        validators=[MinValueValidator(0)]
     )
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -315,15 +351,25 @@ class Design(models.Model):
         blank=True,
         verbose_name='Port Count'
     )
-    port_size = models.CharField(
-        max_length=50,
+    port_size = models.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        null=True,
         blank=True,
-        verbose_name='Port Size'
+        verbose_name='Port Size',
+        help_text='Port size - positive values only',
+        validators=[MinValueValidator(0)]
     )
 
     # ═══════════════════════════════════════════════════════════════════════
     # CONNECTION (FK to reference tables)
     # ═══════════════════════════════════════════════════════════════════════
+    connection_mat_no = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name='Connection MAT No.',
+        help_text='Material number of the connection'
+    )
     connection_type_ref = models.ForeignKey(
         'ConnectionType',
         null=True,
@@ -367,6 +413,17 @@ class Design(models.Model):
         on_delete=models.SET_NULL,
         verbose_name='IADC Code',
         related_name='designs'
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # SPECIAL TECHNOLOGIES (M2M)
+    # ═══════════════════════════════════════════════════════════════════════
+    special_technologies = models.ManyToManyField(
+        'SpecialTechnology',
+        blank=True,
+        verbose_name='Special Technologies',
+        related_name='designs',
+        help_text='Select one or more special technologies (Cerebro Puck, Torpedo, etc.)'
     )
 
     # ═══════════════════════════════════════════════════════════════════════

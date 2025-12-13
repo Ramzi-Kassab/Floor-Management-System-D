@@ -40,22 +40,26 @@ class DesignForm(forms.ModelForm):
             "cutter_size",
             "gage_length",
             "gage_relief",
-            "gauge_protection",
+            "erosion_sleeve",
             # Nozzles
             "nozzle_count",
-            "nozzle_size",
+            "nozzle_bore_size",
             "nozzle_config",
+            "milling_drawing",
             "tfa",
             # Ports
             "port_count",
             "port_size",
             # Connection (FK)
+            "connection_mat_no",
             "connection_type_ref",
             "connection_size_ref",
             # Application (FK)
             "formation_type_ref",
             "application_ref",
             "iadc_code_ref",
+            # Special Technologies
+            "special_technologies",
             # Order Level
             "order_level",
             # Status
@@ -67,37 +71,41 @@ class DesignForm(forms.ModelForm):
         ]
         widgets = {
             # Identity
-            "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 800012345"}),
-            "hdbs_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHS"}),
+            "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 800012345", "id": "id_mat_no"}),
+            "hdbs_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHS", "id": "id_hdbs_type"}),
             "smi_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Client-facing type"}),
             "ref_mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Reference MAT No."}),
             "ardt_item_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "ARDT Item No."}),
             # Category & Size
             "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "size": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "series": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT, HD, MM"}),
+            "series": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Auto-filled from HDBS Type", "id": "id_series", "readonly": "readonly"}),
             # Technical Specs
             "body_material": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "no_of_blades": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0}),
-            "cutter_size": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0, "placeholder": "mm"}),
-            "gage_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.1"}),
-            "gage_relief": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
-            "gauge_protection": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "no_of_blades": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0, "id": "id_no_of_blades", "readonly": "readonly"}),
+            "cutter_size": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0, "id": "id_cutter_size", "readonly": "readonly"}),
+            "gage_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "inches"}),
+            "gage_relief": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.1", "min": "0", "placeholder": "thou"}),
+            "erosion_sleeve": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-5 w-5"}),
             # Nozzles
             "nozzle_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0}),
-            "nozzle_size": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 12/32"}),
-            "nozzle_config": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 5x12"}),
-            "tfa": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "placeholder": "sq. in"}),
+            "nozzle_bore_size": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 12/32"}),
+            "nozzle_config": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Layout (see Milling Drawing)"}),
+            "milling_drawing": forms.FileInput(attrs={"class": TAILWIND_INPUT, "accept": ".pdf"}),
+            "tfa": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "sq. in"}),
             # Ports
             "port_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0}),
-            "port_size": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "port_size": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0"}),
             # Connection
+            "connection_mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Connection material number"}),
             "connection_type_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "connection_size_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
             # Application
             "formation_type_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "application_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "iadc_code_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            # Special Technologies
+            "special_technologies": forms.CheckboxSelectMultiple(attrs={"class": "space-y-2"}),
             # Order Level
             "order_level": forms.Select(attrs={"class": TAILWIND_SELECT}),
             # Status
@@ -114,21 +122,24 @@ class DesignForm(forms.ModelForm):
             "ref_mat_no": "Ref MAT No.",
             "ardt_item_no": "ARDT Item No.",
             "no_of_blades": "No. of Blades",
-            "cutter_size": "Cutter Size (mm)",
-            "gage_length": "Gage Length",
-            "gage_relief": "Gage Relief",
-            "gauge_protection": "Gauge Protection",
+            "cutter_size": "Cutter Size Grade",
+            "gage_length": "Gage Length (in)",
+            "gage_relief": "Gage Relief (thou)",
+            "erosion_sleeve": "Erosion Sleeve",
             "nozzle_count": "Nozzle Count",
-            "nozzle_size": "Nozzle Size",
+            "nozzle_bore_size": "Nozzle Bore Size",
             "nozzle_config": "Nozzle Config",
+            "milling_drawing": "Milling Drawing (PDF)",
             "tfa": "TFA (sq.in)",
             "port_count": "Port Count",
             "port_size": "Port Size",
+            "connection_mat_no": "Connection MAT No.",
             "connection_type_ref": "Connection Type",
             "connection_size_ref": "Connection Size",
             "formation_type_ref": "Formation Type",
             "application_ref": "Application",
             "iadc_code_ref": "IADC Code",
+            "special_technologies": "Special Technologies",
             "order_level": "Order Level",
         }
 
