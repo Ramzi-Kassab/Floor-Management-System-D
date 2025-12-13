@@ -15,6 +15,7 @@ class Command(BaseCommand):
             # Erosion & Structural Technologies
             {"code": "ES", "name": "Erosion Sleeve", "description": "Erosion sleeve protection for gage area"},
             {"code": "CS", "name": "Crush & Shear", "description": "Crush & Shear cutter technology for enhanced formation breaking"},
+            {"code": "SL", "name": "Shankless", "description": "Shankless upper section design - cannot be replaced in KSA"},
             # Cerebro Technologies
             {"code": "CP", "name": "Cerebro Puck", "description": "Cerebro Puck technology for enhanced ROP feedback"},
             {"code": "CF", "name": "Cerebro Force", "description": "Cerebro Force technology for weight-on-bit monitoring"},
