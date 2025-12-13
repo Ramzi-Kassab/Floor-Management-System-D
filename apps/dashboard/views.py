@@ -1162,6 +1162,9 @@ def customize_dashboard(request, dashboard_type="main"):
         widget["description"] = widget_info.get("description", "")
         widget["icon"] = widget_info.get("icon", "square")
         widget["category"] = widget_info.get("category", "utilities")
+        # Ensure visible field exists (default to True)
+        if "visible" not in widget:
+            widget["visible"] = True
 
     # Get list of active widget IDs
     active_widget_ids = [w["id"] for w in current_layout]
