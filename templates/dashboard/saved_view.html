@@ -55,6 +55,17 @@
 {% endblock %}
 
 {% block content %}
+<!-- DEBUG: Widget style values (remove after debugging) -->
+{% if widgets %}
+<div class="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg text-sm">
+    <p class="font-bold mb-2">DEBUG - First Widget Style Data:</p>
+    {% with first=widgets.0 %}
+    <p>ID: {{ first.id }} | Size: {{ first.size }} | Color: {{ first.color|default:"NOT SET" }} | BG Style: {{ first.bg_style|default:"NOT SET" }} | Show Header: {{ first.show_header|default:"NOT SET" }}</p>
+    {% endwith %}
+</div>
+{% endif %}
+<!-- END DEBUG -->
+
 {% if widgets %}
 <!-- Dynamic Widget Grid with Full Styling Support -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -763,27 +763,35 @@ def get_user_widget_layout(user, dashboard_type="main", default_fallback=None):
         dashboard_type: The dashboard type (main, manager, planner, etc., or saved_<id>)
         default_fallback: Optional custom default to use instead of global defaults
     """
+    print(f"[DEBUG] get_user_widget_layout: user={user.username}, dashboard_type={dashboard_type}")
     try:
         preferences = UserPreference.objects.get(user=user)
         widgets = preferences.dashboard_widgets
+        print(f"[DEBUG] UserPreference found, dashboard_widgets keys: {list(widgets.keys()) if isinstance(widgets, dict) else 'NOT A DICT'}")
 
         # New format: dict with dashboard_type keys
         if widgets and isinstance(widgets, dict):
             dashboard_widgets = widgets.get(dashboard_type)
+            print(f"[DEBUG] Looking for key '{dashboard_type}', found: {dashboard_widgets is not None}")
             if dashboard_widgets and isinstance(dashboard_widgets, list) and len(dashboard_widgets) > 0:
+                print(f"[DEBUG] Returning user's saved layout ({len(dashboard_widgets)} widgets)")
+                if dashboard_widgets:
+                    print(f"[DEBUG] First widget from UserPreference: {dashboard_widgets[0]}")
                 return dashboard_widgets
         # Legacy format: just a list (treat as main dashboard)
         elif widgets and isinstance(widgets, list) and len(widgets) > 0:
             if dashboard_type == "main":
                 return widgets
     except UserPreference.DoesNotExist:
-        pass
+        print(f"[DEBUG] No UserPreference found for user {user.username}")
 
     # Use custom default fallback if provided
     if default_fallback is not None:
+        print(f"[DEBUG] Using default_fallback ({len(default_fallback)} widgets)")
         return [w.copy() if isinstance(w, dict) else w for w in default_fallback]
 
     # Return appropriate default layout for dashboard type
+    print(f"[DEBUG] Using DEFAULT_LAYOUTS for {dashboard_type}")
     default_layout = DEFAULT_LAYOUTS.get(dashboard_type, DEFAULT_WIDGET_LAYOUT)
     return [w.copy() for w in default_layout]
 
@@ -818,7 +826,13 @@ def build_widgets_from_layout(widget_layout, user):
 
 def save_user_widget_layout(user, widget_config, dashboard_type="main"):
     """Save widget layout for a specific dashboard type."""
+    print(f"[DEBUG] save_user_widget_layout: user={user.username}, dashboard_type={dashboard_type}")
+    print(f"[DEBUG] widget_config to save has {len(widget_config)} widgets")
+    if widget_config:
+        print(f"[DEBUG] First widget being saved: {widget_config[0]}")
+
     preferences, created = UserPreference.objects.get_or_create(user=user)
+    print(f"[DEBUG] UserPreference created={created}")
 
     # Get existing config or initialize as dict
     existing = preferences.dashboard_widgets
@@ -833,6 +847,7 @@ def save_user_widget_layout(user, widget_config, dashboard_type="main"):
     existing[dashboard_type] = widget_config
     preferences.dashboard_widgets = existing
     preferences.save()
+    print(f"[DEBUG] Saved! Keys now: {list(preferences.dashboard_widgets.keys())}")
     return preferences
 
 

@@ -1359,7 +1359,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto-save function for global style changes (silent - no toast)
     function autoSaveGlobalStyles() {
         console.log('Auto-saving global styles for dashboard:', DASHBOARD_CONFIG.type);
+        console.log('Save URL:', DASHBOARD_CONFIG.saveUrl);
         updateLayoutFromDOM();
+
+        // Debug: log first widget's style properties
+        if (widgetLayout.length > 0) {
+            console.log('First widget being saved:', JSON.stringify(widgetLayout[0], null, 2));
+        }
+
+        const payload = { widgets: widgetLayout, dashboard_type: DASHBOARD_CONFIG.type };
+        console.log('Full payload widgets count:', payload.widgets.length);
 
         fetch(DASHBOARD_CONFIG.saveUrl, {
             method: 'POST',
@@ -1367,9 +1376,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
             },
-            body: JSON.stringify({ widgets: widgetLayout, dashboard_type: DASHBOARD_CONFIG.type })
+            body: JSON.stringify(payload)
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Save response status:', response.status);
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 console.log('Global styles saved successfully');
