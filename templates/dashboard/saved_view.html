@@ -22,24 +22,34 @@
             <i data-lucide="star" class="w-5 h-5 {% if is_favorite %}text-yellow-500 fill-current{% else %}text-gray-400{% endif %}"></i>
         </button>
 
-        {% if can_edit %}
-        <a href="{% url 'dashboard:customize_type' dashboard.dashboard_type_key %}"
-           class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-            <i data-lucide="settings" class="w-4 h-4 mr-2"></i>
-            Customize Dashboard
-        </a>
-        <a href="{% url 'dashboard:saved_edit' dashboard.pk %}"
-           class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
-            Edit
-        </a>
-        {% endif %}
-
-        <a href="{% url 'dashboard:saved_list' %}"
-           class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
-            Back
-        </a>
+        <!-- Actions Dropdown -->
+        <div class="relative" x-data="{ open: false }">
+            <button @click="open = !open" @click.outside="open = false"
+                    class="p-2 rounded-lg border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="more-vertical" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+            </button>
+            <div x-show="open" x-transition
+                 class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700 py-1 z-50">
+                {% if can_edit %}
+                <a href="{% url 'dashboard:customize_type' dashboard.dashboard_type_key %}"
+                   class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="settings" class="w-4 h-4 mr-3"></i>
+                    Customize
+                </a>
+                <a href="{% url 'dashboard:saved_edit' dashboard.pk %}"
+                   class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="edit" class="w-4 h-4 mr-3"></i>
+                    Edit Dashboard
+                </a>
+                <div class="border-t dark:border-gray-700 my-1"></div>
+                {% endif %}
+                <a href="{% url 'dashboard:saved_list' %}"
+                   class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-3"></i>
+                    Back to List
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

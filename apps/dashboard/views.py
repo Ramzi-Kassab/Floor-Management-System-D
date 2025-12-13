@@ -755,8 +755,14 @@ DEFAULT_LAYOUTS = {
 }
 
 
-def get_user_widget_layout(user, dashboard_type="main"):
-    """Get the widget layout for a user and dashboard type, or return default."""
+def get_user_widget_layout(user, dashboard_type="main", default_fallback=None):
+    """Get the widget layout for a user and dashboard type, or return default.
+
+    Args:
+        user: The user to get layout for
+        dashboard_type: The dashboard type (main, manager, planner, etc., or saved_<id>)
+        default_fallback: Optional custom default to use instead of global defaults
+    """
     try:
         preferences = UserPreference.objects.get(user=user)
         widgets = preferences.dashboard_widgets
@@ -772,6 +778,10 @@ def get_user_widget_layout(user, dashboard_type="main"):
                 return widgets
     except UserPreference.DoesNotExist:
         pass
+
+    # Use custom default fallback if provided
+    if default_fallback is not None:
+        return [w.copy() if isinstance(w, dict) else w for w in default_fallback]
 
     # Return appropriate default layout for dashboard type
     default_layout = DEFAULT_LAYOUTS.get(dashboard_type, DEFAULT_WIDGET_LAYOUT)
@@ -1105,6 +1115,17 @@ def customize_dashboard(request, dashboard_type="main"):
     if dashboard_type not in valid_types and not dashboard_type.startswith("saved_"):
         dashboard_type = "main"
 
+    # Get the default fallback for saved dashboards
+    saved_dashboard = None
+    default_fallback = None
+    if dashboard_type.startswith("saved_"):
+        saved_id = dashboard_type.replace("saved_", "")
+        try:
+            saved_dashboard = SavedDashboard.objects.get(pk=int(saved_id))
+            default_fallback = saved_dashboard.widget_config
+        except (SavedDashboard.DoesNotExist, ValueError):
+            pass
+
     # Determine redirect URL after save
     redirect_url_map = {
         "main": "dashboard:main",
@@ -1129,8 +1150,8 @@ def customize_dashboard(request, dashboard_type="main"):
         except json.JSONDecodeError:
             messages.error(request, "Invalid widget configuration.")
 
-    # Get current layout for this dashboard type
-    current_layout = get_user_widget_layout(user, dashboard_type)
+    # Get current layout for this dashboard type (with saved dashboard fallback)
+    current_layout = get_user_widget_layout(user, dashboard_type, default_fallback=default_fallback)
 
     # Add widget metadata to current layout
     for widget in current_layout:
@@ -1372,6 +1393,7 @@ def saved_dashboard_view(request, pk):
     """
     View a saved dashboard.
     Uses dynamic widget system for customization.
+    Supports per-user customization via UserPreference.
     """
     user = request.user
 
@@ -1384,8 +1406,12 @@ def saved_dashboard_view(request, pk):
         messages.error(request, "You don't have permission to view this dashboard.")
         return redirect("dashboard:saved_list")
 
+    # Get user's customized layout, falling back to dashboard's original config
+    dashboard_type_key = dashboard.dashboard_type_key
+    widget_layout = get_user_widget_layout(user, dashboard_type_key, default_fallback=dashboard.widget_config)
+
     # Build widgets with data using helper function
-    widgets = build_widgets_from_layout(dashboard.widget_config, user)
+    widgets = build_widgets_from_layout(widget_layout, user)
 
     # Check if user has favorited this dashboard
     is_favorite = DashboardFavorite.objects.filter(user=user, dashboard=dashboard).exists()

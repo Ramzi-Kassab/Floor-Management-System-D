@@ -1613,6 +1613,84 @@ document.addEventListener('DOMContentLoaded', function() {
         autoSaveGlobalStyles();
     });
 
+    // ================================
+    // Initialize Global Style Buttons
+    // ================================
+    // Highlight buttons based on saved widget styles on page load
+    function initializeGlobalStyleHighlights() {
+        const firstCard = activeWidgetsContainer.querySelector('.widget-card');
+        if (!firstCard) {
+            console.log('No widget cards found for style initialization');
+            return;
+        }
+
+        // Get current styles from first widget (assuming all widgets have same global style)
+        const currentColor = firstCard.dataset.color || 'blue';
+        const currentBgStyle = firstCard.dataset.bgStyle || 'solid';
+        const currentBorderStyle = firstCard.dataset.borderStyle || 'none';
+        const currentIntensity = firstCard.dataset.intensity || 'medium';
+        const currentBorderSize = firstCard.dataset.borderSize || 'medium';
+        const currentTextSize = firstCard.dataset.textSize || 'normal';
+        const currentRadius = firstCard.dataset.borderRadius || 'rounded';
+
+        console.log('Initializing global style highlights with:', {
+            color: currentColor,
+            bgStyle: currentBgStyle,
+            borderStyle: currentBorderStyle,
+            intensity: currentIntensity,
+            borderSize: currentBorderSize,
+            textSize: currentTextSize,
+            radius: currentRadius
+        });
+
+        // Highlight color button
+        const colorBtn = document.querySelector(`.global-color[data-color="${currentColor}"]`);
+        if (colorBtn) {
+            colorBtn.classList.add('ring-2', 'ring-offset-2', `ring-${currentColor}-500`);
+        }
+
+        // Highlight bg-style button
+        const bgStyleBtn = document.querySelector(`.global-bg-style[data-bg-style="${currentBgStyle}"]`);
+        if (bgStyleBtn) {
+            bgStyleBtn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        }
+
+        // Highlight border-style button
+        const borderStyleBtn = document.querySelector(`.global-border-style[data-border-style="${currentBorderStyle}"]`);
+        if (borderStyleBtn) {
+            borderStyleBtn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        }
+
+        // Highlight intensity button
+        const intensityBtn = document.querySelector(`.global-intensity[data-intensity="${currentIntensity}"]`);
+        if (intensityBtn) {
+            intensityBtn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        }
+
+        // Highlight border-size button
+        const borderSizeBtn = document.querySelector(`.global-border-size[data-border-size="${currentBorderSize}"]`);
+        if (borderSizeBtn) {
+            borderSizeBtn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        }
+
+        // Highlight text-size button
+        const textSizeBtn = document.querySelector(`.global-text-size[data-text-size="${currentTextSize}"]`);
+        if (textSizeBtn) {
+            textSizeBtn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        }
+
+        // Highlight radius button
+        const radiusBtn = document.querySelector(`.global-radius[data-radius="${currentRadius}"]`);
+        if (radiusBtn) {
+            radiusBtn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+        }
+
+        console.log('Global style highlights initialized');
+    }
+
+    // Run initialization
+    initializeGlobalStyleHighlights();
+
     // Log that all handlers are attached
     console.log('All global style handlers attached successfully');
 });
