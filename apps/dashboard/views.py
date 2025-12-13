@@ -1108,6 +1108,8 @@ def customize_dashboard(request, dashboard_type="main"):
     Dashboard customization page - allows users to configure their widgets.
     Supports per-dashboard customization based on dashboard_type.
     """
+    from .models import SavedDashboard
+
     user = request.user
 
     # Validate dashboard_type
@@ -1185,13 +1187,16 @@ def customize_dashboard(request, dashboard_type="main"):
 
     # Get dashboard name for title
     if dashboard_type.startswith("saved_"):
-        saved_id = dashboard_type.replace("saved_", "")
-        try:
-            from .models import SavedDashboard
-            saved_dash = SavedDashboard.objects.get(pk=int(saved_id))
-            dashboard_name = saved_dash.name
-        except (SavedDashboard.DoesNotExist, ValueError):
-            dashboard_name = "Custom Dashboard"
+        # Use saved_dashboard if we already loaded it, otherwise fetch
+        if saved_dashboard:
+            dashboard_name = saved_dashboard.name
+        else:
+            saved_id = dashboard_type.replace("saved_", "")
+            try:
+                saved_dash = SavedDashboard.objects.get(pk=int(saved_id))
+                dashboard_name = saved_dash.name
+            except (SavedDashboard.DoesNotExist, ValueError):
+                dashboard_name = "Custom Dashboard"
     else:
         dashboard_name = DASHBOARD_TYPE_NAMES.get(dashboard_type, "Dashboard")
 
