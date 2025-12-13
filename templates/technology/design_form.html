@@ -177,34 +177,19 @@
             </div>
         </div>
 
-        <!-- CONNECTION / UPPER SECTION -->
+        <!-- CONNECTION -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
                     <i data-lucide="link" class="w-5 h-5"></i>
-                    Connection / Upper Section
+                    Connection
                 </h3>
             </div>
-            <div class="px-6 py-4 space-y-4">
-                <!-- Row 1: Select from table or enter manually -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Select Connection</label>
-                        <div class="mt-1">{{ form.connection_ref }}</div>
-                        <p class="mt-1 text-xs text-gray-500">Select from pre-defined connections</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Or Enter MAT No.</label>
-                        <div class="mt-1">{{ form.connection_mat_no }}</div>
-                        <p class="mt-1 text-xs text-gray-500">Manual entry if not in table</p>
-                    </div>
-                </div>
-                <!-- Row 2: Manual entry fields -->
+            <div class="px-6 py-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Upper Section Type</label>
-                        <div class="mt-1">{{ form.upper_section_type }}</div>
-                        <p class="mt-1 text-xs text-gray-500">Some cannot be replaced in KSA</p>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection MAT No.</label>
+                        <div class="mt-1">{{ form.connection_mat_no }}</div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection Type</label>
@@ -299,6 +284,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
                     <div class="mt-1">{{ form.description }}</div>
+                    <p class="mt-1 text-xs text-gray-500">Auto-generated: Size - SMI Type (or HDBS Type) - MAT No.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
@@ -321,10 +307,14 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const hdbsInput = document.getElementById('id_hdbs_type');
+    const smiInput = document.getElementById('id_smi_type');
+    const matNoInput = document.getElementById('id_mat_no');
+    const sizeSelect = document.getElementById('id_size');
     const seriesInput = document.getElementById('id_series');
     const bladesInput = document.getElementById('id_no_of_blades');
     const cutterSizeInput = document.getElementById('id_cutter_size');
     const bodyMaterialSelect = document.getElementById('id_body_material');
+    const descriptionInput = document.getElementById('id_description');
 
     function parseHDBSType(hdbsType) {
         const match = hdbsType.match(/^([A-Z]+)(\d)(\d)?/i);
@@ -345,15 +335,37 @@ document.addEventListener('DOMContentLoaded', function() {
         return (upper.startsWith('S') || upper.endsWith('S')) ? 'S' : 'M';
     }
 
+    function updateDescription() {
+        // Get size text from select
+        let sizeText = '';
+        if (sizeSelect && sizeSelect.selectedIndex > 0) {
+            sizeText = sizeSelect.options[sizeSelect.selectedIndex].text;
+        }
+
+        // Get type (SMI if available, else HDBS)
+        const smiType = smiInput ? smiInput.value.trim() : '';
+        const hdbsType = hdbsInput ? hdbsInput.value.trim() : '';
+        const typeText = smiType || hdbsType;
+
+        // Get MAT No.
+        const matNo = matNoInput ? matNoInput.value.trim() : '';
+
+        // Build description: Size - Type - MAT No.
+        const parts = [sizeText, typeText, matNo].filter(p => p);
+        if (descriptionInput && parts.length > 0) {
+            descriptionInput.value = parts.join(' - ');
+        }
+    }
+
     function updateAutoFields() {
-        const hdbsType = hdbsInput.value.trim();
+        const hdbsType = hdbsInput ? hdbsInput.value.trim() : '';
         if (!hdbsType) return;
 
         const parsed = parseHDBSType(hdbsType);
         if (parsed) {
-            seriesInput.value = parsed.series;
-            bladesInput.value = parsed.blades;
-            if (parsed.cutterGrade !== null) {
+            if (seriesInput) seriesInput.value = parsed.series;
+            if (bladesInput) bladesInput.value = parsed.blades;
+            if (parsed.cutterGrade !== null && cutterSizeInput) {
                 cutterSizeInput.value = parsed.cutterGrade;
             }
         }
@@ -361,13 +373,33 @@ document.addEventListener('DOMContentLoaded', function() {
         if (bodyMaterialSelect) {
             bodyMaterialSelect.value = detectBodyMaterial(hdbsType);
         }
+
+        // Update description
+        updateDescription();
     }
 
+    // HDBS Type triggers auto-fill
     if (hdbsInput) {
         hdbsInput.addEventListener('input', updateAutoFields);
         hdbsInput.addEventListener('blur', updateAutoFields);
         if (hdbsInput.value) updateAutoFields();
     }
+
+    // SMI Type, Size, MAT No. changes update description
+    if (smiInput) {
+        smiInput.addEventListener('input', updateDescription);
+        smiInput.addEventListener('blur', updateDescription);
+    }
+    if (sizeSelect) {
+        sizeSelect.addEventListener('change', updateDescription);
+    }
+    if (matNoInput) {
+        matNoInput.addEventListener('input', updateDescription);
+        matNoInput.addEventListener('blur', updateDescription);
+    }
+
+    // Initial description update
+    updateDescription();
 });
 </script>
 {% endblock %}

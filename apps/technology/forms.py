@@ -52,10 +52,8 @@ class DesignForm(forms.ModelForm):
             "milling_drawing",
             "port_count",
             "port_size",
-            # Connection (select from connections table or enter manually)
-            "connection_ref",
+            # Connection
             "connection_mat_no",
-            "upper_section_type",
             "connection_type_ref",
             "connection_size_ref",
             # Application
@@ -97,9 +95,7 @@ class DesignForm(forms.ModelForm):
             "port_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0}),
             "port_size": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0"}),
             # Connection
-            "connection_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "connection_mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Or enter manually"}),
-            "upper_section_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "connection_mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Connection MAT No."}),
             "connection_type_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "connection_size_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
             # Application
@@ -111,7 +107,7 @@ class DesignForm(forms.ModelForm):
             "status": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "revision": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "A"}),
             # Notes
-            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA + " bg-gray-100", "rows": 2, "id": "id_description", "readonly": "readonly"}),
             "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
         }
         labels = {
@@ -131,9 +127,7 @@ class DesignForm(forms.ModelForm):
             "milling_drawing": "Milling Drawing (PDF)",
             "port_count": "Port Count",
             "port_size": "Port Size",
-            "connection_ref": "Connection (from table)",
             "connection_mat_no": "Connection MAT No.",
-            "upper_section_type": "Upper Section Type",
             "connection_type_ref": "Connection Type",
             "connection_size_ref": "Connection Size",
             "formation_type_ref": "Formation Type",
