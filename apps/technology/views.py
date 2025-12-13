@@ -54,7 +54,7 @@ class DesignListView(LoginRequiredMixin, ListView):
         context["search_query"] = self.request.GET.get("q", "")
         context["current_bit_type"] = self.request.GET.get("bit_type", "")
         context["current_status"] = self.request.GET.get("status", "")
-        context["bit_type_choices"] = Design.BitCategory.choices
+        context["bit_type_choices"] = Design.Category.choices
         context["status_choices"] = Design.Status.choices
         return context
 
@@ -71,7 +71,7 @@ class DesignDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Design {self.object.code}"
+        context["page_title"] = f"Design {self.object.hdbs_type}"
         context["boms"] = self.object.boms.select_related("created_by").order_by("-created_at")
         context["cutter_layouts"] = self.object.cutter_layouts.order_by("blade_number", "position_number")
         context["work_orders_count"] = self.object.work_orders.count()
@@ -94,7 +94,7 @@ class DesignCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-        messages.success(self.request, f"Design {form.instance.code} created successfully.")
+        messages.success(self.request, f"Design {form.instance.hdbs_type} created successfully.")
         return super().form_valid(form)
 
 
@@ -110,12 +110,12 @@ class DesignUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Edit Design {self.object.code}"
+        context["page_title"] = f"Edit Design {self.object.hdbs_type}"
         context["submit_text"] = "Update Design"
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"Design {self.object.code} updated successfully.")
+        messages.success(self.request, f"Design {self.object.hdbs_type} updated successfully.")
         return super().form_valid(form)
 
 
