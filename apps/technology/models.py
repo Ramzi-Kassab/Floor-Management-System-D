@@ -155,6 +155,63 @@ class UpperSectionType(models.Model):
         return f"{self.name}{suffix}"
 
 
+class Connection(models.Model):
+    """
+    Connection inventory - tracks specific connections with their properties.
+    Used to select pre-defined connections for bit designs.
+    """
+    mat_no = models.CharField(
+        max_length=20,
+        unique=True,
+        verbose_name='MAT No.',
+        help_text='Connection material number'
+    )
+    connection_type = models.ForeignKey(
+        'ConnectionType',
+        on_delete=models.PROTECT,
+        verbose_name='Type',
+        related_name='connections'
+    )
+    connection_size = models.ForeignKey(
+        'ConnectionSize',
+        on_delete=models.PROTECT,
+        verbose_name='Size',
+        related_name='connections'
+    )
+    special_features = models.TextField(
+        blank=True,
+        verbose_name='Special Features',
+        help_text='Any special features or modifications'
+    )
+    can_replace_in_ksa = models.BooleanField(
+        default=True,
+        verbose_name='Can Replace in KSA',
+        help_text='Whether this connection can be replaced/repaired in Saudi Arabia'
+    )
+    upper_section_type = models.ForeignKey(
+        'UpperSectionType',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='Upper Section Type',
+        related_name='connections'
+    )
+    remarks = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "connections"
+        ordering = ['mat_no']
+        verbose_name = "Connection"
+        verbose_name_plural = "Connections"
+
+    def __str__(self):
+        suffix = "" if self.can_replace_in_ksa else " (Cannot replace in KSA)"
+        return f"{self.mat_no} - {self.connection_type.code} {self.connection_size.size_inches}{suffix}"
+
+
 class IADCCode(models.Model):
     """
     IADC classification codes for drill bits.
@@ -421,6 +478,15 @@ class Design(models.Model):
         on_delete=models.SET_NULL,
         verbose_name='Connection Size',
         related_name='designs'
+    )
+    connection_ref = models.ForeignKey(
+        'Connection',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='Connection',
+        related_name='designs',
+        help_text='Select a pre-defined connection from the connections table'
     )
 
     # ═══════════════════════════════════════════════════════════════════════

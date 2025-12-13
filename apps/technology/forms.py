@@ -25,21 +25,26 @@ class DesignForm(forms.ModelForm):
         model = Design
         fields = [
             # Identity (merged with Category & Technical Specs)
+            # Row 1: Order Level, Category, MAT No., Ref MAT No.
+            "order_level",
             "category",
-            "body_material",
-            "size",
             "mat_no",
+            "ref_mat_no",
+            # Row 2: Size, HDBS Type, SMI Type, IADC Code
+            "size",
             "hdbs_type",
             "smi_type",
-            "ref_mat_no",
+            "iadc_code_ref",
+            # Row 3: ARDT Item No. (standalone)
             "ardt_item_no",
+            # Row 4 Auto-fill: Body Material, Series, No. of Blades, Cutter Size Grade
+            "body_material",
             "series",
             "no_of_blades",
             "cutter_size",
+            # Row 5: Gage Length, Gage Relief
             "gage_length",
             "gage_relief",
-            "order_level",
-            "iadc_code_ref",
             # Nozzles & Ports (Hydraulics)
             "nozzle_count",
             "nozzle_bore_size",
@@ -47,7 +52,8 @@ class DesignForm(forms.ModelForm):
             "milling_drawing",
             "port_count",
             "port_size",
-            # Connection
+            # Connection (select from connections table or enter manually)
+            "connection_ref",
             "connection_mat_no",
             "upper_section_type",
             "connection_type_ref",
@@ -91,7 +97,8 @@ class DesignForm(forms.ModelForm):
             "port_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0}),
             "port_size": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0"}),
             # Connection
-            "connection_mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Connection material number"}),
+            "connection_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "connection_mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Or enter manually"}),
             "upper_section_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "connection_type_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "connection_size_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
@@ -124,6 +131,7 @@ class DesignForm(forms.ModelForm):
             "milling_drawing": "Milling Drawing (PDF)",
             "port_count": "Port Count",
             "port_size": "Port Size",
+            "connection_ref": "Connection (from table)",
             "connection_mat_no": "Connection MAT No.",
             "upper_section_type": "Upper Section Type",
             "connection_type_ref": "Connection Type",
