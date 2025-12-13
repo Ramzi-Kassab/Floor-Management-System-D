@@ -111,7 +111,7 @@ class Application(models.Model):
 class SpecialTechnology(models.Model):
     """
     Special technologies available for drill bit designs.
-    Examples: Cerebro Puck, Cerebro Force, Torpedo, etc.
+    Includes: Erosion Sleeve, Crush & Shear, Cerebro Puck, Torpedo, etc.
     """
     code = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=100)
@@ -126,6 +126,33 @@ class SpecialTechnology(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class UpperSectionType(models.Model):
+    """
+    Upper section (shank/connection) types for PDC bits.
+    Some types cannot be replaced/repaired in KSA.
+    """
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    can_replace_in_ksa = models.BooleanField(
+        default=True,
+        verbose_name='Can Replace in KSA',
+        help_text='Whether this upper section type can be replaced/repaired in Saudi Arabia'
+    )
+    remarks = models.TextField(blank=True, help_text='Additional notes about this type')
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "upper_section_types"
+        ordering = ['name']
+        verbose_name = "Upper Section Type"
+        verbose_name_plural = "Upper Section Types"
+
+    def __str__(self):
+        suffix = "" if self.can_replace_in_ksa else " (Cannot replace in KSA)"
+        return f"{self.name}{suffix}"
 
 
 class IADCCode(models.Model):
@@ -369,6 +396,15 @@ class Design(models.Model):
         blank=True,
         verbose_name='Connection MAT No.',
         help_text='Material number of the connection'
+    )
+    upper_section_type = models.ForeignKey(
+        'UpperSectionType',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='Upper Section Type',
+        related_name='designs',
+        help_text='Type of upper section/shank (some cannot be replaced in KSA)'
     )
     connection_type_ref = models.ForeignKey(
         'ConnectionType',

@@ -38,20 +38,55 @@
         </div>
         {% endif %}
 
-        <!-- IDENTITY -->
+        <!-- IDENTITY (Merged Section) -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
                     <i data-lucide="tag" class="w-5 h-5"></i>
-                    Identity
+                    Design Identity
                 </h3>
             </div>
             <div class="px-6 py-4 space-y-4">
+                <!-- Row 1: Category, Body Material, Size, IADC Code -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Category <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.category }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Body Material</label>
+                        <div class="mt-1">{{ form.body_material }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Auto-detected from HDBS Type</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Size</label>
+                        <div class="mt-1">{{ form.size }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">IADC Code</label>
+                        <div class="mt-1">{{ form.iadc_code_ref }}</div>
+                    </div>
+                </div>
+
+                <!-- Row 2: MAT No., HDBS Type, SMI Type -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">MAT No. <span class="text-red-500">*</span></label>
                         <div class="mt-1">{{ form.mat_no }}</div>
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">HDBS Type <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.hdbs_type }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Auto-fills: Series, Blades, Cutter Grade, Body Material</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMI Type</label>
+                        <div class="mt-1">{{ form.smi_type }}</div>
+                    </div>
+                </div>
+
+                <!-- Row 3: Ref MAT No., ARDT Item No., Series -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Ref MAT No.</label>
                         <div class="mt-1">{{ form.ref_mat_no }}</div>
@@ -60,79 +95,24 @@
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">ARDT Item No.</label>
                         <div class="mt-1">{{ form.ardt_item_no }}</div>
                     </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">HDBS Type <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.hdbs_type }}</div>
-                        <p class="mt-1 text-xs text-gray-500">Auto-fills Series, Blades, Cutter Grade</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMI Type</label>
-                        <div class="mt-1">{{ form.smi_type }}</div>
-                    </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Series</label>
                         <div class="mt-1">{{ form.series }}</div>
-                        <p class="mt-1 text-xs text-gray-500">Auto-filled from HDBS Type</p>
+                        <p class="mt-1 text-xs text-gray-500">Auto-filled</p>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- CATEGORY & SIZE -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="layers" class="w-5 h-5"></i>
-                    Category & Classification
-                </h3>
-            </div>
-            <div class="px-6 py-4">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Category <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.category }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Size</label>
-                        <div class="mt-1">{{ form.size }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Order Level</label>
-                        <div class="mt-1">{{ form.order_level }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">IADC Code</label>
-                        <div class="mt-1">{{ form.iadc_code_ref }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TECHNICAL SPECS (FC Only) -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow" id="fc-specs">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="settings" class="w-5 h-5"></i>
-                    Technical Specs (Fixed Cutter)
-                </h3>
-            </div>
-            <div class="px-6 py-4">
-                <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Body Material</label>
-                        <div class="mt-1">{{ form.body_material }}</div>
-                    </div>
+                <!-- Row 4: Technical Specs -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">No. of Blades</label>
                         <div class="mt-1">{{ form.no_of_blades }}</div>
-                        <p class="mt-1 text-xs text-gray-500">From HDBS Type</p>
+                        <p class="mt-1 text-xs text-gray-500">Auto-filled</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Cutter Size Grade</label>
                         <div class="mt-1">{{ form.cutter_size }}</div>
-                        <p class="mt-1 text-xs text-gray-500">From HDBS Type</p>
+                        <p class="mt-1 text-xs text-gray-500">Auto-filled</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Length (in)</label>
@@ -142,26 +122,24 @@
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Relief (thou)</label>
                         <div class="mt-1">{{ form.gage_relief }}</div>
                     </div>
-                    <div class="flex items-center pt-6">
-                        <div class="flex items-center gap-2">
-                            {{ form.erosion_sleeve }}
-                            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Erosion Sleeve</label>
-                        </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Order Level</label>
+                        <div class="mt-1">{{ form.order_level }}</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- NOZZLES & PORTS -->
+        <!-- HYDRAULICS -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
                     <i data-lucide="droplets" class="w-5 h-5"></i>
-                    Hydraulics (Nozzles & Ports)
+                    Hydraulics
                 </h3>
             </div>
             <div class="px-6 py-4 space-y-4">
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Count</label>
                         <div class="mt-1">{{ form.nozzle_count }}</div>
@@ -169,10 +147,6 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Bore Size</label>
                         <div class="mt-1">{{ form.nozzle_bore_size }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">TFA (sq.in)</label>
-                        <div class="mt-1">{{ form.tfa }}</div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Port Count</label>
@@ -192,22 +166,26 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Milling Drawing (PDF)</label>
                         <div class="mt-1">{{ form.milling_drawing }}</div>
-                        <p class="mt-1 text-xs text-gray-500">Upload PDF of milling/nozzle layout</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- CONNECTION -->
+        <!-- CONNECTION / UPPER SECTION -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
                     <i data-lucide="link" class="w-5 h-5"></i>
-                    Connection
+                    Connection / Upper Section
                 </h3>
             </div>
             <div class="px-6 py-4">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Upper Section Type</label>
+                        <div class="mt-1">{{ form.upper_section_type }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Some cannot be replaced in KSA</p>
+                    </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection MAT No.</label>
                         <div class="mt-1">{{ form.connection_mat_no }}</div>
@@ -251,11 +229,11 @@
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
                     <i data-lucide="cpu" class="w-5 h-5"></i>
-                    Special Technologies
+                    Special Technologies & Features
                 </h3>
             </div>
             <div class="px-6 py-4">
-                <p class="text-sm text-gray-500 mb-3">Select all applicable special technologies:</p>
+                <p class="text-sm text-gray-500 mb-3">Select all applicable (includes Erosion Sleeve, Crush & Shear):</p>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {% for checkbox in form.special_technologies %}
                     <div class="flex items-center">
@@ -265,7 +243,7 @@
                         </label>
                     </div>
                     {% empty %}
-                    <p class="text-sm text-gray-400 col-span-4">No special technologies defined yet.</p>
+                    <p class="text-sm text-gray-400 col-span-4">Run: python manage.py seed_special_technologies</p>
                     {% endfor %}
                 </div>
             </div>
@@ -318,7 +296,7 @@
             <a href="{% url 'technology:design_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</a>
             <button type="submit" class="px-6 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2">
                 <i data-lucide="save" class="w-4 h-4"></i>
-                {% if object %}Update Design{% else %}Create Design{% endif %}
+                {% if object %}Update{% else %}Create{% endif %} Design
             </button>
         </div>
     </form>
@@ -330,12 +308,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const seriesInput = document.getElementById('id_series');
     const bladesInput = document.getElementById('id_no_of_blades');
     const cutterSizeInput = document.getElementById('id_cutter_size');
+    const bodyMaterialSelect = document.getElementById('id_body_material');
 
     function parseHDBSType(hdbsType) {
-        // Pattern: Series (letters) + Blades (first digit) + Cutter Grade (second digit) + rest
-        // Examples: GT65RHS, HD76MX, EM85S, MM66R
         const match = hdbsType.match(/^([A-Z]+)(\d)(\d)?/i);
-
         if (match) {
             return {
                 series: match[1].toUpperCase(),
@@ -346,10 +322,18 @@ document.addEventListener('DOMContentLoaded', function() {
         return null;
     }
 
+    function detectBodyMaterial(hdbsType) {
+        // Steel if S at start or end (before suffix like -1)
+        const baseType = hdbsType.split('-')[0];
+        const upper = baseType.toUpperCase();
+        return (upper.startsWith('S') || upper.endsWith('S')) ? 'S' : 'M';
+    }
+
     function updateAutoFields() {
         const hdbsType = hdbsInput.value.trim();
-        const parsed = parseHDBSType(hdbsType);
+        if (!hdbsType) return;
 
+        const parsed = parseHDBSType(hdbsType);
         if (parsed) {
             seriesInput.value = parsed.series;
             bladesInput.value = parsed.blades;
@@ -357,16 +341,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 cutterSizeInput.value = parsed.cutterGrade;
             }
         }
+
+        if (bodyMaterialSelect) {
+            bodyMaterialSelect.value = detectBodyMaterial(hdbsType);
+        }
     }
 
     if (hdbsInput) {
         hdbsInput.addEventListener('input', updateAutoFields);
         hdbsInput.addEventListener('blur', updateAutoFields);
-
-        // Run on page load if editing existing design
-        if (hdbsInput.value) {
-            updateAutoFields();
-        }
+        if (hdbsInput.value) updateAutoFields();
     }
 });
 </script>
