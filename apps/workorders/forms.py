@@ -165,15 +165,16 @@ class WorkOrderStatusForm(forms.Form):
 class DrillBitForm(forms.ModelForm):
     """
     Form for creating and editing drill bits.
+    Uses Phase 2 fields: product_type (BitType FK) and bit_size_ref (BitSize FK).
     """
 
     class Meta:
         model = DrillBit
         fields = [
             "serial_number",
-            "bit_type",
+            "product_type",      # FK to BitType (replaces old bit_type CharField)
+            "bit_size_ref",      # FK to BitSize (replaces old size DecimalField)
             "design",
-            "size",
             "iadc_code",
             "status",
             "current_location",
@@ -185,10 +186,15 @@ class DrillBitForm(forms.ModelForm):
             "serial_number": forms.TextInput(
                 attrs={
                     "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono",
-                    "placeholder": "e.g., FC-2024-0001",
+                    "placeholder": "e.g., BIT-2024-001",
                 }
             ),
-            "bit_type": forms.Select(
+            "product_type": forms.Select(
+                attrs={
+                    "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                }
+            ),
+            "bit_size_ref": forms.Select(
                 attrs={
                     "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 }
@@ -196,13 +202,6 @@ class DrillBitForm(forms.ModelForm):
             "design": forms.Select(
                 attrs={
                     "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                }
-            ),
-            "size": forms.NumberInput(
-                attrs={
-                    "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
-                    "step": "0.001",
-                    "placeholder": "Size in inches",
                 }
             ),
             "iadc_code": forms.TextInput(
@@ -236,6 +235,10 @@ class DrillBitForm(forms.ModelForm):
                     "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 }
             ),
+        }
+        labels = {
+            "product_type": "Bit Type",
+            "bit_size_ref": "Size",
         }
 
     def clean_serial_number(self):
