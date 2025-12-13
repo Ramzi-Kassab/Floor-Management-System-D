@@ -3,6 +3,11 @@ ARDT FMS - Technology Models
 Version: 5.4
 
 Tables:
+- connection_types (P2) - API connection types reference
+- connection_sizes (P2) - Connection sizes reference
+- formation_types (P2) - Geological formation types reference
+- applications (P2) - Drilling application types reference
+- iadc_codes (P2) - IADC classification codes reference
 - designs (P1)
 - boms (P1)
 - bom_lines (P1)
@@ -11,6 +16,142 @@ Tables:
 
 from django.conf import settings
 from django.db import models
+
+
+# =============================================================================
+# REFERENCE DATA MODELS (Phase 2)
+# =============================================================================
+
+
+class ConnectionType(models.Model):
+    """
+    API connection types for drill bits.
+    Examples: API-REG, API-IF, API-FH, HT, XT, PAC, DS
+    """
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "connection_types"
+        ordering = ['code']
+        verbose_name = "Connection Type"
+        verbose_name_plural = "Connection Types"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class ConnectionSize(models.Model):
+    """
+    Connection sizes for drill bits.
+    Examples: 2 3/8", 4 1/2", NC26, NC38
+    """
+    code = models.CharField(max_length=20, unique=True)
+    size_inches = models.CharField(max_length=20)
+    size_decimal = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "connection_sizes"
+        ordering = ['size_decimal']
+        verbose_name = "Connection Size"
+        verbose_name_plural = "Connection Sizes"
+
+    def __str__(self):
+        return self.size_inches
+
+
+class FormationType(models.Model):
+    """
+    Geological formation types - Saudi Arabia focus.
+    Examples: Arab-D, Khuff, Unayzah, Jauf, Qusaiba
+    """
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    age = models.CharField(max_length=50, blank=True, help_text="Geological age")
+    rock_type = models.CharField(max_length=50, blank=True, help_text="Carbonate, Sandstone, Shale")
+    hardness = models.CharField(max_length=20, blank=True, help_text="Soft, Medium, Hard")
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "formation_types"
+        ordering = ['name']
+        verbose_name = "Formation Type"
+        verbose_name_plural = "Formation Types"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class Application(models.Model):
+    """
+    Drilling application types.
+    Examples: Vertical, Directional, Horizontal, RSS, Motor
+    """
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "applications"
+        ordering = ['name']
+        verbose_name = "Application"
+        verbose_name_plural = "Applications"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class IADCCode(models.Model):
+    """
+    IADC classification codes for drill bits.
+    PDC: M433, S423, etc. (Body-Formation-CutterSize-Profile)
+    Roller Cone: 517, 617, etc. (Series-Type-Bearing-Feature)
+    """
+    BIT_TYPE_CHOICES = [
+        ('FC', 'Fixed Cutter (PDC)'),
+        ('RC', 'Roller Cone'),
+        ('MT', 'Mill Tooth'),
+        ('TCI', 'Tungsten Carbide Insert'),
+    ]
+
+    code = models.CharField(max_length=10, unique=True)
+    bit_type = models.CharField(max_length=5, choices=BIT_TYPE_CHOICES)
+
+    # PDC specific fields
+    body_material = models.CharField(max_length=1, blank=True, help_text="M, S, D")
+    formation_hardness = models.CharField(max_length=1, blank=True, help_text="1-8")
+    cutter_type = models.CharField(max_length=1, blank=True, help_text="1-4")
+    profile = models.CharField(max_length=1, blank=True, help_text="1-4")
+
+    # Roller Cone specific fields
+    series = models.CharField(max_length=1, blank=True, help_text="1-8")
+    type_code = models.CharField(max_length=1, blank=True, help_text="1-4")
+    bearing = models.CharField(max_length=1, blank=True, help_text="1-7")
+    feature = models.CharField(max_length=1, blank=True, help_text="A-Z")
+
+    description = models.CharField(max_length=200)
+    formation_description = models.CharField(max_length=100, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "iadc_codes"
+        ordering = ['bit_type', 'code']
+        verbose_name = 'IADC Code'
+        verbose_name_plural = 'IADC Codes'
+
+    def __str__(self):
+        return f"{self.code} - {self.description}"
+
+
+# =============================================================================
+# DESIGN MODELS
+# =============================================================================
 
 
 class Design(models.Model):
