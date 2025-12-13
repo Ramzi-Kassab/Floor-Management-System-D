@@ -1231,6 +1231,12 @@ def save_widget_order(request, dashboard_type="main"):
         # Allow dashboard_type override from request body
         dashboard_type = data.get("dashboard_type", dashboard_type)
 
+        # Debug logging
+        print(f"[DEBUG] save_widget_order called: user={user.username}, dashboard_type={dashboard_type}")
+        print(f"[DEBUG] widget_config has {len(widget_config)} widgets")
+        if widget_config:
+            print(f"[DEBUG] First widget: {widget_config[0]}")
+
         save_user_widget_layout(user, widget_config, dashboard_type)
 
         return JsonResponse({"success": True})
@@ -1416,6 +1422,12 @@ def saved_dashboard_view(request, pk):
     # Get user's customized layout, falling back to dashboard's original config
     dashboard_type_key = dashboard.dashboard_type_key
     widget_layout = get_user_widget_layout(user, dashboard_type_key, default_fallback=dashboard.widget_config)
+
+    # Debug logging
+    print(f"[DEBUG] saved_dashboard_view: dashboard_type_key={dashboard_type_key}")
+    print(f"[DEBUG] widget_layout has {len(widget_layout)} widgets")
+    if widget_layout:
+        print(f"[DEBUG] First widget color: {widget_layout[0].get('color', 'NOT SET')}")
 
     # Build widgets with data using helper function
     widgets = build_widgets_from_layout(widget_layout, user)
