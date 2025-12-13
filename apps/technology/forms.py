@@ -16,60 +16,129 @@ TAILWIND_TEXTAREA = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ri
 
 
 class DesignForm(forms.ModelForm):
-    """Form for creating and editing designs."""
+    """
+    Form for creating and editing designs.
+    Updated for Phase 2 with FK relations to reference tables.
+    """
 
     class Meta:
         model = Design
         fields = [
-            "code",
-            "name",
-            "bit_type",
+            # Identity
+            "mat_no",
+            "hdbs_type",
+            "smi_type",
+            "ref_mat_no",
+            "ardt_item_no",
+            # Category & Size
+            "category",
             "size",
-            "iadc_code",
-            "blade_count",
-            "cone_count",
-            "connection_type",
-            "connection_size",
-            "formation_type",
-            "application",
+            "series",
+            # Technical Specs (FC)
+            "body_material",
+            "no_of_blades",
+            "cutter_size",
+            "gage_length",
+            "gage_relief",
             "gauge_protection",
+            # Nozzles
+            "nozzle_count",
+            "nozzle_size",
             "nozzle_config",
             "tfa",
+            # Ports
+            "port_count",
+            "port_size",
+            # Connection (FK)
+            "connection_type_ref",
+            "connection_size_ref",
+            # Application (FK)
+            "formation_type_ref",
+            "application_ref",
+            "iadc_code_ref",
+            # Order Level
+            "order_level",
+            # Status
             "status",
             "revision",
+            # Notes
             "description",
             "notes",
         ]
         widgets = {
-            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., FC-8.5-001"}),
-            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Design name"}),
-            "bit_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "size": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "placeholder": "Size (inches)"}),
-            "iadc_code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "IADC code"}),
-            "blade_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0}),
-            "cone_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0}),
-            "connection_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., API REG"}),
-            "connection_size": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 4-1/2"}),
-            "formation_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Target formation"}),
-            "application": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Application type"}),
+            # Identity
+            "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 800012345"}),
+            "hdbs_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHS"}),
+            "smi_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Client-facing type"}),
+            "ref_mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Reference MAT No."}),
+            "ardt_item_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "ARDT Item No."}),
+            # Category & Size
+            "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "size": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "series": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT, HD, MM"}),
+            # Technical Specs
+            "body_material": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "no_of_blades": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0}),
+            "cutter_size": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0, "placeholder": "mm"}),
+            "gage_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.1"}),
+            "gage_relief": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
             "gauge_protection": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            # Nozzles
+            "nozzle_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0}),
+            "nozzle_size": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 12/32"}),
             "nozzle_config": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 5x12"}),
-            "tfa": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "placeholder": "TFA"}),
+            "tfa": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "placeholder": "sq. in"}),
+            # Ports
+            "port_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0}),
+            "port_size": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            # Connection
+            "connection_type_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "connection_size_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            # Application
+            "formation_type_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "application_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "iadc_code_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            # Order Level
+            "order_level": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            # Status
             "status": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "revision": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "A"}),
+            # Notes
             "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
             "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+        labels = {
+            "mat_no": "MAT No.",
+            "hdbs_type": "HDBS Type",
+            "smi_type": "SMI Type",
+            "ref_mat_no": "Ref MAT No.",
+            "ardt_item_no": "ARDT Item No.",
+            "no_of_blades": "No. of Blades",
+            "cutter_size": "Cutter Size (mm)",
+            "gage_length": "Gage Length",
+            "gage_relief": "Gage Relief",
+            "gauge_protection": "Gauge Protection",
+            "nozzle_count": "Nozzle Count",
+            "nozzle_size": "Nozzle Size",
+            "nozzle_config": "Nozzle Config",
+            "tfa": "TFA (sq.in)",
+            "port_count": "Port Count",
+            "port_size": "Port Size",
+            "connection_type_ref": "Connection Type",
+            "connection_size_ref": "Connection Size",
+            "formation_type_ref": "Formation Type",
+            "application_ref": "Application",
+            "iadc_code_ref": "IADC Code",
+            "order_level": "Order Level",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        optional_fields = [
-            "iadc_code", "blade_count", "cone_count", "connection_type",
-            "connection_size", "formation_type", "application", "gauge_protection",
-            "nozzle_config", "tfa", "description", "notes"
-        ]
-        for field in optional_fields:
-            self.fields[field].required = False
+        # Make most fields optional
+        required_fields = ["mat_no", "hdbs_type", "category", "status"]
+        for field_name, field in self.fields.items():
+            if field_name not in required_fields:
+                field.required = False
 
 
 class BOMForm(forms.ModelForm):

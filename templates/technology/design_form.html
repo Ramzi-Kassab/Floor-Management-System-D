@@ -3,7 +3,7 @@
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto">
+<div class="max-w-4xl mx-auto">
     <div class="mb-6">
         <div class="flex items-center gap-4">
             <a href="{% url 'technology:design_list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">
@@ -16,36 +16,207 @@
     <form method="post" class="space-y-6">
         {% csrf_token %}
 
+        <!-- Form Errors -->
+        {% if form.errors %}
+        <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <div class="flex items-start">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 mr-3"></i>
+                <div>
+                    <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Please correct the errors below:</h3>
+                    <ul class="mt-2 text-sm text-red-700 dark:text-red-300 list-disc list-inside">
+                        {% for field in form %}
+                            {% for error in field.errors %}
+                            <li>{{ field.label }}: {{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                        {% for error in form.non_field_errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- IDENTITY -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Basic Information</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Identity</h3>
             </div>
             <div class="px-6 py-4 space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Code <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.code }}</div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">MAT No. <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.mat_no }}</div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Name <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.name }}</div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Ref MAT No.</label>
+                        <div class="mt-1">{{ form.ref_mat_no }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">ARDT Item No.</label>
+                        <div class="mt-1">{{ form.ardt_item_no }}</div>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Bit Type <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.bit_type }}</div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">HDBS Type <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.hdbs_type }}</div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Size (inches) <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMI Type</label>
+                        <div class="mt-1">{{ form.smi_type }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Series</label>
+                        <div class="mt-1">{{ form.series }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CATEGORY & SIZE -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Category & Size</h3>
+            </div>
+            <div class="px-6 py-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Category <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.category }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Size</label>
                         <div class="mt-1">{{ form.size }}</div>
                     </div>
                     <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Order Level</label>
+                        <div class="mt-1">{{ form.order_level }}</div>
+                    </div>
+                    <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">IADC Code</label>
-                        <div class="mt-1">{{ form.iadc_code }}</div>
+                        <div class="mt-1">{{ form.iadc_code_ref }}</div>
                     </div>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            </div>
+        </div>
+
+        <!-- TECHNICAL SPECS (FC Only) -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow" id="fc-specs">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Technical Specs (Fixed Cutter Only)</h3>
+            </div>
+            <div class="px-6 py-4">
+                <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Body Material</label>
+                        <div class="mt-1">{{ form.body_material }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">No. of Blades</label>
+                        <div class="mt-1">{{ form.no_of_blades }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Cutter Size (mm)</label>
+                        <div class="mt-1">{{ form.cutter_size }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Length</label>
+                        <div class="mt-1">{{ form.gage_length }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Relief</label>
+                        <div class="mt-1">{{ form.gage_relief }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gauge Protection</label>
+                        <div class="mt-1">{{ form.gauge_protection }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NOZZLES & PORTS -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Nozzles & Ports</h3>
+            </div>
+            <div class="px-6 py-4">
+                <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Count</label>
+                        <div class="mt-1">{{ form.nozzle_count }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Size</label>
+                        <div class="mt-1">{{ form.nozzle_size }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">TFA (sq.in)</label>
+                        <div class="mt-1">{{ form.tfa }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Port Count</label>
+                        <div class="mt-1">{{ form.port_count }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Port Size</label>
+                        <div class="mt-1">{{ form.port_size }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Config</label>
+                        <div class="mt-1">{{ form.nozzle_config }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONNECTION -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Connection</h3>
+            </div>
+            <div class="px-6 py-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection Type</label>
+                        <div class="mt-1">{{ form.connection_type_ref }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection Size</label>
+                        <div class="mt-1">{{ form.connection_size_ref }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- APPLICATION -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Application</h3>
+            </div>
+            <div class="px-6 py-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Formation Type</label>
+                        <div class="mt-1">{{ form.formation_type_ref }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Application</label>
+                        <div class="mt-1">{{ form.application_ref }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STATUS -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Status</h3>
+            </div>
+            <div class="px-6 py-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Status <span class="text-red-500">*</span></label>
                         <div class="mt-1">{{ form.status }}</div>
@@ -54,53 +225,16 @@
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Revision</label>
                         <div class="mt-1">{{ form.revision }}</div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Blade Count (FC)</label>
-                        <div class="mt-1">{{ form.blade_count }}</div>
-                    </div>
                 </div>
             </div>
         </div>
 
+        <!-- NOTES -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Technical Details</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Notes</h3>
             </div>
             <div class="px-6 py-4 space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection Type</label>
-                        <div class="mt-1">{{ form.connection_type }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection Size</label>
-                        <div class="mt-1">{{ form.connection_size }}</div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Formation Type</label>
-                        <div class="mt-1">{{ form.formation_type }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Application</label>
-                        <div class="mt-1">{{ form.application }}</div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Config</label>
-                        <div class="mt-1">{{ form.nozzle_config }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">TFA</label>
-                        <div class="mt-1">{{ form.tfa }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gauge Protection</label>
-                        <div class="mt-1">{{ form.gauge_protection }}</div>
-                    </div>
-                </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
                     <div class="mt-1">{{ form.description }}</div>
@@ -112,10 +246,11 @@
             </div>
         </div>
 
+        <!-- Actions -->
         <div class="flex justify-end gap-3">
-            <a href="{% url 'technology:design_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Cancel</a>
+            <a href="{% url 'technology:design_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</a>
             <button type="submit" class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
-                {{ submit_text|default:"Save" }}
+                {% if object %}Update Design{% else %}Create Design{% endif %}
             </button>
         </div>
     </form>

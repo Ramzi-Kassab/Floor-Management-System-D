@@ -156,53 +156,285 @@ class IADCCode(models.Model):
 
 class Design(models.Model):
     """
-    🟢 P1: Drill bit design master.
-
-    Contains specifications for drill bit designs.
+    Bit design specification.
+    Updated for Phase 2 with FK relations to reference tables.
+    Unique constraint: hdbs_type + size (unique together)
     """
 
-    class BitCategory(models.TextChoices):
-        FC = "FC", "Fixed Cutter (PDC)"
-        RC = "RC", "Roller Cone"
+    # ═══════════════════════════════════════════════════════════════════════
+    # CATEGORY CHOICES
+    # ═══════════════════════════════════════════════════════════════════════
+    class Category(models.TextChoices):
+        FC = "FC", "Fixed Cutter"
+        MT = "MT", "Mill Tooth"
+        TCI = "TCI", "Tri Cone Inserts"
+
+    class BodyMaterial(models.TextChoices):
+        MATRIX = "M", "Matrix"
+        STEEL = "S", "Steel"
+        NA = "", "N/A"
+
+    class OrderLevel(models.TextChoices):
+        LEVEL_3 = "3", "Level 3 - No cutters, upper section separate"
+        LEVEL_4 = "4", "Level 4 - No cutters, upper section welded/machined"
+        LEVEL_5 = "5", "Level 5 - With cutters brazed"
+        LEVEL_6 = "6", "Level 6 - Painted and ready for use"
 
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
         ACTIVE = "ACTIVE", "Active"
         OBSOLETE = "OBSOLETE", "Obsolete"
 
-    code = models.CharField(max_length=50, unique=True)
-    name = models.CharField(max_length=200)
-    bit_type = models.CharField(max_length=20, choices=BitCategory.choices)
+    # ═══════════════════════════════════════════════════════════════════════
+    # IDENTITY
+    # ═══════════════════════════════════════════════════════════════════════
+    mat_no = models.CharField(
+        max_length=20,
+        unique=True,
+        default='',
+        verbose_name='MAT No.',
+        help_text='HDBS Material Number (SAP)'
+    )
+    hdbs_type = models.CharField(
+        max_length=50,
+        default='',
+        verbose_name='HDBS Type',
+        help_text='Internal Halliburton type code (e.g., GT65RHS)'
+    )
+    smi_type = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='SMI Type',
+        help_text='Client-facing type (may differ from HDBS Type)'
+    )
+    ref_mat_no = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name='Ref MAT No.',
+        help_text='Parent/reference MAT number'
+    )
+    ardt_item_no = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name='ARDT Item No.',
+        help_text='ARDT ERP item number'
+    )
 
-    # Specifications
-    size = models.DecimalField(max_digits=6, decimal_places=3, help_text="Size in inches")
-    iadc_code = models.CharField(max_length=20, blank=True)
-    blade_count = models.IntegerField(null=True, blank=True, help_text="For FC bits")
-    cone_count = models.IntegerField(null=True, blank=True, help_text="For RC bits")
+    # ═══════════════════════════════════════════════════════════════════════
+    # CATEGORY & SIZE
+    # ═══════════════════════════════════════════════════════════════════════
+    category = models.CharField(
+        max_length=10,
+        choices=Category.choices,
+        default=Category.FC
+    )
+    size = models.ForeignKey(
+        'workorders.BitSize',
+        on_delete=models.PROTECT,
+        verbose_name='Size',
+        null=True,
+        blank=True
+    )
+    series = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text='Product series (GT, HD, MM, EM, etc.)'
+    )
 
-    # Connection
-    connection_type = models.CharField(max_length=50, blank=True)
-    connection_size = models.CharField(max_length=20, blank=True)
+    # ═══════════════════════════════════════════════════════════════════════
+    # TECHNICAL SPECS (FC Only)
+    # ═══════════════════════════════════════════════════════════════════════
+    body_material = models.CharField(
+        max_length=1,
+        choices=BodyMaterial.choices,
+        blank=True,
+        verbose_name='Body Material'
+    )
+    no_of_blades = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='No. of Blades'
+    )
+    cutter_size = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Cutter Size',
+        help_text='Primary cutter size in mm'
+    )
+    gage_length = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        verbose_name='Gage Length'
+    )
+    gage_relief = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='Gage Relief'
+    )
+    gauge_protection = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name='Gauge Protection'
+    )
 
-    # Classification
-    formation_type = models.CharField(max_length=100, blank=True, help_text="Target formation")
-    application = models.CharField(max_length=100, blank=True)
+    # ═══════════════════════════════════════════════════════════════════════
+    # NOZZLES
+    # ═══════════════════════════════════════════════════════════════════════
+    nozzle_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Nozzle Count'
+    )
+    nozzle_size = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='Nozzle Size',
+        help_text='e.g., 12/32, 14/32, or multiple sizes'
+    )
+    nozzle_config = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name='Nozzle Configuration'
+    )
+    tfa = models.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        verbose_name='TFA',
+        help_text='Total Flow Area (sq. inches)'
+    )
 
-    # Technical details
-    gauge_protection = models.CharField(max_length=100, blank=True)
-    nozzle_config = models.CharField(max_length=100, blank=True)
-    tfa = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True, help_text="Total Flow Area")
+    # ═══════════════════════════════════════════════════════════════════════
+    # PORTS
+    # ═══════════════════════════════════════════════════════════════════════
+    port_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Port Count'
+    )
+    port_size = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='Port Size'
+    )
 
-    # Documents
+    # ═══════════════════════════════════════════════════════════════════════
+    # CONNECTION (FK to reference tables)
+    # ═══════════════════════════════════════════════════════════════════════
+    connection_type_ref = models.ForeignKey(
+        'ConnectionType',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='Connection Type',
+        related_name='designs'
+    )
+    connection_size_ref = models.ForeignKey(
+        'ConnectionSize',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='Connection Size',
+        related_name='designs'
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # APPLICATION (FK to reference tables)
+    # ═══════════════════════════════════════════════════════════════════════
+    formation_type_ref = models.ForeignKey(
+        'FormationType',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='Formation Type',
+        related_name='designs'
+    )
+    application_ref = models.ForeignKey(
+        'Application',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='Application',
+        related_name='designs'
+    )
+    iadc_code_ref = models.ForeignKey(
+        'IADCCode',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='IADC Code',
+        related_name='designs'
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # ORDER LEVEL (JV Classification)
+    # ═══════════════════════════════════════════════════════════════════════
+    order_level = models.CharField(
+        max_length=5,
+        choices=OrderLevel.choices,
+        blank=True,
+        verbose_name='Order Level'
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # STATUS & REVISION
+    # ═══════════════════════════════════════════════════════════════════════
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT
+    )
+    revision = models.CharField(
+        max_length=10,
+        blank=True
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # DOCUMENTS
+    # ═══════════════════════════════════════════════════════════════════════
     drawing_file = models.FileField(upload_to="designs/drawings/", null=True, blank=True)
     specification_file = models.FileField(upload_to="designs/specs/", null=True, blank=True)
 
-    # Status
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
-    revision = models.CharField(max_length=10, default="A")
-    revision_date = models.DateField(null=True, blank=True)
+    # ═══════════════════════════════════════════════════════════════════════
+    # NOTES
+    # ═══════════════════════════════════════════════════════════════════════
+    description = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
 
-    # Ownership
+    # ═══════════════════════════════════════════════════════════════════════
+    # AUDIT
+    # ═══════════════════════════════════════════════════════════════════════
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='designs_created'
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # LEGACY FIELDS (for backward compatibility - will be deprecated)
+    # ═══════════════════════════════════════════════════════════════════════
+    code = models.CharField(max_length=50, blank=True, help_text="Legacy: Use mat_no instead")
+    name = models.CharField(max_length=200, blank=True, help_text="Legacy: Use hdbs_type instead")
+    bit_type = models.CharField(max_length=20, blank=True, help_text="Legacy: Use category instead")
+    size_legacy = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        db_column='size_decimal', help_text="Legacy: Use size FK instead"
+    )
+    iadc_code = models.CharField(max_length=20, blank=True, help_text="Legacy: Use iadc_code_ref FK instead")
+    blade_count = models.IntegerField(null=True, blank=True, help_text="Legacy: Use no_of_blades instead")
+    cone_count = models.IntegerField(null=True, blank=True, help_text="Legacy: For RC bits")
+    connection_type = models.CharField(max_length=50, blank=True, help_text="Legacy: Use connection_type_ref FK")
+    connection_size = models.CharField(max_length=20, blank=True, help_text="Legacy: Use connection_size_ref FK")
+    formation_type = models.CharField(max_length=100, blank=True, help_text="Legacy: Use formation_type_ref FK")
+    application = models.CharField(max_length=100, blank=True, help_text="Legacy: Use application_ref FK")
+    revision_date = models.DateField(null=True, blank=True)
     designed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="designed_bits"
     )
@@ -210,25 +442,16 @@ class Design(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_designs"
     )
 
-    # Notes
-    description = models.TextField(blank=True)
-    notes = models.TextField(blank=True)
-
-    # Audit
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_designs"
-    )
-
     class Meta:
         db_table = "designs"
-        ordering = ["code"]
+        ordering = ['category', 'series', 'hdbs_type']
         verbose_name = "Design"
         verbose_name_plural = "Designs"
 
     def __str__(self):
-        return f"{self.code} - {self.name}"
+        if self.size:
+            return f"{self.hdbs_type} ({self.size}) - {self.mat_no}"
+        return f"{self.hdbs_type} - {self.mat_no}"
 
 
 class BOM(models.Model):
