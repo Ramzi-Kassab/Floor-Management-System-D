@@ -72,22 +72,144 @@ class BitType(models.Model):
     """
     🟢 P1: Product models/types - the design of the bit.
     Examples: GT65RHS, HD54, MM64, FX53, etc.
+
+    Updated with Phase 2 fields:
+    - Category (FC/MT/TCI)
+    - SMI Name (client-facing) and HDBS Name (internal)
+    - Material Numbers (HDBS MN, Ref HDBS MN, ARDT Item Number)
+    - Technical specs (body material, blades, cutter size, gage length)
+    - Order/Production Level (JV Classification)
     """
 
+    # Category choices
+    class Category(models.TextChoices):
+        FC = "FC", "Fixed Cutter"
+        MT = "MT", "Mill Tooth"  # Roller cone
+        TCI = "TCI", "Tri Cone Inserts"  # Roller cone
+
+    # Body material choices (FC only)
+    class BodyMaterial(models.TextChoices):
+        MATRIX = "M", "Matrix"
+        STEEL = "S", "Steel"
+        NA = "", "N/A"
+
+    # Order/Production Level choices (JV Classification)
+    class OrderLevel(models.TextChoices):
+        LEVEL_3 = "3", "Level 3 - No cutters, upper section separate"
+        LEVEL_4 = "4", "Level 4 - No cutters, upper section welded/machined"
+        LEVEL_5 = "5", "Level 5 - With cutters brazed"
+        LEVEL_6 = "6", "Level 6 - Painted and ready for use"
+
+    # Legacy fields (keep for backward compatibility)
     code = models.CharField(max_length=50, unique=True, help_text="Model code (e.g., 'GT65RHS')")
-    name = models.CharField(max_length=100)
-    series = models.CharField(max_length=20, blank=True, help_text="Series (GT, HD, MM, FX, etc.)")
+    name = models.CharField(max_length=100, blank=True)
+    series = models.CharField(max_length=20, blank=True, help_text="Series (GT, HD, MM, FX, EM, etc.)")
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 
+    # Category (NEW)
+    category = models.CharField(
+        max_length=10,
+        choices=Category.choices,
+        default=Category.FC,
+        help_text="FC=Fixed Cutter, MT=Mill Tooth, TCI=Tri Cone Inserts"
+    )
+
+    # Size reference (NEW)
+    size = models.ForeignKey(
+        'BitSize',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='bit_types',
+        help_text="Standard bit size"
+    )
+
+    # Naming fields (NEW)
+    smi_name = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="SMI/Client-facing name (e.g., 'GT65RHs-1')"
+    )
+    hdbs_name = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Internal HDBS name"
+    )
+
+    # Material Numbers (NEW)
+    hdbs_mn = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="HDBS SAP Material Number"
+    )
+    ref_hdbs_mn = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Parent/Reference HDBS Material Number"
+    )
+    ardt_item_number = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="ARDT ERP Item Number"
+    )
+
+    # Technical Specs - FC only (NEW)
+    body_material = models.CharField(
+        max_length=1,
+        choices=BodyMaterial.choices,
+        blank=True,
+        default="",
+        help_text="Body material: M=Matrix, S=Steel"
+    )
+    no_of_blades = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of blades (FC only)"
+    )
+    cutter_size = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Cutter size in mm (FC only)"
+    )
+    gage_length = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Gage length in inches (FC only)"
+    )
+
+    # Order/Production Level - JV Classification (NEW)
+    order_level = models.CharField(
+        max_length=5,
+        choices=OrderLevel.choices,
+        blank=True,
+        help_text="JV Production Level: 3-6"
+    )
+
     class Meta:
         db_table = "bit_types"
-        ordering = ["series", "code"]
+        ordering = ["category", "series", "smi_name", "code"]
         verbose_name = "Bit Type"
         verbose_name_plural = "Bit Types"
 
     def __str__(self):
+        if self.smi_name:
+            return self.smi_name
         return self.code
+
+    @property
+    def display_name(self):
+        """Return the best display name for this type."""
+        return self.smi_name or self.hdbs_name or self.code
+
+    @property
+    def size_display(self):
+        """Return size display string."""
+        if self.size:
+            return self.size.size_display
+        return "-"
 
 
 class Location(models.Model):

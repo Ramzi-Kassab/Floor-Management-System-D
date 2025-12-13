@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div class="flex items-center">
+        <a href="{% url 'workorders:location_list' %}" class="mr-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4
+            {% if location.location_type == 'WAREHOUSE' %}bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400
+            {% elif location.location_type == 'REPAIR_SHOP' %}bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400
+            {% elif location.location_type == 'RIG' %}bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400
+            {% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400{% endif %}">
+            <i data-lucide="{% if location.location_type == 'WAREHOUSE' %}warehouse{% elif location.location_type == 'REPAIR_SHOP' %}wrench{% elif location.location_type == 'RIG' %}anchor{% else %}map-pin{% endif %}" class="w-6 h-6"></i>
+        </div>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ location.name }}</h1>
+            <p class="text-gray-600 dark:text-gray-400 mt-1">{{ location.get_location_type_display }}</p>
+        </div>
+    </div>
+    <a href="{% url 'workorders:location_update' location.pk %}"
+       class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+        <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
+        Edit
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Info -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Details Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Location Details</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Code</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ location.code }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Type</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ location.get_location_type_display }}</p>
+                </div>
+                {% if location.rig %}
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Associated Rig</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ location.rig.name }}</p>
+                </div>
+                {% endif %}
+                {% if location.address %}
+                <div class="col-span-2">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Address</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ location.address }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Drill Bits at This Location -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="disc" class="w-5 h-5 mr-2 text-purple-500"></i>
+                Drill Bits at This Location ({{ drill_bit_count }})
+            </h2>
+            {% if drill_bits %}
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Serial Number</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Customer</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for bit in drill_bits %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td class="px-3 py-2">
+                                <a href="{% url 'workorders:drillbit_detail' bit.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">
+                                    {{ bit.serial_number }}
+                                </a>
+                            </td>
+                            <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">{{ bit.product_type.display_name|default:"-" }}</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">{{ bit.get_lifecycle_status_display|default:bit.get_status_display }}</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">{{ bit.customer.name|default:"-" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if drill_bit_count > 20 %}
+            <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                Showing 20 of {{ drill_bit_count }} drill bits.
+            </p>
+            {% endif %}
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-center py-8">
+                <i data-lucide="disc" class="w-12 h-12 mx-auto mb-2 opacity-30"></i><br>
+                No drill bits at this location.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="space-y-6">
+        <!-- Status Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Status</h2>
+            <div class="flex items-center">
+                {% if location.is_active %}
+                <span class="flex items-center text-green-600 dark:text-green-400">
+                    <i data-lucide="check-circle" class="w-5 h-5 mr-2"></i>
+                    Active
+                </span>
+                {% else %}
+                <span class="flex items-center text-red-600 dark:text-red-400">
+                    <i data-lucide="x-circle" class="w-5 h-5 mr-2"></i>
+                    Inactive
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Statistics</h2>
+            <div class="text-center">
+                <p class="text-4xl font-bold text-blue-600 dark:text-blue-400">{{ drill_bit_count }}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Drill Bits</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -30,10 +30,37 @@ class BitSizeAdmin(admin.ModelAdmin):
 
 @admin.register(BitType)
 class BitTypeAdmin(admin.ModelAdmin):
-    list_display = ["code", "name", "series", "is_active"]
-    list_filter = ["series", "is_active"]
-    search_fields = ["code", "name"]
-    ordering = ["series", "code"]
+    list_display = [
+        "smi_name", "category", "size", "hdbs_name", "hdbs_mn",
+        "body_material", "no_of_blades", "cutter_size", "order_level", "is_active"
+    ]
+    list_filter = ["category", "series", "body_material", "order_level", "is_active"]
+    search_fields = ["smi_name", "hdbs_name", "hdbs_mn", "code", "name"]
+    ordering = ["category", "series", "smi_name"]
+    list_select_related = ["size"]
+
+    fieldsets = (
+        ("Identity", {
+            "fields": ("category", "size", "smi_name", "hdbs_name", "series")
+        }),
+        ("Material Numbers", {
+            "fields": ("hdbs_mn", "ref_hdbs_mn", "ardt_item_number")
+        }),
+        ("Technical Specs (FC Only)", {
+            "fields": ("body_material", "no_of_blades", "cutter_size", "gage_length"),
+            "classes": ("collapse",),
+        }),
+        ("Production", {
+            "fields": ("order_level",)
+        }),
+        ("Legacy Fields", {
+            "fields": ("code", "name"),
+            "classes": ("collapse",),
+        }),
+        ("Status", {
+            "fields": ("is_active", "description")
+        }),
+    )
 
 
 @admin.register(Location)
