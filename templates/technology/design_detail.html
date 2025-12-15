@@ -216,7 +216,7 @@
                     </div>
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Dimensions</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.breaker_slot.slot_width }} x {{ design.breaker_slot.slot_depth }} mm</dd>
+                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.breaker_slot.slot_width }} x {{ design.breaker_slot.slot_depth }} in</dd>
                     </div>
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Material</dt>
@@ -232,49 +232,6 @@
                 {% endif %}
             </div>
         </div>
-
-        <!-- Application Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="target" class="w-5 h-5"></i>
-                    Application
-                </h2>
-            </div>
-            <div class="px-6 py-4">
-                <dl class="grid grid-cols-2 gap-4">
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Formation Type</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.formation_type_ref %}{{ design.formation_type_ref.name }}{% else %}--{% endif %}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Application</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.application_ref %}{{ design.application_ref.name }}{% else %}--{% endif %}</dd>
-                    </div>
-                </dl>
-            </div>
-        </div>
-
-        <!-- Special Technologies Section -->
-        {% if design.special_technologies.exists %}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="cpu" class="w-5 h-5"></i>
-                    Special Technologies
-                </h2>
-            </div>
-            <div class="px-6 py-4">
-                <div class="flex flex-wrap gap-2">
-                    {% for tech in design.special_technologies.all %}
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                        {{ tech.name }}
-                    </span>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        {% endif %}
 
         <!-- Pockets Layout and Features Section -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
@@ -326,6 +283,49 @@
                 {% else %}
                 <p class="text-gray-500 dark:text-gray-400">No BOMs defined for this design</p>
                 {% endif %}
+            </div>
+        </div>
+
+        <!-- Special Technologies Section -->
+        {% if design.special_technologies.exists %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-5 h-5"></i>
+                    Special Technologies & Features
+                </h2>
+            </div>
+            <div class="px-6 py-4">
+                <div class="flex flex-wrap gap-2">
+                    {% for tech in design.special_technologies.all %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                        {{ tech.name }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Application Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="target" class="w-5 h-5"></i>
+                    Application
+                </h2>
+            </div>
+            <div class="px-6 py-4">
+                <dl class="grid grid-cols-2 gap-4">
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Formation Type</dt>
+                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.formation_type_ref %}{{ design.formation_type_ref.name }}{% else %}--{% endif %}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Application</dt>
+                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.application_ref %}{{ design.application_ref.name }}{% else %}--{% endif %}</dd>
+                    </div>
+                </dl>
             </div>
         </div>
     </div>
