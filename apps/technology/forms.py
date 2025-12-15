@@ -242,7 +242,6 @@ class ConnectionForm(forms.ModelForm):
             "mat_no",
             "connection_type",
             "connection_size",
-            "upper_section_type",
             "special_features",
             "can_replace_in_ksa",
             "remarks",
@@ -252,7 +251,6 @@ class ConnectionForm(forms.ModelForm):
             "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 1754845"}),
             "connection_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "connection_size": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "upper_section_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "special_features": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2, "placeholder": "Any special features or modifications"}),
             "can_replace_in_ksa": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
             "remarks": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
@@ -262,7 +260,6 @@ class ConnectionForm(forms.ModelForm):
             "mat_no": "MAT No.",
             "connection_type": "Connection Type",
             "connection_size": "Connection Size",
-            "upper_section_type": "Upper Section Type",
             "special_features": "Special Features",
             "can_replace_in_ksa": "Can Replace in KSA",
             "remarks": "Remarks",
@@ -271,7 +268,6 @@ class ConnectionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["upper_section_type"].required = False
         self.fields["special_features"].required = False
         self.fields["remarks"].required = False
 
