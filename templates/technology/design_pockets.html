@@ -482,6 +482,12 @@ function pocketsLayout() {
         init() {
             this.loadGridData();
             this.setupKeyboardListeners();
+            // Auto-select first config if available
+            const configIds = Object.keys(this.configData);
+            if (configIds.length > 0) {
+                this.selectedConfigId = parseInt(configIds[0]);
+                this.selectedConfigColor = this.configData[this.selectedConfigId]?.color;
+            }
         },
 
         async saveDesignInfo() {
@@ -878,7 +884,10 @@ function pocketsLayout() {
         },
 
         toggleSingleCell(blade, col) {
-            if (!this.selectedConfigId) return;
+            if (!this.selectedConfigId) {
+                this.showNotification('Select a config from legend first');
+                return;
+            }
 
             const key = `${blade}_${col}`;
             if (this.gridData[key] === this.selectedConfigId) {
