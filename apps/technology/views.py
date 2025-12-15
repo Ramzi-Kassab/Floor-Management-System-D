@@ -128,7 +128,7 @@ class DesignDetailView(LoginRequiredMixin, DetailView):
         pocket_configs = self.object.pocket_configs.all()
         pocket_configs_count = pocket_configs.count()
         pocket_configs_total = sum(c.count for c in pocket_configs)
-        pocket_assignments_count = self.object.design_pockets.count()
+        pocket_assignments_count = self.object.pockets.count()
 
         context["pocket_configs_count"] = pocket_configs_count
         context["pocket_configs_total"] = pocket_configs_total
