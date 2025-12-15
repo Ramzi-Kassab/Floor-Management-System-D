@@ -277,6 +277,93 @@ class PocketConfigDeleteView(LoginRequiredMixin, View):
         return redirect('technology:design_pockets', pk=pk)
 
 
+class DesignPocketsUpdateInfoView(LoginRequiredMixin, View):
+    """Update pocket-related fields (rows count, pocket layout number) from pockets page."""
+
+    def post(self, request, pk):
+        design = get_object_or_404(Design, pk=pk)
+
+        # Update pocket_rows_count
+        rows_count = request.POST.get('pocket_rows_count')
+        if rows_count:
+            try:
+                design.pocket_rows_count = int(rows_count)
+            except ValueError:
+                pass
+
+        # Update pocket_layout_number
+        layout_number = request.POST.get('pocket_layout_number')
+        if layout_number is not None:
+            design.pocket_layout_number = layout_number
+
+        design.save(update_fields=['pocket_rows_count', 'pocket_layout_number'])
+        return redirect('technology:design_pockets', pk=pk)
+
+
+class PocketConfigReorderView(LoginRequiredMixin, View):
+    """Reorder pocket configurations (move up/down)."""
+
+    def post(self, request, pk):
+        from .models import DesignPocketConfig
+
+        config_id = request.POST.get('config_id')
+        direction = request.POST.get('direction')  # 'up' or 'down'
+
+        if not config_id or direction not in ('up', 'down'):
+            messages.error(request, "Invalid request.")
+            return redirect('technology:design_pockets', pk=pk)
+
+        config = get_object_or_404(DesignPocketConfig, pk=config_id, design_id=pk)
+        configs = list(DesignPocketConfig.objects.filter(design_id=pk).order_by('order'))
+
+        current_index = None
+        for i, c in enumerate(configs):
+            if c.pk == config.pk:
+                current_index = i
+                break
+
+        if current_index is None:
+            return redirect('technology:design_pockets', pk=pk)
+
+        if direction == 'up' and current_index > 0:
+            # Swap with previous
+            configs[current_index], configs[current_index - 1] = configs[current_index - 1], configs[current_index]
+        elif direction == 'down' and current_index < len(configs) - 1:
+            # Swap with next
+            configs[current_index], configs[current_index + 1] = configs[current_index + 1], configs[current_index]
+
+        # Update order values
+        for i, c in enumerate(configs, start=1):
+            c.order = i
+            c.save(update_fields=['order'])
+
+        return redirect('technology:design_pockets', pk=pk)
+
+
+class PocketConfigUpdateRowView(LoginRequiredMixin, View):
+    """Update the row number of a pocket configuration."""
+
+    def post(self, request, pk):
+        from .models import DesignPocketConfig
+
+        config_id = request.POST.get('config_id')
+        row_number = request.POST.get('row_number')
+
+        if not config_id or not row_number:
+            messages.error(request, "Invalid request.")
+            return redirect('technology:design_pockets', pk=pk)
+
+        config = get_object_or_404(DesignPocketConfig, pk=config_id, design_id=pk)
+
+        try:
+            config.row_number = int(row_number)
+            config.save(update_fields=['row_number'])
+        except ValueError:
+            messages.error(request, "Invalid row number.")
+
+        return redirect('technology:design_pockets', pk=pk)
+
+
 class PocketsLayoutListView(LoginRequiredMixin, ListView):
     """List all designs with pockets layout summary."""
 

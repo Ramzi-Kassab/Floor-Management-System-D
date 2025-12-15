@@ -951,6 +951,11 @@ class DesignPocketConfig(models.Model):
         verbose_name='Color Code',
         help_text='Hex color for visual identification (e.g., #FF5733)'
     )
+    row_number = models.PositiveIntegerField(
+        default=1,
+        verbose_name='Row Number',
+        help_text='Which row this configuration belongs to (1-4)'
+    )
 
     class Meta:
         db_table = "design_pocket_configs"
