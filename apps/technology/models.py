@@ -973,6 +973,13 @@ class DesignPocket(models.Model):
     Individual pocket position in a design.
     Stored by blade, row, and position within blade/row.
     """
+    class BladeLocation(models.TextChoices):
+        CONE = "C", "Cone"
+        NOSE = "N", "Nose"
+        TAPER = "T", "Taper"
+        SHOULDER = "S", "Shoulder"
+        GAGE = "G", "Gage"
+
     design = models.ForeignKey(
         Design,
         on_delete=models.CASCADE,
@@ -994,6 +1001,14 @@ class DesignPocket(models.Model):
     position_in_blade = models.PositiveIntegerField(
         verbose_name='Position in Blade',
         help_text='Sequential position within entire blade (across all rows)'
+    )
+    blade_location = models.CharField(
+        max_length=1,
+        choices=BladeLocation.choices,
+        blank=True,
+        null=True,
+        verbose_name='Blade Location',
+        help_text='Location zone on blade: Cone, Nose, Taper, Shoulder, Gage'
     )
     engagement_order = models.PositiveIntegerField(
         null=True,

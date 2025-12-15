@@ -485,10 +485,93 @@ class DesignPocketsGridSaveView(LoginRequiredMixin, View):
                 max_pos = max(positions_by_row[row_num])
                 row_separators.append(max_pos)
 
+        # Also include location data
+        location_data = {}
+        for pocket in pockets:
+            key = f"{pocket.blade_number}_{pocket.position_in_blade}"
+            if pocket.blade_location:
+                location_data[key] = pocket.blade_location
+
         return JsonResponse({
             'success': True,
             'gridData': grid_data,
-            'rowSeparators': sorted(row_separators)
+            'rowSeparators': sorted(row_separators),
+            'locationData': location_data
+        })
+
+
+class DesignPocketsLocationSaveView(LoginRequiredMixin, View):
+    """Save pocket location assignments to database."""
+
+    def post(self, request, pk):
+        import json
+        from .models import DesignPocket
+
+        design = get_object_or_404(Design, pk=pk)
+
+        try:
+            data = json.loads(request.body)
+            location_data = data.get('locationData', {})
+
+            # Validate sequential order within each blade and row
+            # Location order: C < N < T < S < G
+            location_order = {'C': 1, 'N': 2, 'T': 3, 'S': 4, 'G': 5}
+
+            # Group by blade
+            for blade_num in range(1, design.no_of_blades + 1):
+                blade_locations = []
+                for key, loc in location_data.items():
+                    b, col = key.split('_')
+                    if int(b) == blade_num and loc:
+                        blade_locations.append((int(col), loc))
+
+                # Sort by column position
+                blade_locations.sort(key=lambda x: x[0])
+
+                # Check sequence
+                last_order = 0
+                for col, loc in blade_locations:
+                    current_order = location_order.get(loc, 0)
+                    if current_order < last_order:
+                        return JsonResponse({
+                            'success': False,
+                            'message': f'Invalid sequence on Blade {blade_num}: {loc} cannot come after previous location'
+                        }, status=400)
+                    last_order = current_order
+
+            # Update pocket locations
+            for key, location in location_data.items():
+                blade, col = key.split('_')
+                blade = int(blade)
+                col = int(col)
+
+                DesignPocket.objects.filter(
+                    design=design,
+                    blade_number=blade,
+                    position_in_blade=col
+                ).update(blade_location=location if location else None)
+
+            return JsonResponse({'success': True, 'message': 'Locations saved'})
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+    def get(self, request, pk):
+        """Load location data from database."""
+        from .models import DesignPocket
+
+        design = get_object_or_404(Design, pk=pk)
+        pockets = DesignPocket.objects.filter(design=design)
+
+        location_data = {}
+        for pocket in pockets:
+            key = f"{pocket.blade_number}_{pocket.position_in_blade}"
+            if pocket.blade_location:
+                location_data[key] = pocket.blade_location
+
+        return JsonResponse({
+            'success': True,
+            'locationData': location_data
         })
 
 
