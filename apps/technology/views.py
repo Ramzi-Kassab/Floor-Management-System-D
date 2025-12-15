@@ -286,8 +286,12 @@ class PocketsLayoutListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
+        from django.db.models import Count
+
         queryset = Design.objects.select_related(
             "size", "created_by"
+        ).annotate(
+            config_count=Count('pocket_configs')
         ).order_by("-updated_at")
 
         search = self.request.GET.get("q")
