@@ -198,12 +198,17 @@
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'technology:design_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Designs</a>
-                <a href="{% url 'technology:bom_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">BOMs</a>
-                <a href="{% url 'technology:connection_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="link" class="w-4 h-4 inline mr-2"></i>Connections
+                <a href="{% url 'technology:connection_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="link" class="w-4 h-4 mr-2"></i>Connections
                 </a>
-                <a href="{% url 'technology:breaker_slot_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="wrench" class="w-4 h-4 inline mr-2"></i>Breaker Slots
+                <a href="{% url 'technology:breaker_slot_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="wrench" class="w-4 h-4 mr-2"></i>Breaker Slots
+                </a>
+                <a href="#" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="grid-3x3" class="w-4 h-4 mr-2"></i>Pockets Layout
+                </a>
+                <a href="{% url 'technology:bom_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="package" class="w-4 h-4 mr-2"></i>Bills of Materials
                 </a>
                 <!-- Reference Data (collapsible) -->
                 <div x-data="{ subOpen: false }" class="space-y-1">
