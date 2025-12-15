@@ -615,8 +615,8 @@
                 </div>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">
                     <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
-                    <span x-show="!autoIncrementMode">Click a cell and type a number. Each number must be unique.</span>
-                    <span x-show="autoIncrementMode" class="text-blue-600 dark:text-blue-400 font-medium">Click Mode: Click empty cells to auto-assign next number.</span>
+                    <span x-show="!autoIncrementMode">Type numbers sequentially (no gaps). <strong>Drag</strong> cells to swap. Delete only removes the highest #.</span>
+                    <span x-show="autoIncrementMode" class="text-blue-600 dark:text-blue-400 font-medium">Click Mode: Click empty cells to auto-assign next number. Drag to swap.</span>
                 </p>
             </div>
         </div>
@@ -704,9 +704,14 @@
                                     <!-- Engagement cell -->
                                     <div class="w-12 h-12 border rounded flex flex-col items-center justify-center cursor-pointer transition-all relative"
                                          :style="getEngagementCellStyle({{ blade_num }}, col)"
-                                         :class="getEngagementCellClass({{ blade_num }}, col)"
+                                         :class="[getEngagementCellClass({{ blade_num }}, col), draggingEngagement && draggingEngagement.key !== `{{ blade_num }}_${col}` ? 'ring-2 ring-dashed ring-blue-400' : '']"
+                                         :draggable="!!engagementData[`{{ blade_num }}_${col}`]"
                                          @click="focusEngagementCell({{ blade_num }}, col)"
                                          @dblclick="editEngagementCell({{ blade_num }}, col)"
+                                         @dragstart="startEngagementDrag({{ blade_num }}, col, $event)"
+                                         @dragover="handleEngagementDragOver($event)"
+                                         @drop="dropEngagementSwap({{ blade_num }}, col, $event)"
+                                         @dragend="endEngagementDrag()"
                                          :title="getEngagementTooltip({{ blade_num }}, col)">
                                         <!-- Config number (small, top) -->
                                         <span class="text-[9px] text-gray-400 absolute top-0.5 left-1"
@@ -858,6 +863,7 @@ function pocketsLayout() {
         blinkingCell: null, // Cell key that's blinking due to duplicate
         engagementInputBuffer: '', // Buffer for multi-digit input
         autoIncrementMode: false, // Toggle for click-to-increment mode
+        draggingEngagement: null, // {blade, col, value} - cell being dragged for swap
 
         init() {
             this.loadGridData();
@@ -1934,8 +1940,8 @@ function pocketsLayout() {
 
             if (event.key === 'Delete' || event.key === 'Backspace') {
                 event.preventDefault();
-                delete this.engagementData[key];
                 this.engagementInputBuffer = '';
+                this.deleteEngagementValue(key);
                 return;
             }
 
@@ -2021,6 +2027,80 @@ function pocketsLayout() {
             const values = Object.values(this.engagementData).filter(v => v);
             if (values.length === 0) return 0;
             return Math.max(...values);
+        },
+
+        deleteEngagementValue(key) {
+            const value = this.engagementData[key];
+            if (!value) return;
+
+            const maxNum = this.getMaxEngagementNumber();
+            // Only allow deleting the highest number to prevent gaps
+            if (value !== maxNum) {
+                this.showNotification(`Can only delete #${maxNum} (highest). Use drag to swap.`);
+                const maxKey = this.findEngagementByValue(maxNum);
+                if (maxKey) this.blinkCell(maxKey);
+                return;
+            }
+            delete this.engagementData[key];
+        },
+
+        // Drag and swap functionality
+        startEngagementDrag(blade, col, event) {
+            const key = `${blade}_${col}`;
+            const value = this.engagementData[key];
+            if (!value) return;
+
+            this.draggingEngagement = { blade, col, value, key };
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', value.toString());
+        },
+
+        handleEngagementDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+        },
+
+        dropEngagementSwap(blade, col, event) {
+            event.preventDefault();
+            if (!this.draggingEngagement) return;
+
+            const targetKey = `${blade}_${col}`;
+            const sourceKey = this.draggingEngagement.key;
+
+            // Can't drop on same cell
+            if (targetKey === sourceKey) {
+                this.draggingEngagement = null;
+                return;
+            }
+
+            // Target must have a pocket assigned
+            if (!this.gridData[targetKey]) {
+                this.showNotification('No pocket here');
+                this.draggingEngagement = null;
+                return;
+            }
+
+            // Swap values
+            const sourceValue = this.draggingEngagement.value;
+            const targetValue = this.engagementData[targetKey];
+
+            if (targetValue) {
+                // Both have values - swap them
+                this.engagementData[sourceKey] = targetValue;
+                this.engagementData[targetKey] = sourceValue;
+                this.showNotification(`Swapped #${sourceValue} and #${targetValue}`);
+            } else {
+                // Target is empty - just move
+                delete this.engagementData[sourceKey];
+                this.engagementData[targetKey] = sourceValue;
+                this.showNotification(`Moved #${sourceValue}`);
+            }
+
+            this.draggingEngagement = null;
+        },
+
+        endEngagementDrag() {
+            this.draggingEngagement = null;
         },
 
         findEngagementByValue(value) {
