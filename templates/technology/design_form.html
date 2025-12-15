@@ -839,6 +839,51 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
+    // =========================================================================
+    // INITIALIZE EXISTING SELECTIONS (for edit mode)
+    // =========================================================================
+    function initializeExistingConnection() {
+        if (connInput && connInput.value) {
+            const connId = connInput.value;
+            fetch(`{% url "technology:api_connections" %}?id=${connId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.connections && data.connections.length > 0) {
+                        const c = data.connections[0];
+                        document.getElementById('conn-mat-no').textContent = c.mat_no;
+                        document.getElementById('conn-type').textContent = c.type_name || c.type;
+                        document.getElementById('conn-size').textContent = c.size;
+                        connDetails.classList.remove('hidden');
+                        connPlaceholder.classList.add('hidden');
+                    }
+                })
+                .catch(err => console.error('Error loading existing connection:', err));
+        }
+    }
+
+    function initializeExistingBreakerSlot() {
+        if (breakerInput && breakerInput.value) {
+            const breakerId = breakerInput.value;
+            fetch(`{% url "technology:api_breaker_slots" %}?id=${breakerId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.breaker_slots && data.breaker_slots.length > 0) {
+                        const b = data.breaker_slots[0];
+                        document.getElementById('breaker-mat-no').textContent = b.mat_no;
+                        document.getElementById('breaker-dims').textContent = `${b.slot_width}x${b.slot_depth}mm`;
+                        document.getElementById('breaker-material').textContent = b.material_display;
+                        breakerDetails.classList.remove('hidden');
+                        breakerPlaceholder.classList.add('hidden');
+                    }
+                })
+                .catch(err => console.error('Error loading existing breaker slot:', err));
+        }
+    }
+
+    // Initialize existing selections on page load
+    initializeExistingConnection();
+    initializeExistingBreakerSlot();
+
     // Initialize icons
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();

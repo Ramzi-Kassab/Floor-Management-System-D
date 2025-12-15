@@ -32,32 +32,57 @@ class DesignListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = Design.objects.select_related("designed_by", "created_by").order_by("code")
+        from apps.workorders.models import BitSize
 
+        queryset = Design.objects.select_related(
+            "size", "connection_ref", "connection_ref__connection_type",
+            "connection_ref__connection_size", "breaker_slot", "iadc_code_ref"
+        ).order_by("-updated_at")
+
+        # General search (MAT No., HDBS Type, SMI Type)
         search = self.request.GET.get("q")
         if search:
             queryset = queryset.filter(
-                Q(code__icontains=search) | Q(name__icontains=search) | Q(iadc_code__icontains=search)
+                Q(mat_no__icontains=search) |
+                Q(hdbs_type__icontains=search) |
+                Q(smi_type__icontains=search)
             )
 
-        bit_type = self.request.GET.get("bit_type")
-        if bit_type:
-            queryset = queryset.filter(bit_type=bit_type)
+        # Size filter
+        size_id = self.request.GET.get("size")
+        if size_id:
+            queryset = queryset.filter(size_id=size_id)
 
+        # Status filter
         status = self.request.GET.get("status")
         if status:
             queryset = queryset.filter(status=status)
 
+        # Category filter
+        category = self.request.GET.get("category")
+        if category:
+            queryset = queryset.filter(category=category)
+
+        # Sorting
+        sort = self.request.GET.get("sort", "-updated_at")
+        if sort:
+            queryset = queryset.order_by(sort)
+
         return queryset
 
     def get_context_data(self, **kwargs):
+        from apps.workorders.models import BitSize
+
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Designs"
         context["search_query"] = self.request.GET.get("q", "")
-        context["current_bit_type"] = self.request.GET.get("bit_type", "")
+        context["current_size"] = self.request.GET.get("size", "")
         context["current_status"] = self.request.GET.get("status", "")
-        context["bit_type_choices"] = Design.Category.choices
+        context["current_category"] = self.request.GET.get("category", "")
+        context["current_sort"] = self.request.GET.get("sort", "-updated_at")
+        context["category_choices"] = Design.Category.choices
         context["status_choices"] = Design.Status.choices
+        context["sizes"] = BitSize.objects.filter(is_active=True).order_by("size_decimal")
         return context
 
 
@@ -69,7 +94,11 @@ class DesignDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "design"
 
     def get_queryset(self):
-        return Design.objects.select_related("designed_by", "approved_by", "created_by")
+        return Design.objects.select_related(
+            "size", "connection_ref", "connection_ref__connection_type",
+            "connection_ref__connection_size", "breaker_slot", "iadc_code_ref",
+            "formation_type_ref", "application_ref", "created_by"
+        ).prefetch_related("special_technologies")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -285,6 +314,7 @@ class APIConnectionsView(LoginRequiredMixin, View):
 
     def get(self, request):
         # Get filter parameters
+        conn_id = request.GET.get('id', '')
         q = request.GET.get('q', '')
         type_id = request.GET.get('type', '')
         size_id = request.GET.get('size', '')
@@ -296,16 +326,20 @@ class APIConnectionsView(LoginRequiredMixin, View):
         )
 
         # Apply filters
-        if q:
-            queryset = queryset.filter(mat_no__icontains=q)
-        if type_id:
-            queryset = queryset.filter(connection_type_id=type_id)
-        if size_id:
-            queryset = queryset.filter(connection_size_id=size_id)
-        if can_replace == 'true':
-            queryset = queryset.filter(can_replace_in_ksa=True)
-        elif can_replace == 'false':
-            queryset = queryset.filter(can_replace_in_ksa=False)
+        if conn_id:
+            # Filter by specific ID (for edit mode initialization)
+            queryset = queryset.filter(id=conn_id)
+        else:
+            if q:
+                queryset = queryset.filter(mat_no__icontains=q)
+            if type_id:
+                queryset = queryset.filter(connection_type_id=type_id)
+            if size_id:
+                queryset = queryset.filter(connection_size_id=size_id)
+            if can_replace == 'true':
+                queryset = queryset.filter(can_replace_in_ksa=True)
+            elif can_replace == 'false':
+                queryset = queryset.filter(can_replace_in_ksa=False)
 
         # Build response
         connections = []
@@ -339,6 +373,7 @@ class APIBreakerSlotsView(LoginRequiredMixin, View):
 
     def get(self, request):
         # Get filter parameters
+        slot_id = request.GET.get('id', '')
         q = request.GET.get('q', '')
         material = request.GET.get('material', '')
         min_width = request.GET.get('min_width', '')
@@ -348,14 +383,18 @@ class APIBreakerSlotsView(LoginRequiredMixin, View):
         queryset = BreakerSlot.objects.filter(is_active=True)
 
         # Apply filters
-        if q:
-            queryset = queryset.filter(mat_no__icontains=q)
-        if material:
-            queryset = queryset.filter(material=material)
-        if min_width:
-            queryset = queryset.filter(slot_width__gte=float(min_width))
-        if max_width:
-            queryset = queryset.filter(slot_width__lte=float(max_width))
+        if slot_id:
+            # Filter by specific ID (for edit mode initialization)
+            queryset = queryset.filter(id=slot_id)
+        else:
+            if q:
+                queryset = queryset.filter(mat_no__icontains=q)
+            if material:
+                queryset = queryset.filter(material=material)
+            if min_width:
+                queryset = queryset.filter(slot_width__gte=float(min_width))
+            if max_width:
+                queryset = queryset.filter(slot_width__lte=float(max_width))
 
         # Build response
         breaker_slots = []
