@@ -7,7 +7,7 @@ Forms for Design, BOM, and Cutter Layout management.
 
 from django import forms
 
-from .models import BOM, BOMLine, Design, DesignCutterLayout
+from .models import BOM, BOMLine, BreakerSlot, Connection, Design, DesignCutterLayout
 
 # Tailwind CSS classes
 TAILWIND_INPUT = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -231,3 +231,93 @@ class DesignCutterLayoutForm(forms.ModelForm):
         optional = ["cutter_grade", "backrake", "siderake", "exposure", "notes"]
         for field in optional:
             self.fields[field].required = False
+
+
+class ConnectionForm(forms.ModelForm):
+    """Form for creating and editing Connections."""
+
+    class Meta:
+        model = Connection
+        fields = [
+            "mat_no",
+            "connection_type",
+            "connection_size",
+            "upper_section_type",
+            "special_features",
+            "can_replace_in_ksa",
+            "remarks",
+            "is_active",
+        ]
+        widgets = {
+            "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 1754845"}),
+            "connection_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "connection_size": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "upper_section_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "special_features": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2, "placeholder": "Any special features or modifications"}),
+            "can_replace_in_ksa": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
+            "remarks": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
+        }
+        labels = {
+            "mat_no": "MAT No.",
+            "connection_type": "Connection Type",
+            "connection_size": "Connection Size",
+            "upper_section_type": "Upper Section Type",
+            "special_features": "Special Features",
+            "can_replace_in_ksa": "Can Replace in KSA",
+            "remarks": "Remarks",
+            "is_active": "Active",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["upper_section_type"].required = False
+        self.fields["special_features"].required = False
+        self.fields["remarks"].required = False
+
+
+class BreakerSlotForm(forms.ModelForm):
+    """Form for creating and editing Breaker Slots."""
+
+    class Meta:
+        model = BreakerSlot
+        fields = [
+            "mat_no",
+            "slot_width",
+            "slot_depth",
+            "slot_length",
+            "material",
+            "hardness",
+            "compatible_sizes",
+            "remarks",
+            "is_active",
+        ]
+        widgets = {
+            "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., BS-001"}),
+            "slot_width": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "min": "0", "placeholder": "mm"}),
+            "slot_depth": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "min": "0", "placeholder": "mm"}),
+            "slot_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "min": "0", "placeholder": "mm (optional)"}),
+            "material": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "hardness": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 28-32 HRC"}),
+            "compatible_sizes": forms.CheckboxSelectMultiple(attrs={"class": "space-y-2"}),
+            "remarks": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
+        }
+        labels = {
+            "mat_no": "MAT No.",
+            "slot_width": "Slot Width (mm)",
+            "slot_depth": "Slot Depth (mm)",
+            "slot_length": "Slot Length (mm)",
+            "material": "Material",
+            "hardness": "Hardness (HRC)",
+            "compatible_sizes": "Compatible Bit Sizes",
+            "remarks": "Remarks",
+            "is_active": "Active",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["slot_length"].required = False
+        self.fields["hardness"].required = False
+        self.fields["compatible_sizes"].required = False
+        self.fields["remarks"].required = False

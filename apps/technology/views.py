@@ -10,11 +10,11 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, DetailView, ListView, UpdateView, View
+from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView, View
 
 from django.http import JsonResponse
 
-from .forms import BOMForm, BOMLineForm, DesignCutterLayoutForm, DesignForm
+from .forms import BOMForm, BOMLineForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm
 from .models import BOM, BOMLine, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout
 
 
@@ -381,3 +381,222 @@ class APIBreakerSlotsView(LoginRequiredMixin, View):
                 'materials': materials,
             }
         })
+
+
+# =============================================================================
+# CONNECTION CRUD VIEWS
+# =============================================================================
+
+
+class ConnectionListView(LoginRequiredMixin, ListView):
+    """List all connections with filtering."""
+
+    model = Connection
+    template_name = "technology/connection_list.html"
+    context_object_name = "connections"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = Connection.objects.select_related(
+            'connection_type', 'connection_size', 'upper_section_type'
+        ).order_by('mat_no')
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(mat_no__icontains=search) |
+                Q(connection_type__code__icontains=search) |
+                Q(connection_type__name__icontains=search)
+            )
+
+        type_filter = self.request.GET.get("type")
+        if type_filter:
+            queryset = queryset.filter(connection_type_id=type_filter)
+
+        size_filter = self.request.GET.get("size")
+        if size_filter:
+            queryset = queryset.filter(connection_size_id=size_filter)
+
+        ksa_filter = self.request.GET.get("ksa")
+        if ksa_filter == "yes":
+            queryset = queryset.filter(can_replace_in_ksa=True)
+        elif ksa_filter == "no":
+            queryset = queryset.filter(can_replace_in_ksa=False)
+
+        if not self.request.GET.get("show_inactive"):
+            queryset = queryset.filter(is_active=True)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["connection_types"] = ConnectionType.objects.filter(is_active=True)
+        context["connection_sizes"] = ConnectionSize.objects.filter(is_active=True)
+        return context
+
+
+class ConnectionDetailView(LoginRequiredMixin, DetailView):
+    """View connection details including related designs."""
+
+    model = Connection
+    template_name = "technology/connection_detail.html"
+    context_object_name = "connection"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get designs using this connection
+        context["related_designs"] = self.object.designs.select_related('size').order_by('hdbs_type')
+        return context
+
+
+class ConnectionCreateView(LoginRequiredMixin, CreateView):
+    """Create a new connection."""
+
+    model = Connection
+    form_class = ConnectionForm
+    template_name = "technology/connection_form.html"
+    success_url = reverse_lazy("technology:connection_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Connection"
+        context["submit_text"] = "Create Connection"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Connection {form.instance.mat_no} created successfully.")
+        return super().form_valid(form)
+
+
+class ConnectionUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing connection."""
+
+    model = Connection
+    form_class = ConnectionForm
+    template_name = "technology/connection_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("technology:connection_detail", kwargs={"pk": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Connection {self.object.mat_no}"
+        context["submit_text"] = "Update Connection"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Connection {self.object.mat_no} updated successfully.")
+        return super().form_valid(form)
+
+
+class ConnectionDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a connection."""
+
+    model = Connection
+    template_name = "technology/connection_confirm_delete.html"
+    success_url = reverse_lazy("technology:connection_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Connection {self.object.mat_no} deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# BREAKER SLOT CRUD VIEWS
+# =============================================================================
+
+
+class BreakerSlotListView(LoginRequiredMixin, ListView):
+    """List all breaker slots with filtering."""
+
+    model = BreakerSlot
+    template_name = "technology/breaker_slot_list.html"
+    context_object_name = "breaker_slots"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = BreakerSlot.objects.prefetch_related('compatible_sizes').order_by('mat_no')
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(mat_no__icontains=search)
+
+        material_filter = self.request.GET.get("material")
+        if material_filter:
+            queryset = queryset.filter(material=material_filter)
+
+        if not self.request.GET.get("show_inactive"):
+            queryset = queryset.filter(is_active=True)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["material_choices"] = BreakerSlot.Material.choices
+        return context
+
+
+class BreakerSlotDetailView(LoginRequiredMixin, DetailView):
+    """View breaker slot details including related designs."""
+
+    model = BreakerSlot
+    template_name = "technology/breaker_slot_detail.html"
+    context_object_name = "breaker_slot"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get designs using this breaker slot
+        context["related_designs"] = self.object.designs.select_related('size').order_by('hdbs_type')
+        return context
+
+
+class BreakerSlotCreateView(LoginRequiredMixin, CreateView):
+    """Create a new breaker slot."""
+
+    model = BreakerSlot
+    form_class = BreakerSlotForm
+    template_name = "technology/breaker_slot_form.html"
+    success_url = reverse_lazy("technology:breaker_slot_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Breaker Slot"
+        context["submit_text"] = "Create Breaker Slot"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Breaker Slot {form.instance.mat_no} created successfully.")
+        return super().form_valid(form)
+
+
+class BreakerSlotUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing breaker slot."""
+
+    model = BreakerSlot
+    form_class = BreakerSlotForm
+    template_name = "technology/breaker_slot_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("technology:breaker_slot_detail", kwargs={"pk": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Breaker Slot {self.object.mat_no}"
+        context["submit_text"] = "Update Breaker Slot"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Breaker Slot {self.object.mat_no} updated successfully.")
+        return super().form_valid(form)
+
+
+class BreakerSlotDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a breaker slot."""
+
+    model = BreakerSlot
+    template_name = "technology/breaker_slot_confirm_delete.html"
+    success_url = reverse_lazy("technology:breaker_slot_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Breaker Slot {self.object.mat_no} deleted.")
+        return super().form_valid(form)

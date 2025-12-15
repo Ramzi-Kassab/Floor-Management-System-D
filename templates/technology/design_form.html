@@ -353,7 +353,13 @@
     <div class="fixed inset-0 bg-black/50" id="connection-modal-backdrop"></div>
     <div class="fixed inset-4 md:inset-10 bg-white dark:bg-gray-800 rounded-lg shadow-xl flex flex-col">
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">Select Connection</h3>
+            <div class="flex items-center gap-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Select Connection</h3>
+                <a href="{% url 'technology:connection_list' %}" target="_blank" class="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">
+                    <i data-lucide="external-link" class="w-4 h-4"></i>
+                    Manage Connections
+                </a>
+            </div>
             <button type="button" id="close-connection-modal" class="text-gray-500 hover:text-gray-700">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
@@ -411,7 +417,13 @@
     <div class="fixed inset-0 bg-black/50" id="breaker-modal-backdrop"></div>
     <div class="fixed inset-4 md:inset-10 bg-white dark:bg-gray-800 rounded-lg shadow-xl flex flex-col">
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">Select Breaker Slot</h3>
+            <div class="flex items-center gap-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Select Breaker Slot</h3>
+                <a href="{% url 'technology:breaker_slot_list' %}" target="_blank" class="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">
+                    <i data-lucide="external-link" class="w-4 h-4"></i>
+                    Manage Breaker Slots
+                </a>
+            </div>
             <button type="button" id="close-breaker-modal" class="text-gray-500 hover:text-gray-700">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>

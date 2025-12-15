@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center gap-4 mb-6">
+    <a href="{% url 'technology:breaker_slot_list' %}" class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+    </a>
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Breaker slot specifications</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Main Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="wrench" class="w-5 h-5"></i>
+                    Breaker Slot Information
+                </h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">MAT No. <span class="text-red-500">*</span></label>
+                    <div class="mt-1">{{ form.mat_no }}</div>
+                    {% if form.mat_no.errors %}<p class="mt-1 text-sm text-red-600">{{ form.mat_no.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Slot Width (mm) <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.slot_width }}</div>
+                        {% if form.slot_width.errors %}<p class="mt-1 text-sm text-red-600">{{ form.slot_width.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Slot Depth (mm) <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.slot_depth }}</div>
+                        {% if form.slot_depth.errors %}<p class="mt-1 text-sm text-red-600">{{ form.slot_depth.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Slot Length (mm)</label>
+                        <div class="mt-1">{{ form.slot_length }}</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Material <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.material }}</div>
+                        {% if form.material.errors %}<p class="mt-1 text-sm text-red-600">{{ form.material.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Hardness (HRC)</label>
+                        <div class="mt-1">{{ form.hardness }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compatible Sizes -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="ruler" class="w-5 h-5"></i>
+                    Compatible Bit Sizes
+                </h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-500 mb-3">Select bit sizes this breaker slot is compatible with:</p>
+                <div class="grid grid-cols-3 md:grid-cols-6 gap-3">
+                    {% for checkbox in form.compatible_sizes %}
+                    <div class="flex items-center">
+                        {{ checkbox.tag }}
+                        <label for="{{ checkbox.id_for_label }}" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                            {{ checkbox.choice_label }}
+                        </label>
+                    </div>
+                    {% empty %}
+                    <p class="text-sm text-gray-400 col-span-6">Run: python manage.py seed_bit_sizes</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                    Settings & Remarks
+                </h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="flex items-center gap-3">
+                    {{ form.is_active }}
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Active</label>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Remarks</label>
+                    <div class="mt-1">{{ form.remarks }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'technology:breaker_slot_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</a>
+            <button type="submit" class="px-6 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                {{ submit_text }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
