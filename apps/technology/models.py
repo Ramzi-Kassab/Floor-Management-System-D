@@ -440,6 +440,18 @@ class Design(models.Model):
         blank=True,
         verbose_name='No. of Blades'
     )
+    total_pockets_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Total Pockets Count',
+        help_text='Total number of cutter pockets in the design'
+    )
+    pocket_rows_count = models.PositiveIntegerField(
+        default=1,
+        verbose_name='Pocket Rows Count',
+        help_text='Number of pocket rows (1-4)',
+        validators=[MinValueValidator(1)]
+    )
     cutter_size = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -817,3 +829,181 @@ class DesignCutterLayout(models.Model):
 
     def __str__(self):
         return f"{self.design.code} - Blade {self.blade_number}, Pos {self.position_number}"
+
+
+# =============================================================================
+# POCKET LAYOUT MODELS
+# =============================================================================
+
+
+class PocketSize(models.Model):
+    """
+    Reference table for pocket/cutter sizes.
+    Sizes like 10.5, 16, 19, 1005, 1010, 1218, 1303, etc.
+    """
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        verbose_name='Size Code',
+        help_text='Pocket size code (e.g., 1608, 1613, 19)'
+    )
+    display_name = models.CharField(
+        max_length=50,
+        verbose_name='Display Name',
+        help_text='Human-readable name'
+    )
+    diameter_mm = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='Diameter (mm)',
+        help_text='Pocket diameter in millimeters'
+    )
+    description = models.TextField(blank=True)
+    sort_order = models.IntegerField(default=0, help_text='Display order')
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "pocket_sizes"
+        ordering = ['sort_order', 'code']
+        verbose_name = "Pocket Size"
+        verbose_name_plural = "Pocket Sizes"
+
+    def __str__(self):
+        return self.display_name or self.code
+
+
+class PocketShape(models.Model):
+    """
+    Reference table for pocket shapes.
+    Flat Bottom, Conical, Spherical, Corner Radius, Open Cylindrical
+    """
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=50)
+    description = models.TextField(blank=True)
+    notes = models.TextField(
+        blank=True,
+        verbose_name='Technical Notes',
+        help_text='Additional technical information about this shape'
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "pocket_shapes"
+        ordering = ['name']
+        verbose_name = "Pocket Shape"
+        verbose_name_plural = "Pocket Shapes"
+
+    def __str__(self):
+        return self.name
+
+
+class DesignPocketConfig(models.Model):
+    """
+    Pocket configuration for a design - defines which sizes/shapes are used
+    and how many of each.
+    """
+    class LengthType(models.TextChoices):
+        LONG = "L", "Long"
+        MEDIUM = "M", "Medium"
+        SHORT = "S", "Short"
+
+    design = models.ForeignKey(
+        Design,
+        on_delete=models.CASCADE,
+        related_name='pocket_configs'
+    )
+    order = models.PositiveIntegerField(
+        verbose_name='Order',
+        help_text='Display order (1, 2, 3...)'
+    )
+    pocket_size = models.ForeignKey(
+        PocketSize,
+        on_delete=models.PROTECT,
+        related_name='design_configs'
+    )
+    length_type = models.CharField(
+        max_length=1,
+        choices=LengthType.choices,
+        default=LengthType.LONG,
+        verbose_name='L/M/S',
+        help_text='Long, Medium, or Short'
+    )
+    pocket_shape = models.ForeignKey(
+        PocketShape,
+        on_delete=models.PROTECT,
+        related_name='design_configs'
+    )
+    count = models.PositiveIntegerField(
+        verbose_name='Count',
+        help_text='Number of pockets with this configuration'
+    )
+    color_code = models.CharField(
+        max_length=7,
+        blank=True,
+        verbose_name='Color Code',
+        help_text='Hex color for visual identification (e.g., #FF5733)'
+    )
+
+    class Meta:
+        db_table = "design_pocket_configs"
+        ordering = ['design', 'order']
+        unique_together = ['design', 'order']
+        verbose_name = "Design Pocket Config"
+        verbose_name_plural = "Design Pocket Configs"
+
+    def __str__(self):
+        return f"{self.design.hdbs_type} - {self.pocket_size.code} x {self.count}"
+
+
+class DesignPocket(models.Model):
+    """
+    Individual pocket position in a design.
+    Stored by blade, row, and position within blade/row.
+    """
+    design = models.ForeignKey(
+        Design,
+        on_delete=models.CASCADE,
+        related_name='pockets'
+    )
+    blade_number = models.PositiveIntegerField(
+        verbose_name='Blade',
+        help_text='Blade number (1 to no_of_blades)'
+    )
+    row_number = models.PositiveIntegerField(
+        default=1,
+        verbose_name='Row',
+        help_text='Row number (1 to pocket_rows_count)'
+    )
+    position_in_row = models.PositiveIntegerField(
+        verbose_name='Position in Row',
+        help_text='Position within this blade and row'
+    )
+    position_in_blade = models.PositiveIntegerField(
+        verbose_name='Position in Blade',
+        help_text='Sequential position within entire blade (across all rows)'
+    )
+    engagement_order = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Engagement Order',
+        help_text='Full engagement sequence order (set in separate tab)'
+    )
+    pocket_config = models.ForeignKey(
+        DesignPocketConfig,
+        on_delete=models.PROTECT,
+        related_name='pockets',
+        verbose_name='Pocket Configuration'
+    )
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        db_table = "design_pockets"
+        ordering = ['design', 'blade_number', 'row_number', 'position_in_row']
+        unique_together = ['design', 'blade_number', 'row_number', 'position_in_row']
+        verbose_name = "Design Pocket"
+        verbose_name_plural = "Design Pockets"
+
+    def __str__(self):
+        return f"{self.design.hdbs_type} - B{self.blade_number}R{self.row_number}P{self.position_in_row}"

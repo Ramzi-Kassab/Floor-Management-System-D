@@ -168,16 +168,113 @@ class DesignUpdateView(LoginRequiredMixin, UpdateView):
 
 
 class DesignPocketsView(LoginRequiredMixin, DetailView):
-    """Placeholder view for Pockets Layout and Features configuration."""
+    """Pockets Layout and Features configuration view."""
 
     model = Design
     template_name = "technology/design_pockets.html"
     context_object_name = "design"
 
+    def get_queryset(self):
+        return Design.objects.select_related('size').prefetch_related(
+            'pocket_configs__pocket_size',
+            'pocket_configs__pocket_shape',
+            'pockets__pocket_config'
+        )
+
     def get_context_data(self, **kwargs):
+        from .models import PocketSize, PocketShape, DesignPocketConfig
+
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Pockets Layout - {self.object.hdbs_type}"
+
+        # Reference data for dropdowns
+        context["pocket_sizes"] = PocketSize.objects.filter(is_active=True)
+        context["pocket_shapes"] = PocketShape.objects.filter(is_active=True)
+        context["length_choices"] = DesignPocketConfig.LengthType.choices
+
+        # Existing configurations for this design
+        context["pocket_configs"] = self.object.pocket_configs.select_related(
+            'pocket_size', 'pocket_shape'
+        ).order_by('order')
+
+        # Existing pockets for this design
+        context["pockets"] = self.object.pockets.select_related(
+            'pocket_config__pocket_size'
+        ).order_by('blade_number', 'row_number', 'position_in_row')
+
+        # Calculate totals for validation
+        config_total = sum(c.count for c in context["pocket_configs"])
+        entered_total = context["pockets"].count()
+        context["config_total"] = config_total
+        context["entered_total"] = entered_total
+
+        # Group pockets by blade and row for grid display
+        pockets_grid = {}
+        for pocket in context["pockets"]:
+            blade = pocket.blade_number
+            row = pocket.row_number
+            if blade not in pockets_grid:
+                pockets_grid[blade] = {}
+            if row not in pockets_grid[blade]:
+                pockets_grid[blade][row] = []
+            pockets_grid[blade][row].append(pocket)
+        context["pockets_grid"] = pockets_grid
+
+        # Generate color palette for pocket configs
+        colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+                  '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1']
+        for i, config in enumerate(context["pocket_configs"]):
+            if not config.color_code:
+                config.display_color = colors[i % len(colors)]
+            else:
+                config.display_color = config.color_code
+
         return context
+
+
+class PocketConfigCreateView(LoginRequiredMixin, View):
+    """Add a pocket configuration to a design."""
+
+    def post(self, request, pk):
+        from .models import Design, DesignPocketConfig, PocketSize, PocketShape
+
+        design = get_object_or_404(Design, pk=pk)
+
+        pocket_size_id = request.POST.get('pocket_size')
+        length_type = request.POST.get('length_type')
+        pocket_shape_id = request.POST.get('pocket_shape')
+        count = request.POST.get('count')
+
+        if pocket_size_id and length_type and pocket_shape_id and count:
+            # Get the next order number
+            last_config = design.pocket_configs.order_by('-order').first()
+            next_order = (last_config.order + 1) if last_config else 1
+
+            DesignPocketConfig.objects.create(
+                design=design,
+                order=next_order,
+                pocket_size_id=pocket_size_id,
+                length_type=length_type,
+                pocket_shape_id=pocket_shape_id,
+                count=int(count)
+            )
+            messages.success(request, "Pocket configuration added successfully.")
+        else:
+            messages.error(request, "Please fill in all required fields.")
+
+        return redirect('technology:design_pockets', pk=pk)
+
+
+class PocketConfigDeleteView(LoginRequiredMixin, View):
+    """Delete a pocket configuration from a design."""
+
+    def post(self, request, pk, config_pk):
+        from .models import DesignPocketConfig
+
+        config = get_object_or_404(DesignPocketConfig, pk=config_pk, design_id=pk)
+        config.delete()
+        messages.success(request, "Pocket configuration deleted.")
+        return redirect('technology:design_pockets', pk=pk)
 
 
 class PocketsLayoutListView(LoginRequiredMixin, ListView):

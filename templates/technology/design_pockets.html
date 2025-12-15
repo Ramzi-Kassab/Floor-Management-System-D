@@ -10,7 +10,7 @@
         </a>
         <div>
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-            <p class="text-gray-600 dark:text-gray-400">Configure pocket layout and features for {{ design.mat_no }}</p>
+            <p class="text-gray-600 dark:text-gray-400">{{ design.description|default:"Configure pocket layout and features" }}</p>
         </div>
     </div>
     <div class="mt-4 md:mt-0 flex gap-2">
@@ -22,92 +22,369 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto">
-    <!-- Design Info Card -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm mb-6">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <i data-lucide="cpu" class="w-5 h-5"></i>
-                Design Information
-            </h2>
-        </div>
-        <div class="px-6 py-4">
-            <dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">MAT No.</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white font-mono">{{ design.mat_no }}</dd>
-                </div>
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">HDBS Type</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white">{{ design.hdbs_type }}</dd>
-                </div>
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">Size</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white">{% if design.size %}{{ design.size.size_display }}{% else %}--{% endif %}</dd>
-                </div>
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">No. of Blades</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white">{{ design.no_of_blades|default:"--" }}</dd>
-                </div>
-            </dl>
+<div x-data="pocketsLayout()" class="space-y-6">
+    <!-- Tab Navigation -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+        <div class="border-b border-gray-200 dark:border-gray-700">
+            <nav class="flex -mb-px">
+                <button @click="activeTab = 'config'"
+                        :class="activeTab === 'config' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+                        class="px-6 py-3 border-b-2 font-medium text-sm">
+                    <i data-lucide="settings" class="w-4 h-4 inline mr-2"></i>Configuration
+                </button>
+                <button @click="activeTab = 'grid'"
+                        :class="activeTab === 'grid' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+                        class="px-6 py-3 border-b-2 font-medium text-sm">
+                    <i data-lucide="grid-3x3" class="w-4 h-4 inline mr-2"></i>Pockets Grid
+                </button>
+                <button @click="activeTab = 'engagement'"
+                        :class="activeTab === 'engagement' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+                        class="px-6 py-3 border-b-2 font-medium text-sm" disabled title="Coming soon">
+                    <i data-lucide="layers" class="w-4 h-4 inline mr-2"></i>Engagement Order
+                    <span class="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-600 rounded">Soon</span>
+                </button>
+            </nav>
         </div>
     </div>
 
-    <!-- Placeholder Content -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <i data-lucide="grid-3x3" class="w-5 h-5"></i>
-                Pockets Layout and Features
-            </h2>
+    <!-- Configuration Tab -->
+    <div x-show="activeTab === 'config'" class="space-y-6">
+        <!-- Section 1: Design Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="info" class="w-5 h-5"></i>
+                    Design Information
+                </h2>
+            </div>
+            <div class="px-6 py-4">
+                <dl class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</dt>
+                        <dd class="mt-1 text-lg font-mono font-medium text-gray-900 dark:text-white">{{ design.mat_no }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Blades Count</dt>
+                        <dd class="mt-1 text-lg font-bold text-blue-600 dark:text-blue-400">{{ design.no_of_blades|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total Pockets Count</dt>
+                        <dd class="mt-1 text-lg font-bold text-green-600 dark:text-green-400">{{ design.total_pockets_count|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rows Count</dt>
+                        <dd class="mt-1 text-lg font-bold text-purple-600 dark:text-purple-400">{{ design.pocket_rows_count|default:1 }}</dd>
+                    </div>
+                </dl>
+                {% if design.description %}
+                <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Description</dt>
+                    <dd class="text-gray-700 dark:text-gray-300">{{ design.description }}</dd>
+                </div>
+                {% endif %}
+            </div>
         </div>
-        <div class="px-6 py-16 text-center">
-            <i data-lucide="construction" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
-            <h3 class="text-xl font-medium text-gray-900 dark:text-white mb-2">Coming Soon</h3>
-            <p class="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
-                The Pockets Layout and Features configuration module is under development.
-                This will allow you to define pocket positions, cutter placements, and special features for this design.
-            </p>
-            <div class="flex justify-center gap-4">
-                <a href="{% url 'technology:design_detail' design.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Design
-                </a>
+
+        <!-- Section 2: Pocket Sizes Configuration Table -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="list" class="w-5 h-5"></i>
+                    Pocket Size Configuration
+                </h2>
+                <button @click="addConfigRow()" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add Size
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-16">Order</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Pocket Size</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-24">L/M/S</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Pocket Shape</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-24">Count</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-20">Color</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-24">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for config in pocket_configs %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td class="px-4 py-3 text-gray-900 dark:text-white font-medium">{{ config.order }}</td>
+                            <td class="px-4 py-3 text-gray-900 dark:text-white">{{ config.pocket_size.display_name }}</td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-0.5 text-xs font-medium rounded
+                                    {% if config.length_type == 'L' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                                    {% elif config.length_type == 'M' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200{% endif %}">
+                                    {{ config.get_length_type_display }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-gray-900 dark:text-white">
+                                {{ config.pocket_shape.name }}
+                                <span class="text-xs text-gray-500 dark:text-gray-400 block">{{ config.pocket_shape.notes|truncatewords:10 }}</span>
+                            </td>
+                            <td class="px-4 py-3 text-gray-900 dark:text-white font-bold">{{ config.count }}</td>
+                            <td class="px-4 py-3">
+                                <div class="w-6 h-6 rounded border border-gray-300 dark:border-gray-600" style="background-color: {{ config.display_color }}"></div>
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <button class="text-red-600 hover:text-red-800 dark:text-red-400">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                                <p>No pocket configurations defined yet</p>
+                                <p class="text-sm">Click "Add Size" to start configuring pocket sizes</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if pocket_configs %}
+                    <tfoot class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <td colspan="4" class="px-4 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Total:</td>
+                            <td class="px-4 py-3 font-bold text-gray-900 dark:text-white">{{ config_total }}</td>
+                            <td colspan="2" class="px-4 py-3">
+                                {% if design.total_pockets_count %}
+                                    {% if config_total == design.total_pockets_count %}
+                                    <span class="text-green-600 dark:text-green-400 text-sm"><i data-lucide="check-circle" class="w-4 h-4 inline"></i> Matches</span>
+                                    {% else %}
+                                    <span class="text-red-600 dark:text-red-400 text-sm"><i data-lucide="alert-circle" class="w-4 h-4 inline"></i> Expected: {{ design.total_pockets_count }}</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+
+            <!-- Pocket Shape Reference -->
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                    <i data-lucide="info" class="w-4 h-4"></i>
+                    Pocket Shape Reference
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+                    {% for shape in pocket_shapes %}
+                    <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                        <p class="font-medium text-gray-900 dark:text-white">{{ shape.name }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ shape.notes|truncatewords:25 }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Future Features Preview -->
-    <div class="mt-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-        <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <i data-lucide="lightbulb" class="w-4 h-4 text-yellow-500"></i>
-            Planned Features
-        </h3>
-        <ul class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600 dark:text-gray-400">
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                Visual pocket layout editor
-            </li>
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                Cutter position configuration
-            </li>
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                Blade-by-blade pocket definition
-            </li>
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                Import from CAD drawings
-            </li>
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                Feature templates library
-            </li>
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                3D pocket visualization
-            </li>
-        </ul>
+    <!-- Pockets Grid Tab -->
+    <div x-show="activeTab === 'grid'" class="space-y-6">
+        <!-- Validation Summary -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-6">
+                    <div>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">Configured:</span>
+                        <span class="ml-2 text-lg font-bold text-gray-900 dark:text-white">{{ config_total }}</span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">Entered:</span>
+                        <span class="ml-2 text-lg font-bold {% if entered_total == config_total %}text-green-600{% else %}text-yellow-600{% endif %}">{{ entered_total }}</span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">Remaining:</span>
+                        <span class="ml-2 text-lg font-bold {% if config_total > entered_total %}text-orange-600{% else %}text-green-600{% endif %}">{{ config_total|add:"-"|add:entered_total|default:config_total }}</span>
+                    </div>
+                </div>
+                <button class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    <i data-lucide="save" class="w-4 h-4 mr-2"></i>Save Grid
+                </button>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        {% if pocket_configs %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Color Legend</h3>
+            <div class="flex flex-wrap gap-3">
+                {% for config in pocket_configs %}
+                <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <div class="w-4 h-4 rounded" style="background-color: {{ config.display_color }}"></div>
+                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ config.pocket_size.display_name }}</span>
+                    <span class="text-xs text-gray-500">({{ config.count }})</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Grid Container -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="grid-3x3" class="w-5 h-5"></i>
+                    Pockets Grid
+                </h2>
+                <div class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ design.no_of_blades|default:0 }} Blades × {{ design.pocket_rows_count|default:1 }} Rows
+                </div>
+            </div>
+            <div class="p-6 overflow-x-auto">
+                {% if design.no_of_blades and pocket_configs %}
+                <div class="space-y-4">
+                    {% for row_num in "1234"|make_list %}
+                    {% if row_num|add:0 <= design.pocket_rows_count|default:1 %}
+                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg">
+                        <div class="px-4 py-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Row {{ row_num }}</span>
+                        </div>
+                        <div class="p-4">
+                            <table class="w-full">
+                                <thead>
+                                    <tr>
+                                        <th class="px-2 py-1 text-xs text-gray-500 dark:text-gray-400 w-20">Blade</th>
+                                        <!-- Dynamic columns will be added via JavaScript -->
+                                        <th class="px-2 py-1 text-xs text-gray-500 dark:text-gray-400" colspan="50">Pockets →</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for blade_num in "123456789"|make_list %}
+                                    {% if blade_num|add:0 <= design.no_of_blades %}
+                                    <tr class="border-t border-gray-100 dark:border-gray-700">
+                                        <td class="px-2 py-2 font-medium text-gray-900 dark:text-white">B{{ blade_num }}</td>
+                                        <td class="px-2 py-2">
+                                            <div class="flex gap-1 flex-wrap">
+                                                <!-- Pocket cells will be rendered here -->
+                                                <template x-for="col in 20" :key="col">
+                                                    <div class="w-10 h-10 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-xs text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                                                         @click="selectPocket({{ blade_num }}, {{ row_num }}, col)">
+                                                        <span x-text="col"></span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                    <p class="text-lg font-medium">Cannot display grid</p>
+                    <p class="text-sm mt-2">
+                        {% if not design.no_of_blades %}
+                        Please set the number of blades in the design first.
+                        {% elif not pocket_configs %}
+                        Please configure pocket sizes in the Configuration tab first.
+                        {% endif %}
+                    </p>
+                    <a href="{% url 'technology:design_update' design.pk %}" class="inline-flex items-center mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit Design
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Engagement Order Tab (Coming Soon) -->
+    <div x-show="activeTab === 'engagement'" class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-12 text-center">
+            <i data-lucide="construction" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+            <h3 class="text-xl font-medium text-gray-900 dark:text-white mb-2">Coming Soon</h3>
+            <p class="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                The Engagement Order tab will allow you to define the full engagement sequence for cutters.
+                This will be available after completing the Pockets Grid configuration.
+            </p>
+        </div>
+    </div>
+
+    <!-- Add Config Modal -->
+    <div x-show="showAddModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black bg-opacity-50" @click="showAddModal = false"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full p-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Pocket Configuration</h3>
+                <form method="post" action="{% url 'technology:pocket_config_create' design.pk %}">
+                    {% csrf_token %}
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pocket Size</label>
+                            <select name="pocket_size" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                                <option value="">Select size...</option>
+                                {% for size in pocket_sizes %}
+                                <option value="{{ size.id }}">{{ size.display_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Length (L/M/S)</label>
+                                <select name="length_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                                    {% for value, label in length_choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Count</label>
+                                <input type="number" name="count" min="1" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pocket Shape</label>
+                            <select name="pocket_shape" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                                <option value="">Select shape...</option>
+                                {% for shape in pocket_shapes %}
+                                <option value="{{ shape.id }}">{{ shape.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" @click="showAddModal = false" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            Add Configuration
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
+
+<script>
+function pocketsLayout() {
+    return {
+        activeTab: 'config',
+        showAddModal: false,
+        selectedPocket: null,
+
+        addConfigRow() {
+            this.showAddModal = true;
+        },
+
+        selectPocket(blade, row, col) {
+            this.selectedPocket = { blade, row, col };
+            // TODO: Open pocket selection modal
+            console.log('Selected pocket:', blade, row, col);
+        }
+    }
+}
+</script>
 {% endblock %}

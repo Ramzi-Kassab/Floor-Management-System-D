@@ -13,6 +13,8 @@ urlpatterns = [
     path("designs/<int:design_pk>/cutters/add/", views.CutterLayoutCreateView.as_view(), name="cutter_create"),
     path("designs/<int:design_pk>/cutters/<int:layout_pk>/delete/", views.CutterLayoutDeleteView.as_view(), name="cutter_delete"),
     path("designs/<int:pk>/pockets/", views.DesignPocketsView.as_view(), name="design_pockets"),
+    path("designs/<int:pk>/pockets/config/add/", views.PocketConfigCreateView.as_view(), name="pocket_config_create"),
+    path("designs/<int:pk>/pockets/config/<int:config_pk>/delete/", views.PocketConfigDeleteView.as_view(), name="pocket_config_delete"),
     # Pockets Layout (general list)
     path("pockets-layout/", views.PocketsLayoutListView.as_view(), name="pockets_layout_list"),
     # BOMs

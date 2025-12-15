@@ -262,10 +262,30 @@
                 {% endif %}
             </div>
             <div class="px-6 py-4">
-                <p class="text-gray-500 dark:text-gray-400 text-center py-4">
-                    <i data-lucide="construction" class="w-8 h-8 mx-auto mb-2 opacity-50"></i><br>
-                    Pockets layout configuration coming soon
-                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ form.total_pockets_count.label }}
+                        </label>
+                        {{ form.total_pockets_count }}
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Total number of cutter pockets</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ form.pocket_rows_count.label }}
+                        </label>
+                        {{ form.pocket_rows_count }}
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Number of pocket rows (1-4)</p>
+                    </div>
+                </div>
+                {% if object %}
+                <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <a href="{% url 'technology:design_pockets' object.pk %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                        <i data-lucide="grid-3x3" class="w-4 h-4 mr-2"></i>
+                        Configure Pocket Layout
+                    </a>
+                </div>
+                {% endif %}
             </div>
         </div>
 
