@@ -1990,7 +1990,8 @@ function pocketsLayout() {
 
             // Validate: must be a valid number >= 1
             if (isNaN(numValue) || numValue < 1) {
-                delete this.engagementData[key];
+                // Trying to clear - use delete validation
+                this.deleteEngagementValue(key);
                 return;
             }
 
