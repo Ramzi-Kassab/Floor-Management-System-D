@@ -300,13 +300,14 @@
                             <template x-for="col in 20" :key="col">
                                 <div class="flex">
                                     <!-- Grid cell with Excel-like selection -->
-                                    <div class="w-10 h-10 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-xs cursor-pointer transition-all"
+                                    <div class="w-10 h-10 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-xs font-bold text-white cursor-pointer transition-all"
                                          :style="getCellStyle({{ blade_num }}, col)"
                                          :class="getCellClass({{ blade_num }}, col)"
                                          @click="handleCellClick({{ blade_num }}, col, $event)"
                                          @mousedown="handleCellMouseDown({{ blade_num }}, col, $event)"
                                          @mouseenter="handleCellMouseEnter({{ blade_num }}, col)"
-                                         tabindex="-1">
+                                         tabindex="-1"
+                                         x-text="getCellNumber({{ blade_num }}, col)">
                                     </div>
                                     <!-- Separator visual between cells -->
                                     <div class="w-4" x-show="col < 20"
@@ -636,7 +637,7 @@ function pocketsLayout() {
 
         toggleSelectedCells() {
             if (!this.selectedConfigId) {
-                alert('Please select a pocket configuration from the legend first');
+                this.showNotification('Select a config from legend first');
                 return;
             }
 
@@ -646,12 +647,39 @@ function pocketsLayout() {
                 return this.gridData[key] === this.selectedConfigId;
             });
 
-            for (const cell of this.selectedCells) {
-                const key = `${cell.blade}_${cell.col}`;
-                if (allHaveConfig) {
+            if (allHaveConfig) {
+                // Remove config from all selected cells
+                for (const cell of this.selectedCells) {
+                    const key = `${cell.blade}_${cell.col}`;
                     delete this.gridData[key];
-                } else {
+                }
+            } else {
+                // Add config to cells, respecting count limit
+                const maxCount = this.configData[this.selectedConfigId]?.count || 0;
+                let assigned = 0;
+                let skipped = 0;
+
+                for (const cell of this.selectedCells) {
+                    const key = `${cell.blade}_${cell.col}`;
+                    // Skip if already has this config
+                    if (this.gridData[key] === this.selectedConfigId) continue;
+
+                    const currentCount = this.getConfigAssignedCount(this.selectedConfigId);
+                    if (currentCount >= maxCount) {
+                        skipped++;
+                        continue;
+                    }
+
+                    // Remove old config if exists
+                    if (this.gridData[key]) {
+                        delete this.gridData[key];
+                    }
                     this.gridData[key] = this.selectedConfigId;
+                    assigned++;
+                }
+
+                if (skipped > 0) {
+                    this.showNotification(`Assigned ${assigned}, skipped ${skipped} (limit reached)`);
                 }
             }
         },
@@ -890,11 +918,38 @@ function pocketsLayout() {
             }
 
             const key = `${blade}_${col}`;
+
+            // If cell already has this config, remove it (toggle off)
             if (this.gridData[key] === this.selectedConfigId) {
                 delete this.gridData[key];
-            } else {
-                this.gridData[key] = this.selectedConfigId;
+                return;
             }
+
+            // Check if we've reached the limit for this config
+            const currentCount = this.getConfigAssignedCount(this.selectedConfigId);
+            const maxCount = this.configData[this.selectedConfigId]?.count || 0;
+
+            if (currentCount >= maxCount) {
+                this.showNotification(`Limit reached! (${currentCount}/${maxCount})`);
+                return;
+            }
+
+            // If cell has a different config, remove old and assign new
+            if (this.gridData[key]) {
+                delete this.gridData[key];
+            }
+
+            this.gridData[key] = this.selectedConfigId;
+        },
+
+        // Get config order number for display in cell
+        getCellNumber(blade, col) {
+            const key = `${blade}_${col}`;
+            const configId = this.gridData[key];
+            if (configId && this.configData[configId]) {
+                return this.configData[configId].order;
+            }
+            return '';
         },
 
         assignPocket(blade, col) {
