@@ -513,31 +513,44 @@ class DesignPocketsLocationSaveView(LoginRequiredMixin, View):
             data = json.loads(request.body)
             location_data = data.get('locationData', {})
 
-            # Validate sequential order within each blade and row
+            # Validate sequential order within each blade AND row
             # Location order: C < N < T < S < G
+            # Each row can have its own independent sequence
             location_order = {'C': 1, 'N': 2, 'T': 3, 'S': 4, 'G': 5}
 
-            # Group by blade
+            # Get existing pockets to know which row each column belongs to
+            pockets = DesignPocket.objects.filter(design=design)
+            col_to_row = {}
+            for pocket in pockets:
+                col_to_row[f"{pocket.blade_number}_{pocket.position_in_blade}"] = pocket.row_number
+
+            # Group by blade and row
             for blade_num in range(1, design.no_of_blades + 1):
-                blade_locations = []
+                # Group locations by row
+                rows_locations = {}
                 for key, loc in location_data.items():
                     b, col = key.split('_')
                     if int(b) == blade_num and loc:
-                        blade_locations.append((int(col), loc))
+                        row_num = col_to_row.get(key, 1)
+                        if row_num not in rows_locations:
+                            rows_locations[row_num] = []
+                        rows_locations[row_num].append((int(col), loc))
 
-                # Sort by column position
-                blade_locations.sort(key=lambda x: x[0])
+                # Validate each row independently
+                for row_num, row_locations in rows_locations.items():
+                    # Sort by column position
+                    row_locations.sort(key=lambda x: x[0])
 
-                # Check sequence
-                last_order = 0
-                for col, loc in blade_locations:
-                    current_order = location_order.get(loc, 0)
-                    if current_order < last_order:
-                        return JsonResponse({
-                            'success': False,
-                            'message': f'Invalid sequence on Blade {blade_num}: {loc} cannot come after previous location'
-                        }, status=400)
-                    last_order = current_order
+                    # Check sequence within this row
+                    last_order = 0
+                    for col, loc in row_locations:
+                        current_order = location_order.get(loc, 0)
+                        if current_order < last_order:
+                            return JsonResponse({
+                                'success': False,
+                                'message': f'Invalid sequence on Blade {blade_num}, Row {row_num}: {loc} cannot come after previous location'
+                            }, status=400)
+                        last_order = current_order
 
             # Update pocket locations
             for key, location in location_data.items():
