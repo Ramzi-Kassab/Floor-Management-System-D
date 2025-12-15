@@ -247,8 +247,7 @@
             </div>
         </div>
 
-        <!-- POCKETS LAYOUT (only shown when editing) -->
-        {% if object %}
+        <!-- POCKETS LAYOUT -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
@@ -257,6 +256,7 @@
                 </h3>
             </div>
             <div class="px-6 py-4">
+                {% if object %}
                 <div class="flex items-center justify-between">
                     <div class="text-sm text-gray-600 dark:text-gray-400">
                         <p>Configure pocket sizes, shapes, and layout positions for this design.</p>
@@ -272,9 +272,16 @@
                         Configure Pockets
                     </a>
                 </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="text-gray-500 dark:text-gray-400">
+                        <i data-lucide="info" class="w-4 h-4 inline-block mr-1"></i>
+                        Save the design first to configure pockets layout
+                    </p>
+                </div>
+                {% endif %}
             </div>
         </div>
-        {% endif %}
 
         <!-- BILLS OF MATERIALS (Level 5) -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
@@ -291,24 +298,33 @@
                 {% endif %}
             </div>
             <div class="px-6 py-4">
-                {% if object and object.boms.exists %}
-                <div class="space-y-2">
-                    {% for bom in object.boms.all %}
-                    <a href="{% url 'technology:bom_detail' bom.pk %}" class="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <span class="font-medium text-gray-900 dark:text-white">{{ bom.code }}</span>
-                                <span class="text-sm text-gray-600 dark:text-gray-400 ml-2">{{ bom.name }}</span>
+                {% if object %}
+                    {% if object.boms.exists %}
+                    <div class="space-y-2">
+                        {% for bom in object.boms.all %}
+                        <a href="{% url 'technology:bom_detail' bom.pk %}" class="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <span class="font-medium text-gray-900 dark:text-white">{{ bom.code }}</span>
+                                    <span class="text-sm text-gray-600 dark:text-gray-400 ml-2">{{ bom.name }}</span>
+                                </div>
+                                <span class="text-xs px-2 py-1 rounded {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                    {{ bom.get_status_display }}
+                                </span>
                             </div>
-                            <span class="text-xs px-2 py-1 rounded {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
-                                {{ bom.get_status_display }}
-                            </span>
-                        </div>
-                    </a>
-                    {% endfor %}
-                </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-gray-500 dark:text-gray-400 text-center py-4">No BOMs defined for this design</p>
+                    {% endif %}
                 {% else %}
-                <p class="text-gray-500 dark:text-gray-400 text-center py-4">No BOMs defined for this design</p>
+                <div class="text-center py-4">
+                    <p class="text-gray-500 dark:text-gray-400">
+                        <i data-lucide="info" class="w-4 h-4 inline-block mr-1"></i>
+                        Save the design first to add Bills of Materials
+                    </p>
+                </div>
                 {% endif %}
             </div>
         </div>
