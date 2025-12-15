@@ -1879,15 +1879,19 @@ function pocketsLayout() {
             // Auto-increment mode: assign next number on click
             if (this.autoIncrementMode && !this.engagementData[key]) {
                 const nextNum = this.getNextEngagementNumber();
+                const totalPockets = this.getTotalPockets();
+                if (nextNum > totalPockets) {
+                    this.showNotification(`All ${totalPockets} pockets already assigned!`);
+                    const lastKey = this.findEngagementByValue(totalPockets);
+                    if (lastKey) this.blinkCell(lastKey);
+                    return;
+                }
                 this.engagementData[key] = nextNum;
             }
         },
 
         getNextEngagementNumber() {
-            // Find the highest number currently assigned and return next
-            const values = Object.values(this.engagementData).filter(v => v);
-            if (values.length === 0) return 1;
-            return Math.max(...values) + 1;
+            return this.getMaxEngagementNumber() + 1;
         },
 
         toggleAutoIncrement() {
@@ -1974,17 +1978,49 @@ function pocketsLayout() {
         setEngagementValue(blade, col, value) {
             const key = `${blade}_${col}`;
             const numValue = parseInt(value);
+            const totalPockets = this.getTotalPockets();
+            const currentMax = this.getMaxEngagementNumber();
+            const nextAllowed = currentMax + 1;
+
+            // Validate: must be a valid number >= 1
             if (isNaN(numValue) || numValue < 1) {
                 delete this.engagementData[key];
                 return;
             }
+
+            // Rule 1: Cannot exceed total pocket count
+            if (numValue > totalPockets) {
+                this.showNotification(`Max allowed is ${totalPockets} (total pockets)`);
+                const lastKey = this.findEngagementByValue(currentMax);
+                if (lastKey) this.blinkCell(lastKey);
+                return;
+            }
+
+            // Rule 2: Check for duplicates
             const existingKey = this.findEngagementByValue(numValue);
             if (existingKey && existingKey !== key) {
                 this.blinkCell(existingKey);
                 this.showNotification(`#${numValue} already assigned!`);
                 return;
             }
+
+            // Rule 3: No gaps - must be sequential (next number must be currentMax + 1)
+            // Allow if: it's replacing same cell, or it's the next number in sequence
+            const isReplacingSameCell = existingKey === key;
+            if (!isReplacingSameCell && numValue !== nextAllowed) {
+                this.showNotification(`No gaps! Next number must be ${nextAllowed}`);
+                const lastKey = this.findEngagementByValue(currentMax);
+                if (lastKey) this.blinkCell(lastKey);
+                return;
+            }
+
             this.engagementData[key] = numValue;
+        },
+
+        getMaxEngagementNumber() {
+            const values = Object.values(this.engagementData).filter(v => v);
+            if (values.length === 0) return 0;
+            return Math.max(...values);
         },
 
         findEngagementByValue(value) {
