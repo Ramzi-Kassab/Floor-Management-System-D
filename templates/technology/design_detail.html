@@ -263,7 +263,7 @@
                         <dd class="mt-1 text-gray-900 dark:text-white">{{ pocket_configs_count }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</dt>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Overall Status</dt>
                         <dd class="mt-1">
                             {% if pocket_layout_complete %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
@@ -281,17 +281,53 @@
                         </dd>
                     </div>
                 </dl>
+
+                <!-- 3-Tab Completion Status -->
                 {% if pocket_configs_count > 0 %}
                 <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <div class="flex items-center justify-between text-sm">
-                        <span class="text-gray-500 dark:text-gray-400">Assignment Progress:</span>
-                        <span class="font-medium {% if pocket_layout_complete %}text-green-600 dark:text-green-400{% elif pocket_assignments_count > 0 %}text-yellow-600 dark:text-yellow-400{% else %}text-gray-600 dark:text-gray-400{% endif %}">
-                            {{ pocket_assignments_count }} / {{ pocket_configs_total }} pockets assigned
-                        </span>
+                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-3">Configuration Progress</p>
+                    <div class="grid grid-cols-3 gap-3">
+                        <!-- Grid Tab -->
+                        <div class="flex items-center gap-2 p-2 rounded-lg {% if grid_complete %}bg-green-50 dark:bg-green-900/20{% else %}bg-gray-50 dark:bg-gray-700/50{% endif %}">
+                            {% if grid_complete %}
+                            <i data-lucide="check-circle" class="w-4 h-4 text-green-600 dark:text-green-400"></i>
+                            {% else %}
+                            <i data-lucide="circle" class="w-4 h-4 text-gray-400 dark:text-gray-500"></i>
+                            {% endif %}
+                            <span class="text-sm {% if grid_complete %}text-green-700 dark:text-green-300{% else %}text-gray-600 dark:text-gray-400{% endif %}">Grid</span>
+                        </div>
+                        <!-- Locations Tab -->
+                        <div class="flex items-center gap-2 p-2 rounded-lg {% if locations_complete %}bg-green-50 dark:bg-green-900/20{% else %}bg-gray-50 dark:bg-gray-700/50{% endif %}">
+                            {% if locations_complete %}
+                            <i data-lucide="check-circle" class="w-4 h-4 text-green-600 dark:text-green-400"></i>
+                            {% else %}
+                            <i data-lucide="circle" class="w-4 h-4 text-gray-400 dark:text-gray-500"></i>
+                            {% endif %}
+                            <span class="text-sm {% if locations_complete %}text-green-700 dark:text-green-300{% else %}text-gray-600 dark:text-gray-400{% endif %}">Locations</span>
+                        </div>
+                        <!-- Engagements Tab -->
+                        <div class="flex items-center gap-2 p-2 rounded-lg {% if engagements_complete %}bg-green-50 dark:bg-green-900/20{% else %}bg-gray-50 dark:bg-gray-700/50{% endif %}">
+                            {% if engagements_complete %}
+                            <i data-lucide="check-circle" class="w-4 h-4 text-green-600 dark:text-green-400"></i>
+                            {% else %}
+                            <i data-lucide="circle" class="w-4 h-4 text-gray-400 dark:text-gray-500"></i>
+                            {% endif %}
+                            <span class="text-sm {% if engagements_complete %}text-green-700 dark:text-green-300{% else %}text-gray-600 dark:text-gray-400{% endif %}">Engagements</span>
+                        </div>
                     </div>
-                    <div class="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div class="{% if pocket_layout_complete %}bg-green-600{% elif pocket_assignments_count > 0 %}bg-yellow-500{% else %}bg-gray-400{% endif %} h-2 rounded-full transition-all"
-                             style="width: {% widthratio pocket_assignments_count pocket_configs_total 100 %}%"></div>
+
+                    <!-- Assignment Progress Bar -->
+                    <div class="mt-4">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-500 dark:text-gray-400">Pockets Assigned:</span>
+                            <span class="font-medium {% if grid_complete %}text-green-600 dark:text-green-400{% elif pocket_assignments_count > 0 %}text-yellow-600 dark:text-yellow-400{% else %}text-gray-600 dark:text-gray-400{% endif %}">
+                                {{ pocket_assignments_count }} / {{ pocket_configs_total }}
+                            </span>
+                        </div>
+                        <div class="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                            <div class="{% if grid_complete %}bg-green-600{% elif pocket_assignments_count > 0 %}bg-yellow-500{% else %}bg-gray-400{% endif %} h-2 rounded-full transition-all"
+                                 style="width: {% widthratio pocket_assignments_count pocket_configs_total 100 %}%"></div>
+                        </div>
                     </div>
                 </div>
                 {% endif %}

@@ -128,15 +128,31 @@ class DesignDetailView(LoginRequiredMixin, DetailView):
         pocket_configs = self.object.pocket_configs.all()
         pocket_configs_count = pocket_configs.count()
         pocket_configs_total = sum(c.count for c in pocket_configs)
-        pocket_assignments_count = self.object.pockets.count()
+        pockets = self.object.pockets.all()
+        pocket_assignments_count = pockets.count()
 
         context["pocket_configs_count"] = pocket_configs_count
         context["pocket_configs_total"] = pocket_configs_total
         context["pocket_assignments_count"] = pocket_assignments_count
-        context["pocket_layout_complete"] = (
-            pocket_configs_count > 0 and
-            pocket_assignments_count == pocket_configs_total
-        )
+
+        # 3-Tab completion status
+        # Tab 1: Grid - complete when all pockets are assigned
+        grid_complete = pocket_configs_count > 0 and pocket_assignments_count == pocket_configs_total
+
+        # Tab 2: Locations - complete when all pockets have blade_location
+        locations_with_value = sum(1 for p in pockets if p.blade_location)
+        locations_complete = pocket_assignments_count > 0 and locations_with_value == pocket_assignments_count
+
+        # Tab 3: Engagements - complete when all pockets have engagement_order
+        engagements_with_value = sum(1 for p in pockets if p.engagement_order)
+        engagements_complete = pocket_assignments_count > 0 and engagements_with_value == pocket_assignments_count
+
+        context["grid_complete"] = grid_complete
+        context["locations_complete"] = locations_complete
+        context["engagements_complete"] = engagements_complete
+
+        # Overall pocket layout complete only when all 3 tabs are done
+        context["pocket_layout_complete"] = grid_complete and locations_complete and engagements_complete
         return context
 
 
@@ -492,11 +508,19 @@ class DesignPocketsGridSaveView(LoginRequiredMixin, View):
             if pocket.blade_location:
                 location_data[key] = pocket.blade_location
 
+        # Also include engagement data
+        engagement_data = {}
+        for pocket in pockets:
+            key = f"{pocket.blade_number}_{pocket.position_in_blade}"
+            if pocket.engagement_order:
+                engagement_data[key] = pocket.engagement_order
+
         return JsonResponse({
             'success': True,
             'gridData': grid_data,
             'rowSeparators': sorted(row_separators),
-            'locationData': location_data
+            'locationData': location_data,
+            'engagementData': engagement_data
         })
 
 
@@ -585,6 +609,63 @@ class DesignPocketsLocationSaveView(LoginRequiredMixin, View):
         return JsonResponse({
             'success': True,
             'locationData': location_data
+        })
+
+
+class DesignPocketsEngagementSaveView(LoginRequiredMixin, View):
+    """Save engagement order assignments to database."""
+
+    def post(self, request, pk):
+        import json
+        from .models import DesignPocket
+
+        design = get_object_or_404(Design, pk=pk)
+
+        try:
+            data = json.loads(request.body)
+            engagement_data = data.get('engagementData', {})
+
+            # Validate uniqueness
+            values = [v for v in engagement_data.values() if v]
+            if len(values) != len(set(values)):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Duplicate engagement numbers found'
+                }, status=400)
+
+            # Update engagement orders
+            for key, order in engagement_data.items():
+                blade, col = key.split('_')
+                blade = int(blade)
+                col = int(col)
+
+                DesignPocket.objects.filter(
+                    design=design,
+                    blade_number=blade,
+                    position_in_blade=col
+                ).update(engagement_order=order if order else None)
+
+            return JsonResponse({'success': True, 'message': 'Engagements saved'})
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+    def get(self, request, pk):
+        """Load engagement data from database."""
+        from .models import DesignPocket
+
+        design = get_object_or_404(Design, pk=pk)
+        pockets = DesignPocket.objects.filter(design=design)
+
+        engagement_data = {}
+        for pocket in pockets:
+            key = f"{pocket.blade_number}_{pocket.position_in_blade}"
+            if pocket.engagement_order:
+                engagement_data[key] = pocket.engagement_order
+
+        return JsonResponse({
+            'success': True,
+            'engagementData': engagement_data
         })
 
 

@@ -2,6 +2,18 @@
 
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
+{% block extra_css %}
+<style>
+    @keyframes pulse-fast {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.2); opacity: 0.7; }
+    }
+    .animate-pulse-fast {
+        animation: pulse-fast 0.3s ease-in-out infinite;
+    }
+</style>
+{% endblock %}
+
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
     <div class="flex items-center gap-4">
@@ -559,13 +571,146 @@
 
     <!-- Tab 3: Engagements -->
     <div x-show="activeTab === 'engagements'" class="space-y-6">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-12 text-center">
-            <i data-lucide="layers" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
-            <h3 class="text-xl font-medium text-gray-900 dark:text-white mb-2">Engagements</h3>
-            <p class="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                This tab will allow you to define the full engagement sequence for cutters.
-                Set the order in which cutters engage the formation during drilling.
-            </p>
+        <!-- Engagement Info Header -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="layers" class="w-5 h-5"></i>
+                        Engagement Sequence
+                    </h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Define the order in which cutters engage the formation (1 = first, 2 = second, etc.)
+                    </p>
+                </div>
+                <button @click="saveEngagementData()"
+                        :disabled="isSavingEngagements"
+                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+                    <i data-lucide="save" class="w-4 h-4 mr-2" x-show="!isSavingEngagements"></i>
+                    <i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin" x-show="isSavingEngagements" x-cloak></i>
+                    <span x-text="isSavingEngagements ? 'Saving...' : 'Save Engagements'"></span>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <div class="flex flex-wrap items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-gray-500">Progress:</span>
+                        <span class="text-sm font-bold px-2 py-0.5 rounded"
+                              :class="getEngagementProgress() === getTotalPockets() ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'">
+                            <span x-text="getEngagementProgress()">0</span> / <span x-text="getTotalPockets()">0</span>
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button @click="autoFillEngagements()"
+                                class="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800">
+                            <i data-lucide="wand-2" class="w-3 h-3 inline mr-1"></i> Auto-fill
+                        </button>
+                        <button @click="clearEngagements()"
+                                class="px-3 py-1 text-xs bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800">
+                            <i data-lucide="trash-2" class="w-3 h-3 inline mr-1"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                    <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
+                    Click a cell and type a number. Each number must be unique. Duplicate entries will highlight the existing cell.
+                </p>
+            </div>
+        </div>
+
+        <!-- Engagement Grid -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="grid-3x3" class="w-5 h-5"></i>
+                    Engagement Order Grid
+                </h2>
+            </div>
+            <div class="p-6 overflow-x-auto" @keydown.window="handleEngagementKeydown($event)">
+                {% if design.no_of_blades and pocket_configs %}
+                <div class="inline-block min-w-full select-none">
+                    <!-- Header Row with Separators -->
+                    <div class="flex mb-1">
+                        <div class="w-16 flex-shrink-0"></div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <div class="w-12 text-center text-xs font-medium py-1"
+                                         :class="getColumnRowClass(col)">
+                                        <span x-text="col"></span>
+                                    </div>
+                                    <!-- Row separator marker -->
+                                    <div class="w-4 flex items-center justify-center" x-show="col < 20">
+                                        <div class="w-1 h-6 rounded"
+                                             :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Location Zone Header -->
+                    <div class="flex mb-1" x-show="Object.keys(locationData).length > 0">
+                        <div class="w-16 flex-shrink-0 text-xs text-gray-400 flex items-center">Zone</div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <div class="w-12 text-center text-[10px] font-bold py-0.5 rounded-t"
+                                         :style="getLocationZoneHeaderStyle(col)">
+                                        <span x-text="getLocationZoneLabel(col)"></span>
+                                    </div>
+                                    <div class="w-4" x-show="col < 20"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Blade Rows for Engagement Entry -->
+                    {% for blade_num in "123456789"|make_list %}
+                    {% if blade_num|add:0 <= design.no_of_blades %}
+                    <div class="flex items-center mb-1">
+                        <div class="w-16 flex-shrink-0 font-medium text-gray-900 dark:text-white text-sm">B{{ blade_num }}</div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <!-- Engagement cell -->
+                                    <div class="w-12 h-12 border rounded flex flex-col items-center justify-center cursor-pointer transition-all relative"
+                                         :style="getEngagementCellStyle({{ blade_num }}, col)"
+                                         :class="getEngagementCellClass({{ blade_num }}, col)"
+                                         @click="focusEngagementCell({{ blade_num }}, col)"
+                                         @dblclick="editEngagementCell({{ blade_num }}, col)"
+                                         :title="getEngagementTooltip({{ blade_num }}, col)">
+                                        <!-- Config number (small, top) -->
+                                        <span class="text-[9px] text-gray-400 absolute top-0.5 left-1"
+                                              x-show="gridData[`{{ blade_num }}_${col}`]"
+                                              x-text="getCellNumber({{ blade_num }}, col)"></span>
+                                        <!-- Engagement order (large, center) -->
+                                        <span class="text-sm font-bold"
+                                              :class="{'animate-pulse-fast text-red-600': blinkingCell === `{{ blade_num }}_${col}`}"
+                                              x-text="engagementData[`{{ blade_num }}_${col}`] || ''"></span>
+                                    </div>
+                                    <!-- Row separator between cells -->
+                                    <div class="w-4 flex items-center justify-center" x-show="col < 20">
+                                        <div class="w-1 h-12"
+                                             :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                    <p class="text-lg font-medium">Save pocket grid first</p>
+                    <p class="text-sm mt-2">Go to Configuration & Grid tab to assign pockets before setting engagements.</p>
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
 
@@ -678,6 +823,13 @@ function pocketsLayout() {
             { code: 'G', name: 'Gage', color: '#3b82f6' }       // Blue
         ],
         locationOrder: { 'C': 1, 'N': 2, 'T': 3, 'S': 4, 'G': 5 },
+
+        // Engagement features
+        engagementData: {}, // {blade_col: orderNumber}
+        focusedEngagementCell: null, // {blade, col}
+        isSavingEngagements: false,
+        blinkingCell: null, // Cell key that's blinking due to duplicate
+        engagementInputBuffer: '', // Buffer for multi-digit input
 
         init() {
             this.loadGridData();
@@ -1056,6 +1208,10 @@ function pocketsLayout() {
                         if (data.locationData) {
                             this.locationData = data.locationData;
                         }
+                        // Also load engagement data
+                        if (data.engagementData) {
+                            this.engagementData = data.engagementData;
+                        }
                     }
                 }
             } catch (error) {
@@ -1329,8 +1485,8 @@ function pocketsLayout() {
             // Add location outline
             if (location) {
                 const locColor = this.getLocationColor(location);
-                styles.push(`outline: 3px solid ${locColor}`);
-                styles.push(`outline-offset: -3px`);
+                styles.push(`outline: 5px solid ${locColor}`);
+                styles.push(`outline-offset: -5px`);
             }
             return styles.join('; ');
         },
@@ -1668,6 +1824,214 @@ function pocketsLayout() {
                 this.showNotification('Save failed');
             } finally {
                 this.isSavingLocations = false;
+            }
+        },
+
+        // =====================================================
+        // ENGAGEMENT FUNCTIONS
+        // =====================================================
+
+        getTotalPockets() {
+            return Object.keys(this.gridData).length;
+        },
+
+        getEngagementProgress() {
+            return Object.keys(this.engagementData).filter(k => this.engagementData[k]).length;
+        },
+
+        focusEngagementCell(blade, col) {
+            const key = `${blade}_${col}`;
+            if (!this.gridData[key]) {
+                this.showNotification('No pocket here');
+                return;
+            }
+            this.focusedEngagementCell = { blade, col };
+            this.engagementInputBuffer = '';
+        },
+
+        editEngagementCell(blade, col) {
+            const key = `${blade}_${col}`;
+            if (!this.gridData[key]) return;
+            const current = this.engagementData[key] || '';
+            const newValue = prompt(`Enter engagement order (1-${this.getTotalPockets()}):`, current);
+            if (newValue !== null) {
+                this.setEngagementValue(blade, col, newValue);
+            }
+        },
+
+        handleEngagementKeydown(event) {
+            if (this.activeTab !== 'engagements') return;
+            if (!this.focusedEngagementCell) return;
+            const { blade, col } = this.focusedEngagementCell;
+            const key = `${blade}_${col}`;
+
+            if (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                event.preventDefault();
+                this.navigateEngagementCell(event.key);
+                return;
+            }
+
+            if (/^[0-9]$/.test(event.key)) {
+                event.preventDefault();
+                this.engagementInputBuffer += event.key;
+                if (this.inputTimeout) clearTimeout(this.inputTimeout);
+                this.inputTimeout = setTimeout(() => {
+                    this.setEngagementValue(blade, col, this.engagementInputBuffer);
+                    this.engagementInputBuffer = '';
+                }, 500);
+                return;
+            }
+
+            if (event.key === 'Delete' || event.key === 'Backspace') {
+                event.preventDefault();
+                delete this.engagementData[key];
+                this.engagementInputBuffer = '';
+                return;
+            }
+
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (this.engagementInputBuffer) {
+                    this.setEngagementValue(blade, col, this.engagementInputBuffer);
+                    this.engagementInputBuffer = '';
+                }
+                this.navigateEngagementCell('ArrowDown');
+                return;
+            }
+
+            if (event.key === 'Tab') {
+                event.preventDefault();
+                if (this.engagementInputBuffer) {
+                    this.setEngagementValue(blade, col, this.engagementInputBuffer);
+                    this.engagementInputBuffer = '';
+                }
+                this.navigateEngagementCell(event.shiftKey ? 'ArrowLeft' : 'ArrowRight');
+                return;
+            }
+        },
+
+        navigateEngagementCell(direction) {
+            if (!this.focusedEngagementCell) return;
+            let { blade, col } = this.focusedEngagementCell;
+            switch (direction) {
+                case 'ArrowUp': blade = Math.max(1, blade - 1); break;
+                case 'ArrowDown': blade = Math.min(this.bladesCount, blade + 1); break;
+                case 'ArrowLeft': col = Math.max(1, col - 1); break;
+                case 'ArrowRight': col = Math.min(this.maxColumns, col + 1); break;
+            }
+            const key = `${blade}_${col}`;
+            if (this.gridData[key]) {
+                this.focusedEngagementCell = { blade, col };
+            }
+        },
+
+        setEngagementValue(blade, col, value) {
+            const key = `${blade}_${col}`;
+            const numValue = parseInt(value);
+            if (isNaN(numValue) || numValue < 1) {
+                delete this.engagementData[key];
+                return;
+            }
+            const existingKey = this.findEngagementByValue(numValue);
+            if (existingKey && existingKey !== key) {
+                this.blinkCell(existingKey);
+                this.showNotification(`#${numValue} already assigned!`);
+                return;
+            }
+            this.engagementData[key] = numValue;
+        },
+
+        findEngagementByValue(value) {
+            for (const [key, val] of Object.entries(this.engagementData)) {
+                if (val === value) return key;
+            }
+            return null;
+        },
+
+        blinkCell(key) {
+            this.blinkingCell = key;
+            setTimeout(() => { this.blinkingCell = null; }, 1500);
+        },
+
+        getEngagementCellStyle(blade, col) {
+            const key = `${blade}_${col}`;
+            const hasConfig = this.gridData[key];
+            const location = this.locationData[key];
+            if (!hasConfig) {
+                return 'background-color: transparent; border-color: #e5e7eb;';
+            }
+            if (location) {
+                const color = this.getLocationColor(location);
+                return `background-color: ${color}20; border-color: ${color};`;
+            }
+            return 'background-color: #f9fafb; border-color: #d1d5db;';
+        },
+
+        getEngagementCellClass(blade, col) {
+            const key = `${blade}_${col}`;
+            const hasConfig = this.gridData[key];
+            const isFocused = this.focusedEngagementCell?.blade === blade && this.focusedEngagementCell?.col === col;
+            let classes = [];
+            if (!hasConfig) {
+                classes.push('opacity-30 cursor-not-allowed border-dashed');
+            } else {
+                classes.push('border-solid hover:shadow-md');
+                if (isFocused) {
+                    classes.push('ring-2 ring-blue-500 ring-offset-1');
+                }
+            }
+            return classes.join(' ');
+        },
+
+        getEngagementTooltip(blade, col) {
+            const key = `${blade}_${col}`;
+            if (!this.gridData[key]) return 'No pocket assigned';
+            const engagement = this.engagementData[key];
+            return engagement ? `Engagement order: ${engagement}` : 'Click to set engagement order';
+        },
+
+        autoFillEngagements() {
+            let order = 1;
+            for (let blade = 1; blade <= this.bladesCount; blade++) {
+                for (let col = 1; col <= this.maxColumns; col++) {
+                    const key = `${blade}_${col}`;
+                    if (this.gridData[key]) {
+                        this.engagementData[key] = order++;
+                    }
+                }
+            }
+            this.showNotification(`Auto-filled ${order - 1} engagements`);
+        },
+
+        clearEngagements() {
+            if (confirm('Clear all engagement orders?')) {
+                this.engagementData = {};
+                this.showNotification('Engagements cleared');
+            }
+        },
+
+        async saveEngagementData() {
+            this.isSavingEngagements = true;
+            try {
+                const response = await fetch(`/technology/designs/${this.designPk}/pockets/engagements/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({ engagementData: this.engagementData })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    this.showNotification('Engagements saved!');
+                } else {
+                    this.showNotification(data.message || 'Save failed');
+                }
+            } catch (error) {
+                console.error('Error saving engagements:', error);
+                this.showNotification('Save failed');
+            } finally {
+                this.isSavingEngagements = false;
             }
         }
     }
