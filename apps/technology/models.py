@@ -452,6 +452,12 @@ class Design(models.Model):
         help_text='Number of pocket rows (1-4)',
         validators=[MinValueValidator(1)]
     )
+    pocket_layout_number = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name='Pocket Layout Number',
+        help_text='Identifier for cloning pocket layouts between similar designs'
+    )
     cutter_size = models.PositiveIntegerField(
         null=True,
         blank=True,

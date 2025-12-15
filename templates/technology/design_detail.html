@@ -114,8 +114,12 @@
                         <dd class="mt-1 text-gray-900 dark:text-white">{{ design.cutter_size|default_if_none:"--" }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Gage Length</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.gage_length is not None %}{{ design.gage_length }}"{% else %}--{% endif %}</dd>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total Cutters Count</dt>
+                        <dd class="mt-1 text-gray-900 dark:text-white font-semibold">{{ design.total_pockets_count|default_if_none:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Gage Length (in)</dt>
+                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.gage_length is not None %}{{ design.gage_length }}{% else %}--{% endif %}</dd>
                     </div>
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Gage Relief</dt>
