@@ -107,19 +107,19 @@
                     </div>
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">No. of Blades</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.no_of_blades|default:"--" }}</dd>
+                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.no_of_blades|default_if_none:"--" }}</dd>
                     </div>
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cutter Size Grade</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.cutter_size|default:"--" }}</dd>
+                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.cutter_size|default_if_none:"--" }}</dd>
                     </div>
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Gage Length</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.gage_length %}{{ design.gage_length }}"{% else %}--{% endif %}</dd>
+                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.gage_length is not None %}{{ design.gage_length }}"{% else %}--{% endif %}</dd>
                     </div>
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Gage Relief</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.gage_relief %}{{ design.gage_relief }} thou{% else %}--{% endif %}</dd>
+                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.gage_relief is not None %}{{ design.gage_relief }} thou{% else %}--{% endif %}</dd>
                     </div>
                 </dl>
             </div>
@@ -137,7 +137,7 @@
                 <dl class="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nozzle Count</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.nozzle_count|default:"--" }}</dd>
+                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.nozzle_count|default_if_none:"--" }}</dd>
                     </div>
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nozzle Bore Size</dt>
@@ -145,11 +145,11 @@
                     </div>
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Port Count</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.port_count|default:"--" }}</dd>
+                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.port_count|default_if_none:"--" }}</dd>
                     </div>
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Port Size</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.port_size|default:"--" }}</dd>
+                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.port_size is not None %}{{ design.port_size }}{% else %}--{% endif %}</dd>
                     </div>
                     <div class="col-span-2">
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nozzle Config</dt>

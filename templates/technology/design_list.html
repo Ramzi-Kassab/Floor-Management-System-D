@@ -20,21 +20,32 @@
 <!-- Search & Filter Bar -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
     <form method="get" class="space-y-4">
-        <div class="flex flex-col lg:flex-row gap-4">
+        <!-- Row 1: Search fields -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <!-- General Search -->
-            <div class="flex-1">
+            <div>
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
                 <div class="relative">
                     <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                    <input type="text" name="q" value="{{ search_query }}" placeholder="Search MAT No., HDBS Type, SMI Type..."
-                           class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <input type="text" name="q" value="{{ search_query }}" placeholder="MAT No., Ref MAT..."
+                           class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                </div>
+            </div>
+
+            <!-- Type Search (HDBS/SMI) -->
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type (HDBS/SMI)</label>
+                <div class="relative">
+                    <i data-lucide="tag" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                    <input type="text" name="type" value="{{ type_search }}" placeholder="Search types..."
+                           class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
                 </div>
             </div>
 
             <!-- Size Filter -->
-            <div class="w-full lg:w-40">
+            <div>
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Size</label>
-                <select name="size" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <select name="size" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
                     <option value="">All Sizes</option>
                     {% for size in sizes %}
                     <option value="{{ size.id }}" {% if current_size == size.id|stringformat:"s" %}selected{% endif %}>{{ size.size }}"</option>
@@ -43,20 +54,34 @@
             </div>
 
             <!-- Category Filter -->
-            <div class="w-full lg:w-40">
+            <div>
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Category</label>
-                <select name="category" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <select name="category" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
                     <option value="">All Categories</option>
                     {% for value, label in category_choices %}
                     <option value="{{ value }}" {% if current_category == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
+        </div>
+
+        <!-- Row 2: More filters -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Order Level Filter -->
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Order Level</label>
+                <select name="order_level" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All Levels</option>
+                    {% for value, label in order_level_choices %}
+                    <option value="{{ value }}" {% if current_order_level == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
 
             <!-- Status Filter -->
-            <div class="w-full lg:w-40">
+            <div>
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
-                <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
                     <option value="">All Statuses</option>
                     {% for value, label in status_choices %}
                     <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
@@ -64,21 +89,34 @@
                 </select>
             </div>
 
+            <!-- Empty space -->
+            <div></div>
+
             <!-- Filter Button -->
-            <div class="flex items-end">
-                <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2">
-                    <i data-lucide="filter" class="w-4 h-4"></i>Filter
+            <div class="flex items-end justify-end gap-2">
+                {% if search_query or type_search or current_size or current_category or current_status or current_order_level %}
+                <a href="{% url 'technology:design_list' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm flex items-center gap-1">
+                    <i data-lucide="x" class="w-4 h-4"></i>Clear
+                </a>
+                {% endif %}
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm">
+                    <i data-lucide="filter" class="w-4 h-4"></i>Apply Filters
                 </button>
             </div>
         </div>
 
         <!-- Active Filters Display -->
-        {% if search_query or current_size or current_category or current_status %}
-        <div class="flex flex-wrap gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-            <span class="text-xs text-gray-500 dark:text-gray-400 py-1">Active filters:</span>
+        {% if search_query or type_search or current_size or current_category or current_status or current_order_level %}
+        <div class="flex flex-wrap gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+            <span class="text-xs text-gray-500 dark:text-gray-400 py-1">Active:</span>
             {% if search_query %}
             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                Search: {{ search_query }}
+                <i data-lucide="search" class="w-3 h-3 mr-1"></i>{{ search_query }}
+            </span>
+            {% endif %}
+            {% if type_search %}
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                <i data-lucide="tag" class="w-3 h-3 mr-1"></i>{{ type_search }}
             </span>
             {% endif %}
             {% if current_size %}
@@ -88,21 +126,26 @@
             {% endif %}
             {% if current_category %}
             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                Category: {{ current_category }}
+                {{ current_category }}
+            </span>
+            {% endif %}
+            {% if current_order_level %}
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                Level {{ current_order_level }}
             </span>
             {% endif %}
             {% if current_status %}
             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                Status: {{ current_status }}
+                {{ current_status }}
             </span>
             {% endif %}
-            <a href="{% url 'technology:design_list' %}" class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 hover:bg-red-200">
-                <i data-lucide="x" class="w-3 h-3 mr-1"></i>Clear All
-            </a>
         </div>
         {% endif %}
     </form>
 </div>
+
+<!-- Helper macro for building sort URLs -->
+{% with base_params=""|add:""|add:"" %}
 
 <!-- Results Table -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
@@ -111,82 +154,142 @@
         <table class="w-full text-sm">
             <thead>
                 <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+                    <!-- Order Level -->
+                    <th class="px-3 py-3 font-medium whitespace-nowrap">
+                        <a href="?sort={% if current_sort == 'order_level' %}-order_level{% else %}order_level{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                            <span>Level</span>
+                            <span class="{% if current_sort == 'order_level' or current_sort == '-order_level' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
+                                {% if current_sort == 'order_level' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
+                                {% elif current_sort == '-order_level' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
+                            </span>
+                        </a>
+                    </th>
                     <!-- MAT No. -->
-                    <th class="px-4 py-3 font-medium">
-                        <a href="?{% if current_sort == 'mat_no' %}sort=-mat_no{% else %}sort=mat_no{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
-                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white">
-                            MAT No.
-                            {% if current_sort == 'mat_no' %}<i data-lucide="arrow-up" class="w-3 h-3"></i>
-                            {% elif current_sort == '-mat_no' %}<i data-lucide="arrow-down" class="w-3 h-3"></i>{% endif %}
+                    <th class="px-3 py-3 font-medium whitespace-nowrap">
+                        <a href="?sort={% if current_sort == 'mat_no' %}-mat_no{% else %}mat_no{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                            <span>MAT No.</span>
+                            <span class="{% if current_sort == 'mat_no' or current_sort == '-mat_no' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
+                                {% if current_sort == 'mat_no' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
+                                {% elif current_sort == '-mat_no' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
+                            </span>
+                        </a>
+                    </th>
+                    <!-- Ref MAT No. -->
+                    <th class="px-3 py-3 font-medium whitespace-nowrap">
+                        <a href="?sort={% if current_sort == 'ref_mat_no' %}-ref_mat_no{% else %}ref_mat_no{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                            <span>Ref MAT</span>
+                            <span class="{% if current_sort == 'ref_mat_no' or current_sort == '-ref_mat_no' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
+                                {% if current_sort == 'ref_mat_no' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
+                                {% elif current_sort == '-ref_mat_no' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
+                            </span>
                         </a>
                     </th>
                     <!-- HDBS Type -->
-                    <th class="px-4 py-3 font-medium">
-                        <a href="?{% if current_sort == 'hdbs_type' %}sort=-hdbs_type{% else %}sort=hdbs_type{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
-                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white">
-                            HDBS Type
-                            {% if current_sort == 'hdbs_type' %}<i data-lucide="arrow-up" class="w-3 h-3"></i>
-                            {% elif current_sort == '-hdbs_type' %}<i data-lucide="arrow-down" class="w-3 h-3"></i>{% endif %}
+                    <th class="px-3 py-3 font-medium whitespace-nowrap">
+                        <a href="?sort={% if current_sort == 'hdbs_type' %}-hdbs_type{% else %}hdbs_type{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                            <span>HDBS Type</span>
+                            <span class="{% if current_sort == 'hdbs_type' or current_sort == '-hdbs_type' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
+                                {% if current_sort == 'hdbs_type' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
+                                {% elif current_sort == '-hdbs_type' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
+                            </span>
+                        </a>
+                    </th>
+                    <!-- SMI Type -->
+                    <th class="px-3 py-3 font-medium whitespace-nowrap">
+                        <a href="?sort={% if current_sort == 'smi_type' %}-smi_type{% else %}smi_type{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                            <span>SMI Type</span>
+                            <span class="{% if current_sort == 'smi_type' or current_sort == '-smi_type' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
+                                {% if current_sort == 'smi_type' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
+                                {% elif current_sort == '-smi_type' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
+                            </span>
                         </a>
                     </th>
                     <!-- Size -->
-                    <th class="px-4 py-3 font-medium">Size</th>
+                    <th class="px-3 py-3 font-medium whitespace-nowrap">Size</th>
                     <!-- Connection -->
-                    <th class="px-4 py-3 font-medium">Connection</th>
+                    <th class="px-3 py-3 font-medium whitespace-nowrap">Connection</th>
                     <!-- IADC -->
-                    <th class="px-4 py-3 font-medium">IADC</th>
+                    <th class="px-3 py-3 font-medium whitespace-nowrap">IADC</th>
                     <!-- Status -->
-                    <th class="px-4 py-3 font-medium">
-                        <a href="?{% if current_sort == 'status' %}sort=-status{% else %}sort=status{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
-                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white">
-                            Status
-                            {% if current_sort == 'status' %}<i data-lucide="arrow-up" class="w-3 h-3"></i>
-                            {% elif current_sort == '-status' %}<i data-lucide="arrow-down" class="w-3 h-3"></i>{% endif %}
+                    <th class="px-3 py-3 font-medium whitespace-nowrap">
+                        <a href="?sort={% if current_sort == 'status' %}-status{% else %}status{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                            <span>Status</span>
+                            <span class="{% if current_sort == 'status' or current_sort == '-status' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
+                                {% if current_sort == 'status' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
+                                {% elif current_sort == '-status' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
+                            </span>
                         </a>
                     </th>
                     <!-- Rev -->
-                    <th class="px-4 py-3 font-medium">Rev</th>
+                    <th class="px-3 py-3 font-medium whitespace-nowrap">Rev</th>
                     <!-- Actions -->
-                    <th class="px-4 py-3 font-medium text-right">Actions</th>
+                    <th class="px-3 py-3 font-medium text-right whitespace-nowrap">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                 {% for design in designs %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <!-- Order Level -->
+                    <td class="px-3 py-3">
+                        {% if design.order_level %}
+                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200">
+                            {{ design.order_level }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </td>
                     <!-- MAT No. -->
-                    <td class="px-4 py-3">
-                        <a href="{% url 'technology:design_detail' design.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium font-mono">
+                    <td class="px-3 py-3">
+                        <a href="{% url 'technology:design_detail' design.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium font-mono text-xs">
                             {{ design.mat_no|default:"--" }}
                         </a>
                     </td>
-                    <!-- HDBS Type / SMI Type -->
-                    <td class="px-4 py-3">
-                        <div class="font-medium text-gray-900 dark:text-white">{{ design.hdbs_type|default:"--" }}</div>
-                        {% if design.smi_type and design.smi_type != design.hdbs_type %}
-                        <div class="text-xs text-gray-500 dark:text-gray-400">SMI: {{ design.smi_type }}</div>
-                        {% endif %}
+                    <!-- Ref MAT No. -->
+                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">
+                        {{ design.ref_mat_no|default:"--" }}
+                    </td>
+                    <!-- HDBS Type -->
+                    <td class="px-3 py-3 font-medium text-gray-900 dark:text-white text-xs">
+                        {{ design.hdbs_type|default:"--" }}
+                    </td>
+                    <!-- SMI Type -->
+                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400 text-xs">
+                        {{ design.smi_type|default:"--" }}
                     </td>
                     <!-- Size -->
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">
+                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400">
                         {% if design.size %}{{ design.size.size }}"{% else %}--{% endif %}
                     </td>
                     <!-- Connection -->
-                    <td class="px-4 py-3">
+                    <td class="px-3 py-3">
                         {% if design.connection_ref %}
-                        <div class="text-gray-900 dark:text-white text-xs">
-                            <span class="font-medium">{{ design.connection_ref.connection_type.code }}</span>
-                            <span class="text-gray-500">{{ design.connection_ref.connection_size.size_inches }}</span>
+                        <div class="text-xs">
+                            <span class="font-medium text-gray-900 dark:text-white">{{ design.connection_ref.connection_type.code }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ design.connection_ref.connection_size.size_inches }}</span>
                         </div>
                         {% else %}
                         <span class="text-gray-400">--</span>
                         {% endif %}
                     </td>
                     <!-- IADC -->
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">
+                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">
                         {% if design.iadc_code_ref %}{{ design.iadc_code_ref.code }}{% else %}--{% endif %}
                     </td>
                     <!-- Status -->
-                    <td class="px-4 py-3">
+                    <td class="px-3 py-3">
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                             {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
                             {% elif design.status == 'DRAFT' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
@@ -195,9 +298,9 @@
                         </span>
                     </td>
                     <!-- Rev -->
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ design.revision|default:"A" }}</td>
+                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400 text-xs">{{ design.revision|default:"A" }}</td>
                     <!-- Actions -->
-                    <td class="px-4 py-3 text-right">
+                    <td class="px-3 py-3 text-right">
                         <div class="flex items-center justify-end space-x-1">
                             <a href="{% url 'technology:design_detail' design.pk %}" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded" title="View">
                                 <i data-lucide="eye" class="w-4 h-4"></i>
@@ -221,18 +324,18 @@
         </div>
         <div class="flex items-center gap-1">
             {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_sort %}&sort={{ current_sort }}{% endif %}"
+            <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_sort %}&sort={{ current_sort }}{% endif %}"
                class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
-                Previous
+                <i data-lucide="chevron-left" class="w-4 h-4 inline"></i> Prev
             </a>
             {% endif %}
             <span class="px-3 py-1 text-sm text-gray-600 dark:text-gray-400">
-                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
             </span>
             {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_sort %}&sort={{ current_sort }}{% endif %}"
+            <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_sort %}&sort={{ current_sort }}{% endif %}"
                class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
-                Next
+                Next <i data-lucide="chevron-right" class="w-4 h-4 inline"></i>
             </a>
             {% endif %}
         </div>
@@ -244,13 +347,13 @@
         <i data-lucide="cpu" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No designs found</h3>
         <p class="text-gray-500 dark:text-gray-400 mb-4">
-            {% if search_query or current_size or current_category or current_status %}
+            {% if search_query or type_search or current_size or current_category or current_status or current_order_level %}
             Try adjusting your filters or search terms
             {% else %}
             Create your first design specification
             {% endif %}
         </p>
-        {% if not search_query and not current_size and not current_category and not current_status %}
+        {% if not search_query and not type_search and not current_size and not current_category and not current_status and not current_order_level %}
         <a href="{% url 'technology:design_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Design
         </a>
@@ -262,4 +365,5 @@
     </div>
     {% endif %}
 </div>
+{% endwith %}
 {% endblock %}

@@ -39,13 +39,22 @@ class DesignListView(LoginRequiredMixin, ListView):
             "connection_ref__connection_size", "breaker_slot", "iadc_code_ref"
         ).order_by("-updated_at")
 
-        # General search (MAT No., HDBS Type, SMI Type)
+        # General search (MAT No., Ref MAT No., HDBS Type, SMI Type)
         search = self.request.GET.get("q")
         if search:
             queryset = queryset.filter(
                 Q(mat_no__icontains=search) |
+                Q(ref_mat_no__icontains=search) |
                 Q(hdbs_type__icontains=search) |
                 Q(smi_type__icontains=search)
+            )
+
+        # Type search (HDBS Type or SMI Type)
+        type_search = self.request.GET.get("type")
+        if type_search:
+            queryset = queryset.filter(
+                Q(hdbs_type__icontains=type_search) |
+                Q(smi_type__icontains=type_search)
             )
 
         # Size filter
@@ -63,6 +72,11 @@ class DesignListView(LoginRequiredMixin, ListView):
         if category:
             queryset = queryset.filter(category=category)
 
+        # Order Level filter
+        order_level = self.request.GET.get("order_level")
+        if order_level:
+            queryset = queryset.filter(order_level=order_level)
+
         # Sorting
         sort = self.request.GET.get("sort", "-updated_at")
         if sort:
@@ -76,12 +90,15 @@ class DesignListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Designs"
         context["search_query"] = self.request.GET.get("q", "")
+        context["type_search"] = self.request.GET.get("type", "")
         context["current_size"] = self.request.GET.get("size", "")
         context["current_status"] = self.request.GET.get("status", "")
         context["current_category"] = self.request.GET.get("category", "")
+        context["current_order_level"] = self.request.GET.get("order_level", "")
         context["current_sort"] = self.request.GET.get("sort", "-updated_at")
         context["category_choices"] = Design.Category.choices
         context["status_choices"] = Design.Status.choices
+        context["order_level_choices"] = Design.OrderLevel.choices
         context["sizes"] = BitSize.objects.filter(is_active=True).order_by("size_decimal")
         return context
 
