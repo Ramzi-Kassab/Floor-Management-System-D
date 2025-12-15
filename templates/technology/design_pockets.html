@@ -228,12 +228,12 @@
                 <!-- Total counter -->
                 <div class="flex items-center justify-between">
                     <p class="text-xs text-gray-500 dark:text-gray-400">
-                        <span class="font-medium">Click</span> cell to assign |
-                        <span class="font-medium">Drag</span> to multi-select |
-                        <span class="font-medium">Shift+Click</span> range |
+                        <span class="font-medium text-blue-600 dark:text-blue-400">Type 1,2,3</span> to assign |
+                        <span class="font-medium">0</span> to clear |
                         <span class="font-medium">Arrows</span> navigate |
-                        <span class="font-medium">Enter/Space</span> toggle |
-                        <span class="font-medium">Ctrl+C/V</span> copy/paste
+                        <span class="font-medium">Drag</span> select |
+                        <span class="font-medium">Ctrl+C/V</span> copy/paste |
+                        <span class="font-medium">Click legend</span> then click cells
                     </p>
                     <div class="flex items-center gap-2">
                         <span class="text-xs text-gray-500 dark:text-gray-400">Total Assigned:</span>
@@ -533,6 +533,19 @@ function pocketsLayout() {
 
                 const { blade, col } = this.focusedCell;
 
+                // Handle direct number entry (1, 2, 3, etc.)
+                if (e.key >= '0' && e.key <= '9' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    const orderNum = parseInt(e.key);
+                    if (orderNum === 0) {
+                        // 0 clears the cell(s)
+                        this.clearSelectedCellsData();
+                    } else {
+                        this.assignByOrderNumber(orderNum);
+                    }
+                    return;
+                }
+
                 switch(e.key) {
                     case 'ArrowUp':
                         e.preventDefault();
@@ -691,6 +704,61 @@ function pocketsLayout() {
             }
         },
 
+        // Find config ID by order number (1, 2, 3, etc.)
+        getConfigIdByOrder(orderNum) {
+            for (const [configId, data] of Object.entries(this.configData)) {
+                if (data.order === orderNum) {
+                    return parseInt(configId);
+                }
+            }
+            return null;
+        },
+
+        // Assign config by typing its order number (1, 2, 3, etc.)
+        assignByOrderNumber(orderNum) {
+            const configId = this.getConfigIdByOrder(orderNum);
+
+            if (!configId) {
+                const validOrders = Object.values(this.configData).map(c => c.order).sort().join(', ');
+                this.showNotification(`Invalid! Use: ${validOrders || 'no configs'}`);
+                return;
+            }
+
+            const maxCount = this.configData[configId]?.count || 0;
+            let assigned = 0;
+            let skipped = 0;
+
+            for (const cell of this.selectedCells) {
+                const key = `${cell.blade}_${cell.col}`;
+
+                // Skip if already has this config
+                if (this.gridData[key] === configId) continue;
+
+                const currentCount = this.getConfigAssignedCount(configId);
+                if (currentCount >= maxCount) {
+                    skipped++;
+                    continue;
+                }
+
+                // Remove old config if exists
+                if (this.gridData[key]) {
+                    delete this.gridData[key];
+                }
+                this.gridData[key] = configId;
+                assigned++;
+            }
+
+            if (skipped > 0 && assigned === 0) {
+                this.showNotification(`Limit reached! (${maxCount}/${maxCount})`);
+            } else if (skipped > 0) {
+                this.showNotification(`Assigned ${assigned}, skipped ${skipped} (limit)`);
+            }
+
+            // Also select this config in legend for visual feedback
+            this.selectedConfigId = configId;
+            this.selectedConfigColor = this.configData[configId]?.color;
+        },
+
         copySelection() {
             if (this.selectedCells.length === 0) return;
 
@@ -720,19 +788,49 @@ function pocketsLayout() {
             const baseBlade = this.focusedCell.blade;
             const baseCol = this.focusedCell.col;
 
+            let pasted = 0;
+            let skipped = 0;
+
             for (const item of this.clipboard) {
                 const targetBlade = baseBlade + item.relBlade;
                 const targetCol = baseCol + item.relCol;
 
                 // Check bounds
-                if (targetBlade >= 1 && targetBlade <= this.bladesCount &&
-                    targetCol >= 1 && targetCol <= this.maxColumns) {
-                    const key = `${targetBlade}_${targetCol}`;
-                    this.gridData[key] = item.configId;
+                if (targetBlade < 1 || targetBlade > this.bladesCount ||
+                    targetCol < 1 || targetCol > this.maxColumns) {
+                    continue;
                 }
+
+                const key = `${targetBlade}_${targetCol}`;
+
+                // Skip if already has this config
+                if (this.gridData[key] === item.configId) {
+                    pasted++;
+                    continue;
+                }
+
+                // Check count limit for this config
+                const currentCount = this.getConfigAssignedCount(item.configId);
+                const maxCount = this.configData[item.configId]?.count || 0;
+
+                if (currentCount >= maxCount) {
+                    skipped++;
+                    continue;
+                }
+
+                // Remove old config if exists
+                if (this.gridData[key]) {
+                    delete this.gridData[key];
+                }
+                this.gridData[key] = item.configId;
+                pasted++;
             }
 
-            this.showNotification(`Pasted ${this.clipboard.length} cell(s)`);
+            if (skipped > 0) {
+                this.showNotification(`Pasted ${pasted}, skipped ${skipped} (limit)`);
+            } else {
+                this.showNotification(`Pasted ${pasted} cell(s)`);
+            }
         },
 
         showNotification(message) {
