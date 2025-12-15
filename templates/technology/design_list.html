@@ -17,220 +17,199 @@
 {% endblock %}
 
 {% block content %}
-<!-- Search & Filter Bar -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
-    <form method="get" class="space-y-4">
-        <!-- Row 1: Search fields -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- General Search -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
+<!-- Compact Filter Bar -->
+<div class="bg-gradient-to-r from-slate-800 to-slate-900 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg p-4 mb-6 border border-slate-700">
+    <form method="get" id="filterForm">
+        <div class="flex flex-wrap items-end gap-3">
+            <!-- Search -->
+            <div class="flex-1 min-w-[180px] max-w-[250px]">
+                <label class="block text-xs font-medium text-slate-400 mb-1">Search</label>
                 <div class="relative">
-                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-500"></i>
                     <input type="text" name="q" value="{{ search_query }}" placeholder="MAT No., Ref MAT..."
-                           class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                           class="w-full pl-10 pr-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 </div>
             </div>
 
-            <!-- Type Search (HDBS/SMI) -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type (HDBS/SMI)</label>
+            <!-- Type -->
+            <div class="min-w-[150px]">
+                <label class="block text-xs font-medium text-slate-400 mb-1">Type</label>
                 <div class="relative">
-                    <i data-lucide="tag" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                    <input type="text" name="type" value="{{ type_search }}" placeholder="Search types..."
-                           class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <i data-lucide="tag" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-500"></i>
+                    <input type="text" name="type" value="{{ type_search }}" placeholder="HDBS/SMI..."
+                           class="w-full pl-10 pr-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 </div>
             </div>
 
-            <!-- Size Filter -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Size</label>
-                <select name="size" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-                    <option value="">All Sizes</option>
+            <!-- Size -->
+            <div class="min-w-[120px]">
+                <label class="block text-xs font-medium text-slate-400 mb-1">Size</label>
+                <select name="size" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="">All</option>
                     {% for size in sizes %}
                     <option value="{{ size.id }}" {% if current_size == size.id|stringformat:"s" %}selected{% endif %}>{{ size.size }}"</option>
                     {% endfor %}
                 </select>
             </div>
 
-            <!-- Category Filter -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Category</label>
-                <select name="category" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-                    <option value="">All Categories</option>
+            <!-- Category -->
+            <div class="min-w-[120px]">
+                <label class="block text-xs font-medium text-slate-400 mb-1">Category</label>
+                <select name="category" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="">All</option>
                     {% for value, label in category_choices %}
                     <option value="{{ value }}" {% if current_category == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
-        </div>
 
-        <!-- Row 2: More filters -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Order Level Filter -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Order Level</label>
-                <select name="order_level" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-                    <option value="">All Levels</option>
+            <!-- Order Level -->
+            <div class="min-w-[120px]">
+                <label class="block text-xs font-medium text-slate-400 mb-1">Level</label>
+                <select name="order_level" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="">All</option>
                     {% for value, label in order_level_choices %}
-                    <option value="{{ value }}" {% if current_order_level == value %}selected{% endif %}>{{ label }}</option>
+                    <option value="{{ value }}" {% if current_order_level == value %}selected{% endif %}>L{{ value }}</option>
                     {% endfor %}
                 </select>
             </div>
 
-            <!-- Status Filter -->
-            <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
-                <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-                    <option value="">All Statuses</option>
+            <!-- Status -->
+            <div class="min-w-[110px]">
+                <label class="block text-xs font-medium text-slate-400 mb-1">Status</label>
+                <select name="status" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="">All</option>
                     {% for value, label in status_choices %}
                     <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
 
-            <!-- Empty space -->
-            <div></div>
-
-            <!-- Filter Button -->
-            <div class="flex items-end justify-end gap-2">
+            <!-- Buttons -->
+            <div class="flex items-center gap-2">
+                <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors">
+                    <i data-lucide="filter" class="w-4 h-4"></i>Apply
+                </button>
                 {% if search_query or type_search or current_size or current_category or current_status or current_order_level %}
-                <a href="{% url 'technology:design_list' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm flex items-center gap-1">
+                <a href="{% url 'technology:design_list' %}" class="px-3 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-sm flex items-center gap-1 transition-colors">
                     <i data-lucide="x" class="w-4 h-4"></i>Clear
                 </a>
                 {% endif %}
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm">
-                    <i data-lucide="filter" class="w-4 h-4"></i>Apply Filters
-                </button>
             </div>
         </div>
 
-        <!-- Active Filters Display -->
+        <!-- Active Filters -->
         {% if search_query or type_search or current_size or current_category or current_status or current_order_level %}
-        <div class="flex flex-wrap gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
-            <span class="text-xs text-gray-500 dark:text-gray-400 py-1">Active:</span>
+        <div class="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-700">
             {% if search_query %}
-            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-500/20 text-blue-300 border border-blue-500/30">
                 <i data-lucide="search" class="w-3 h-3 mr-1"></i>{{ search_query }}
             </span>
             {% endif %}
             {% if type_search %}
-            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                 <i data-lucide="tag" class="w-3 h-3 mr-1"></i>{{ type_search }}
             </span>
             {% endif %}
-            {% if current_size %}
-            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                Size: {{ current_size }}
-            </span>
-            {% endif %}
             {% if current_category %}
-            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30">
                 {{ current_category }}
             </span>
             {% endif %}
             {% if current_order_level %}
-            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-500/20 text-orange-300 border border-orange-500/30">
                 Level {{ current_order_level }}
             </span>
             {% endif %}
             {% if current_status %}
-            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                 {{ current_status }}
             </span>
             {% endif %}
         </div>
         {% endif %}
+
+        <!-- Hidden sort field -->
+        <input type="hidden" name="sort" id="sortField" value="{{ current_sort }}">
     </form>
 </div>
-
-<!-- Helper macro for building sort URLs -->
-{% with base_params=""|add:""|add:"" %}
 
 <!-- Results Table -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
     {% if designs %}
     <div class="overflow-x-auto">
-        <table class="w-full text-sm">
+        <table class="w-full text-sm" id="designsTable">
             <thead>
                 <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
                     <!-- Order Level -->
-                    <th class="px-3 py-3 font-medium whitespace-nowrap">
-                        <a href="?sort={% if current_sort == 'order_level' %}-order_level{% else %}order_level{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
-                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                    <th class="px-3 py-3 font-medium whitespace-nowrap relative" data-column="order_level" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'order_level')">
                             <span>Level</span>
-                            <span class="{% if current_sort == 'order_level' or current_sort == '-order_level' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
-                                {% if current_sort == 'order_level' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
-                                {% elif current_sort == '-order_level' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
-                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
-                            </span>
-                        </a>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
+                            {% if current_sort == 'order_level' %}<i data-lucide="arrow-up" class="w-3 h-3 text-blue-500"></i>
+                            {% elif current_sort == '-order_level' %}<i data-lucide="arrow-down" class="w-3 h-3 text-blue-500"></i>{% endif %}
+                        </div>
                     </th>
                     <!-- MAT No. -->
-                    <th class="px-3 py-3 font-medium whitespace-nowrap">
-                        <a href="?sort={% if current_sort == 'mat_no' %}-mat_no{% else %}mat_no{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
-                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                    <th class="px-3 py-3 font-medium whitespace-nowrap relative" data-column="mat_no" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'mat_no')">
                             <span>MAT No.</span>
-                            <span class="{% if current_sort == 'mat_no' or current_sort == '-mat_no' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
-                                {% if current_sort == 'mat_no' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
-                                {% elif current_sort == '-mat_no' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
-                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
-                            </span>
-                        </a>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
+                            {% if current_sort == 'mat_no' %}<i data-lucide="arrow-up" class="w-3 h-3 text-blue-500"></i>
+                            {% elif current_sort == '-mat_no' %}<i data-lucide="arrow-down" class="w-3 h-3 text-blue-500"></i>{% endif %}
+                        </div>
                     </th>
-                    <!-- Ref MAT No. -->
-                    <th class="px-3 py-3 font-medium whitespace-nowrap">
-                        <a href="?sort={% if current_sort == 'ref_mat_no' %}-ref_mat_no{% else %}ref_mat_no{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
-                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                    <!-- Ref MAT -->
+                    <th class="px-3 py-3 font-medium whitespace-nowrap relative" data-column="ref_mat_no" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'ref_mat_no')">
                             <span>Ref MAT</span>
-                            <span class="{% if current_sort == 'ref_mat_no' or current_sort == '-ref_mat_no' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
-                                {% if current_sort == 'ref_mat_no' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
-                                {% elif current_sort == '-ref_mat_no' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
-                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
-                            </span>
-                        </a>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
+                            {% if current_sort == 'ref_mat_no' %}<i data-lucide="arrow-up" class="w-3 h-3 text-blue-500"></i>
+                            {% elif current_sort == '-ref_mat_no' %}<i data-lucide="arrow-down" class="w-3 h-3 text-blue-500"></i>{% endif %}
+                        </div>
                     </th>
                     <!-- HDBS Type -->
-                    <th class="px-3 py-3 font-medium whitespace-nowrap">
-                        <a href="?sort={% if current_sort == 'hdbs_type' %}-hdbs_type{% else %}hdbs_type{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
-                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                    <th class="px-3 py-3 font-medium whitespace-nowrap relative" data-column="hdbs_type" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'hdbs_type')">
                             <span>HDBS Type</span>
-                            <span class="{% if current_sort == 'hdbs_type' or current_sort == '-hdbs_type' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
-                                {% if current_sort == 'hdbs_type' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
-                                {% elif current_sort == '-hdbs_type' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
-                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
-                            </span>
-                        </a>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
+                            {% if current_sort == 'hdbs_type' %}<i data-lucide="arrow-up" class="w-3 h-3 text-blue-500"></i>
+                            {% elif current_sort == '-hdbs_type' %}<i data-lucide="arrow-down" class="w-3 h-3 text-blue-500"></i>{% endif %}
+                        </div>
                     </th>
                     <!-- SMI Type -->
-                    <th class="px-3 py-3 font-medium whitespace-nowrap">
-                        <a href="?sort={% if current_sort == 'smi_type' %}-smi_type{% else %}smi_type{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
-                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                    <th class="px-3 py-3 font-medium whitespace-nowrap relative" data-column="smi_type" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'smi_type')">
                             <span>SMI Type</span>
-                            <span class="{% if current_sort == 'smi_type' or current_sort == '-smi_type' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
-                                {% if current_sort == 'smi_type' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
-                                {% elif current_sort == '-smi_type' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
-                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
-                            </span>
-                        </a>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
+                            {% if current_sort == 'smi_type' %}<i data-lucide="arrow-up" class="w-3 h-3 text-blue-500"></i>
+                            {% elif current_sort == '-smi_type' %}<i data-lucide="arrow-down" class="w-3 h-3 text-blue-500"></i>{% endif %}
+                        </div>
                     </th>
                     <!-- Size -->
-                    <th class="px-3 py-3 font-medium whitespace-nowrap">Size</th>
+                    <th class="px-3 py-3 font-medium whitespace-nowrap relative" data-column="size" data-type="number">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'size')">
+                            <span>Size</span>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
+                        </div>
+                    </th>
                     <!-- Connection -->
                     <th class="px-3 py-3 font-medium whitespace-nowrap">Connection</th>
                     <!-- IADC -->
-                    <th class="px-3 py-3 font-medium whitespace-nowrap">IADC</th>
+                    <th class="px-3 py-3 font-medium whitespace-nowrap relative" data-column="iadc" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'iadc')">
+                            <span>IADC</span>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
+                        </div>
+                    </th>
                     <!-- Status -->
-                    <th class="px-3 py-3 font-medium whitespace-nowrap">
-                        <a href="?sort={% if current_sort == 'status' %}-status{% else %}status{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}{% if type_search %}&type={{ type_search }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_order_level %}&order_level={{ current_order_level }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
-                           class="flex items-center gap-1 hover:text-gray-900 dark:hover:text-white group">
+                    <th class="px-3 py-3 font-medium whitespace-nowrap relative" data-column="status" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'status')">
                             <span>Status</span>
-                            <span class="{% if current_sort == 'status' or current_sort == '-status' %}text-blue-600{% else %}text-gray-400 opacity-0 group-hover:opacity-100{% endif %}">
-                                {% if current_sort == 'status' %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
-                                {% elif current_sort == '-status' %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
-                                {% else %}<i data-lucide="chevrons-up-down" class="w-4 h-4"></i>{% endif %}
-                            </span>
-                        </a>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
+                            {% if current_sort == 'status' %}<i data-lucide="arrow-up" class="w-3 h-3 text-blue-500"></i>
+                            {% elif current_sort == '-status' %}<i data-lucide="arrow-down" class="w-3 h-3 text-blue-500"></i>{% endif %}
+                        </div>
                     </th>
                     <!-- Rev -->
                     <th class="px-3 py-3 font-medium whitespace-nowrap">Rev</th>
@@ -242,9 +221,13 @@
                 {% for design in designs %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                     <!-- Order Level -->
-                    <td class="px-3 py-3">
+                    <td class="px-3 py-3" data-value="{{ design.order_level|default:'' }}">
                         {% if design.order_level %}
-                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200">
+                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold
+                            {% if design.order_level == '3' %}bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300
+                            {% elif design.order_level == '4' %}bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300
+                            {% elif design.order_level == '5' %}bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300
+                            {% else %}bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300{% endif %}">
                             {{ design.order_level }}
                         </span>
                         {% else %}
@@ -252,25 +235,25 @@
                         {% endif %}
                     </td>
                     <!-- MAT No. -->
-                    <td class="px-3 py-3">
+                    <td class="px-3 py-3" data-value="{{ design.mat_no|default:'' }}">
                         <a href="{% url 'technology:design_detail' design.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium font-mono text-xs">
                             {{ design.mat_no|default:"--" }}
                         </a>
                     </td>
-                    <!-- Ref MAT No. -->
-                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">
+                    <!-- Ref MAT -->
+                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs" data-value="{{ design.ref_mat_no|default:'' }}">
                         {{ design.ref_mat_no|default:"--" }}
                     </td>
                     <!-- HDBS Type -->
-                    <td class="px-3 py-3 font-medium text-gray-900 dark:text-white text-xs">
+                    <td class="px-3 py-3 font-medium text-gray-900 dark:text-white text-xs" data-value="{{ design.hdbs_type|default:'' }}">
                         {{ design.hdbs_type|default:"--" }}
                     </td>
                     <!-- SMI Type -->
-                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400 text-xs">
+                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400 text-xs" data-value="{{ design.smi_type|default:'' }}">
                         {{ design.smi_type|default:"--" }}
                     </td>
                     <!-- Size -->
-                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400">
+                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400" data-value="{% if design.size %}{{ design.size.size }}{% endif %}">
                         {% if design.size %}{{ design.size.size }}"{% else %}--{% endif %}
                     </td>
                     <!-- Connection -->
@@ -285,11 +268,11 @@
                         {% endif %}
                     </td>
                     <!-- IADC -->
-                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">
+                    <td class="px-3 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs" data-value="{% if design.iadc_code_ref %}{{ design.iadc_code_ref.code }}{% endif %}">
                         {% if design.iadc_code_ref %}{{ design.iadc_code_ref.code }}{% else %}--{% endif %}
                     </td>
                     <!-- Status -->
-                    <td class="px-3 py-3">
+                    <td class="px-3 py-3" data-value="{{ design.status }}">
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                             {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
                             {% elif design.status == 'DRAFT' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
@@ -365,5 +348,321 @@
     </div>
     {% endif %}
 </div>
-{% endwith %}
+
+<!-- Column Menu Template (Excel-like dropdown) -->
+<div id="columnMenu" class="hidden fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 min-w-[240px] max-h-[400px] overflow-hidden">
+    <!-- Sort Section -->
+    <div class="p-2 border-b border-gray-200 dark:border-gray-700">
+        <button type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2" onclick="sortColumn('asc')">
+            <i data-lucide="arrow-up-a-z" class="w-4 h-4 text-gray-500"></i>
+            <span class="sort-asc-text">Sort A to Z</span>
+        </button>
+        <button type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2" onclick="sortColumn('desc')">
+            <i data-lucide="arrow-down-z-a" class="w-4 h-4 text-gray-500"></i>
+            <span class="sort-desc-text">Sort Z to A</span>
+        </button>
+    </div>
+
+    <!-- Clear Filter -->
+    <div class="p-2 border-b border-gray-200 dark:border-gray-700">
+        <button type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2" onclick="clearColumnFilter()">
+            <i data-lucide="filter-x" class="w-4 h-4 text-gray-500"></i>
+            Clear Filter from "<span id="clearFilterColumnName"></span>"
+        </button>
+    </div>
+
+    <!-- Custom Filter Section -->
+    <div class="p-2 border-b border-gray-200 dark:border-gray-700">
+        <div class="px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Custom Filter</div>
+        <div class="px-3 py-2 space-y-2">
+            <select id="filterOperator" class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                <option value="contains">Contains</option>
+                <option value="equals">Equals</option>
+                <option value="not_equals">Does Not Equal</option>
+                <option value="starts_with">Starts With</option>
+                <option value="ends_with">Ends With</option>
+                <option value="greater">Greater Than</option>
+                <option value="less">Less Than</option>
+                <option value="between">Between</option>
+            </select>
+            <input type="text" id="filterValue1" placeholder="Value..." class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+            <input type="text" id="filterValue2" placeholder="Value 2 (for Between)" class="hidden w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+            <button type="button" class="w-full px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700" onclick="applyCustomFilter()">
+                Apply Filter
+            </button>
+        </div>
+    </div>
+
+    <!-- Values List (with checkboxes) -->
+    <div class="p-2">
+        <div class="px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase flex items-center justify-between">
+            <span>Filter by Values</span>
+            <div class="flex gap-2">
+                <button type="button" class="text-blue-600 hover:text-blue-800 text-xs" onclick="selectAllValues()">All</button>
+                <button type="button" class="text-blue-600 hover:text-blue-800 text-xs" onclick="selectNoneValues()">None</button>
+            </div>
+        </div>
+        <div class="px-2 py-1">
+            <input type="text" id="valueSearch" placeholder="Search values..." class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200" oninput="filterValuesList()">
+        </div>
+        <div id="valuesList" class="max-h-[150px] overflow-y-auto px-2 py-1">
+            <!-- Values will be populated dynamically -->
+        </div>
+        <div class="px-2 pt-2">
+            <button type="button" class="w-full px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700" onclick="applyValueFilter()">
+                Apply
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Column menu state
+    let currentColumn = null;
+    let currentColumnType = 'text';
+    let columnValues = [];
+    let selectedValues = new Set();
+
+    // Toggle column menu
+    function toggleColumnMenu(event, column) {
+        event.stopPropagation();
+        const menu = document.getElementById('columnMenu');
+        const th = event.currentTarget.closest('th');
+
+        // Get column type
+        currentColumnType = th.dataset.type || 'text';
+        currentColumn = column;
+
+        // Update sort text based on type
+        if (currentColumnType === 'number') {
+            document.querySelector('.sort-asc-text').textContent = 'Sort Smallest to Largest';
+            document.querySelector('.sort-desc-text').textContent = 'Sort Largest to Smallest';
+        } else {
+            document.querySelector('.sort-asc-text').textContent = 'Sort A to Z';
+            document.querySelector('.sort-desc-text').textContent = 'Sort Z to A';
+        }
+
+        // Update clear filter column name
+        document.getElementById('clearFilterColumnName').textContent = th.querySelector('span').textContent;
+
+        // Populate values list
+        populateValuesList(column);
+
+        // Position menu
+        const rect = th.getBoundingClientRect();
+        menu.style.left = rect.left + 'px';
+        menu.style.top = (rect.bottom + 5) + 'px';
+
+        // Show/hide menu
+        if (menu.classList.contains('hidden')) {
+            menu.classList.remove('hidden');
+        } else {
+            menu.classList.add('hidden');
+        }
+    }
+
+    // Populate values list from table data
+    function populateValuesList(column) {
+        const table = document.getElementById('designsTable');
+        const rows = table.querySelectorAll('tbody tr');
+        const th = table.querySelector(`th[data-column="${column}"]`);
+        const colIndex = Array.from(th.parentNode.children).indexOf(th);
+
+        // Collect unique values
+        const valuesSet = new Set();
+        rows.forEach(row => {
+            const cell = row.children[colIndex];
+            const value = cell.dataset.value || cell.textContent.trim();
+            if (value && value !== '--') {
+                valuesSet.add(value);
+            }
+        });
+
+        columnValues = Array.from(valuesSet).sort();
+        selectedValues = new Set(columnValues);
+
+        renderValuesList();
+    }
+
+    // Render values list with checkboxes
+    function renderValuesList(filter = '') {
+        const container = document.getElementById('valuesList');
+        const filtered = filter
+            ? columnValues.filter(v => v.toLowerCase().includes(filter.toLowerCase()))
+            : columnValues;
+
+        container.innerHTML = filtered.map(value => `
+            <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                <input type="checkbox" class="value-checkbox rounded border-gray-300 dark:border-gray-600 text-blue-600"
+                       value="${value}" ${selectedValues.has(value) ? 'checked' : ''} onchange="toggleValue('${value}')">
+                <span class="text-sm text-gray-700 dark:text-gray-200 truncate">${value}</span>
+            </label>
+        `).join('');
+
+        // Add blank option
+        if (!filter) {
+            container.innerHTML = `
+                <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                    <input type="checkbox" class="value-checkbox rounded border-gray-300 dark:border-gray-600 text-blue-600"
+                           value="__blank__" checked onchange="toggleValue('__blank__')">
+                    <span class="text-sm text-gray-500 dark:text-gray-400 italic">(Blank)</span>
+                </label>
+            ` + container.innerHTML;
+        }
+    }
+
+    // Filter values list
+    function filterValuesList() {
+        const search = document.getElementById('valueSearch').value;
+        renderValuesList(search);
+    }
+
+    // Toggle value selection
+    function toggleValue(value) {
+        if (selectedValues.has(value)) {
+            selectedValues.delete(value);
+        } else {
+            selectedValues.add(value);
+        }
+    }
+
+    // Select all values
+    function selectAllValues() {
+        selectedValues = new Set(columnValues);
+        selectedValues.add('__blank__');
+        renderValuesList();
+    }
+
+    // Select no values
+    function selectNoneValues() {
+        selectedValues = new Set();
+        renderValuesList();
+    }
+
+    // Sort column
+    function sortColumn(direction) {
+        const sortField = document.getElementById('sortField');
+        const form = document.getElementById('filterForm');
+
+        if (direction === 'asc') {
+            sortField.value = currentColumn;
+        } else {
+            sortField.value = '-' + currentColumn;
+        }
+
+        form.submit();
+    }
+
+    // Clear column filter (placeholder - would need server-side support)
+    function clearColumnFilter() {
+        // For now, just close menu - full implementation would need URL param management
+        closeColumnMenu();
+    }
+
+    // Apply custom filter (client-side for now)
+    function applyCustomFilter() {
+        const operator = document.getElementById('filterOperator').value;
+        const value1 = document.getElementById('filterValue1').value.toLowerCase();
+        const value2 = document.getElementById('filterValue2').value.toLowerCase();
+
+        const table = document.getElementById('designsTable');
+        const rows = table.querySelectorAll('tbody tr');
+        const th = table.querySelector(`th[data-column="${currentColumn}"]`);
+        const colIndex = Array.from(th.parentNode.children).indexOf(th);
+
+        rows.forEach(row => {
+            const cell = row.children[colIndex];
+            const cellValue = (cell.dataset.value || cell.textContent.trim()).toLowerCase();
+            let show = true;
+
+            switch(operator) {
+                case 'contains':
+                    show = cellValue.includes(value1);
+                    break;
+                case 'equals':
+                    show = cellValue === value1;
+                    break;
+                case 'not_equals':
+                    show = cellValue !== value1;
+                    break;
+                case 'starts_with':
+                    show = cellValue.startsWith(value1);
+                    break;
+                case 'ends_with':
+                    show = cellValue.endsWith(value1);
+                    break;
+                case 'greater':
+                    show = parseFloat(cellValue) > parseFloat(value1);
+                    break;
+                case 'less':
+                    show = parseFloat(cellValue) < parseFloat(value1);
+                    break;
+                case 'between':
+                    const num = parseFloat(cellValue);
+                    show = num >= parseFloat(value1) && num <= parseFloat(value2);
+                    break;
+            }
+
+            row.style.display = show ? '' : 'none';
+        });
+
+        closeColumnMenu();
+    }
+
+    // Apply value filter (client-side)
+    function applyValueFilter() {
+        const table = document.getElementById('designsTable');
+        const rows = table.querySelectorAll('tbody tr');
+        const th = table.querySelector(`th[data-column="${currentColumn}"]`);
+        const colIndex = Array.from(th.parentNode.children).indexOf(th);
+
+        rows.forEach(row => {
+            const cell = row.children[colIndex];
+            const cellValue = cell.dataset.value || cell.textContent.trim();
+            const isBlank = !cellValue || cellValue === '--';
+
+            let show = false;
+            if (isBlank && selectedValues.has('__blank__')) {
+                show = true;
+            } else if (selectedValues.has(cellValue)) {
+                show = true;
+            }
+
+            row.style.display = show ? '' : 'none';
+        });
+
+        closeColumnMenu();
+    }
+
+    // Close column menu
+    function closeColumnMenu() {
+        document.getElementById('columnMenu').classList.add('hidden');
+    }
+
+    // Show/hide second value input for "between" operator
+    document.getElementById('filterOperator').addEventListener('change', function() {
+        const value2 = document.getElementById('filterValue2');
+        if (this.value === 'between') {
+            value2.classList.remove('hidden');
+        } else {
+            value2.classList.add('hidden');
+        }
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', function(e) {
+        const menu = document.getElementById('columnMenu');
+        if (!menu.contains(e.target) && !e.target.closest('.column-header')) {
+            closeColumnMenu();
+        }
+    });
+
+    // Initialize Lucide icons after menu is shown
+    const observer = new MutationObserver(function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+    observer.observe(document.getElementById('columnMenu'), { attributes: true, attributeFilter: ['class'] });
+</script>
 {% endblock %}
