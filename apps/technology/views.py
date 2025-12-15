@@ -180,6 +180,50 @@ class DesignPocketsView(LoginRequiredMixin, DetailView):
         return context
 
 
+class PocketsLayoutListView(LoginRequiredMixin, ListView):
+    """List all designs with pockets layout summary."""
+
+    model = Design
+    template_name = "technology/pockets_layout_list.html"
+    context_object_name = "designs"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = Design.objects.select_related(
+            "size", "created_by"
+        ).order_by("-updated_at")
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(mat_no__icontains=search) |
+                Q(hdbs_type__icontains=search) |
+                Q(smi_type__icontains=search)
+            )
+
+        size_id = self.request.GET.get("size")
+        if size_id:
+            queryset = queryset.filter(size_id=size_id)
+
+        status = self.request.GET.get("status")
+        if status:
+            queryset = queryset.filter(status=status)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        from apps.workorders.models import BitSize
+
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Pockets Layout"
+        context["search_query"] = self.request.GET.get("q", "")
+        context["current_size"] = self.request.GET.get("size", "")
+        context["current_status"] = self.request.GET.get("status", "")
+        context["status_choices"] = Design.Status.choices
+        context["sizes"] = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+        return context
+
+
 # =============================================================================
 # BOM VIEWS
 # =============================================================================

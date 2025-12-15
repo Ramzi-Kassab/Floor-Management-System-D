@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Pockets Layout - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Pockets Layout</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">Manage pocket configurations for all designs</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Filters -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+        <form method="get" class="flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
+                <input type="text" name="q" value="{{ search_query }}" placeholder="MAT No., Type..."
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            </div>
+            <div class="w-40">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Size</label>
+                <select name="size" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="">All Sizes</option>
+                    {% for size in sizes %}
+                    <option value="{{ size.id }}" {% if current_size == size.id|stringformat:"s" %}selected{% endif %}>{{ size.size_display }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="w-40">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="">All Status</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Filter
+            </button>
+            {% if search_query or current_size or current_status %}
+            <a href="{% url 'technology:pockets_layout_list' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                Clear
+            </a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Results -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Design</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Size</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Blades</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Pockets</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for design in designs %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <a href="{% url 'technology:design_detail' design.pk %}" class="font-mono text-blue-600 dark:text-blue-400 hover:underline">
+                                {{ design.mat_no }}
+                            </a>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white">
+                            {{ design.hdbs_type }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white">
+                            {% if design.size %}{{ design.size.size_display }}{% else %}--{% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white">
+                            {{ design.no_of_blades|default:"--" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                {% elif design.status == 'DRAFT' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                {{ design.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                <i data-lucide="construction" class="w-3 h-3 mr-1"></i>
+                                Coming soon
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <a href="{% url 'technology:design_pockets' design.pk %}" class="inline-flex items-center px-3 py-1.5 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900 text-sm">
+                                <i data-lucide="grid-3x3" class="w-4 h-4 mr-1"></i>Manage
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                            <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                            <p>No designs found</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} designs
+                </p>
+                <nav class="flex gap-1">
+                    {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                       class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        Previous
+                    </a>
+                    {% endif %}
+                    {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_size %}&size={{ current_size }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                       class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        Next
+                    </a>
+                    {% endif %}
+                </nav>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Info Card -->
+    <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <i data-lucide="info" class="w-4 h-4 text-blue-500"></i>
+            About Pockets Layout
+        </h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            The Pockets Layout module allows you to configure pocket positions, cutter placements, and special features for each design.
+            Select a design and click "Manage" to configure its pockets.
+        </p>
+        <div class="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400">
+            <span class="flex items-center gap-1">
+                <i data-lucide="grid-3x3" class="w-4 h-4"></i>
+                {{ designs.paginator.count }} Total Designs
+            </span>
+        </div>
+    </div>
+</div>
+{% endblock %}
