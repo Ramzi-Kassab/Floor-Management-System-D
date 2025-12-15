@@ -298,15 +298,12 @@ class DesignPocketsUpdateInfoView(LoginRequiredMixin, View):
 
         design.save(update_fields=['pocket_rows_count', 'pocket_layout_number'])
 
-        # Return JSON for AJAX requests
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/x-www-form-urlencoded':
-            return JsonResponse({
-                'success': True,
-                'pocket_rows_count': design.pocket_rows_count,
-                'pocket_layout_number': design.pocket_layout_number or ''
-            })
-
-        return redirect('technology:design_pockets', pk=pk)
+        # Always return JSON - this is an API endpoint
+        return JsonResponse({
+            'success': True,
+            'pocket_rows_count': design.pocket_rows_count,
+            'pocket_layout_number': design.pocket_layout_number or ''
+        })
 
 
 class PocketConfigReorderView(LoginRequiredMixin, View):

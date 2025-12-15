@@ -270,12 +270,13 @@
                                          :class="getColumnRowClass(col)">
                                         <span x-text="col"></span>
                                     </div>
-                                    <!-- Row separator marker (between columns) -->
-                                    <div class="w-2 flex items-center justify-center cursor-pointer group"
+                                    <!-- Row separator marker (between columns) - CLICKABLE -->
+                                    <div class="w-4 flex items-center justify-center cursor-pointer group"
                                          @click="toggleRowSeparator(col)"
-                                         x-show="col < 20">
-                                        <div class="w-0.5 h-6 transition-all"
-                                             :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent group-hover:bg-gray-300 dark:group-hover:bg-gray-600'">
+                                         x-show="col < 20"
+                                         title="Click to add/remove row separator">
+                                        <div class="w-1 h-8 rounded transition-all"
+                                             :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-gray-300 dark:bg-gray-600 group-hover:bg-red-300 dark:group-hover:bg-red-700'">
                                         </div>
                                     </div>
                                 </div>
@@ -293,7 +294,7 @@
                                          :class="getColumnRowClass(col)">
                                         <span x-text="getColumnRow(col)"></span>
                                     </div>
-                                    <div class="w-2" x-show="col < 20"
+                                    <div class="w-4" x-show="col < 20"
                                          :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
                                 </div>
                             </template>
@@ -318,7 +319,7 @@
                                          tabindex="-1">
                                     </div>
                                     <!-- Separator visual between cells -->
-                                    <div class="w-2" x-show="col < 20"
+                                    <div class="w-4" x-show="col < 20"
                                          :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
                                 </div>
                             </template>
