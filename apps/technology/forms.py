@@ -42,7 +42,8 @@ class DesignForm(forms.ModelForm):
             "series",
             "no_of_blades",
             "cutter_size",
-            # Row 5: Gage Length, Gage Relief
+            # Row 5: Total Cutters Count, Gage Length, Gage Relief
+            "total_pockets_count",
             "gage_length",
             "gage_relief",
             # Nozzles & Ports (Hydraulics)
@@ -83,6 +84,7 @@ class DesignForm(forms.ModelForm):
             # Technical Specs
             "no_of_blades": forms.NumberInput(attrs={"class": TAILWIND_INPUT + " bg-gray-100", "min": 0, "id": "id_no_of_blades", "readonly": "readonly"}),
             "cutter_size": forms.NumberInput(attrs={"class": TAILWIND_INPUT + " bg-gray-100", "min": 0, "id": "id_cutter_size", "readonly": "readonly"}),
+            "total_pockets_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0, "placeholder": "Total cutters"}),
             "gage_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "inches"}),
             "gage_relief": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.1", "min": "0", "placeholder": "thou"}),
             "order_level": forms.Select(attrs={"class": TAILWIND_SELECT}),
@@ -119,6 +121,7 @@ class DesignForm(forms.ModelForm):
             "body_material": "Body Material",
             "no_of_blades": "No. of Blades",
             "cutter_size": "Cutter Size Grade",
+            "total_pockets_count": "Total Cutters Count",
             "gage_length": "Gage Length (in)",
             "gage_relief": "Gage Relief (thou)",
             "nozzle_count": "Nozzle Count",
