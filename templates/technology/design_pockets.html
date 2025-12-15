@@ -198,30 +198,48 @@
                 </div>
             </div>
 
-            <!-- Grid Legend -->
+            <!-- Grid Legend with Real-time Counters -->
             {% if pocket_configs %}
             <div class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
                 <div class="flex flex-wrap gap-3 mb-3">
                     {% for config in pocket_configs %}
-                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 cursor-pointer hover:ring-2 hover:ring-blue-500"
+                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
                          @click="selectedConfigId = {{ config.pk }}; selectedConfigColor = '{{ config.display_color }}'"
-                         :class="selectedConfigId === {{ config.pk }} ? 'ring-2 ring-blue-500' : ''">
+                         :class="[selectedConfigId === {{ config.pk }} ? 'ring-2 ring-blue-500' : '', isConfigOverAssigned({{ config.pk }}) ? 'border-red-500 bg-red-50 dark:bg-red-900/30' : '']">
                         <div class="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold" style="background-color: {{ config.display_color }}">{{ config.order }}</div>
                         <span class="text-sm text-gray-700 dark:text-gray-300">{{ config.pocket_size.display_name }}</span>
-                        <span class="text-xs text-gray-500">({{ config.count }})</span>
+                        <!-- Real-time counter: assigned / expected -->
+                        <span class="text-xs font-mono px-1.5 py-0.5 rounded"
+                              :class="getConfigAssignedCount({{ config.pk }}) === {{ config.count }} ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : getConfigAssignedCount({{ config.pk }}) > {{ config.count }} ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'">
+                            <span x-text="getConfigAssignedCount({{ config.pk }})">0</span>/<span>{{ config.count }}</span>
+                        </span>
                     </div>
                     {% endfor %}
                 </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                    <span class="font-medium">Grid:</span> Click a config above, then click cells to assign.
-                    <span class="font-medium ml-2">Row Separators:</span> Click between column numbers to add/remove row dividers.
-                </p>
+                <!-- Total counter -->
+                <div class="flex items-center justify-between">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        <span class="font-medium">Click</span> cell to assign |
+                        <span class="font-medium">Drag</span> to multi-select |
+                        <span class="font-medium">Shift+Click</span> range |
+                        <span class="font-medium">Arrows</span> navigate |
+                        <span class="font-medium">Enter/Space</span> toggle |
+                        <span class="font-medium">Ctrl+C/V</span> copy/paste
+                    </p>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Total Assigned:</span>
+                        <span class="text-sm font-bold px-2 py-0.5 rounded"
+                              :class="getTotalAssigned() === {{ config_total|default:0 }} ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : getTotalAssigned() > {{ design.total_pockets_count|default:0 }} ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'">
+                            <span x-text="getTotalAssigned()">0</span> / {{ design.total_pockets_count|default:"--" }}
+                        </span>
+                    </div>
+                </div>
             </div>
             {% endif %}
 
-            <div class="p-6 overflow-x-auto">
+            <div class="p-6 overflow-x-auto" @mouseup="handleMouseUp()" @mouseleave="handleMouseUp()">
                 {% if design.no_of_blades and pocket_configs %}
-                <div class="inline-block min-w-full">
+                <div class="inline-block min-w-full select-none">
                     <!-- Header Row with Pocket Numbers and Separator Markers -->
                     <div class="flex mb-1">
                         <div class="w-16 flex-shrink-0"></div>
@@ -271,11 +289,14 @@
                         <div class="flex">
                             <template x-for="col in 20" :key="col">
                                 <div class="flex">
-                                    <!-- Grid cell -->
+                                    <!-- Grid cell with Excel-like selection -->
                                     <div class="w-10 h-10 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-xs cursor-pointer transition-all"
                                          :style="getCellStyle({{ blade_num }}, col)"
                                          :class="getCellClass({{ blade_num }}, col)"
-                                         @click="assignPocket({{ blade_num }}, col)">
+                                         @click="handleCellClick({{ blade_num }}, col, $event)"
+                                         @mousedown="handleCellMouseDown({{ blade_num }}, col, $event)"
+                                         @mouseenter="handleCellMouseEnter({{ blade_num }}, col)"
+                                         tabindex="-1">
                                     </div>
                                     <!-- Separator visual between cells -->
                                     <div class="w-2" x-show="col < 20"
@@ -415,6 +436,14 @@
 <script>
 function pocketsLayout() {
     const bladesCount = {{ design.no_of_blades|default:0 }};
+    const maxColumns = 20;
+
+    // Config data for counting
+    const configData = {
+        {% for config in pocket_configs %}
+        {{ config.pk }}: { count: {{ config.count }}, order: {{ config.order }}, color: '{{ config.display_color }}', name: '{{ config.pocket_size.display_name }}' },
+        {% endfor %}
+    };
 
     return {
         activeTab: 'config',
@@ -422,11 +451,212 @@ function pocketsLayout() {
         selectedConfigId: null,
         selectedConfigColor: null,
         gridData: {}, // Store grid assignments: {blade_col: configId}
-        rowSeparators: [], // Column numbers where row separators are placed (e.g., [5, 10] means row breaks after cols 5 and 10)
+        rowSeparators: [], // Column numbers where row separators are placed
         bladesCount: bladesCount,
+        maxColumns: maxColumns,
+        configData: configData,
+
+        // Excel-like selection features
+        selectedCells: [], // Array of {blade, col} objects
+        focusedCell: null, // {blade, col} - currently focused cell for keyboard nav
+        isDragging: false,
+        selectionStart: null, // Starting cell for range selection
+        clipboard: [], // Copied cell patterns: [{relBlade, relCol, configId}]
 
         init() {
             this.loadGridData();
+            this.setupKeyboardListeners();
+        },
+
+        setupKeyboardListeners() {
+            document.addEventListener('keydown', (e) => {
+                // Only handle if we're in the config tab and grid is visible
+                if (this.activeTab !== 'config' || !this.focusedCell) return;
+
+                const { blade, col } = this.focusedCell;
+
+                switch(e.key) {
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        this.moveFocus(blade - 1, col, e.shiftKey);
+                        break;
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        this.moveFocus(blade + 1, col, e.shiftKey);
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        this.moveFocus(blade, col - 1, e.shiftKey);
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        this.moveFocus(blade, col + 1, e.shiftKey);
+                        break;
+                    case 'Enter':
+                    case ' ':
+                        e.preventDefault();
+                        this.toggleSelectedCells();
+                        break;
+                    case 'Escape':
+                        e.preventDefault();
+                        this.clearSelection();
+                        break;
+                    case 'a':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            this.selectAll();
+                        }
+                        break;
+                    case 'c':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            this.copySelection();
+                        }
+                        break;
+                    case 'v':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            this.pasteSelection();
+                        }
+                        break;
+                    case 'Delete':
+                    case 'Backspace':
+                        e.preventDefault();
+                        this.clearSelectedCellsData();
+                        break;
+                }
+            });
+        },
+
+        moveFocus(newBlade, newCol, extendSelection) {
+            // Clamp values to valid range
+            newBlade = Math.max(1, Math.min(this.bladesCount, newBlade));
+            newCol = Math.max(1, Math.min(this.maxColumns, newCol));
+
+            if (extendSelection) {
+                // Extend selection from selectionStart to new position
+                if (!this.selectionStart) {
+                    this.selectionStart = { ...this.focusedCell };
+                }
+                this.selectRange(this.selectionStart.blade, this.selectionStart.col, newBlade, newCol);
+            } else {
+                // Clear selection and select only the new cell
+                this.selectionStart = null;
+                this.selectedCells = [{ blade: newBlade, col: newCol }];
+            }
+
+            this.focusedCell = { blade: newBlade, col: newCol };
+        },
+
+        selectRange(b1, c1, b2, c2) {
+            const minBlade = Math.min(b1, b2);
+            const maxBlade = Math.max(b1, b2);
+            const minCol = Math.min(c1, c2);
+            const maxCol = Math.max(c1, c2);
+
+            this.selectedCells = [];
+            for (let blade = minBlade; blade <= maxBlade; blade++) {
+                for (let col = minCol; col <= maxCol; col++) {
+                    this.selectedCells.push({ blade, col });
+                }
+            }
+        },
+
+        selectAll() {
+            this.selectedCells = [];
+            for (let blade = 1; blade <= this.bladesCount; blade++) {
+                for (let col = 1; col <= this.maxColumns; col++) {
+                    this.selectedCells.push({ blade, col });
+                }
+            }
+        },
+
+        clearSelection() {
+            this.selectedCells = [];
+            this.focusedCell = null;
+            this.selectionStart = null;
+        },
+
+        toggleSelectedCells() {
+            if (!this.selectedConfigId) {
+                alert('Please select a pocket configuration from the legend first');
+                return;
+            }
+
+            // Check if all selected cells already have this config - if so, clear them
+            const allHaveConfig = this.selectedCells.every(cell => {
+                const key = `${cell.blade}_${cell.col}`;
+                return this.gridData[key] === this.selectedConfigId;
+            });
+
+            for (const cell of this.selectedCells) {
+                const key = `${cell.blade}_${cell.col}`;
+                if (allHaveConfig) {
+                    delete this.gridData[key];
+                } else {
+                    this.gridData[key] = this.selectedConfigId;
+                }
+            }
+        },
+
+        clearSelectedCellsData() {
+            for (const cell of this.selectedCells) {
+                const key = `${cell.blade}_${cell.col}`;
+                delete this.gridData[key];
+            }
+        },
+
+        copySelection() {
+            if (this.selectedCells.length === 0) return;
+
+            // Find the top-left corner of selection for relative positioning
+            const minBlade = Math.min(...this.selectedCells.map(c => c.blade));
+            const minCol = Math.min(...this.selectedCells.map(c => c.col));
+
+            this.clipboard = [];
+            for (const cell of this.selectedCells) {
+                const key = `${cell.blade}_${cell.col}`;
+                if (this.gridData[key]) {
+                    this.clipboard.push({
+                        relBlade: cell.blade - minBlade,
+                        relCol: cell.col - minCol,
+                        configId: this.gridData[key]
+                    });
+                }
+            }
+
+            // Show feedback
+            this.showNotification(`Copied ${this.clipboard.length} cell(s)`);
+        },
+
+        pasteSelection() {
+            if (this.clipboard.length === 0 || !this.focusedCell) return;
+
+            const baseBlade = this.focusedCell.blade;
+            const baseCol = this.focusedCell.col;
+
+            for (const item of this.clipboard) {
+                const targetBlade = baseBlade + item.relBlade;
+                const targetCol = baseCol + item.relCol;
+
+                // Check bounds
+                if (targetBlade >= 1 && targetBlade <= this.bladesCount &&
+                    targetCol >= 1 && targetCol <= this.maxColumns) {
+                    const key = `${targetBlade}_${targetCol}`;
+                    this.gridData[key] = item.configId;
+                }
+            }
+
+            this.showNotification(`Pasted ${this.clipboard.length} cell(s)`);
+        },
+
+        showNotification(message) {
+            // Simple notification - could be enhanced
+            const el = document.createElement('div');
+            el.className = 'fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+            el.textContent = message;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 2000);
         },
 
         loadGridData() {
@@ -485,7 +715,7 @@ function pocketsLayout() {
                 ranges.push({ start, end: sep });
                 start = sep + 1;
             }
-            ranges.push({ start, end: 20 });
+            ranges.push({ start, end: this.maxColumns });
             return ranges;
         },
 
@@ -505,7 +735,7 @@ function pocketsLayout() {
         getAllBladesSequence() {
             let seq = [];
             for (let blade = 1; blade <= this.bladesCount; blade++) {
-                for (let col = 1; col <= 20; col++) {
+                for (let col = 1; col <= this.maxColumns; col++) {
                     const key = `${blade}_${col}`;
                     if (this.gridData[key]) {
                         seq.push(`B${blade}P${col}`);
@@ -515,18 +745,99 @@ function pocketsLayout() {
             return seq.length > 0 ? seq.join(', ') : 'Click cells to assign pockets';
         },
 
-        assignPocket(blade, col) {
-            if (!this.selectedConfigId) {
-                alert('Please select a pocket configuration from the legend first');
-                return;
+        // Get count of assigned cells per config
+        getConfigAssignedCount(configId) {
+            let count = 0;
+            for (const key in this.gridData) {
+                if (this.gridData[key] === configId) {
+                    count++;
+                }
             }
+            return count;
+        },
+
+        // Check if config count exceeds expected
+        isConfigOverAssigned(configId) {
+            const expected = this.configData[configId]?.count || 0;
+            const assigned = this.getConfigAssignedCount(configId);
+            return assigned > expected;
+        },
+
+        // Get total assigned
+        getTotalAssigned() {
+            return Object.keys(this.gridData).length;
+        },
+
+        // Cell click handling with selection support
+        handleCellClick(blade, col, event) {
+            event.preventDefault();
+
+            if (event.shiftKey && this.focusedCell) {
+                // Shift+click: select range from focused to clicked
+                this.selectRange(this.focusedCell.blade, this.focusedCell.col, blade, col);
+                this.selectionStart = { ...this.focusedCell };
+            } else if (event.ctrlKey || event.metaKey) {
+                // Ctrl/Cmd+click: toggle cell in selection
+                const index = this.selectedCells.findIndex(c => c.blade === blade && c.col === col);
+                if (index > -1) {
+                    this.selectedCells.splice(index, 1);
+                } else {
+                    this.selectedCells.push({ blade, col });
+                }
+            } else {
+                // Normal click: select single cell and assign if config selected
+                this.selectedCells = [{ blade, col }];
+                this.selectionStart = null;
+
+                // If a config is selected, assign it
+                if (this.selectedConfigId) {
+                    this.toggleSingleCell(blade, col);
+                }
+            }
+
+            this.focusedCell = { blade, col };
+        },
+
+        // Handle drag start
+        handleCellMouseDown(blade, col, event) {
+            if (event.button !== 0) return; // Left click only
+
+            this.isDragging = true;
+            this.selectionStart = { blade, col };
+
+            if (!event.shiftKey && !event.ctrlKey && !event.metaKey) {
+                this.selectedCells = [{ blade, col }];
+            }
+
+            this.focusedCell = { blade, col };
+        },
+
+        // Handle drag over cell
+        handleCellMouseEnter(blade, col) {
+            if (!this.isDragging || !this.selectionStart) return;
+            this.selectRange(this.selectionStart.blade, this.selectionStart.col, blade, col);
+            this.focusedCell = { blade, col };
+        },
+
+        // Handle drag end
+        handleMouseUp() {
+            this.isDragging = false;
+        },
+
+        toggleSingleCell(blade, col) {
+            if (!this.selectedConfigId) return;
+
             const key = `${blade}_${col}`;
             if (this.gridData[key] === this.selectedConfigId) {
                 delete this.gridData[key];
             } else {
                 this.gridData[key] = this.selectedConfigId;
             }
-            // TODO: Save to server
+        },
+
+        assignPocket(blade, col) {
+            // Legacy method - now handled by handleCellClick
+            this.handleCellClick(blade, col, { shiftKey: false, ctrlKey: false, metaKey: false, preventDefault: () => {} });
         },
 
         getCellStyle(blade, col) {
@@ -543,12 +854,34 @@ function pocketsLayout() {
             return '';
         },
 
+        isCellSelected(blade, col) {
+            return this.selectedCells.some(c => c.blade === blade && c.col === col);
+        },
+
+        isCellFocused(blade, col) {
+            return this.focusedCell?.blade === blade && this.focusedCell?.col === col;
+        },
+
         getCellClass(blade, col) {
             const key = `${blade}_${col}`;
-            if (this.gridData[key]) {
-                return 'border-solid border-2';
+            let classes = [];
+
+            // Selection and focus styling
+            if (this.isCellFocused(blade, col)) {
+                classes.push('ring-2 ring-blue-500 ring-offset-1');
             }
-            return 'hover:bg-gray-100 dark:hover:bg-gray-700';
+
+            if (this.isCellSelected(blade, col)) {
+                classes.push('bg-blue-100 dark:bg-blue-900/50');
+            }
+
+            if (this.gridData[key]) {
+                classes.push('border-solid border-2');
+            } else {
+                classes.push('hover:bg-gray-100 dark:hover:bg-gray-700');
+            }
+
+            return classes.join(' ');
         }
     }
 }
