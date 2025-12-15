@@ -332,6 +332,100 @@
 
     <!-- Sidebar -->
     <div class="space-y-6">
+        <!-- Quick Links Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">Quick Links</h2>
+            </div>
+            <div class="p-3 space-y-2">
+                <!-- Design -->
+                <a href="{% url 'technology:design_update' design.pk %}" class="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
+                            <i data-lucide="tag" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">Design</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ design.mat_no }}</p>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                    </div>
+                </a>
+
+                <!-- Connection -->
+                <div class="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg {% if design.connection_ref %}bg-white dark:bg-gray-800{% else %}bg-gray-50 dark:bg-gray-700/30{% endif %}">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 {% if design.connection_ref %}bg-green-100 dark:bg-green-900/50{% else %}bg-gray-100 dark:bg-gray-700{% endif %} rounded-lg">
+                            <i data-lucide="link" class="w-4 h-4 {% if design.connection_ref %}text-green-600 dark:text-green-400{% else %}text-gray-400{% endif %}"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">Connection</p>
+                            {% if design.connection_ref %}
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ design.connection_ref.connection_type.code }} - {{ design.connection_ref.connection_size.size_inches }}</p>
+                            {% else %}
+                            <p class="text-xs text-gray-400 dark:text-gray-500">Not selected</p>
+                            {% endif %}
+                        </div>
+                        {% if design.connection_ref %}
+                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Breaker Slot -->
+                <div class="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg {% if design.breaker_slot %}bg-white dark:bg-gray-800{% else %}bg-gray-50 dark:bg-gray-700/30{% endif %}">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 {% if design.breaker_slot %}bg-orange-100 dark:bg-orange-900/50{% else %}bg-gray-100 dark:bg-gray-700{% endif %} rounded-lg">
+                            <i data-lucide="wrench" class="w-4 h-4 {% if design.breaker_slot %}text-orange-600 dark:text-orange-400{% else %}text-gray-400{% endif %}"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">Breaker Slot</p>
+                            {% if design.breaker_slot %}
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ design.breaker_slot.slot_width }}x{{ design.breaker_slot.slot_depth }}" {{ design.breaker_slot.get_material_display }}</p>
+                            {% else %}
+                            <p class="text-xs text-gray-400 dark:text-gray-500">Not selected</p>
+                            {% endif %}
+                        </div>
+                        {% if design.breaker_slot %}
+                        <span class="w-2 h-2 bg-orange-500 rounded-full"></span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Pockets Layout -->
+                <a href="{% url 'technology:design_pockets' design.pk %}" class="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
+                            <i data-lucide="grid-3x3" class="w-4 h-4 text-purple-600 dark:text-purple-400"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">Pockets Layout</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Manage pockets</p>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                    </div>
+                </a>
+
+                <!-- Bills of Materials -->
+                <a href="{% url 'technology:bom_create' %}?design={{ design.pk }}" class="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-teal-100 dark:bg-teal-900/50 rounded-lg">
+                            <i data-lucide="package" class="w-4 h-4 text-teal-600 dark:text-teal-400"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">Bills of Materials</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{% if boms %}{{ boms|length }} BOM{{ boms|length|pluralize }}{% else %}No BOMs{% endif %}</p>
+                        </div>
+                        {% if boms %}
+                        <span class="px-2 py-0.5 text-xs font-medium bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 rounded-full">{{ boms|length }}</span>
+                        {% else %}
+                        <i data-lucide="plus" class="w-4 h-4 text-gray-400"></i>
+                        {% endif %}
+                    </div>
+                </a>
+            </div>
+        </div>
+
         <!-- Usage Stats -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Usage</h2>
