@@ -52,10 +52,10 @@ class DesignForm(forms.ModelForm):
             "milling_drawing",
             "port_count",
             "port_size",
-            # Connection
-            "connection_mat_no",
-            "connection_type_ref",
-            "connection_size_ref",
+            # Connection (modal picker)
+            "connection_ref",
+            # Breaker Slot (modal picker)
+            "breaker_slot",
             # Application
             "formation_type_ref",
             "application_ref",
@@ -94,10 +94,10 @@ class DesignForm(forms.ModelForm):
             "milling_drawing": forms.FileInput(attrs={"class": TAILWIND_INPUT, "accept": ".pdf"}),
             "port_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": 0}),
             "port_size": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0"}),
-            # Connection
-            "connection_mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Connection MAT No."}),
-            "connection_type_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "connection_size_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            # Connection (modal picker - hidden input)
+            "connection_ref": forms.HiddenInput(attrs={"id": "id_connection_ref"}),
+            # Breaker Slot (modal picker - hidden input)
+            "breaker_slot": forms.HiddenInput(attrs={"id": "id_breaker_slot"}),
             # Application
             "formation_type_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "application_ref": forms.Select(attrs={"class": TAILWIND_SELECT}),
@@ -127,9 +127,8 @@ class DesignForm(forms.ModelForm):
             "milling_drawing": "Milling Drawing (PDF)",
             "port_count": "Port Count",
             "port_size": "Port Size",
-            "connection_mat_no": "Connection MAT No.",
-            "connection_type_ref": "Connection Type",
-            "connection_size_ref": "Connection Size",
+            "connection_ref": "Connection",
+            "breaker_slot": "Breaker Slot",
             "formation_type_ref": "Formation Type",
             "application_ref": "Application",
             "iadc_code_ref": "IADC Code",

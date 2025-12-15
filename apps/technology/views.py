@@ -12,8 +12,10 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DetailView, ListView, UpdateView, View
 
+from django.http import JsonResponse
+
 from .forms import BOMForm, BOMLineForm, DesignCutterLayoutForm, DesignForm
-from .models import BOM, BOMLine, Design, DesignCutterLayout
+from .models import BOM, BOMLine, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout
 
 
 # =============================================================================
@@ -271,3 +273,111 @@ class CutterLayoutDeleteView(LoginRequiredMixin, View):
         layout.delete()
         messages.success(request, "Cutter layout deleted.")
         return redirect("technology:design_detail", pk=design_pk)
+
+
+# =============================================================================
+# API VIEWS (for modal pickers)
+# =============================================================================
+
+
+class APIConnectionsView(LoginRequiredMixin, View):
+    """API endpoint for connection selection modal."""
+
+    def get(self, request):
+        # Get filter parameters
+        q = request.GET.get('q', '')
+        type_id = request.GET.get('type', '')
+        size_id = request.GET.get('size', '')
+        can_replace = request.GET.get('can_replace', '')
+
+        # Base queryset
+        queryset = Connection.objects.filter(is_active=True).select_related(
+            'connection_type', 'connection_size', 'upper_section_type'
+        )
+
+        # Apply filters
+        if q:
+            queryset = queryset.filter(mat_no__icontains=q)
+        if type_id:
+            queryset = queryset.filter(connection_type_id=type_id)
+        if size_id:
+            queryset = queryset.filter(connection_size_id=size_id)
+        if can_replace == 'true':
+            queryset = queryset.filter(can_replace_in_ksa=True)
+        elif can_replace == 'false':
+            queryset = queryset.filter(can_replace_in_ksa=False)
+
+        # Build response
+        connections = []
+        for conn in queryset[:100]:
+            connections.append({
+                'id': conn.id,
+                'mat_no': conn.mat_no,
+                'type': conn.connection_type.code,
+                'type_name': conn.connection_type.name,
+                'size': conn.connection_size.size_inches,
+                'upper_section': conn.upper_section_type.name if conn.upper_section_type else None,
+                'can_replace_in_ksa': conn.can_replace_in_ksa,
+                'special_features': conn.special_features,
+            })
+
+        # Build filter options
+        types = ConnectionType.objects.filter(is_active=True).values('id', 'code', 'name')
+        sizes = ConnectionSize.objects.filter(is_active=True).values('id', 'size_inches')
+
+        return JsonResponse({
+            'connections': connections,
+            'filters': {
+                'types': [{'id': t['id'], 'code': t['code'], 'name': t['name']} for t in types],
+                'sizes': [{'id': s['id'], 'size': s['size_inches']} for s in sizes],
+            }
+        })
+
+
+class APIBreakerSlotsView(LoginRequiredMixin, View):
+    """API endpoint for breaker slot selection modal."""
+
+    def get(self, request):
+        # Get filter parameters
+        q = request.GET.get('q', '')
+        material = request.GET.get('material', '')
+        min_width = request.GET.get('min_width', '')
+        max_width = request.GET.get('max_width', '')
+
+        # Base queryset
+        queryset = BreakerSlot.objects.filter(is_active=True)
+
+        # Apply filters
+        if q:
+            queryset = queryset.filter(mat_no__icontains=q)
+        if material:
+            queryset = queryset.filter(material=material)
+        if min_width:
+            queryset = queryset.filter(slot_width__gte=float(min_width))
+        if max_width:
+            queryset = queryset.filter(slot_width__lte=float(max_width))
+
+        # Build response
+        breaker_slots = []
+        for slot in queryset[:100]:
+            breaker_slots.append({
+                'id': slot.id,
+                'mat_no': slot.mat_no,
+                'slot_width': str(slot.slot_width),
+                'slot_depth': str(slot.slot_depth),
+                'slot_length': str(slot.slot_length) if slot.slot_length else None,
+                'material': slot.material,
+                'material_display': slot.get_material_display(),
+                'hardness': slot.hardness,
+                'compatible_sizes': list(slot.compatible_sizes.values_list('size', flat=True)),
+            })
+
+        # Build filter options - material choices from model
+        materials = [{'code': code, 'name': name} for code, name in BreakerSlot.Material.choices]
+
+        return JsonResponse({
+            'breaker_slots': breaker_slots,
+            'filters': {
+                'materials': materials,
+            }
+        })

@@ -1,6 +1,6 @@
 """
 ARDT FMS - Technology Models
-Version: 5.4
+Version: 5.5
 
 Tables:
 - connection_types (P2) - API connection types reference
@@ -8,6 +8,9 @@ Tables:
 - formation_types (P2) - Geological formation types reference
 - applications (P2) - Drilling application types reference
 - iadc_codes (P2) - IADC classification codes reference
+- upper_section_types (P2) - Upper section types (some can't be replaced in KSA)
+- connections (P2) - Connection inventory
+- breaker_slots (P2) - Breaker slot specifications
 - designs (P1)
 - boms (P1)
 - bom_lines (P1)
@@ -210,6 +213,83 @@ class Connection(models.Model):
     def __str__(self):
         suffix = "" if self.can_replace_in_ksa else " (Cannot replace in KSA)"
         return f"{self.mat_no} - {self.connection_type.code} {self.connection_size.size_inches}{suffix}"
+
+
+class BreakerSlot(models.Model):
+    """
+    Bit Breaker Slot specifications.
+    The breaker slot is a recess on the shank used for gripping with a bit breaker tool
+    during make-up and break-out operations.
+    Can be used across multiple bit designs of compatible sizes.
+    """
+
+    class Material(models.TextChoices):
+        ALLOY_STEEL = "ALLOY", "Alloy Steel"
+        STEEL_4140 = "4140", "AISI 4140 Steel"
+        STEEL_4145 = "4145", "AISI 4145H Steel"
+        STEEL_4340 = "4340", "AISI 4340 Steel"
+        CHROME_MOLY = "CrMo", "Chrome-Moly Steel"
+        OTHER = "OTHER", "Other"
+
+    mat_no = models.CharField(
+        max_length=20,
+        unique=True,
+        verbose_name='MAT No.',
+        help_text='Breaker slot material number'
+    )
+    slot_width = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        verbose_name='Slot Width (mm)',
+        help_text='Width of the slot opening in millimeters'
+    )
+    slot_depth = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        verbose_name='Slot Depth (mm)',
+        help_text='Depth of the slot in millimeters'
+    )
+    slot_length = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='Slot Length (mm)',
+        help_text='Length of the slot along the shank in millimeters'
+    )
+    material = models.CharField(
+        max_length=10,
+        choices=Material.choices,
+        default=Material.ALLOY_STEEL,
+        verbose_name='Material',
+        help_text='Material of the breaker slot / shank'
+    )
+    hardness = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name='Hardness (HRC)',
+        help_text='Rockwell hardness rating (e.g., 28-32 HRC)'
+    )
+    compatible_sizes = models.ManyToManyField(
+        'workorders.BitSize',
+        blank=True,
+        verbose_name='Compatible Bit Sizes',
+        related_name='breaker_slots',
+        help_text='Bit sizes this breaker slot is compatible with'
+    )
+    remarks = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "breaker_slots"
+        ordering = ['mat_no']
+        verbose_name = "Breaker Slot"
+        verbose_name_plural = "Breaker Slots"
+
+    def __str__(self):
+        return f"{self.mat_no} - {self.slot_width}x{self.slot_depth}mm ({self.get_material_display()})"
 
 
 class IADCCode(models.Model):
@@ -487,6 +567,19 @@ class Design(models.Model):
         verbose_name='Connection',
         related_name='designs',
         help_text='Select a pre-defined connection from the connections table'
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # BREAKER SLOT
+    # ═══════════════════════════════════════════════════════════════════════
+    breaker_slot = models.ForeignKey(
+        'BreakerSlot',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='Breaker Slot',
+        related_name='designs',
+        help_text='Select a breaker slot specification for this design'
     )
 
     # ═══════════════════════════════════════════════════════════════════════

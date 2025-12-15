@@ -19,4 +19,7 @@ urlpatterns = [
     path("boms/<int:pk>/edit/", views.BOMUpdateView.as_view(), name="bom_update"),
     path("boms/<int:pk>/lines/add/", views.BOMLineCreateView.as_view(), name="bom_line_create"),
     path("boms/<int:pk>/lines/<int:line_pk>/delete/", views.BOMLineDeleteView.as_view(), name="bom_line_delete"),
+    # API endpoints (for modal pickers)
+    path("api/connections/", views.APIConnectionsView.as_view(), name="api_connections"),
+    path("api/breaker-slots/", views.APIBreakerSlotsView.as_view(), name="api_breaker_slots"),
 ]
