@@ -167,6 +167,19 @@ class DesignUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
+class DesignPocketsView(LoginRequiredMixin, DetailView):
+    """Placeholder view for Pockets Layout and Features configuration."""
+
+    model = Design
+    template_name = "technology/design_pockets.html"
+    context_object_name = "design"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Pockets Layout - {self.object.hdbs_type}"
+        return context
+
+
 # =============================================================================
 # BOM VIEWS
 # =============================================================================

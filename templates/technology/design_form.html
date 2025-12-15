@@ -337,6 +337,63 @@
             </div>
         </div>
 
+        {% if object %}
+        <!-- POCKETS LAYOUT AND FEATURES (Edit mode only) -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="grid-3x3" class="w-5 h-5"></i>
+                    Pockets Layout and Features
+                </h3>
+                <a href="{% url 'technology:design_pockets' object.pk %}" class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    Manage Pockets
+                </a>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-gray-500 dark:text-gray-400 text-center py-4">
+                    <i data-lucide="construction" class="w-8 h-8 mx-auto mb-2 opacity-50"></i><br>
+                    Pockets layout configuration coming soon
+                </p>
+            </div>
+        </div>
+
+        <!-- BILLS OF MATERIALS (Level 5) (Edit mode only) -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="package" class="w-5 h-5"></i>
+                    Bills of Materials (Level 5)
+                </h3>
+                <a href="{% url 'technology:bom_create' %}?design={{ object.pk }}" class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Add BOM
+                </a>
+            </div>
+            <div class="px-6 py-4">
+                {% if object.boms.exists %}
+                <div class="space-y-2">
+                    {% for bom in object.boms.all %}
+                    <a href="{% url 'technology:bom_detail' bom.pk %}" class="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <span class="font-medium text-gray-900 dark:text-white">{{ bom.code }}</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400 ml-2">{{ bom.name }}</span>
+                            </div>
+                            <span class="text-xs px-2 py-1 rounded {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                {{ bom.get_status_display }}
+                            </span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-500 dark:text-gray-400 text-center py-4">No BOMs defined for this design</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Actions -->
         <div class="flex justify-end gap-3 sticky bottom-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg shadow-lg">
             <a href="{% url 'technology:design_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</a>

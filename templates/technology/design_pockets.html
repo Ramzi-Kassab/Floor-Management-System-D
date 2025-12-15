@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div class="flex items-center gap-4">
+        <a href="{% url 'technology:design_detail' design.pk %}" class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+            <p class="text-gray-600 dark:text-gray-400">Configure pocket layout and features for {{ design.mat_no }}</p>
+        </div>
+    </div>
+    <div class="mt-4 md:mt-0 flex gap-2">
+        <a href="{% url 'technology:design_update' design.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit Design
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Design Info Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm mb-6">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <i data-lucide="cpu" class="w-5 h-5"></i>
+                Design Information
+            </h2>
+        </div>
+        <div class="px-6 py-4">
+            <dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">MAT No.</dt>
+                    <dd class="font-medium text-gray-900 dark:text-white font-mono">{{ design.mat_no }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">HDBS Type</dt>
+                    <dd class="font-medium text-gray-900 dark:text-white">{{ design.hdbs_type }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Size</dt>
+                    <dd class="font-medium text-gray-900 dark:text-white">{% if design.size %}{{ design.size.size_display }}{% else %}--{% endif %}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">No. of Blades</dt>
+                    <dd class="font-medium text-gray-900 dark:text-white">{{ design.no_of_blades|default:"--" }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    <!-- Placeholder Content -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <i data-lucide="grid-3x3" class="w-5 h-5"></i>
+                Pockets Layout and Features
+            </h2>
+        </div>
+        <div class="px-6 py-16 text-center">
+            <i data-lucide="construction" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+            <h3 class="text-xl font-medium text-gray-900 dark:text-white mb-2">Coming Soon</h3>
+            <p class="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
+                The Pockets Layout and Features configuration module is under development.
+                This will allow you to define pocket positions, cutter placements, and special features for this design.
+            </p>
+            <div class="flex justify-center gap-4">
+                <a href="{% url 'technology:design_detail' design.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Design
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Future Features Preview -->
+    <div class="mt-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <i data-lucide="lightbulb" class="w-4 h-4 text-yellow-500"></i>
+            Planned Features
+        </h3>
+        <ul class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600 dark:text-gray-400">
+            <li class="flex items-center gap-2">
+                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
+                Visual pocket layout editor
+            </li>
+            <li class="flex items-center gap-2">
+                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
+                Cutter position configuration
+            </li>
+            <li class="flex items-center gap-2">
+                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
+                Blade-by-blade pocket definition
+            </li>
+            <li class="flex items-center gap-2">
+                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
+                Import from CAD drawings
+            </li>
+            <li class="flex items-center gap-2">
+                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
+                Feature templates library
+            </li>
+            <li class="flex items-center gap-2">
+                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
+                3D pocket visualization
+            </li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

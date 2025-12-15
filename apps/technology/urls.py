@@ -12,6 +12,7 @@ urlpatterns = [
     path("designs/<int:pk>/edit/", views.DesignUpdateView.as_view(), name="design_update"),
     path("designs/<int:design_pk>/cutters/add/", views.CutterLayoutCreateView.as_view(), name="cutter_create"),
     path("designs/<int:design_pk>/cutters/<int:layout_pk>/delete/", views.CutterLayoutDeleteView.as_view(), name="cutter_delete"),
+    path("designs/<int:pk>/pockets/", views.DesignPocketsView.as_view(), name="design_pockets"),
     # BOMs
     path("boms/", views.BOMListView.as_view(), name="bom_list"),
     path("boms/create/", views.BOMCreateView.as_view(), name="bom_create"),

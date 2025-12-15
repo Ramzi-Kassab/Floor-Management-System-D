@@ -276,12 +276,31 @@
         </div>
         {% endif %}
 
+        <!-- Pockets Layout and Features Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="grid-3x3" class="w-5 h-5"></i>
+                    Pockets Layout and Features
+                </h2>
+                <a href="{% url 'technology:design_pockets' design.pk %}" class="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                    <i data-lucide="settings" class="w-4 h-4"></i> Manage Pockets
+                </a>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-gray-500 dark:text-gray-400 text-center py-4">
+                    <i data-lucide="construction" class="w-8 h-8 mx-auto mb-2 opacity-50"></i><br>
+                    Pockets layout configuration coming soon
+                </p>
+            </div>
+        </div>
+
         <!-- BOMs Section -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <i data-lucide="package" class="w-5 h-5"></i>
-                    Bills of Materials
+                    Bills of Materials (Level 5)
                 </h2>
                 <a href="{% url 'technology:bom_create' %}?design={{ design.pk }}" class="text-sm text-blue-600 hover:underline flex items-center gap-1">
                     <i data-lucide="plus" class="w-4 h-4"></i> Add BOM
