@@ -35,17 +35,17 @@
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Slot Width (mm) <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Slot Width (in) <span class="text-red-500">*</span></label>
                         <div class="mt-1">{{ form.slot_width }}</div>
                         {% if form.slot_width.errors %}<p class="mt-1 text-sm text-red-600">{{ form.slot_width.errors.0 }}</p>{% endif %}
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Slot Depth (mm) <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Slot Depth (in) <span class="text-red-500">*</span></label>
                         <div class="mt-1">{{ form.slot_depth }}</div>
                         {% if form.slot_depth.errors %}<p class="mt-1 text-sm text-red-600">{{ form.slot_depth.errors.0 }}</p>{% endif %}
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Slot Length (mm)</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Slot Length (in)</label>
                         <div class="mt-1">{{ form.slot_length }}</div>
                     </div>
                 </div>

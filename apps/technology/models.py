@@ -239,23 +239,23 @@ class BreakerSlot(models.Model):
     )
     slot_width = models.DecimalField(
         max_digits=6,
-        decimal_places=2,
-        verbose_name='Slot Width (mm)',
-        help_text='Width of the slot opening in millimeters'
+        decimal_places=3,
+        verbose_name='Slot Width (in)',
+        help_text='Width of the slot opening in inches'
     )
     slot_depth = models.DecimalField(
         max_digits=6,
-        decimal_places=2,
-        verbose_name='Slot Depth (mm)',
-        help_text='Depth of the slot in millimeters'
+        decimal_places=3,
+        verbose_name='Slot Depth (in)',
+        help_text='Depth of the slot in inches'
     )
     slot_length = models.DecimalField(
         max_digits=6,
-        decimal_places=2,
+        decimal_places=3,
         null=True,
         blank=True,
-        verbose_name='Slot Length (mm)',
-        help_text='Length of the slot along the shank in millimeters'
+        verbose_name='Slot Length (in)',
+        help_text='Length of the slot along the shank in inches'
     )
     material = models.CharField(
         max_length=10,
@@ -289,7 +289,7 @@ class BreakerSlot(models.Model):
         verbose_name_plural = "Breaker Slots"
 
     def __str__(self):
-        return f"{self.mat_no} - {self.slot_width}x{self.slot_depth}mm ({self.get_material_display()})"
+        return f"{self.mat_no} - {self.slot_width}x{self.slot_depth}\" ({self.get_material_display()})"
 
 
 class IADCCode(models.Model):

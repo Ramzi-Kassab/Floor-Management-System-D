@@ -290,9 +290,9 @@ class BreakerSlotForm(forms.ModelForm):
         ]
         widgets = {
             "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., BS-001"}),
-            "slot_width": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "min": "0", "placeholder": "mm"}),
-            "slot_depth": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "min": "0", "placeholder": "mm"}),
-            "slot_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "min": "0", "placeholder": "mm (optional)"}),
+            "slot_width": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "inches"}),
+            "slot_depth": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "inches"}),
+            "slot_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "inches (optional)"}),
             "material": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "hardness": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 28-32 HRC"}),
             "compatible_sizes": forms.CheckboxSelectMultiple(attrs={"class": "space-y-2"}),
@@ -301,9 +301,9 @@ class BreakerSlotForm(forms.ModelForm):
         }
         labels = {
             "mat_no": "MAT No.",
-            "slot_width": "Slot Width (mm)",
-            "slot_depth": "Slot Depth (mm)",
-            "slot_length": "Slot Length (mm)",
+            "slot_width": "Slot Width (in)",
+            "slot_depth": "Slot Depth (in)",
+            "slot_length": "Slot Length (in)",
             "material": "Material",
             "hardness": "Hardness (HRC)",
             "compatible_sizes": "Compatible Bit Sizes",
