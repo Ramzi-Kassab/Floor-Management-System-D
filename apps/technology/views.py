@@ -425,7 +425,7 @@ class APIBreakerSlotsView(LoginRequiredMixin, View):
                 'material': slot.material,
                 'material_display': slot.get_material_display(),
                 'hardness': slot.hardness,
-                'compatible_sizes': list(slot.compatible_sizes.values_list('size', flat=True)),
+                'compatible_sizes': list(slot.compatible_sizes.values_list('size_display', flat=True)),
             })
 
         # Build filter options - material choices from model
