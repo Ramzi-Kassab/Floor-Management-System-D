@@ -75,18 +75,8 @@
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rows Count</dt>
                         <dd class="mt-1">
-                            <div class="flex items-center gap-2">
-                                <input type="number"
-                                       x-model="rowsCount"
-                                       @change="saveDesignInfo()"
-                                       min="1" max="10"
-                                       class="w-16 text-lg font-bold text-purple-600 dark:text-purple-400 bg-transparent border-b-2 border-purple-300 dark:border-purple-600 focus:border-purple-500 focus:outline-none text-center">
-                                <button @click="rowsCount = rowSeparators.length + 1; saveDesignInfo()"
-                                        class="text-xs text-gray-500 hover:text-purple-600 dark:hover:text-purple-400"
-                                        title="Sync from grid separators">
-                                    <i data-lucide="refresh-cw" class="w-3 h-3"></i>
-                                </button>
-                            </div>
+                            <span class="text-lg font-bold text-purple-600 dark:text-purple-400" x-text="rowsCount"></span>
+                            <span class="text-xs text-gray-400 ml-1">(click separators in grid)</span>
                         </dd>
                     </div>
                     <div>
@@ -519,8 +509,20 @@ function pocketsLayout() {
 
         setupKeyboardListeners() {
             document.addEventListener('keydown', (e) => {
-                // Only handle if we're in the config tab and grid is visible
-                if (this.activeTab !== 'config' || !this.focusedCell) return;
+                // Only handle if we're in the config tab
+                if (this.activeTab !== 'config') return;
+
+                // Handle copy/paste even without focused cell (show helpful message)
+                if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'v')) {
+                    if (!this.focusedCell) {
+                        e.preventDefault();
+                        this.showNotification('Click a cell first to use copy/paste');
+                        return;
+                    }
+                }
+
+                // Other keys require a focused cell
+                if (!this.focusedCell) return;
 
                 const { blade, col } = this.focusedCell;
 
@@ -724,7 +726,9 @@ function pocketsLayout() {
                 this.rowSeparators.push(afterCol);
                 this.rowSeparators.sort((a, b) => a - b);
             }
-            // TODO: Save to server
+            // Auto-update rows count and save
+            this.rowsCount = this.rowSeparators.length + 1;
+            this.saveDesignInfo();
         },
 
         getColumnRow(col) {
