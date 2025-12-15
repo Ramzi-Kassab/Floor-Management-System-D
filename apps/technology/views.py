@@ -294,9 +294,18 @@ class DesignPocketsUpdateInfoView(LoginRequiredMixin, View):
         # Update pocket_layout_number
         layout_number = request.POST.get('pocket_layout_number')
         if layout_number is not None:
-            design.pocket_layout_number = layout_number
+            design.pocket_layout_number = layout_number if layout_number else None
 
         design.save(update_fields=['pocket_rows_count', 'pocket_layout_number'])
+
+        # Return JSON for AJAX requests
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/x-www-form-urlencoded':
+            return JsonResponse({
+                'success': True,
+                'pocket_rows_count': design.pocket_rows_count,
+                'pocket_layout_number': design.pocket_layout_number or ''
+            })
+
         return redirect('technology:design_pockets', pk=pk)
 
 
