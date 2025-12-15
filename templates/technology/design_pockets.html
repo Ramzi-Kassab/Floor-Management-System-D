@@ -50,7 +50,7 @@
 
     <!-- Tab 1: Configuration & Grid -->
     <div x-show="activeTab === 'config'" class="space-y-6">
-        <!-- Section 1: Design Info (Editable) -->
+        <!-- Section 1: Design Info -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -59,8 +59,7 @@
                 </h2>
             </div>
             <div class="px-6 py-4">
-                <form method="post" action="{% url 'technology:design_pockets_update_info' design.pk %}" class="grid grid-cols-2 md:grid-cols-5 gap-6">
-                    {% csrf_token %}
+                <dl class="grid grid-cols-2 md:grid-cols-5 gap-6">
                     <div>
                         <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</dt>
                         <dd class="mt-1 text-lg font-mono font-medium text-gray-900 dark:text-white">{{ design.mat_no }}</dd>
@@ -74,22 +73,14 @@
                         <dd class="mt-1 text-lg font-bold text-green-600 dark:text-green-400">{{ design.total_pockets_count|default:"--" }}</dd>
                     </div>
                     <div>
-                        <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase block">Rows Count</label>
-                        <input type="number" name="pocket_rows_count"
-                               value="{{ design.pocket_rows_count|default:1 }}"
-                               min="1" max="4"
-                               class="mt-1 w-full px-3 py-2 text-lg font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg focus:ring-2 focus:ring-purple-500"
-                               @change="$el.form.submit()">
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rows Count</dt>
+                        <dd class="mt-1 text-lg font-bold text-purple-600 dark:text-purple-400" x-text="rowSeparators.length + 1"></dd>
                     </div>
                     <div>
-                        <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase block">Pocket Layout No.</label>
-                        <input type="text" name="pocket_layout_number"
-                               value="{{ design.pocket_layout_number|default:'' }}"
-                               placeholder="e.g., PL-001"
-                               class="mt-1 w-full px-3 py-2 text-lg font-mono text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg focus:ring-2 focus:ring-orange-500"
-                               @blur="$el.form.submit()">
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Pocket Layout No.</dt>
+                        <dd class="mt-1 text-lg font-mono text-orange-600 dark:text-orange-400">{{ design.pocket_layout_number|default:"--" }}</dd>
                     </div>
-                </form>
+                </dl>
             </div>
         </div>
 
@@ -113,14 +104,13 @@
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-24">L/M/S</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Pocket Shape</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-24">Count</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-20">Row</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-32">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         {% for config in pocket_configs %}
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50" data-config-id="{{ config.pk }}">
-                            <!-- Order with color background -->
+                            <!-- Order with color background and reorder arrows -->
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2">
                                     <div class="flex flex-col">
@@ -154,14 +144,6 @@
                                 {{ config.pocket_shape.name }}
                             </td>
                             <td class="px-4 py-3 text-gray-900 dark:text-white font-bold">{{ config.count }}</td>
-                            <td class="px-4 py-3">
-                                <select class="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                        onchange="updateConfigRow({{ config.pk }}, this.value)">
-                                    {% for i in "1234"|make_list %}
-                                    <option value="{{ i }}" {% if config.row_number|default:1 == i|add:0 %}selected{% endif %}>{{ i }}</option>
-                                    {% endfor %}
-                                </select>
-                            </td>
                             <td class="px-4 py-3 text-right">
                                 <form method="post" action="{% url 'technology:pocket_config_delete' design.pk config.pk %}" class="inline">
                                     {% csrf_token %}
@@ -173,7 +155,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="7" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                            <td colspan="6" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                 <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
                                 <p>No pocket configurations defined yet</p>
                                 <p class="text-sm">Click "Add Size" to start configuring pocket sizes</p>
@@ -186,7 +168,7 @@
                         <tr>
                             <td colspan="4" class="px-4 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Total:</td>
                             <td class="px-4 py-3 font-bold text-gray-900 dark:text-white">{{ config_total }}</td>
-                            <td colspan="2" class="px-4 py-3">
+                            <td class="px-4 py-3">
                                 {% if design.total_pockets_count %}
                                     {% if config_total == design.total_pockets_count %}
                                     <span class="text-green-600 dark:text-green-400 text-sm"><i data-lucide="check-circle" class="w-4 h-4 inline"></i> Matches</span>
@@ -202,7 +184,7 @@
             </div>
         </div>
 
-        <!-- Section 3: Pockets Grid -->
+        <!-- Section 3: Pockets Grid with Row Separators -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -211,7 +193,7 @@
                 </h2>
                 <div class="flex items-center gap-4">
                     <div class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ design.no_of_blades|default:0 }} Blades × {{ design.pocket_rows_count|default:1 }} Row{{ design.pocket_rows_count|default:1|pluralize }}
+                        {{ design.no_of_blades|default:0 }} Blades × <span x-text="rowSeparators.length + 1"></span> Row<span x-show="rowSeparators.length > 0">s</span>
                     </div>
                 </div>
             </div>
@@ -219,7 +201,7 @@
             <!-- Grid Legend -->
             {% if pocket_configs %}
             <div class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-                <div class="flex flex-wrap gap-3">
+                <div class="flex flex-wrap gap-3 mb-3">
                     {% for config in pocket_configs %}
                     <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 cursor-pointer hover:ring-2 hover:ring-blue-500"
                          @click="selectedConfigId = {{ config.pk }}; selectedConfigColor = '{{ config.display_color }}'"
@@ -230,65 +212,99 @@
                     </div>
                     {% endfor %}
                 </div>
-                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Click a configuration above, then click cells in the grid to assign</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                    <span class="font-medium">Grid:</span> Click a config above, then click cells to assign.
+                    <span class="font-medium ml-2">Row Separators:</span> Click between column numbers to add/remove row dividers.
+                </p>
             </div>
             {% endif %}
 
             <div class="p-6 overflow-x-auto">
                 {% if design.no_of_blades and pocket_configs %}
-                <div class="space-y-6">
-                    {% for row_num in "1234"|make_list %}
-                    {% if row_num|add:0 <= design.pocket_rows_count|default:1 %}
-                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg">
-                        <div class="px-4 py-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 flex justify-between items-center">
-                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Row {{ row_num }}</span>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">
-                                <span>Sequence: </span>
-                                <span x-text="getRowSequence({{ row_num }})" class="font-mono"></span>
-                            </div>
+                <div class="inline-block min-w-full">
+                    <!-- Header Row with Pocket Numbers and Separator Markers -->
+                    <div class="flex mb-1">
+                        <div class="w-16 flex-shrink-0"></div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <!-- Column number -->
+                                    <div class="w-10 text-center text-xs font-medium py-1"
+                                         :class="getColumnRowClass(col)">
+                                        <span x-text="col"></span>
+                                    </div>
+                                    <!-- Row separator marker (between columns) -->
+                                    <div class="w-2 flex items-center justify-center cursor-pointer group"
+                                         @click="toggleRowSeparator(col)"
+                                         x-show="col < 20">
+                                        <div class="w-0.5 h-6 transition-all"
+                                             :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent group-hover:bg-gray-300 dark:group-hover:bg-gray-600'">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
-                        <div class="p-4">
-                            <!-- Pocket Numbers Header -->
-                            <div class="flex mb-2">
-                                <div class="w-16 flex-shrink-0"></div>
-                                <div class="flex gap-1">
-                                    <template x-for="col in 20" :key="col">
-                                        <div class="w-10 text-center text-xs text-gray-500 dark:text-gray-400 font-medium" x-text="col"></div>
-                                    </template>
+                    </div>
+
+                    <!-- Row number indicators -->
+                    <div class="flex mb-2">
+                        <div class="w-16 flex-shrink-0 text-xs text-gray-400">Row →</div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <div class="w-10 text-center text-xs font-bold"
+                                         :class="getColumnRowClass(col)">
+                                        <span x-text="getColumnRow(col)"></span>
+                                    </div>
+                                    <div class="w-2" x-show="col < 20"
+                                         :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
                                 </div>
-                            </div>
-                            <!-- Blade Rows -->
-                            {% for blade_num in "123456789"|make_list %}
-                            {% if blade_num|add:0 <= design.no_of_blades %}
-                            <div class="flex items-center mb-1">
-                                <div class="w-16 flex-shrink-0 font-medium text-gray-900 dark:text-white text-sm">B{{ blade_num }}</div>
-                                <div class="flex gap-1">
-                                    <template x-for="col in 20" :key="col">
-                                        <div class="w-10 h-10 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-xs cursor-pointer transition-all"
-                                             :style="getCellStyle({{ blade_num }}, {{ row_num }}, col)"
-                                             :class="getCellClass({{ blade_num }}, {{ row_num }}, col)"
-                                             @click="assignPocket({{ blade_num }}, {{ row_num }}, col)">
-                                        </div>
-                                    </template>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Blade Rows -->
+                    {% for blade_num in "123456789"|make_list %}
+                    {% if blade_num|add:0 <= design.no_of_blades %}
+                    <div class="flex items-center mb-1">
+                        <div class="w-16 flex-shrink-0 font-medium text-gray-900 dark:text-white text-sm">B{{ blade_num }}</div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <!-- Grid cell -->
+                                    <div class="w-10 h-10 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-xs cursor-pointer transition-all"
+                                         :style="getCellStyle({{ blade_num }}, col)"
+                                         :class="getCellClass({{ blade_num }}, col)"
+                                         @click="assignPocket({{ blade_num }}, col)">
+                                    </div>
+                                    <!-- Separator visual between cells -->
+                                    <div class="w-2" x-show="col < 20"
+                                         :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
                                 </div>
-                            </div>
-                            {% endif %}
-                            {% endfor %}
-                            <!-- Row Total Sequence -->
-                            <div class="flex items-center mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                                <div class="w-16 flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">Total</div>
-                                <div class="flex gap-1">
-                                    <template x-for="col in 20" :key="col">
-                                        <div class="w-10 text-center text-xs font-mono text-gray-600 dark:text-gray-400"
-                                             x-text="getColumnTotal({{ row_num }}, col)">
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
+                            </template>
                         </div>
                     </div>
                     {% endif %}
                     {% endfor %}
+
+                    <!-- Sequence per Row -->
+                    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">Sequence per Row:</div>
+                        <template x-for="(row, index) in getRowRanges()" :key="index">
+                            <div class="flex items-center mb-1">
+                                <div class="w-20 flex-shrink-0 text-xs font-medium" :class="getRowColor(index + 1)">
+                                    Row <span x-text="index + 1"></span>:
+                                </div>
+                                <div class="text-xs font-mono text-gray-600 dark:text-gray-400" x-text="getRowSequenceText(row.start, row.end)"></div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- All Blades Sequence -->
+                    <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">Total Sequence (All Blades):</div>
+                        <div class="text-xs font-mono text-gray-600 dark:text-gray-400" x-text="getAllBladesSequence()"></div>
+                    </div>
                 </div>
                 {% else %}
                 <div class="text-center py-12 text-gray-500 dark:text-gray-400">
@@ -356,7 +372,7 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="grid grid-cols-3 gap-4">
+                        <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Length (L/M/S)</label>
                                 <select name="length_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
@@ -368,15 +384,6 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Count</label>
                                 <input type="number" name="count" min="1" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Row</label>
-                                <select name="row_number" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                    <option value="1">1</option>
-                                    <option value="2">2</option>
-                                    <option value="3">3</option>
-                                    <option value="4">4</option>
-                                </select>
                             </div>
                         </div>
                         <div>
@@ -407,49 +414,124 @@
 
 <script>
 function pocketsLayout() {
+    const bladesCount = {{ design.no_of_blades|default:0 }};
+
     return {
         activeTab: 'config',
         showAddModal: false,
         selectedConfigId: null,
         selectedConfigColor: null,
-        gridData: {}, // Store grid assignments: {blade_row_col: configId}
+        gridData: {}, // Store grid assignments: {blade_col: configId}
+        rowSeparators: [], // Column numbers where row separators are placed (e.g., [5, 10] means row breaks after cols 5 and 10)
+        bladesCount: bladesCount,
 
         init() {
-            // Load existing grid data from server if available
             this.loadGridData();
         },
 
         loadGridData() {
-            // TODO: Load from server via AJAX
-            // For now, initialize empty
+            // TODO: Load from server
         },
 
         addConfigRow() {
             this.showAddModal = true;
         },
 
-        assignPocket(blade, row, col) {
+        toggleRowSeparator(afterCol) {
+            const index = this.rowSeparators.indexOf(afterCol);
+            if (index > -1) {
+                this.rowSeparators.splice(index, 1);
+            } else {
+                this.rowSeparators.push(afterCol);
+                this.rowSeparators.sort((a, b) => a - b);
+            }
+            // TODO: Save to server
+        },
+
+        getColumnRow(col) {
+            // Determine which row a column belongs to based on separators
+            let row = 1;
+            for (const sep of this.rowSeparators) {
+                if (col > sep) row++;
+            }
+            return row;
+        },
+
+        getColumnRowClass(col) {
+            const row = this.getColumnRow(col);
+            const colors = [
+                'text-blue-600 dark:text-blue-400',
+                'text-green-600 dark:text-green-400',
+                'text-purple-600 dark:text-purple-400',
+                'text-orange-600 dark:text-orange-400'
+            ];
+            return colors[(row - 1) % colors.length];
+        },
+
+        getRowColor(row) {
+            const colors = [
+                'text-blue-600 dark:text-blue-400',
+                'text-green-600 dark:text-green-400',
+                'text-purple-600 dark:text-purple-400',
+                'text-orange-600 dark:text-orange-400'
+            ];
+            return colors[(row - 1) % colors.length];
+        },
+
+        getRowRanges() {
+            const ranges = [];
+            let start = 1;
+            for (const sep of this.rowSeparators) {
+                ranges.push({ start, end: sep });
+                start = sep + 1;
+            }
+            ranges.push({ start, end: 20 });
+            return ranges;
+        },
+
+        getRowSequenceText(startCol, endCol) {
+            let seq = [];
+            for (let blade = 1; blade <= this.bladesCount; blade++) {
+                for (let col = startCol; col <= endCol; col++) {
+                    const key = `${blade}_${col}`;
+                    if (this.gridData[key]) {
+                        seq.push(`B${blade}P${col}`);
+                    }
+                }
+            }
+            return seq.length > 0 ? seq.join(', ') : 'No assignments yet';
+        },
+
+        getAllBladesSequence() {
+            let seq = [];
+            for (let blade = 1; blade <= this.bladesCount; blade++) {
+                for (let col = 1; col <= 20; col++) {
+                    const key = `${blade}_${col}`;
+                    if (this.gridData[key]) {
+                        seq.push(`B${blade}P${col}`);
+                    }
+                }
+            }
+            return seq.length > 0 ? seq.join(', ') : 'Click cells to assign pockets';
+        },
+
+        assignPocket(blade, col) {
             if (!this.selectedConfigId) {
                 alert('Please select a pocket configuration from the legend first');
                 return;
             }
-            const key = `${blade}_${row}_${col}`;
+            const key = `${blade}_${col}`;
             if (this.gridData[key] === this.selectedConfigId) {
-                // Click again to unassign
                 delete this.gridData[key];
             } else {
                 this.gridData[key] = this.selectedConfigId;
             }
-            // TODO: Save to server via AJAX
+            // TODO: Save to server
         },
 
-        getCellStyle(blade, row, col) {
-            const key = `${blade}_${row}_${col}`;
+        getCellStyle(blade, col) {
+            const key = `${blade}_${col}`;
             const configId = this.gridData[key];
-            if (configId && configId === this.selectedConfigId) {
-                return `background-color: ${this.selectedConfigColor}`;
-            }
-            // Find color from configs
             const configColors = {
                 {% for config in pocket_configs %}
                 {{ config.pk }}: '{{ config.display_color }}',
@@ -461,41 +543,17 @@ function pocketsLayout() {
             return '';
         },
 
-        getCellClass(blade, row, col) {
-            const key = `${blade}_${row}_${col}`;
+        getCellClass(blade, col) {
+            const key = `${blade}_${col}`;
             if (this.gridData[key]) {
                 return 'border-solid border-2';
             }
             return 'hover:bg-gray-100 dark:hover:bg-gray-700';
-        },
-
-        getRowSequence(row) {
-            // Get sequence of assigned pockets for a row
-            let seq = [];
-            for (let blade = 1; blade <= 9; blade++) {
-                for (let col = 1; col <= 20; col++) {
-                    const key = `${blade}_${row}_${col}`;
-                    if (this.gridData[key]) {
-                        seq.push(`B${blade}P${col}`);
-                    }
-                }
-            }
-            return seq.length > 0 ? seq.join(', ') : '--';
-        },
-
-        getColumnTotal(row, col) {
-            let count = 0;
-            for (let blade = 1; blade <= 9; blade++) {
-                const key = `${blade}_${row}_${col}`;
-                if (this.gridData[key]) count++;
-            }
-            return count > 0 ? count : '';
         }
     }
 }
 
 function reorderConfig(configId, direction) {
-    // Submit form to reorder
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = '{% url "technology:pocket_config_reorder" design.pk %}';
@@ -517,34 +575,6 @@ function reorderConfig(configId, direction) {
     dirInput.name = 'direction';
     dirInput.value = direction;
     form.appendChild(dirInput);
-
-    document.body.appendChild(form);
-    form.submit();
-}
-
-function updateConfigRow(configId, rowNumber) {
-    // Submit form to update row number
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '{% url "technology:pocket_config_update_row" design.pk %}';
-
-    const csrfInput = document.createElement('input');
-    csrfInput.type = 'hidden';
-    csrfInput.name = 'csrfmiddlewaretoken';
-    csrfInput.value = '{{ csrf_token }}';
-    form.appendChild(csrfInput);
-
-    const configInput = document.createElement('input');
-    configInput.type = 'hidden';
-    configInput.name = 'config_id';
-    configInput.value = configId;
-    form.appendChild(configInput);
-
-    const rowInput = document.createElement('input');
-    rowInput.type = 'hidden';
-    rowInput.name = 'row_number';
-    rowInput.value = rowNumber;
-    form.appendChild(rowInput);
 
     document.body.appendChild(form);
     form.submit();
