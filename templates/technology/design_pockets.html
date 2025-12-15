@@ -570,53 +570,45 @@
     </div>
 
     <!-- Tab 3: Engagements -->
-    <div x-show="activeTab === 'engagements'" class="space-y-6">
+    <div x-show="activeTab === 'engagements'" class="space-y-3">
         <!-- Engagement Info Header -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <i data-lucide="layers" class="w-5 h-5"></i>
+            <div class="px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="layers" class="w-4 h-4"></i>
                         Engagement Sequence
                     </h2>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Define the order in which cutters engage the formation (1 = first, 2 = second, etc.)
-                    </p>
+                    <span class="text-xs font-bold px-2 py-0.5 rounded"
+                          :class="getEngagementProgress() === getTotalPockets() ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'">
+                        <span x-text="getEngagementProgress()">0</span> / <span x-text="getTotalPockets()">0</span>
+                    </span>
                 </div>
-                <button @click="saveEngagementData()"
-                        :disabled="isSavingEngagements"
-                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
-                    <i data-lucide="save" class="w-4 h-4 mr-2" x-show="!isSavingEngagements"></i>
-                    <i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin" x-show="isSavingEngagements" x-cloak></i>
-                    <span x-text="isSavingEngagements ? 'Saving...' : 'Save Engagements'"></span>
-                </button>
+                <div class="flex items-center gap-2">
+                    <button @click="toggleAutoIncrement()"
+                            class="px-2 py-1 text-xs rounded transition-all"
+                            :class="autoIncrementMode ? 'bg-blue-600 text-white ring-2 ring-blue-300' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'">
+                        <i data-lucide="mouse-pointer-click" class="w-3 h-3 inline mr-1"></i>
+                        <span x-text="autoIncrementMode ? 'Click ON' : 'Click'"></span>
+                    </button>
+                    <button @click="clearEngagements()"
+                            class="px-2 py-1 text-xs bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800">
+                        <i data-lucide="trash-2" class="w-3 h-3 inline mr-1"></i> Clear
+                    </button>
+                    <button @click="saveEngagementData()"
+                            :disabled="isSavingEngagements"
+                            class="inline-flex items-center px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium">
+                        <i data-lucide="save" class="w-3 h-3 mr-1" x-show="!isSavingEngagements"></i>
+                        <i data-lucide="loader-2" class="w-3 h-3 mr-1 animate-spin" x-show="isSavingEngagements" x-cloak></i>
+                        <span x-text="isSavingEngagements ? 'Saving...' : 'Save'"></span>
+                    </button>
+                </div>
             </div>
-            <div class="px-6 py-4">
-                <div class="flex flex-wrap items-center gap-4">
-                    <div class="flex items-center gap-2">
-                        <span class="text-sm text-gray-500">Progress:</span>
-                        <span class="text-sm font-bold px-2 py-0.5 rounded"
-                              :class="getEngagementProgress() === getTotalPockets() ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'">
-                            <span x-text="getEngagementProgress()">0</span> / <span x-text="getTotalPockets()">0</span>
-                        </span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button @click="toggleAutoIncrement()"
-                                class="px-3 py-1 text-xs rounded transition-all"
-                                :class="autoIncrementMode ? 'bg-blue-600 text-white ring-2 ring-blue-300' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'">
-                            <i data-lucide="mouse-pointer-click" class="w-3 h-3 inline mr-1"></i>
-                            <span x-text="autoIncrementMode ? 'Click Mode ON' : 'Click Mode'"></span>
-                        </button>
-                        <button @click="clearEngagements()"
-                                class="px-3 py-1 text-xs bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800">
-                            <i data-lucide="trash-2" class="w-3 h-3 inline mr-1"></i> Clear All
-                        </button>
-                    </div>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">
+            <div class="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <p class="text-[11px] text-gray-500 dark:text-gray-400">
                     <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
-                    <span x-show="!autoIncrementMode">Type numbers sequentially (no gaps). <strong>Drag</strong> cells to swap. Delete only removes the highest #.</span>
-                    <span x-show="autoIncrementMode" class="text-blue-600 dark:text-blue-400 font-medium">Click Mode: Click empty cells to auto-assign next number. Drag to swap.</span>
+                    <span x-show="!autoIncrementMode">Type numbers sequentially. <strong>Drag</strong> to swap. Delete removes highest #.</span>
+                    <span x-show="autoIncrementMode" class="text-blue-600 dark:text-blue-400 font-medium">Click empty cells to auto-assign. Drag to swap.</span>
                 </p>
             </div>
         </div>
@@ -624,20 +616,20 @@
         <!-- Pocket Configs Legend -->
         {% if pocket_configs %}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="list" class="w-5 h-5"></i>
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="list" class="w-4 h-4"></i>
                     Pocket Configurations
                 </h2>
             </div>
-            <div class="px-6 py-4">
-                <div class="flex flex-wrap gap-3">
+            <div class="px-4 py-3">
+                <div class="flex flex-wrap gap-2">
                     {% for config in pocket_configs %}
-                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
-                        <div class="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold" style="background-color: {{ config.display_color }}">{{ config.order }}</div>
-                        <span class="text-sm text-gray-700 dark:text-gray-300">{{ config.pocket_size.display_name }}</span>
-                        <span class="text-xs text-gray-500 dark:text-gray-400">({{ config.pocket_shape.code }}, {{ config.get_length_type_display }})</span>
-                        <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">x{{ config.count }}</span>
+                    <div class="flex items-center gap-1.5 px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
+                        <div class="w-5 h-5 rounded flex items-center justify-center text-white text-[10px] font-bold" style="background-color: {{ config.display_color }}">{{ config.order }}</div>
+                        <span class="text-xs text-gray-700 dark:text-gray-300">{{ config.pocket_size.display_name }}</span>
+                        <span class="text-[10px] text-gray-400">({{ config.pocket_shape.code }})</span>
+                        <span class="text-[10px] font-mono px-1 rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">x{{ config.count }}</span>
                     </div>
                     {% endfor %}
                 </div>
@@ -647,28 +639,28 @@
 
         <!-- Engagement Grid -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="grid-3x3" class="w-5 h-5"></i>
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="grid-3x3" class="w-4 h-4"></i>
                     Engagement Order Grid
                 </h2>
             </div>
-            <div class="p-6 overflow-x-auto" @keydown.window="handleEngagementKeydown($event)">
+            <div class="p-4 overflow-x-auto" @keydown.window="handleEngagementKeydown($event)">
                 {% if design.no_of_blades and pocket_configs %}
                 <div class="inline-block min-w-full select-none">
                     <!-- Header Row with Separators -->
-                    <div class="flex mb-1">
-                        <div class="w-16 flex-shrink-0"></div>
+                    <div class="flex mb-0.5">
+                        <div class="w-10 flex-shrink-0"></div>
                         <div class="flex">
                             <template x-for="col in 20" :key="col">
                                 <div class="flex">
-                                    <div class="w-12 text-center text-xs font-medium py-1"
+                                    <div class="w-9 text-center text-[10px] font-medium py-0.5"
                                          :class="getColumnRowClass(col)">
                                         <span x-text="col"></span>
                                     </div>
                                     <!-- Row separator marker -->
-                                    <div class="w-4 flex items-center justify-center" x-show="col < 20">
-                                        <div class="w-1 h-6 rounded"
+                                    <div class="w-1 flex items-center justify-center" x-show="col < 20">
+                                        <div class="w-0.5 h-4 rounded"
                                              :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'">
                                         </div>
                                     </div>
@@ -678,16 +670,16 @@
                     </div>
 
                     <!-- Location Zone Header -->
-                    <div class="flex mb-1" x-show="Object.keys(locationData).length > 0">
-                        <div class="w-16 flex-shrink-0 text-xs text-gray-400 flex items-center">Zone</div>
+                    <div class="flex mb-0.5" x-show="Object.keys(locationData).length > 0">
+                        <div class="w-10 flex-shrink-0 text-[10px] text-gray-400 flex items-center">Zone</div>
                         <div class="flex">
                             <template x-for="col in 20" :key="col">
                                 <div class="flex">
-                                    <div class="w-12 text-center text-[10px] font-bold py-0.5 rounded-t"
+                                    <div class="w-9 text-center text-[9px] font-bold py-0.5 rounded-t"
                                          :style="getLocationZoneHeaderStyle(col)">
                                         <span x-text="getLocationZoneLabel(col)"></span>
                                     </div>
-                                    <div class="w-4" x-show="col < 20"></div>
+                                    <div class="w-1" x-show="col < 20"></div>
                                 </div>
                             </template>
                         </div>
@@ -696,13 +688,13 @@
                     <!-- Blade Rows for Engagement Entry -->
                     {% for blade_num in "123456789"|make_list %}
                     {% if blade_num|add:0 <= design.no_of_blades %}
-                    <div class="flex items-center mb-1">
-                        <div class="w-16 flex-shrink-0 font-medium text-gray-900 dark:text-white text-sm">B{{ blade_num }}</div>
+                    <div class="flex items-center mb-0.5">
+                        <div class="w-10 flex-shrink-0 font-medium text-gray-900 dark:text-white text-xs">B{{ blade_num }}</div>
                         <div class="flex">
                             <template x-for="col in 20" :key="col">
                                 <div class="flex">
                                     <!-- Engagement cell -->
-                                    <div class="w-12 h-12 border rounded flex flex-col items-center justify-center cursor-pointer transition-all relative"
+                                    <div class="w-9 h-9 border rounded flex flex-col items-center justify-center cursor-pointer transition-all relative"
                                          :style="getEngagementCellStyle({{ blade_num }}, col)"
                                          :class="[getEngagementCellClass({{ blade_num }}, col), draggingEngagement && draggingEngagement.key !== `{{ blade_num }}_${col}` ? 'ring-2 ring-dashed ring-blue-400' : '']"
                                          :draggable="!!engagementData[`{{ blade_num }}_${col}`]"
@@ -714,17 +706,17 @@
                                          @dragend="endEngagementDrag()"
                                          :title="getEngagementTooltip({{ blade_num }}, col)">
                                         <!-- Config number (small, top) -->
-                                        <span class="text-[9px] text-gray-400 absolute top-0.5 left-1"
+                                        <span class="text-[8px] text-gray-400 absolute top-0 left-0.5"
                                               x-show="gridData[`{{ blade_num }}_${col}`]"
                                               x-text="getCellNumber({{ blade_num }}, col)"></span>
                                         <!-- Engagement order (large, center) -->
-                                        <span class="text-sm font-bold"
+                                        <span class="text-xs font-bold"
                                               :class="{'animate-pulse-fast text-red-600': blinkingCell === `{{ blade_num }}_${col}`}"
                                               x-text="engagementData[`{{ blade_num }}_${col}`] || ''"></span>
                                     </div>
                                     <!-- Row separator between cells -->
-                                    <div class="w-4 flex items-center justify-center" x-show="col < 20">
-                                        <div class="w-1 h-12"
+                                    <div class="w-1 flex items-center justify-center" x-show="col < 20">
+                                        <div class="w-0.5 h-9"
                                              :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'">
                                         </div>
                                     </div>
