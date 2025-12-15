@@ -18,6 +18,7 @@ urlpatterns = [
     path("designs/<int:pk>/pockets/config/<int:config_pk>/delete/", views.PocketConfigDeleteView.as_view(), name="pocket_config_delete"),
     path("designs/<int:pk>/pockets/config/reorder/", views.PocketConfigReorderView.as_view(), name="pocket_config_reorder"),
     path("designs/<int:pk>/pockets/config/update-row/", views.PocketConfigUpdateRowView.as_view(), name="pocket_config_update_row"),
+    path("designs/<int:pk>/pockets/grid/", views.DesignPocketsGridSaveView.as_view(), name="design_pockets_grid"),
     # Pockets Layout (general list)
     path("pockets-layout/", views.PocketsLayoutListView.as_view(), name="pockets_layout_list"),
     # BOMs

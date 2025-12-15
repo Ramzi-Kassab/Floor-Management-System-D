@@ -204,6 +204,13 @@
                     <div class="text-sm text-gray-500 dark:text-gray-400">
                         {{ design.no_of_blades|default:0 }} Blades × <span x-text="rowSeparators.length + 1"></span> Row<span x-show="rowSeparators.length > 0">s</span>
                     </div>
+                    <button @click="saveGridData()"
+                            :disabled="isSaving"
+                            class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+                        <i data-lucide="save" class="w-4 h-4 mr-2" x-show="!isSaving"></i>
+                        <i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin" x-show="isSaving" x-cloak></i>
+                        <span x-text="isSaving ? 'Saving...' : 'Save Grid'"></span>
+                    </button>
                 </div>
             </div>
 
@@ -496,6 +503,7 @@ function pocketsLayout() {
         isDragging: false,
         selectionStart: null, // Starting cell for range selection
         clipboard: [], // Copied cell patterns: [{relBlade, relCol, configId}]
+        isSaving: false, // Track save operation
 
         init() {
             this.loadGridData();
@@ -859,8 +867,51 @@ function pocketsLayout() {
             setTimeout(() => el.remove(), 2000);
         },
 
-        loadGridData() {
-            // TODO: Load from server
+        async loadGridData() {
+            try {
+                const response = await fetch(`/technology/designs/${this.designPk}/pockets/grid/`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        this.gridData = data.gridData || {};
+                        if (data.rowSeparators && data.rowSeparators.length > 0) {
+                            this.rowSeparators = data.rowSeparators;
+                            this.rowsCount = this.rowSeparators.length + 1;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading grid data:', error);
+            }
+        },
+
+        async saveGridData() {
+            this.isSaving = true;
+            try {
+                const response = await fetch(`/technology/designs/${this.designPk}/pockets/grid/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        gridData: this.gridData,
+                        rowSeparators: this.rowSeparators
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.showNotification(data.success ? 'Grid saved!' : data.message);
+                } else {
+                    this.showNotification('Save failed');
+                }
+            } catch (error) {
+                console.error('Error saving grid:', error);
+                this.showNotification('Save failed');
+            } finally {
+                this.isSaving = false;
+            }
         },
 
         addConfigRow() {

@@ -68,6 +68,8 @@ class DesignForm(forms.ModelForm):
             # Notes
             "description",
             "notes",
+            # Pocket Layout Number
+            "pocket_layout_number",
         ]
         widgets = {
             # Category & Classification
@@ -111,6 +113,8 @@ class DesignForm(forms.ModelForm):
             # Notes
             "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA + " bg-gray-100", "rows": 2, "id": "id_description", "readonly": "readonly"}),
             "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+            # Pocket Layout Number
+            "pocket_layout_number": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Auto-generated"}),
         }
         labels = {
             "mat_no": "MAT No.",
@@ -137,6 +141,7 @@ class DesignForm(forms.ModelForm):
             "iadc_code_ref": "IADC Code",
             "special_technologies": "Special Technologies",
             "order_level": "Order Level",
+            "pocket_layout_number": "Pocket Layout No.",
         }
 
     def __init__(self, *args, **kwargs):

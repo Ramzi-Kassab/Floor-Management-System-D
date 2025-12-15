@@ -123,6 +123,20 @@ class DesignDetailView(LoginRequiredMixin, DetailView):
         context["boms"] = self.object.boms.select_related("created_by").order_by("-created_at")
         context["cutter_layouts"] = self.object.cutter_layouts.order_by("blade_number", "position_number")
         context["work_orders_count"] = self.object.work_orders.count()
+
+        # Pocket statistics
+        pocket_configs = self.object.pocket_configs.all()
+        pocket_configs_count = pocket_configs.count()
+        pocket_configs_total = sum(c.count for c in pocket_configs)
+        pocket_assignments_count = self.object.design_pockets.count()
+
+        context["pocket_configs_count"] = pocket_configs_count
+        context["pocket_configs_total"] = pocket_configs_total
+        context["pocket_assignments_count"] = pocket_assignments_count
+        context["pocket_layout_complete"] = (
+            pocket_configs_count > 0 and
+            pocket_assignments_count == pocket_configs_total
+        )
         return context
 
 
@@ -134,14 +148,39 @@ class DesignCreateView(LoginRequiredMixin, CreateView):
     template_name = "technology/design_form.html"
     success_url = reverse_lazy("technology:design_list")
 
+    def get_next_layout_number(self):
+        """Generate the next pocket layout number."""
+        from django.db.models import Max
+        from django.db.models.functions import Cast
+        from django.db.models import IntegerField
+
+        # Try to get max numeric layout number
+        max_num = Design.objects.filter(
+            pocket_layout_number__regex=r'^\d+$'
+        ).annotate(
+            num=Cast('pocket_layout_number', IntegerField())
+        ).aggregate(Max('num'))['num__max']
+
+        return str((max_num or 0) + 1)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Create Design"
         context["submit_text"] = "Create Design"
+        context["next_layout_number"] = self.get_next_layout_number()
         return context
+
+    def get_initial(self):
+        initial = super().get_initial()
+        # Pre-fill with next layout number
+        initial['pocket_layout_number'] = self.get_next_layout_number()
+        return initial
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
+        # Auto-generate layout number if not provided
+        if not form.instance.pocket_layout_number:
+            form.instance.pocket_layout_number = self.get_next_layout_number()
         messages.success(self.request, f"Design {form.instance.hdbs_type} created successfully.")
         return super().form_valid(form)
 
@@ -368,6 +407,89 @@ class PocketConfigUpdateRowView(LoginRequiredMixin, View):
             messages.error(request, "Invalid row number.")
 
         return redirect('technology:design_pockets', pk=pk)
+
+
+class DesignPocketsGridSaveView(LoginRequiredMixin, View):
+    """Save grid cell assignments to database."""
+
+    def post(self, request, pk):
+        import json
+        from .models import DesignPocket, DesignPocketConfig
+
+        design = get_object_or_404(Design, pk=pk)
+
+        try:
+            data = json.loads(request.body)
+            grid_data = data.get('gridData', {})
+            row_separators = data.get('rowSeparators', [])
+
+            # Delete existing pocket assignments
+            DesignPocket.objects.filter(design=design).delete()
+
+            # Save new assignments
+            for key, config_id in grid_data.items():
+                blade, col = key.split('_')
+                blade = int(blade)
+                col = int(col)
+
+                # Calculate row and position in row based on separators
+                row = 1
+                row_start = 1
+                for sep in sorted(row_separators):
+                    if col > sep:
+                        row += 1
+                        row_start = sep + 1
+
+                position_in_row = col - row_start + 1
+
+                config = DesignPocketConfig.objects.filter(pk=config_id, design=design).first()
+                if config:
+                    DesignPocket.objects.create(
+                        design=design,
+                        blade_number=blade,
+                        row_number=row,
+                        position_in_row=position_in_row,
+                        position_in_blade=col,
+                        pocket_config=config
+                    )
+
+            return JsonResponse({'success': True, 'message': 'Grid saved'})
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+    def get(self, request, pk):
+        """Load grid data from database."""
+        from .models import DesignPocket
+
+        design = get_object_or_404(Design, pk=pk)
+        pockets = DesignPocket.objects.filter(design=design).select_related('pocket_config')
+
+        grid_data = {}
+        for pocket in pockets:
+            key = f"{pocket.blade_number}_{pocket.position_in_blade}"
+            grid_data[key] = pocket.pocket_config_id
+
+        # Calculate row separators from pocket data
+        row_separators = []
+        if pockets.exists():
+            # Find where rows change
+            positions_by_row = {}
+            for pocket in pockets:
+                if pocket.row_number not in positions_by_row:
+                    positions_by_row[pocket.row_number] = []
+                positions_by_row[pocket.row_number].append(pocket.position_in_blade)
+
+            # Find max position of each row as separator
+            for row_num in sorted(positions_by_row.keys())[:-1]:  # All but last row
+                max_pos = max(positions_by_row[row_num])
+                row_separators.append(max_pos)
+
+        return JsonResponse({
+            'success': True,
+            'gridData': grid_data,
+            'rowSeparators': sorted(row_separators)
+        })
 
 
 class PocketsLayoutListView(LoginRequiredMixin, ListView):
