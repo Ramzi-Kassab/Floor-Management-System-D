@@ -23,6 +23,10 @@ urlpatterns = [
     path("items/create/", views.ItemCreateView.as_view(), name="item_create"),
     path("items/<int:pk>/", views.ItemDetailView.as_view(), name="item_detail"),
     path("items/<int:pk>/edit/", views.ItemUpdateView.as_view(), name="item_update"),
+    # Item Variants
+    path("items/<int:item_pk>/variants/create/", views.ItemVariantCreateView.as_view(), name="item_variant_create"),
+    path("items/<int:item_pk>/variants/<int:pk>/edit/", views.ItemVariantUpdateView.as_view(), name="item_variant_update"),
+    path("items/<int:item_pk>/variants/<int:pk>/delete/", views.ItemVariantDeleteView.as_view(), name="item_variant_delete"),
     # Import/Export
     path("items/import/", views.ItemImportView.as_view(), name="item_import"),
     path("items/export/", views.ItemExportView.as_view(), name="item_export"),
@@ -34,4 +38,7 @@ urlpatterns = [
     # Stock
     path("stock/", views.StockListView.as_view(), name="stock_list"),
     path("stock/<int:pk>/adjust/", views.StockAdjustView.as_view(), name="stock_adjust"),
+    # API Endpoints
+    path("api/category/<int:category_pk>/attributes/", views.CategoryAttributesAPIView.as_view(), name="api_category_attributes"),
+    path("api/category/<int:category_pk>/generate-code/", views.CategoryGenerateCodeAPIView.as_view(), name="api_category_generate_code"),
 ]

@@ -16,12 +16,20 @@
                 Low Stock
             </span>
             {% endif %}
+            {% if item.has_variants %}
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                Has Variants
+            </span>
+            {% endif %}
         </div>
         <p class="text-gray-600 dark:text-gray-400 mt-1">{{ item.name }}</p>
     </div>
     <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
         <a href="{% url 'inventory:transaction_create' %}?item={{ item.pk }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
             <i data-lucide="arrow-left-right" class="w-4 h-4 mr-2"></i>Transaction
+        </a>
+        <a href="{% url 'inventory:item_variant_create' item.pk %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+            <i data-lucide="copy-plus" class="w-4 h-4 mr-2"></i>Add Variant
         </a>
         <a href="{% url 'inventory:item_update' item.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
             <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
@@ -64,6 +72,18 @@
                     <dt class="text-gray-500">Supplier Part #</dt>
                     <dd class="text-gray-900 dark:text-white font-mono">{{ item.supplier_part_number|default:"--" }}</dd>
                 </div>
+                {% if item.mat_number %}
+                <div>
+                    <dt class="text-gray-500">SAP MAT No.</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ item.mat_number }}</dd>
+                </div>
+                {% endif %}
+                {% if item.item_number %}
+                <div>
+                    <dt class="text-gray-500">ERP Item No.</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ item.item_number }}</dd>
+                </div>
+                {% endif %}
             </dl>
             {% if item.description %}
             <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -72,6 +92,87 @@
             </div>
             {% endif %}
         </div>
+
+        <!-- Category Attributes -->
+        {% if attribute_values %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Attributes
+                <span class="text-sm font-normal text-gray-500">({{ item.category.name }})</span>
+            </h2>
+            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                {% for attr_value in attribute_values %}
+                <div>
+                    <dt class="text-gray-500">{{ attr_value.attribute.name }}</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">
+                        {{ attr_value.display_value }}{% if attr_value.attribute.unit %} {{ attr_value.attribute.unit }}{% endif %}
+                    </dd>
+                </div>
+                {% endfor %}
+            </dl>
+        </div>
+        {% endif %}
+
+        <!-- Item Variants -->
+        {% if item.variants.exists %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Variants
+                    <span class="text-sm font-normal text-gray-500">({{ item.variants.count }})</span>
+                </h2>
+                <a href="{% url 'inventory:item_variant_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
+                    + Add Variant
+                </a>
+            </div>
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Code</th>
+                        <th class="px-6 py-3 font-medium">Condition</th>
+                        <th class="px-6 py-3 font-medium">Source</th>
+                        <th class="px-6 py-3 font-medium">Customer</th>
+                        <th class="px-6 py-3 font-medium text-right">Cost</th>
+                        <th class="px-6 py-3 font-medium text-right">Stock</th>
+                        <th class="px-6 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for variant in item.variants.all %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-6 py-4 font-mono text-gray-900 dark:text-white">{{ variant.code }}</td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                {% if variant.condition == 'NEW' %}bg-green-100 text-green-800
+                                {% elif variant.condition == 'RECLAIMED' %}bg-blue-100 text-blue-800
+                                {% elif variant.condition == 'USED' %}bg-amber-100 text-amber-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ variant.get_condition_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-gray-600 dark:text-gray-400 text-xs">
+                            {{ variant.get_source_type_display }}
+                        </td>
+                        <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
+                            {{ variant.customer.name|default:"--" }}
+                        </td>
+                        <td class="px-6 py-4 text-right font-mono">
+                            {{ item.currency }} {{ variant.standard_cost }}
+                            {% if variant.valuation_percentage != 100 %}
+                            <span class="text-xs text-gray-500">({{ variant.valuation_percentage }}%)</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right font-mono">{{ variant.total_stock }}</td>
+                        <td class="px-6 py-4 text-right">
+                            <a href="{% url 'inventory:item_variant_update' item.pk variant.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                            <a href="{% url 'inventory:item_variant_delete' item.pk variant.pk %}" class="text-red-600 hover:text-red-800 text-xs ml-2">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
 
         <!-- Stock by Location -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
@@ -169,6 +270,11 @@
                     {{ total_stock }}
                 </div>
                 <div class="text-gray-500 mt-1">{{ item.unit }} Total</div>
+                {% if item.has_variants %}
+                <div class="mt-2 text-sm text-purple-600">
+                    + {{ variant_stock }} in variants
+                </div>
+                {% endif %}
             </div>
             <dl class="mt-6 space-y-3 text-sm">
                 <div class="flex justify-between">
@@ -213,6 +319,16 @@
                     <dd>
                         {% if item.is_lot_controlled %}
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Yes</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">No</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="flex justify-between items-center">
+                    <dt class="text-gray-500">Has Variants</dt>
+                    <dd>
+                        {% if item.has_variants %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">{{ item.variants.count }} variants</span>
                         {% else %}
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">No</span>
                         {% endif %}

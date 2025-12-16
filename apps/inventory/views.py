@@ -4,16 +4,18 @@ Version: 5.5
 """
 
 import io
+import json
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import F, Q, Sum
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
+from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
 from openpyxl import Workbook, load_workbook
@@ -36,6 +38,7 @@ from .models import (
     InventoryLocation,
     InventoryStock,
     InventoryTransaction,
+    ItemAttributeValue,
     ItemVariant,
 )
 
@@ -380,6 +383,17 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
         # Is low stock?
         context["is_low_stock"] = item.total_stock <= item.min_stock
 
+        # Attribute values
+        context["attribute_values"] = item.attribute_values.select_related("attribute").order_by(
+            "attribute__display_order", "attribute__name"
+        )
+
+        # Variant stock total
+        variant_stock = 0
+        for variant in item.variants.all():
+            variant_stock += variant.total_stock
+        context["variant_stock"] = variant_stock
+
         return context
 
 
@@ -392,8 +406,49 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
+        response = super().form_valid(form)
+        # Save attribute values
+        self._save_attribute_values(self.object)
         messages.success(self.request, f"Item '{form.instance.code}' created successfully.")
-        return super().form_valid(form)
+        return response
+
+    def _save_attribute_values(self, item):
+        """Save attribute values from form submission."""
+        if not item.category:
+            return
+
+        for key, value in self.request.POST.items():
+            if key.startswith("attr_"):
+                try:
+                    attr_id = int(key.replace("attr_", ""))
+                    attribute = CategoryAttribute.objects.get(pk=attr_id, category=item.category)
+
+                    # Create or update attribute value
+                    attr_value, _ = ItemAttributeValue.objects.get_or_create(
+                        item=item,
+                        attribute=attribute
+                    )
+
+                    # Set value based on type
+                    if attribute.attribute_type == CategoryAttribute.AttributeType.NUMBER:
+                        if value:
+                            attr_value.number_value = Decimal(value)
+                        else:
+                            attr_value.number_value = None
+                    elif attribute.attribute_type == CategoryAttribute.AttributeType.BOOLEAN:
+                        attr_value.boolean_value = value in ["on", "true", "True", "1"]
+                    elif attribute.attribute_type == CategoryAttribute.AttributeType.DATE:
+                        if value:
+                            from datetime import datetime
+                            attr_value.date_value = datetime.strptime(value, "%Y-%m-%d").date()
+                        else:
+                            attr_value.date_value = None
+                    else:
+                        attr_value.text_value = value or ""
+
+                    attr_value.save()
+                except (ValueError, CategoryAttribute.DoesNotExist):
+                    pass
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.object.pk})
@@ -402,6 +457,12 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Create Item"
         context["form_title"] = "Create Inventory Item"
+        # Add categories with hierarchy for dropdown
+        context["categories"] = InventoryCategory.objects.filter(
+            is_active=True, parent__isnull=True
+        ).prefetch_related("children")
+        context["type_choices"] = InventoryItem.ItemType.choices
+        context["existing_attribute_values"] = json.dumps({})
         return context
 
 
@@ -413,8 +474,49 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
     template_name = "inventory/item_form.html"
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        # Save attribute values
+        self._save_attribute_values(self.object)
         messages.success(self.request, f"Item '{form.instance.code}' updated successfully.")
-        return super().form_valid(form)
+        return response
+
+    def _save_attribute_values(self, item):
+        """Save attribute values from form submission."""
+        if not item.category:
+            return
+
+        for key, value in self.request.POST.items():
+            if key.startswith("attr_"):
+                try:
+                    attr_id = int(key.replace("attr_", ""))
+                    attribute = CategoryAttribute.objects.get(pk=attr_id, category=item.category)
+
+                    # Create or update attribute value
+                    attr_value, _ = ItemAttributeValue.objects.get_or_create(
+                        item=item,
+                        attribute=attribute
+                    )
+
+                    # Set value based on type
+                    if attribute.attribute_type == CategoryAttribute.AttributeType.NUMBER:
+                        if value:
+                            attr_value.number_value = Decimal(value)
+                        else:
+                            attr_value.number_value = None
+                    elif attribute.attribute_type == CategoryAttribute.AttributeType.BOOLEAN:
+                        attr_value.boolean_value = value in ["on", "true", "True", "1"]
+                    elif attribute.attribute_type == CategoryAttribute.AttributeType.DATE:
+                        if value:
+                            from datetime import datetime
+                            attr_value.date_value = datetime.strptime(value, "%Y-%m-%d").date()
+                        else:
+                            attr_value.date_value = None
+                    else:
+                        attr_value.text_value = value or ""
+
+                    attr_value.save()
+                except (ValueError, CategoryAttribute.DoesNotExist):
+                    pass
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.object.pk})
@@ -423,6 +525,25 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Edit {self.object.code}"
         context["form_title"] = "Edit Inventory Item"
+        # Add categories with hierarchy for dropdown
+        context["categories"] = InventoryCategory.objects.filter(
+            is_active=True, parent__isnull=True
+        ).prefetch_related("children")
+        context["type_choices"] = InventoryItem.ItemType.choices
+
+        # Get existing attribute values for this item
+        existing_values = {}
+        for attr_value in self.object.attribute_values.select_related("attribute"):
+            attr = attr_value.attribute
+            if attr.attribute_type == CategoryAttribute.AttributeType.NUMBER:
+                existing_values[attr.code] = float(attr_value.number_value) if attr_value.number_value else ""
+            elif attr.attribute_type == CategoryAttribute.AttributeType.BOOLEAN:
+                existing_values[attr.code] = attr_value.boolean_value or False
+            elif attr.attribute_type == CategoryAttribute.AttributeType.DATE:
+                existing_values[attr.code] = str(attr_value.date_value) if attr_value.date_value else ""
+            else:
+                existing_values[attr.code] = attr_value.text_value or ""
+        context["existing_attribute_values"] = json.dumps(existing_values)
         return context
 
 
@@ -1031,3 +1152,135 @@ class ItemImportView(LoginRequiredMixin, View):
             messages.error(request, f"Error processing file: {str(e)}")
 
         return redirect("inventory:item_list")
+
+
+# =============================================================================
+# API Views
+# =============================================================================
+
+
+class CategoryAttributesAPIView(LoginRequiredMixin, View):
+    """API endpoint to get category attributes."""
+
+    def get(self, request, category_pk):
+        category = get_object_or_404(InventoryCategory, pk=category_pk)
+
+        attributes = []
+        for attr in category.attributes.all().order_by("display_order", "name"):
+            attributes.append({
+                "id": attr.id,
+                "code": attr.code,
+                "name": attr.name,
+                "attribute_type": attr.attribute_type,
+                "unit": attr.unit,
+                "min_value": float(attr.min_value) if attr.min_value else None,
+                "max_value": float(attr.max_value) if attr.max_value else None,
+                "options": attr.options,
+                "is_required": attr.is_required,
+                "is_used_in_name": attr.is_used_in_name,
+            })
+
+        return JsonResponse({
+            "category_id": category.pk,
+            "category_code": category.code,
+            "item_type": category.item_type,
+            "name_template": category.name_template,
+            "attributes": attributes,
+        })
+
+
+class CategoryGenerateCodeAPIView(LoginRequiredMixin, View):
+    """API endpoint to generate next item code for a category."""
+
+    def post(self, request, category_pk):
+        category = get_object_or_404(InventoryCategory, pk=category_pk)
+        code = category.generate_next_code()
+        return JsonResponse({"code": code})
+
+
+# =============================================================================
+# Item Variant Views
+# =============================================================================
+
+
+class ItemVariantCreateView(LoginRequiredMixin, CreateView):
+    """Create item variant."""
+
+    model = ItemVariant
+    form_class = ItemVariantForm
+    template_name = "inventory/item_variant_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.item = get_object_or_404(InventoryItem, pk=kwargs["item_pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.base_item = self.item
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Variant '{form.instance.code}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.item.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Add Variant - {self.item.code}"
+        context["form_title"] = f"Add Variant for {self.item.name}"
+        context["item"] = self.item
+        return context
+
+
+class ItemVariantUpdateView(LoginRequiredMixin, UpdateView):
+    """Update item variant."""
+
+    model = ItemVariant
+    form_class = ItemVariantForm
+    template_name = "inventory/item_variant_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.item = get_object_or_404(InventoryItem, pk=kwargs["item_pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self):
+        return get_object_or_404(ItemVariant, pk=self.kwargs["pk"], base_item=self.item)
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant '{form.instance.code}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.item.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Variant - {self.object.code}"
+        context["form_title"] = f"Edit Variant: {self.object.code}"
+        context["item"] = self.item
+        return context
+
+
+class ItemVariantDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete item variant."""
+
+    model = ItemVariant
+    template_name = "inventory/item_variant_confirm_delete.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.item = get_object_or_404(InventoryItem, pk=kwargs["item_pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self):
+        return get_object_or_404(ItemVariant, pk=self.kwargs["pk"], base_item=self.item)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.item.pk})
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant '{self.object.code}' deleted.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["item"] = self.item
+        return context
