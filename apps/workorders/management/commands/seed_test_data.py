@@ -143,7 +143,7 @@ class Command(BaseCommand):
 
         self.stdout.write("Creating test drill bits...")
 
-        bit_types = list(DrillBit.BitType.choices)
+        bit_types = list(DrillBit.BitCategory.choices)
         statuses = list(DrillBit.Status.choices)
 
         sizes = [

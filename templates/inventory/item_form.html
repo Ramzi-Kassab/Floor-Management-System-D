@@ -14,7 +14,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-4xl">
+<div class="max-w-4xl" x-data="itemForm()">
     <form method="post" enctype="multipart/form-data" class="space-y-6">
         {% csrf_token %}
 
@@ -24,27 +24,176 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Code *</label>
-                    {{ form.code }}
-                    {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name *</label>
-                    {{ form.name }}
-                    {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category *</label>
+                    <select name="category" id="id_category" x-model="selectedCategory" @change="onCategoryChange()"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                        <option value="">Select Category</option>
+                        {% for category in categories %}
+                        <option value="{{ category.pk }}"
+                                data-item-type="{{ category.item_type }}"
+                                data-code-prefix="{{ category.code_prefix }}"
+                                data-name-template="{{ category.name_template }}"
+                                {% if form.category.value|stringformat:"s" == category.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ category.code }} - {{ category.name }}
+                        </option>
+                        {% for child in category.children.all %}
+                        <option value="{{ child.pk }}"
+                                data-item-type="{{ child.item_type }}"
+                                data-code-prefix="{{ child.code_prefix }}"
+                                data-name-template="{{ child.name_template }}"
+                                {% if form.category.value|stringformat:"s" == child.pk|stringformat:"s" %}selected{% endif %}>
+                            &nbsp;&nbsp;└ {{ child.code }} - {{ child.name }}
+                        </option>
+                        {% endfor %}
+                        {% endfor %}
+                    </select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Item Type *</label>
-                    {{ form.item_type }}
+                    <select name="item_type" id="id_item_type" x-model="itemType"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                        {% for value, label in type_choices %}
+                        <option value="{{ value }}" {% if form.item_type.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Auto-set from category or select manually</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category</label>
-                    {{ form.category }}
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Code *
+                        <button type="button" @click="generateCode()"
+                            class="ml-2 text-xs text-blue-600 hover:text-blue-800"
+                            x-show="selectedCategory">
+                            [Auto-generate]
+                        </button>
+                    </label>
+                    <input type="text" name="code" id="id_code" x-model="itemCode"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Auto-generated or enter manually"
+                        value="{{ form.code.value|default:'' }}">
+                    {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Name *
+                        <button type="button" @click="generateName()"
+                            class="ml-2 text-xs text-blue-600 hover:text-blue-800"
+                            x-show="nameTemplate">
+                            [Auto-generate from attributes]
+                        </button>
+                    </label>
+                    <input type="text" name="name" id="id_name" x-model="itemName"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Item Name"
+                        value="{{ form.name.value|default:'' }}">
+                    <p class="text-xs text-gray-500 mt-1" x-show="nameTemplate" x-text="'Template: ' + nameTemplate"></p>
+                    {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
                     {{ form.description }}
                 </div>
+            </div>
+        </div>
+
+        <!-- Legacy References -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Legacy System References</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SAP MAT Number</label>
+                    {{ form.mat_number }}
+                    <p class="text-xs text-gray-500 mt-1">Reference from legacy SAP system</p>
+                    {% if form.mat_number.errors %}<p class="text-red-600 text-sm mt-1">{{ form.mat_number.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ERP Item Number</label>
+                    {{ form.item_number }}
+                    <p class="text-xs text-gray-500 mt-1">Reference from parallel ERP system</p>
+                    {% if form.item_number.errors %}<p class="text-red-600 text-sm mt-1">{{ form.item_number.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Attributes (Dynamic) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-show="attributes.length > 0" x-cloak>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Category Attributes
+                <span class="text-sm font-normal text-gray-500" x-text="'(' + attributes.length + ' attributes)'"></span>
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <template x-for="attr in attributes" :key="attr.id">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <span x-text="attr.name"></span>
+                            <span x-show="attr.is_required" class="text-red-500">*</span>
+                            <span x-show="attr.unit" class="text-gray-400 font-normal" x-text="'(' + attr.unit + ')'"></span>
+                        </label>
+
+                        <!-- TEXT type -->
+                        <template x-if="attr.attribute_type === 'TEXT'">
+                            <input type="text"
+                                :name="'attr_' + attr.id"
+                                x-model="attributeValues[attr.code]"
+                                :required="attr.is_required"
+                                @input="attr.is_used_in_name && generateName()"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                        </template>
+
+                        <!-- NUMBER type -->
+                        <template x-if="attr.attribute_type === 'NUMBER'">
+                            <input type="number"
+                                :name="'attr_' + attr.id"
+                                x-model="attributeValues[attr.code]"
+                                :required="attr.is_required"
+                                :min="attr.min_value"
+                                :max="attr.max_value"
+                                step="0.0001"
+                                @input="attr.is_used_in_name && generateName()"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                        </template>
+
+                        <!-- SELECT type -->
+                        <template x-if="attr.attribute_type === 'SELECT'">
+                            <select :name="'attr_' + attr.id"
+                                x-model="attributeValues[attr.code]"
+                                :required="attr.is_required"
+                                @change="attr.is_used_in_name && generateName()"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 text-sm">
+                                <option value="">Select...</option>
+                                <template x-for="opt in getOptions(attr)" :key="opt.value">
+                                    <option :value="opt.value" x-text="opt.label"></option>
+                                </template>
+                            </select>
+                        </template>
+
+                        <!-- BOOLEAN type -->
+                        <template x-if="attr.attribute_type === 'BOOLEAN'">
+                            <div class="flex items-center mt-2">
+                                <input type="checkbox"
+                                    :name="'attr_' + attr.id"
+                                    x-model="attributeValues[attr.code]"
+                                    @change="attr.is_used_in_name && generateName()"
+                                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Yes</span>
+                            </div>
+                        </template>
+
+                        <!-- DATE type -->
+                        <template x-if="attr.attribute_type === 'DATE'">
+                            <input type="date"
+                                :name="'attr_' + attr.id"
+                                x-model="attributeValues[attr.code]"
+                                :required="attr.is_required"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                        </template>
+
+                        <p x-show="attr.min_value || attr.max_value"
+                           class="text-xs text-gray-500 mt-1"
+                           x-text="(attr.min_value ? 'Min: ' + attr.min_value : '') + (attr.min_value && attr.max_value ? ' | ' : '') + (attr.max_value ? 'Max: ' + attr.max_value : '')">
+                        </p>
+                    </div>
+                </template>
             </div>
         </div>
 
@@ -146,4 +295,136 @@
         </div>
     </form>
 </div>
+
+<script>
+function itemForm() {
+    return {
+        selectedCategory: '{{ form.category.value|default:"" }}',
+        itemType: '{{ form.item_type.value|default:"COMPONENT" }}',
+        itemCode: '{{ form.code.value|default:"" }}',
+        itemName: '{{ form.name.value|default:"" }}',
+        nameTemplate: '',
+        attributes: [],
+        attributeValues: {},
+        existingAttributeValues: {{ existing_attribute_values|safe|default:"{}" }},
+
+        init() {
+            // Load attributes if category is pre-selected
+            if (this.selectedCategory) {
+                this.loadAttributes();
+            }
+        },
+
+        onCategoryChange() {
+            const select = document.getElementById('id_category');
+            const option = select.options[select.selectedIndex];
+
+            if (option && option.value) {
+                // Auto-set item type from category
+                const itemType = option.dataset.itemType;
+                if (itemType) {
+                    this.itemType = itemType;
+                }
+
+                // Store name template
+                this.nameTemplate = option.dataset.nameTemplate || '';
+
+                // Load category attributes
+                this.loadAttributes();
+            } else {
+                this.nameTemplate = '';
+                this.attributes = [];
+                this.attributeValues = {};
+            }
+        },
+
+        async loadAttributes() {
+            if (!this.selectedCategory) return;
+
+            try {
+                const response = await fetch(`/inventory/api/category/${this.selectedCategory}/attributes/`);
+                const data = await response.json();
+                this.attributes = data.attributes || [];
+                this.nameTemplate = data.name_template || '';
+
+                // Initialize attribute values
+                this.attributeValues = {};
+                this.attributes.forEach(attr => {
+                    // Check if we have existing values
+                    if (this.existingAttributeValues[attr.code] !== undefined) {
+                        this.attributeValues[attr.code] = this.existingAttributeValues[attr.code];
+                    } else {
+                        this.attributeValues[attr.code] = attr.attribute_type === 'BOOLEAN' ? false : '';
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading attributes:', error);
+            }
+        },
+
+        async generateCode() {
+            if (!this.selectedCategory) return;
+
+            try {
+                const response = await fetch(`/inventory/api/category/${this.selectedCategory}/generate-code/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                if (data.code) {
+                    this.itemCode = data.code;
+                }
+            } catch (error) {
+                console.error('Error generating code:', error);
+            }
+        },
+
+        generateName() {
+            if (!this.nameTemplate) return;
+
+            let name = this.nameTemplate;
+
+            // Replace placeholders with attribute values
+            this.attributes.forEach(attr => {
+                const placeholder = '{' + attr.code + '}';
+                let value = this.attributeValues[attr.code] || '';
+
+                // Add unit for number values
+                if (attr.attribute_type === 'NUMBER' && value && attr.unit) {
+                    value = value + attr.unit;
+                }
+
+                // For boolean, show Yes/No
+                if (attr.attribute_type === 'BOOLEAN') {
+                    value = value ? 'Yes' : 'No';
+                }
+
+                name = name.replace(placeholder, value);
+            });
+
+            // Clean up unreplaced placeholders and extra spaces
+            name = name.replace(/\{[^}]+\}/g, '').replace(/\s+/g, ' ').trim();
+
+            if (name) {
+                this.itemName = name;
+            }
+        },
+
+        getOptions(attr) {
+            if (!attr.options) return [];
+
+            // Handle both simple arrays and object arrays
+            return attr.options.map(opt => {
+                if (typeof opt === 'string') {
+                    return { value: opt, label: opt };
+                }
+                return { value: opt.value, label: opt.label };
+            });
+        }
+    }
+}
+</script>
 {% endblock %}

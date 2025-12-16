@@ -82,7 +82,7 @@ def work_order_for_ncr(db, qc_inspector):
 
     drill_bit = DrillBit.objects.create(
         serial_number='FC-NCR-001',
-        bit_type=DrillBit.BitType.FC,
+        bit_type=DrillBit.BitCategory.FC,
         size=Decimal('8.500'),
         status=DrillBit.Status.IN_PRODUCTION,
         created_by=qc_inspector
@@ -507,7 +507,7 @@ class TestQualityNCRResolutionWorkflow:
         # Create work order
         drill_bit = DrillBit.objects.create(
             serial_number='FC-MINOR-001',
-            bit_type=DrillBit.BitType.FC,
+            bit_type=DrillBit.BitCategory.FC,
             size=Decimal('8.500'),
             created_by=qc_inspector
         )

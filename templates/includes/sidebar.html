@@ -21,143 +21,346 @@
 
     <nav class="p-4 space-y-2">
         <!-- Dashboard -->
-        <a href="{% url 'dashboard:index' %}"
-           class="flex items-center px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700
-                  {% if request.resolver_match.app_name == 'dashboard' %}bg-primary-50 dark:bg-primary-900 text-primary-700 dark:text-primary-200{% endif %}">
-            <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i>
-            <span x-show="sidebarOpen" x-transition class="ml-3">Dashboard</span>
-        </a>
-
-        <!-- Operations Section -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'workorders' or request.resolver_match.app_name == 'drss' or request.resolver_match.app_name == 'execution' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'dashboard' %}true{% else %}false{% endif %} }" class="space-y-1">
             <button @click="open = !open"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700
+                           {% if request.resolver_match.app_name == 'dashboard' %}bg-primary-50 dark:bg-primary-900/50 text-primary-700 dark:text-primary-200{% endif %}">
                 <div class="flex items-center">
-                    <i data-lucide="wrench" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Operations</span>
+                    <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Dashboard</span>
                 </div>
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'workorders:list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Orders</a>
-                <a href="{% url 'workorders:drillbit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Drill Bits</a>
-                <a href="{% url 'drss:drss_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">DRSS</a>
-                <a href="{% url 'execution:list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Execution</a>
+                <a href="{% url 'dashboard:main' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="home" class="w-4 h-4 inline mr-2"></i>Main Dashboard
+                </a>
+                <a href="{% url 'dashboard:manager' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="briefcase" class="w-4 h-4 inline mr-2"></i>Manager
+                </a>
+                <a href="{% url 'dashboard:planner' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="calendar" class="w-4 h-4 inline mr-2"></i>Planner
+                </a>
+                <a href="{% url 'dashboard:technician' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="wrench" class="w-4 h-4 inline mr-2"></i>Technician
+                </a>
+                <a href="{% url 'dashboard:qc' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="clipboard-check" class="w-4 h-4 inline mr-2"></i>QC Inspector
+                </a>
+
+                <!-- Saved Dashboards -->
+                {% if saved_dashboards %}
+                <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">My Dashboards</span>
+                {% for dashboard in saved_dashboards %}
+                <a href="{% url 'dashboard:saved_view' dashboard.pk %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="{{ dashboard.icon }}" class="w-4 h-4 inline mr-2"></i>{{ dashboard.name }}
+                </a>
+                {% endfor %}
+                {% endif %}
+
+                <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+                <a href="{% url 'dashboard:saved_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="folder" class="w-4 h-4 inline mr-2"></i>All Dashboards
+                </a>
             </div>
         </div>
 
-        <!-- Sales & Field Section -->
+        <!-- ============================================================ -->
+        <!-- SALES - Sales & Commercial -->
+        <!-- ============================================================ -->
         <div x-data="{ open: {% if request.resolver_match.app_name == 'sales' %}true{% else %}false{% endif %} }" class="space-y-1">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center">
                     <i data-lucide="briefcase" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Sales & Field</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Sales</span>
                 </div>
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
+                <!-- Customer Master Data -->
                 <a href="{% url 'sales:customer_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Customers</a>
                 <a href="{% url 'sales:rig_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Rigs</a>
                 <a href="{% url 'sales:well_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Wells</a>
-                <a href="{% url 'sales:servicesite_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Sites</a>
-                <a href="{% url 'sales:fieldservicerequest_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Requests</a>
-                <a href="{% url 'sales:sitevisit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Site Visits</a>
                 <a href="{% url 'sales:salesorder_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Sales Orders</a>
-                <a href="{% url 'sales:servicereport_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Reports</a>
-                <a href="{% url 'sales:serviceschedule_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Schedules</a>
-                <a href="{% url 'sales:fieldtechnician_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Technicians</a>
+                <!-- Field Services (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Field Services</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'sales:servicesite_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Sites</a>
+                        <a href="{% url 'sales:fieldservicerequest_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Requests</a>
+                        <a href="{% url 'sales:sitevisit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Site Visits</a>
+                        <a href="{% url 'sales:servicereport_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Reports</a>
+                        <a href="{% url 'sales:serviceschedule_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Schedules</a>
+                        <a href="{% url 'sales:fieldtechnician_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Engineers</a>
+                        <a href="{% url 'sales:fieldworkorder_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Work Orders</a>
+                        <a href="{% url 'sales:fieldassetassignment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Asset Assignments</a>
+                    </div>
+                </div>
+                <!-- Field Data (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Field Data</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'sales:fielddrillstringrun_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Drill Runs</a>
+                        <a href="{% url 'sales:fieldrundata_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Run Data</a>
+                        <a href="{% url 'sales:runhours_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Run Hours</a>
+                        <a href="{% url 'sales:fieldperformancelog_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Performance Logs</a>
+                        <a href="{% url 'sales:fieldinspection_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Inspections</a>
+                        <a href="{% url 'sales:fieldincident_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Incidents</a>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Inventory & Supply Section -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'inventory' or request.resolver_match.app_name == 'supplychain' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <!-- ============================================================ -->
+        <!-- PRODUCTION - Manufacturing Floor -->
+        <!-- ============================================================ -->
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'workorders' or request.resolver_match.app_name == 'execution' %}true{% else %}false{% endif %} }" class="space-y-1">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center">
-                    <i data-lucide="package" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Inventory & Supply</span>
+                    <i data-lucide="factory" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Production</span>
                 </div>
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'inventory:item_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Inventory Items</a>
-                <a href="{% url 'inventory:stock_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Levels</a>
-                <a href="{% url 'sales:warehouse_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Warehouses</a>
-                <a href="{% url 'supplychain:supplier_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Suppliers</a>
-                <a href="{% url 'supplychain:pr_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requisitions</a>
-                <a href="{% url 'supplychain:po_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Purchase Orders</a>
-                <a href="{% url 'supplychain:grn_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Goods Receipts</a>
+                <a href="{% url 'workorders:list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Orders</a>
+                <a href="{% url 'execution:list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">WIP</a>
+                <a href="{% url 'workorders:processroute_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Process Routes</a>
+                <a href="{% url 'workorders:workordercost_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Order Costs</a>
+                <!-- Repair Operations (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Repair Operations</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'workorders:repairevaluation_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Repair Evaluations</a>
+                        <a href="{% url 'workorders:repairbom_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Repair BOM</a>
+                        <a href="{% url 'workorders:bitrepairhistory_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Bit Repair History</a>
+                        <a href="{% url 'workorders:salvageitem_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Salvage Items</a>
+                    </div>
+                </div>
+                <!-- Maintenance (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Maintenance</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'maintenance:equipment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Equipment</a>
+                        <a href="{% url 'maintenance:request_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance Requests</a>
+                        <a href="{% url 'maintenance:mwo_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance Work Orders</a>
+                        <a href="{% url 'maintenance:pm_schedule' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">PM Schedule</a>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Quality & Compliance Section -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'quality' or request.resolver_match.app_name == 'compliance' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <!-- ============================================================ -->
+        <!-- FC PRODUCTION & REPAIR - Separate Department -->
+        <!-- ============================================================ -->
+        <div x-data="{ open: false }" class="space-y-1">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center">
-                    <i data-lucide="shield-check" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Quality & Compliance</span>
+                    <i data-lucide="disc-3" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">FC Production</span>
+                </div>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+            </button>
+            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
+                <a href="{% url 'workorders:list' %}?type=FC" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">FC Work Orders</a>
+                <a href="{% url 'workorders:drillbit_list' %}?type=FC" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">FC Drill Bits</a>
+                <a href="{% url 'execution:list' %}?type=FC" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">FC WIP</a>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TECHNICAL - Technical Department -->
+        <!-- ============================================================ -->
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'technology' %}true{% else %}false{% endif %} }" class="space-y-1">
+            <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <div class="flex items-center">
+                    <i data-lucide="cog" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Technical</span>
+                </div>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+            </button>
+            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
+                <a href="{% url 'technology:design_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Designs</a>
+                <a href="{% url 'technology:connection_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="link" class="w-4 h-4 mr-2"></i>Connections
+                </a>
+                <a href="{% url 'technology:breaker_slot_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="wrench" class="w-4 h-4 mr-2"></i>Breaker Slots
+                </a>
+                <a href="{% url 'technology:pockets_layout_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="grid-3x3" class="w-4 h-4 mr-2"></i>Pockets Layout
+                </a>
+                <a href="{% url 'technology:bom_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="package" class="w-4 h-4 mr-2"></i>Bills of Materials
+                </a>
+                <!-- Reference Data (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Reference Data</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'workorders:bittype_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Bit Types</a>
+                        <a href="{% url 'workorders:bitsize_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Bit Sizes</a>
+                        <a href="{% url 'workorders:location_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Locations</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- QUALITY - Quality Management System -->
+        <!-- ============================================================ -->
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'quality' or request.resolver_match.app_name == 'compliance' or request.resolver_match.app_name == 'procedures' or request.resolver_match.app_name == 'forms_engine' %}true{% else %}false{% endif %} }" class="space-y-1">
+            <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <div class="flex items-center">
+                    <i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Quality</span>
                 </div>
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'quality:inspection_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Inspections</a>
                 <a href="{% url 'quality:ncr_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">NCRs</a>
-                <a href="{% url 'compliance:compliancerequirement_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requirements</a>
-                <a href="{% url 'compliance:inspectionchecklist_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Checklists</a>
-                <a href="{% url 'compliance:audittrail_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Audits</a>
-                <a href="{% url 'compliance:certification_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Certifications</a>
-                <a href="{% url 'compliance:trainingrecord_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Training</a>
-                <a href="{% url 'compliance:qualitymetric_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Metrics</a>
                 <a href="{% url 'supplychain:capa_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">CAPA</a>
-            </div>
-        </div>
-
-        <!-- Engineering Section -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'technology' or request.resolver_match.app_name == 'procedures' or request.resolver_match.app_name == 'forms_engine' %}true{% else %}false{% endif %} }" class="space-y-1">
-            <button @click="open = !open"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="cog" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Engineering</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'technology:design_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Designs</a>
-                <a href="{% url 'technology:bom_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">BOMs</a>
                 <a href="{% url 'procedures:procedure_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Procedures</a>
                 <a href="{% url 'forms_engine:template-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Form Templates</a>
+                <!-- Compliance (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Compliance</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'compliance:compliancerequirement_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requirements</a>
+                        <a href="{% url 'compliance:inspectionchecklist_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Checklists</a>
+                        <a href="{% url 'compliance:audittrail_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Audits</a>
+                        <a href="{% url 'compliance:certification_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Certifications</a>
+                        <a href="{% url 'compliance:trainingrecord_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Training Records</a>
+                        <a href="{% url 'compliance:qualitymetric_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Metrics</a>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- HR & Workforce Section -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'hr' or request.resolver_match.app_name == 'dispatch' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <!-- ============================================================ -->
+        <!-- LOGISTICS - Inventory, Purchasing, DRSS, Dispatch -->
+        <!-- ============================================================ -->
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'inventory' or request.resolver_match.app_name == 'supplychain' or request.resolver_match.app_name == 'dispatch' or request.resolver_match.app_name == 'drss' %}true{% else %}false{% endif %} }" class="space-y-1">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center">
-                    <i data-lucide="users" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">HR & Workforce</span>
+                    <i data-lucide="truck" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Logistics</span>
                 </div>
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'hr:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">HR Dashboard</a>
-                <a href="{% url 'hr:employee-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Employees</a>
-                <a href="{% url 'hr:attendance-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Attendance</a>
-                <a href="{% url 'hr:timeentry-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Time Entries</a>
-                <a href="{% url 'hr:leave-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Leave Requests</a>
-                <a href="{% url 'hr:shift-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Shifts</a>
-                <a href="{% url 'hr:payroll-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Payroll</a>
-                <a href="{% url 'hr:review-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Reviews</a>
-                <a href="{% url 'hr:skill-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Skills</a>
-                <a href="{% url 'dispatch:dispatch-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Dispatch</a>
-                <a href="{% url 'dispatch:vehicle-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Vehicles</a>
+                <!-- Master Data (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Master Data</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'inventory:category_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Categories</a>
+                        <a href="{% url 'inventory:attribute_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Attributes</a>
+                        <a href="{% url 'inventory:variant_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Variants</a>
+                        <a href="{% url 'inventory:uom_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Units of Measure</a>
+                        <a href="{% url 'inventory:lot_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Material Lots</a>
+                    </div>
+                </div>
+                <!-- Inventory (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Inventory</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'inventory:item_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Items</a>
+                        <a href="{% url 'inventory:stock_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Levels</a>
+                        <a href="{% url 'inventory:transaction_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Transactions</a>
+                    </div>
+                </div>
+                <!-- Locations (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Locations</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'inventory:location_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">All Locations</a>
+                        <a href="{% url 'sales:warehouse_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Warehouses</a>
+                    </div>
+                </div>
+                <!-- Drill Bits Inventory (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Drill Bits Inventory</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'workorders:drillbit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Drill Bits</a>
+                    </div>
+                </div>
+                <!-- Purchasing (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Purchasing</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'supplychain:supplier_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Vendors</a>
+                        <a href="{% url 'supplychain:pr_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requisitions</a>
+                        <a href="{% url 'supplychain:po_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Purchase Orders</a>
+                        <a href="{% url 'supplychain:grn_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Goods Receipts</a>
+                    </div>
+                </div>
+                <!-- DRSS (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>DRSS</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'drss:drss_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">DRSS Requests</a>
+                    </div>
+                </div>
+                <!-- Dispatch (collapsible) -->
+                <div x-data="{ subOpen: false }" class="space-y-1">
+                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                        <span>Dispatch</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="subOpen" x-collapse class="space-y-1">
+                        <a href="{% url 'dispatch:dispatch-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Dispatches</a>
+                        <a href="{% url 'dispatch:vehicle-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Vehicles</a>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Safety Section -->
+        <!-- ============================================================ -->
+        <!-- HSSE - Health, Safety, Security, Environment -->
+        <!-- ============================================================ -->
         <div x-data="{ open: {% if request.resolver_match.app_name == 'hsse' %}true{% else %}false{% endif %} }" class="space-y-1">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -174,33 +377,39 @@
             </div>
         </div>
 
-        <!-- Support Section -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'documents' or request.resolver_match.app_name == 'maintenance' or request.resolver_match.app_name == 'scancodes' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <!-- ============================================================ -->
+        <!-- HR & ADMINISTRATION -->
+        <!-- ============================================================ -->
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'hr' %}true{% else %}false{% endif %} }" class="space-y-1">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center">
-                    <i data-lucide="folder" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Support</span>
+                    <i data-lucide="users" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">HR & Admin</span>
                 </div>
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'documents:document_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Documents</a>
-                <a href="{% url 'maintenance:equipment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Equipment</a>
-                <a href="{% url 'maintenance:request_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maint. Requests</a>
-                <a href="{% url 'maintenance:mwo_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Orders</a>
-                <a href="{% url 'maintenance:pm_schedule' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">PM Schedule</a>
-                <a href="{% url 'scancodes:scancode-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Scan Codes</a>
+                <a href="{% url 'hr:employee-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Employees</a>
+                <a href="{% url 'hr:attendance-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Attendance</a>
+                <a href="{% url 'hr:timeentry-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Time Entries</a>
+                <a href="{% url 'hr:leave-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Leave Requests</a>
+                <a href="{% url 'hr:shift-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Shifts</a>
+                <a href="{% url 'hr:payroll-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Payroll</a>
+                <a href="{% url 'hr:review-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Reviews</a>
+                <a href="{% url 'hr:skill-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Skills</a>
             </div>
         </div>
 
-        <!-- Planning & Reports Section -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'planning' or request.resolver_match.app_name == 'reports' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <!-- ============================================================ -->
+        <!-- PLANNING - Project Management -->
+        <!-- ============================================================ -->
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'planning' %}true{% else %}false{% endif %} }" class="space-y-1">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center">
-                    <i data-lucide="bar-chart-2" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Planning & Reports</span>
+                    <i data-lucide="calendar" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Planning</span>
                 </div>
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
@@ -208,19 +417,55 @@
                 <a href="{% url 'planning:board_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Boards</a>
                 <a href="{% url 'planning:sprint_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Sprints</a>
                 <a href="{% url 'planning:wiki_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Wiki</a>
-                <a href="{% url 'reports:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Reports Dashboard</a>
-                <a href="{% url 'reports:workorder_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Order Report</a>
-                <a href="{% url 'reports:inventory_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Inventory Report</a>
-                <a href="{% url 'reports:quality_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Quality Report</a>
-                <a href="{% url 'reports:maintenance_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance Report</a>
-                <a href="{% url 'reports:supplychain_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Supply Chain Report</a>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- DOCUMENTS - Document Control -->
+        <!-- ============================================================ -->
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'documents' or request.resolver_match.app_name == 'scancodes' %}true{% else %}false{% endif %} }" class="space-y-1">
+            <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <div class="flex items-center">
+                    <i data-lucide="file-text" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Documents</span>
+                </div>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+            </button>
+            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
+                <a href="{% url 'documents:document_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Document List</a>
+                <a href="{% url 'scancodes:scancode-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Scan Codes</a>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- REPORTS - Analytics & Reporting -->
+        <!-- ============================================================ -->
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'reports' %}true{% else %}false{% endif %} }" class="space-y-1">
+            <button @click="open = !open"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <div class="flex items-center">
+                    <i data-lucide="bar-chart-2" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3">Reports</span>
+                </div>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+            </button>
+            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
+                <a href="{% url 'reports:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Dashboard</a>
+                <a href="{% url 'reports:workorder_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Orders</a>
+                <a href="{% url 'reports:inventory_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Inventory</a>
+                <a href="{% url 'reports:quality_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Quality</a>
+                <a href="{% url 'reports:maintenance_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance</a>
+                <a href="{% url 'reports:supplychain_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Logistics</a>
             </div>
         </div>
 
         <!-- Divider -->
         <div class="border-t border-gray-200 dark:border-gray-700 my-4"></div>
 
-        <!-- Organization Section -->
+        <!-- ============================================================ -->
+        <!-- ORGANIZATION - Settings -->
+        <!-- ============================================================ -->
         <div x-data="{ open: {% if request.resolver_match.app_name == 'organization' %}true{% else %}false{% endif %} }" class="space-y-1">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -237,8 +482,10 @@
             </div>
         </div>
 
-        <!-- Account Section -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'accounts' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <!-- ============================================================ -->
+        <!-- ACCOUNT - User Account -->
+        <!-- ============================================================ -->
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'accounts' or request.resolver_match.app_name == 'notifications' %}true{% else %}false{% endif %} }" class="space-y-1">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center">
@@ -253,7 +500,9 @@
             </div>
         </div>
 
-        <!-- Admin Section (if user is staff) -->
+        <!-- ============================================================ -->
+        <!-- ADMIN - Administration (Staff Only) -->
+        <!-- ============================================================ -->
         {% if user.is_staff %}
         <div x-data="{ open: false }" class="space-y-1">
             <button @click="open = !open"
@@ -265,7 +514,7 @@
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium">Django Admin Panel</a>
+                <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium">Django Admin</a>
             </div>
         </div>
         {% endif %}
