@@ -503,6 +503,13 @@ class VariantCase(models.Model):
     reclaim_category = models.CharField(max_length=20, choices=ReclaimCategory.choices, blank=True)
     ownership = models.CharField(max_length=20, choices=Ownership.choices, default=Ownership.ARDT)
 
+    # For CLIENT ownership - which client this case is for
+    client_code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Client code for CLIENT ownership cases (e.g., LSTK, Halliburton)"
+    )
+
     description = models.TextField(blank=True, help_text="Description of when this case applies")
     is_active = models.BooleanField(default=True)
     display_order = models.IntegerField(default=0)
