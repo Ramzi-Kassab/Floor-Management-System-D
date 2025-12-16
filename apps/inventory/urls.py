@@ -31,25 +31,24 @@ urlpatterns = [
     path("items/create/", views.ItemCreateView.as_view(), name="item_create"),
     path("items/<int:pk>/", views.ItemDetailView.as_view(), name="item_detail"),
     path("items/<int:pk>/edit/", views.ItemUpdateView.as_view(), name="item_update"),
-    # Item Variants (within item context)
-    path("variants/", views.ItemVariantListView.as_view(), name="variant_list"),
+    # Variants (Variant Cases - Master Data) - shows the 10 standard cases
+    path("variants/", views.VariantCaseListView.as_view(), name="variant_list"),
+    path("variants/create/", views.VariantCaseCreateView.as_view(), name="variant_create"),
+    path("variants/<int:pk>/edit/", views.VariantCaseUpdateView.as_view(), name="variant_update"),
+    path("variants/<int:pk>/delete/", views.VariantCaseDeleteView.as_view(), name="variant_delete"),
+    # Item Variants (link items to variant cases)
+    path("item-variants/", views.ItemVariantListView.as_view(), name="item_variant_list"),
     path("items/<int:item_pk>/variants/create/", views.ItemVariantCreateView.as_view(), name="item_variant_create"),
     path("items/<int:item_pk>/variants/<int:pk>/edit/", views.ItemVariantUpdateView.as_view(), name="item_variant_update"),
     path("items/<int:item_pk>/variants/<int:pk>/delete/", views.ItemVariantDeleteView.as_view(), name="item_variant_delete"),
-    # Standalone Variants (from variants list)
-    path("variants/create/", views.StandaloneVariantCreateView.as_view(), name="standalone_variant_create"),
-    path("variants/<int:pk>/edit/", views.StandaloneVariantUpdateView.as_view(), name="standalone_variant_update"),
-    path("variants/<int:pk>/delete/", views.StandaloneVariantDeleteView.as_view(), name="standalone_variant_delete"),
+    path("item-variants/create/", views.StandaloneVariantCreateView.as_view(), name="standalone_variant_create"),
+    path("item-variants/<int:pk>/edit/", views.StandaloneVariantUpdateView.as_view(), name="standalone_variant_update"),
+    path("item-variants/<int:pk>/delete/", views.StandaloneVariantDeleteView.as_view(), name="standalone_variant_delete"),
     # Units of Measure (Master Data)
     path("units/", views.UnitOfMeasureListView.as_view(), name="uom_list"),
     path("units/create/", views.UnitOfMeasureCreateView.as_view(), name="uom_create"),
     path("units/<int:pk>/edit/", views.UnitOfMeasureUpdateView.as_view(), name="uom_update"),
     path("units/<int:pk>/delete/", views.UnitOfMeasureDeleteView.as_view(), name="uom_delete"),
-    # Variant Cases (Master Data)
-    path("variant-cases/", views.VariantCaseListView.as_view(), name="variant_case_list"),
-    path("variant-cases/create/", views.VariantCaseCreateView.as_view(), name="variant_case_create"),
-    path("variant-cases/<int:pk>/edit/", views.VariantCaseUpdateView.as_view(), name="variant_case_update"),
-    path("variant-cases/<int:pk>/delete/", views.VariantCaseDeleteView.as_view(), name="variant_case_delete"),
     # Material Lots
     path("lots/", views.MaterialLotListView.as_view(), name="lot_list"),
     path("lots/create/", views.MaterialLotCreateView.as_view(), name="lot_create"),

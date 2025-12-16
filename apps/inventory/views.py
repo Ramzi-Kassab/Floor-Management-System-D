@@ -845,14 +845,14 @@ class VariantCaseCreateView(LoginRequiredMixin, CreateView):
 
     model = VariantCase
     template_name = "inventory/variant_case_form.html"
-    fields = ["code", "name", "condition", "acquisition", "reclaim_category", "ownership", "description", "display_order", "is_active"]
+    fields = ["code", "name", "condition", "acquisition", "reclaim_category", "ownership", "client_code", "description", "display_order", "is_active"]
 
     def form_valid(self, form):
         messages.success(self.request, f"Variant case '{form.instance.name}' created.")
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse_lazy("inventory:variant_case_list")
+        return reverse_lazy("inventory:variant_list")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -866,14 +866,14 @@ class VariantCaseUpdateView(LoginRequiredMixin, UpdateView):
 
     model = VariantCase
     template_name = "inventory/variant_case_form.html"
-    fields = ["code", "name", "condition", "acquisition", "reclaim_category", "ownership", "description", "display_order", "is_active"]
+    fields = ["code", "name", "condition", "acquisition", "reclaim_category", "ownership", "client_code", "description", "display_order", "is_active"]
 
     def form_valid(self, form):
         messages.success(self.request, f"Variant case '{form.instance.name}' updated.")
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse_lazy("inventory:variant_case_list")
+        return reverse_lazy("inventory:variant_list")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -889,7 +889,7 @@ class VariantCaseDeleteView(LoginRequiredMixin, DeleteView):
     template_name = "inventory/variant_case_confirm_delete.html"
 
     def get_success_url(self):
-        return reverse_lazy("inventory:variant_case_list")
+        return reverse_lazy("inventory:variant_list")
 
     def form_valid(self, form):
         messages.success(self.request, f"Variant case '{self.object.name}' deleted.")
@@ -947,7 +947,7 @@ class StandaloneVariantCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse_lazy("inventory:variant_list")
+        return reverse_lazy("inventory:item_variant_list")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -970,7 +970,7 @@ class StandaloneVariantUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse_lazy("inventory:variant_list")
+        return reverse_lazy("inventory:item_variant_list")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -988,7 +988,7 @@ class StandaloneVariantDeleteView(LoginRequiredMixin, DeleteView):
     template_name = "inventory/standalone_variant_confirm_delete.html"
 
     def get_success_url(self):
-        return reverse_lazy("inventory:variant_list")
+        return reverse_lazy("inventory:item_variant_list")
 
     def form_valid(self, form):
         messages.success(self.request, f"Variant '{self.object.code}' deleted.")
