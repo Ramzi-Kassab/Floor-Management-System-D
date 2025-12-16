@@ -5,7 +5,17 @@ Version: 5.4
 
 from django import forms
 
-from .models import InventoryCategory, InventoryItem, InventoryLocation, InventoryStock, InventoryTransaction
+from .models import (
+    Attribute,
+    CategoryAttribute,
+    InventoryCategory,
+    InventoryItem,
+    InventoryLocation,
+    InventoryStock,
+    InventoryTransaction,
+    ItemVariant,
+    UnitOfMeasure,
+)
 
 TAILWIND_INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 TAILWIND_SELECT = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
@@ -184,3 +194,38 @@ class StockAdjustmentForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2, "placeholder": "Additional notes"}),
     )
+
+
+class CategoryAttributeForm(forms.ModelForm):
+    """Form for linking attributes to categories with configuration."""
+
+    class Meta:
+        model = CategoryAttribute
+        fields = [
+            "category",
+            "attribute",
+            "attribute_type",
+            "unit",
+            "min_value",
+            "max_value",
+            "options",
+            "is_required",
+            "is_used_in_name",
+            "display_order",
+        ]
+        widgets = {
+            "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "attribute": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "attribute_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "unit": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "min_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "max_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "options": forms.Textarea(attrs={
+                "class": TAILWIND_TEXTAREA,
+                "rows": 2,
+                "placeholder": '["Option1", "Option2"]'
+            }),
+            "is_required": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "is_used_in_name": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+        }

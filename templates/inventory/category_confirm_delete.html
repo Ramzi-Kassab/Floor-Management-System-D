@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Category - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Delete Category</h1>
+        <p class="text-gray-600 dark:text-gray-400">Confirm deletion of {{ object.code }}</p>
+    </div>
+    <a href="{% url 'inventory:category_detail' object.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="text-center mb-6">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900">
+                <i data-lucide="alert-triangle" class="h-6 w-6 text-red-600 dark:text-red-400"></i>
+            </div>
+            <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">Delete Category?</h3>
+            <p class="mt-2 text-gray-500 dark:text-gray-400">
+                Are you sure you want to delete <strong>{{ object.code }} - {{ object.name }}</strong>?
+            </p>
+        </div>
+
+        {% if object.children.exists %}
+        <div class="mb-6 p-4 bg-amber-50 dark:bg-amber-900/30 rounded-lg">
+            <div class="flex">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-amber-600 dark:text-amber-400 mr-2 flex-shrink-0"></i>
+                <div>
+                    <h4 class="text-sm font-medium text-amber-800 dark:text-amber-200">Has Child Categories</h4>
+                    <p class="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                        This category has {{ object.children.count }} child categor{{ object.children.count|pluralize:"y,ies" }}.
+                        They will become root categories.
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if object.items.exists %}
+        <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/30 rounded-lg">
+            <div class="flex">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 mr-2 flex-shrink-0"></i>
+                <div>
+                    <h4 class="text-sm font-medium text-red-800 dark:text-red-200">Has Items</h4>
+                    <p class="text-sm text-red-700 dark:text-red-300 mt-1">
+                        This category has {{ object.items.count }} item{{ object.items.count|pluralize }}.
+                        They will lose their category assignment.
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex justify-center space-x-3">
+                <a href="{% url 'inventory:category_detail' object.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg">
+                    Cancel
+                </a>
+                <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    Delete Category
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

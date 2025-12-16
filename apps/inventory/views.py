@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView, View
 
 from .forms import (
+    CategoryAttributeForm,
     InventoryCategoryForm,
     InventoryItemForm,
     InventoryLocationForm,
@@ -21,7 +22,17 @@ from .forms import (
     InventoryTransactionForm,
     StockAdjustmentForm,
 )
-from .models import InventoryCategory, InventoryItem, InventoryLocation, InventoryStock, InventoryTransaction
+from .models import (
+    Attribute,
+    CategoryAttribute,
+    InventoryCategory,
+    InventoryItem,
+    InventoryLocation,
+    InventoryStock,
+    InventoryTransaction,
+    ItemVariant,
+    UnitOfMeasure,
+)
 
 
 # =============================================================================
@@ -522,3 +533,416 @@ class StockAdjustView(LoginRequiredMixin, View):
             messages.error(request, "Invalid adjustment data.")
 
         return redirect("inventory:item_detail", pk=stock.item.pk)
+
+
+# =============================================================================
+# Attribute Views (Simple global list - just names)
+# =============================================================================
+
+
+class AttributeListView(LoginRequiredMixin, ListView):
+    """List of all attributes (simple name list)."""
+
+    model = Attribute
+    template_name = "inventory/attribute_list.html"
+    context_object_name = "attributes"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = Attribute.objects.all()
+
+        # Search filter
+        search = self.request.GET.get("q", "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(description__icontains=search)
+            )
+
+        return queryset.order_by("code")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Attributes"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class StandaloneAttributeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new attribute (code is auto-generated)."""
+
+    model = Attribute
+    template_name = "inventory/standalone_attribute_form.html"
+    fields = ["name", "description", "is_active"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Attribute '{form.instance.name}' created with code {form.instance.code}.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:attribute_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Attribute"
+        context["form_title"] = "Create New Attribute"
+        return context
+
+
+class StandaloneAttributeUpdateView(LoginRequiredMixin, UpdateView):
+    """Edit an attribute (code is read-only)."""
+
+    model = Attribute
+    template_name = "inventory/standalone_attribute_form.html"
+    fields = ["name", "description", "is_active"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Attribute '{form.instance.name}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:attribute_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.name}"
+        context["form_title"] = f"Edit Attribute: {self.object.name}"
+        return context
+
+
+class StandaloneAttributeDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete an attribute."""
+
+    model = Attribute
+    template_name = "inventory/standalone_attribute_confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:attribute_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Attribute '{self.object.name}' deleted.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Delete Attribute"
+        return context
+
+
+# =============================================================================
+# Category Attribute Views (Link Attribute to Category with config)
+# =============================================================================
+
+
+class CategoryAttributeListView(LoginRequiredMixin, ListView):
+    """List of category-attribute mappings."""
+
+    model = CategoryAttribute
+    template_name = "inventory/category_attribute_list.html"
+    context_object_name = "attributes"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = CategoryAttribute.objects.select_related("category", "attribute", "unit")
+
+        # Search filter
+        search = self.request.GET.get("q", "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(attribute__code__icontains=search) |
+                Q(attribute__name__icontains=search) |
+                Q(category__name__icontains=search)
+            )
+
+        # Category filter
+        category_id = self.request.GET.get("category")
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+
+        return queryset.order_by("category__name", "display_order")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Category Attributes"
+        context["search_query"] = self.request.GET.get("q", "")
+        context["selected_category"] = self.request.GET.get("category", "")
+        context["categories"] = InventoryCategory.objects.all().order_by("name")
+        context["attribute_types"] = CategoryAttribute.AttributeType.choices
+        return context
+
+
+class CategoryAttributeCreateView(LoginRequiredMixin, CreateView):
+    """Link an attribute to a category with type/unit/validation."""
+
+    model = CategoryAttribute
+    template_name = "inventory/category_attribute_form.html"
+    form_class = CategoryAttributeForm
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Attribute linked to category.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:category_attribute_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Link Attribute to Category"
+        context["form_title"] = "Configure Attribute for Category"
+        context["categories"] = InventoryCategory.objects.all().order_by("name")
+        context["attributes"] = Attribute.objects.filter(is_active=True).order_by("name")
+        context["units"] = UnitOfMeasure.objects.filter(is_active=True).order_by("name")
+        context["attribute_types"] = CategoryAttribute.AttributeType.choices
+        return context
+
+
+class CategoryAttributeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update category-attribute configuration."""
+
+    model = CategoryAttribute
+    template_name = "inventory/category_attribute_form.html"
+    form_class = CategoryAttributeForm
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Category attribute updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:category_attribute_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Edit Category Attribute"
+        attr_name = self.object.attribute.name if self.object.attribute else "Unknown"
+        context["form_title"] = f"Edit: {attr_name} in {self.object.category.name}"
+        context["categories"] = InventoryCategory.objects.all().order_by("name")
+        context["attributes"] = Attribute.objects.filter(is_active=True).order_by("name")
+        context["units"] = UnitOfMeasure.objects.filter(is_active=True).order_by("name")
+        context["attribute_types"] = CategoryAttribute.AttributeType.choices
+        return context
+
+
+class CategoryAttributeDeleteView(LoginRequiredMixin, DeleteView):
+    """Remove attribute from category."""
+
+    model = CategoryAttribute
+    template_name = "inventory/category_attribute_confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:category_attribute_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Attribute removed from category.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Remove Attribute from Category"
+        return context
+
+
+# =============================================================================
+# Item Variant Views
+# =============================================================================
+
+
+class ItemVariantListView(LoginRequiredMixin, ListView):
+    """List all item variants."""
+
+    model = ItemVariant
+    template_name = "inventory/item_variant_list.html"
+    context_object_name = "variants"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = ItemVariant.objects.select_related("base_item", "customer")
+
+        # Search filter
+        search = self.request.GET.get("q", "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(base_item__name__icontains=search)
+            )
+
+        return queryset.order_by("base_item__code", "code")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Item Variants"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class StandaloneVariantCreateView(LoginRequiredMixin, CreateView):
+    """Create variant from variants list (with base item selection)."""
+
+    model = ItemVariant
+    template_name = "inventory/standalone_variant_form.html"
+    fields = ["base_item", "code", "name", "legacy_mat_no", "erp_item_no", "condition", "acquisition", "reclaim_category", "ownership", "customer", "standard_cost", "last_cost", "valuation_percentage", "source_bit_serial", "source_work_order", "is_active", "notes"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant '{form.instance.code}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:variant_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Variant"
+        context["form_title"] = "Create New Variant"
+        context["items"] = InventoryItem.objects.filter(is_active=True).order_by("code")
+        context["conditions"] = ItemVariant.Condition.choices
+        context["acquisitions"] = ItemVariant.Acquisition.choices
+        context["reclaim_categories"] = ItemVariant.ReclaimCategory.choices
+        context["ownerships"] = ItemVariant.Ownership.choices
+        return context
+
+
+class StandaloneVariantUpdateView(LoginRequiredMixin, UpdateView):
+    """Edit variant from variants list."""
+
+    model = ItemVariant
+    template_name = "inventory/standalone_variant_form.html"
+    fields = ["base_item", "code", "name", "legacy_mat_no", "erp_item_no", "condition", "acquisition", "reclaim_category", "ownership", "customer", "standard_cost", "last_cost", "valuation_percentage", "source_bit_serial", "source_work_order", "is_active", "notes"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant '{form.instance.code}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:variant_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.code}"
+        context["form_title"] = f"Edit Variant: {self.object.code}"
+        context["items"] = InventoryItem.objects.filter(is_active=True).order_by("code")
+        context["conditions"] = ItemVariant.Condition.choices
+        context["acquisitions"] = ItemVariant.Acquisition.choices
+        context["reclaim_categories"] = ItemVariant.ReclaimCategory.choices
+        context["ownerships"] = ItemVariant.Ownership.choices
+        return context
+
+
+class StandaloneVariantDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete variant from variants list."""
+
+    model = ItemVariant
+    template_name = "inventory/standalone_variant_confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:variant_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant '{self.object.code}' deleted.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Delete Variant"
+        return context
+
+
+# =============================================================================
+# Unit of Measure Views
+# =============================================================================
+
+
+class UnitOfMeasureListView(LoginRequiredMixin, ListView):
+    """List all units of measure."""
+
+    model = UnitOfMeasure
+    template_name = "inventory/uom_list.html"
+    context_object_name = "units"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = UnitOfMeasure.objects.select_related("base_unit")
+
+        # Search filter
+        search = self.request.GET.get("q", "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(name__icontains=search)
+            )
+
+        # Type filter
+        unit_type = self.request.GET.get("type")
+        if unit_type:
+            queryset = queryset.filter(unit_type=unit_type)
+
+        return queryset.order_by("unit_type", "name")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Units of Measure"
+        context["search_query"] = self.request.GET.get("q", "")
+        context["selected_type"] = self.request.GET.get("type", "")
+        context["unit_types"] = UnitOfMeasure.UnitType.choices
+        return context
+
+
+class UnitOfMeasureCreateView(LoginRequiredMixin, CreateView):
+    """Create a new unit of measure."""
+
+    model = UnitOfMeasure
+    template_name = "inventory/uom_form.html"
+    fields = ["code", "name", "symbol", "unit_type", "base_unit", "conversion_factor", "description", "is_active"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Unit '{form.instance.name}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:uom_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Unit"
+        context["form_title"] = "Create Unit of Measure"
+        return context
+
+
+class UnitOfMeasureUpdateView(LoginRequiredMixin, UpdateView):
+    """Edit a unit of measure."""
+
+    model = UnitOfMeasure
+    template_name = "inventory/uom_form.html"
+    fields = ["code", "name", "symbol", "unit_type", "base_unit", "conversion_factor", "description", "is_active"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Unit '{form.instance.name}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:uom_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.name}"
+        context["form_title"] = f"Edit Unit: {self.object.name}"
+        return context
+
+
+class UnitOfMeasureDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a unit of measure."""
+
+    model = UnitOfMeasure
+    template_name = "inventory/uom_confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:uom_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Unit '{self.object.name}' deleted.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Delete Unit"
+        return context

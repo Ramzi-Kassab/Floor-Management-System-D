@@ -381,3 +381,329 @@ class MaterialConsumption(models.Model):
 
     def __str__(self):
         return f"{self.lot.lot_number} - {self.quantity_consumed} for {self.work_order.wo_number}"
+
+
+# =============================================================================
+# UNIT OF MEASURE
+# =============================================================================
+
+
+class UnitOfMeasure(models.Model):
+    """Unit of Measure with conversion support."""
+
+    class UnitType(models.TextChoices):
+        QUANTITY = "QUANTITY", "Quantity"
+        LENGTH = "LENGTH", "Length"
+        WEIGHT = "WEIGHT", "Weight"
+        VOLUME = "VOLUME", "Volume"
+        AREA = "AREA", "Area"
+        TIME = "TIME", "Time"
+        OTHER = "OTHER", "Other"
+
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    symbol = models.CharField(max_length=10, blank=True)
+    unit_type = models.CharField(max_length=20, choices=UnitType.choices, default=UnitType.QUANTITY)
+
+    # Conversion to base unit (e.g., MM to M = 0.001)
+    base_unit = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="derived_units"
+    )
+    conversion_factor = models.DecimalField(max_digits=20, decimal_places=10, default=1)
+
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "units_of_measure"
+        ordering = ["unit_type", "name"]
+        verbose_name = "Unit of Measure"
+        verbose_name_plural = "Units of Measure"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+# =============================================================================
+# ITEM VARIANTS (Condition, Acquisition, Ownership)
+# =============================================================================
+
+
+class ItemVariant(models.Model):
+    """
+    Item variants based on condition, acquisition method, and ownership.
+    Each variant can have different cost and tracking.
+    """
+
+    class Condition(models.TextChoices):
+        NEW = "NEW", "New"
+        USED = "USED", "Used"
+
+    class Acquisition(models.TextChoices):
+        PURCHASED = "PURCHASED", "Purchased"
+        RECLAIMED = "RECLAIMED", "Reclaimed"
+        MANUFACTURED = "MANUFACTURED", "Manufactured"
+
+    class ReclaimCategory(models.TextChoices):
+        RETROFIT = "RETROFIT", "Retrofit"
+        E_AND_O = "E_AND_O", "E&O (Excess & Obsolete)"
+        GROUND = "GROUND", "Ground"
+        STANDARD = "STANDARD", "Standard Reclaim"
+
+    class Ownership(models.TextChoices):
+        ARDT = "ARDT", "ARDT"
+        CLIENT = "CLIENT", "Client"
+
+    base_item = models.ForeignKey(
+        InventoryItem, on_delete=models.CASCADE, related_name="variants"
+    )
+    code = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=200, blank=True)
+
+    # Classification fields
+    condition = models.CharField(max_length=20, choices=Condition.choices, default=Condition.NEW)
+    acquisition = models.CharField(max_length=20, choices=Acquisition.choices, default=Acquisition.PURCHASED)
+    reclaim_category = models.CharField(max_length=20, choices=ReclaimCategory.choices, blank=True)
+    ownership = models.CharField(max_length=20, choices=Ownership.choices, default=Ownership.ARDT)
+
+    # Customer (for CLIENT ownership)
+    customer = models.ForeignKey(
+        "sales.Customer", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="inventory_variants"
+    )
+
+    # Legacy numbers for ERP integration
+    legacy_mat_no = models.CharField(max_length=50, blank=True, help_text="Legacy Material Number")
+    erp_item_no = models.CharField(max_length=50, blank=True, help_text="ERP Item Number")
+
+    # Cost for this variant
+    standard_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    last_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    valuation_percentage = models.IntegerField(default=100, help_text="% of base item cost")
+
+    # Source tracking (for reclaimed items)
+    source_bit_serial = models.CharField(max_length=100, blank=True)
+    source_work_order = models.CharField(max_length=50, blank=True)
+
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "item_variants"
+        ordering = ["base_item", "condition", "acquisition"]
+        verbose_name = "Item Variant"
+        verbose_name_plural = "Item Variants"
+
+    def __str__(self):
+        return f"{self.code} ({self.get_condition_display()}, {self.get_acquisition_display()})"
+
+    @property
+    def total_stock(self):
+        """Total stock for this variant."""
+        return 0  # Implement when variant stock tracking is added
+
+
+# =============================================================================
+# ATTRIBUTES (Simple Global List)
+# =============================================================================
+
+
+class Attribute(models.Model):
+    """
+    Master data for attributes - simple global list of attribute names.
+    Examples: Size, Color, Material, Grade, Finish, etc.
+
+    Code is auto-generated as ATT-001, ATT-002, etc.
+    Type, unit, validation are defined when linking to a category.
+    """
+
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        editable=False,
+        help_text="Auto-generated code (ATT-001, ATT-002, etc.)"
+    )
+    name = models.CharField(max_length=100, help_text="Display name (e.g., Size, Color, Material)")
+    description = models.TextField(blank=True, help_text="Optional description of this attribute")
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "attributes"
+        ordering = ["code"]
+        verbose_name = "Attribute"
+        verbose_name_plural = "Attributes"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = self._generate_code()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def _generate_code(cls):
+        """Generate next ATT-XXX code."""
+        last = cls.objects.order_by("-id").first()
+        if last and last.code.startswith("ATT-"):
+            try:
+                num = int(last.code.split("-")[1]) + 1
+            except (ValueError, IndexError):
+                num = cls.objects.count() + 1
+        else:
+            num = cls.objects.count() + 1
+        return f"ATT-{num:03d}"
+
+
+# =============================================================================
+# CATEGORY ATTRIBUTES (Link Attribute to Category with Config)
+# =============================================================================
+
+
+class CategoryAttribute(models.Model):
+    """
+    Links an Attribute to a Category with specific configuration.
+    This is where type, unit, validation, and options are defined.
+
+    The same Attribute (e.g., "Size") can have different configurations
+    per category:
+    - For Clothing: Size is SELECT type with options [S, M, L, XL]
+    - For Tools: Size is NUMBER type with unit "mm"
+    """
+
+    class AttributeType(models.TextChoices):
+        TEXT = "TEXT", "Text"
+        NUMBER = "NUMBER", "Number"
+        SELECT = "SELECT", "Select (Dropdown)"
+        BOOLEAN = "BOOLEAN", "Yes/No"
+        DATE = "DATE", "Date"
+
+    category = models.ForeignKey(
+        InventoryCategory,
+        on_delete=models.CASCADE,
+        related_name="category_attributes"
+    )
+    attribute = models.ForeignKey(
+        Attribute,
+        on_delete=models.CASCADE,
+        null=True,
+        related_name="category_usages",
+        help_text="The attribute being configured for this category"
+    )
+
+    # Configuration for this category
+    attribute_type = models.CharField(
+        max_length=20,
+        choices=AttributeType.choices,
+        default=AttributeType.TEXT,
+        help_text="How this attribute is used in this category"
+    )
+
+    # For NUMBER type
+    unit = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="category_attributes",
+        help_text="Unit of measure for NUMBER type"
+    )
+    min_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+    max_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+
+    # For SELECT type - JSON array of options
+    options = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='Options for SELECT type: ["Option1", "Option2"]'
+    )
+
+    # Validation
+    is_required = models.BooleanField(default=False)
+    is_used_in_name = models.BooleanField(default=False, help_text="Include in auto-generated item name")
+
+    # Display order
+    display_order = models.IntegerField(default=0)
+
+    # For inherited attributes from parent category
+    is_inherited = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "category_attributes"
+        ordering = ["category", "display_order"]
+        unique_together = ["category", "attribute"]
+        verbose_name = "Category Attribute"
+        verbose_name_plural = "Category Attributes"
+
+    def __str__(self):
+        if self.attribute:
+            return f"{self.category.code} - {self.attribute.name}"
+        return f"{self.category.code} - (no attribute)"
+
+    @property
+    def code(self):
+        """Return the attribute code for backward compatibility."""
+        return self.attribute.code if self.attribute else ""
+
+    @property
+    def name(self):
+        """Return the attribute name for backward compatibility."""
+        return self.attribute.name if self.attribute else ""
+
+
+# =============================================================================
+# ITEM ATTRIBUTE VALUES
+# =============================================================================
+
+
+class ItemAttributeValue(models.Model):
+    """
+    Stores attribute values for inventory items.
+    Links items to their category-specific attribute values.
+    """
+
+    item = models.ForeignKey(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="attribute_values"
+    )
+    attribute = models.ForeignKey(
+        CategoryAttribute,
+        on_delete=models.CASCADE,
+        related_name="values"
+    )
+
+    # Value storage (flexible)
+    text_value = models.CharField(max_length=500, blank=True)
+    number_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+    boolean_value = models.BooleanField(null=True, blank=True)
+    date_value = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "item_attribute_values"
+        unique_together = ["item", "attribute"]
+        verbose_name = "Item Attribute Value"
+        verbose_name_plural = "Item Attribute Values"
+
+    def __str__(self):
+        return f"{self.item.code} - {self.attribute.name}: {self.display_value}"
+
+    @property
+    def display_value(self):
+        """Return the appropriate value based on attribute type."""
+        attr_type = self.attribute.attribute_type
+        if attr_type == CategoryAttribute.AttributeType.NUMBER:
+            return self.number_value
+        elif attr_type == CategoryAttribute.AttributeType.BOOLEAN:
+            return "Yes" if self.boolean_value else "No"
+        elif attr_type == CategoryAttribute.AttributeType.DATE:
+            return self.date_value
+        else:
+            return self.text_value

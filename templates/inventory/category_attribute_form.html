@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Category: {{ category.name }}</p>
+    </div>
+    <a href="{% url 'inventory:category_update' category.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Category
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="space-y-6">
+                <!-- Basic Info -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Attribute Code *</label>
+                        {{ form.code }}
+                        <p class="text-xs text-gray-500 mt-1">Used in name templates: {code}</p>
+                        {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Display Name *</label>
+                        {{ form.name }}
+                        {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Attribute Type *</label>
+                        {{ form.attribute_type }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Unit</label>
+                        {{ form.unit }}
+                        <p class="text-xs text-gray-500 mt-1">For NUMBER type: mm, kg, etc.</p>
+                    </div>
+                </div>
+
+                <!-- Number Validation -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Min Value</label>
+                        {{ form.min_value }}
+                        <p class="text-xs text-gray-500 mt-1">For NUMBER type validation</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Value</label>
+                        {{ form.max_value }}
+                    </div>
+                </div>
+
+                <!-- Options for SELECT type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Options (for Select type)</label>
+                    {{ form.options }}
+                    <div class="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs">
+                        <p class="font-medium text-gray-700 dark:text-gray-300 mb-1">Format examples:</p>
+                        <ul class="text-gray-600 dark:text-gray-400 space-y-1">
+                            <li><code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">["Premium", "Standard", "Economy"]</code></li>
+                            <li><code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">[{"value": "PDC", "label": "PDC Diamond"}, {"value": "TSP", "label": "TSP Diamond"}]</code></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Flags -->
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="flex items-center">
+                        {{ form.is_required }}
+                        <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Required</label>
+                    </div>
+                    <div class="flex items-center">
+                        {{ form.is_used_in_name }}
+                        <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Use in Auto-Name</label>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Display Order</label>
+                        {{ form.display_order }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'inventory:category_update' category.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    {% if object %}Update{% else %}Create{% endif %} Attribute
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
