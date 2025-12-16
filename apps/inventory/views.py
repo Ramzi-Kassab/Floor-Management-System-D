@@ -336,6 +336,27 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
         context["is_bit_item"] = "bit" in category_name or "pdc" in category_name or "tci" in category_name
         context["is_cutter_item"] = "cutter" in category_name or "pdc" in category_name
 
+        # Category Attributes and Values
+        if item.category:
+            # Get all attributes for this category (including inherited)
+            category_attributes = list(item.category.category_attributes.select_related("attribute", "unit").order_by("display_order"))
+
+            # Get inherited attributes from parent categories
+            parent = item.category.parent
+            while parent:
+                for attr in parent.category_attributes.select_related("attribute", "unit").order_by("display_order"):
+                    if attr not in category_attributes:
+                        category_attributes.append(attr)
+                parent = parent.parent
+
+            context["category_attributes"] = category_attributes
+
+            # Get existing attribute values for this item
+            context["attribute_values"] = item.attribute_values.select_related("attribute", "attribute__attribute", "attribute__unit")
+        else:
+            context["category_attributes"] = []
+            context["attribute_values"] = []
+
         return context
 
 

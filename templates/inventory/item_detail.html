@@ -94,22 +94,49 @@
         </div>
 
         <!-- Category Attributes -->
-        {% if attribute_values %}
+        {% if category_attributes or attribute_values %}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Attributes
-                <span class="text-sm font-normal text-gray-500">({{ item.category.name }})</span>
-            </h2>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Attributes
+                    <span class="text-sm font-normal text-gray-500">({{ item.category.name }})</span>
+                </h2>
+                <a href="{% url 'inventory:item_update' item.pk %}" class="text-sm text-blue-600 hover:text-blue-800">
+                    Edit Values
+                </a>
+            </div>
+            {% if attribute_values %}
             <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                 {% for attr_value in attribute_values %}
                 <div>
-                    <dt class="text-gray-500">{{ attr_value.attribute.name }}</dt>
+                    <dt class="text-gray-500">{{ attr_value.attribute.attribute.name }}</dt>
                     <dd class="text-gray-900 dark:text-white font-medium">
-                        {{ attr_value.display_value }}{% if attr_value.attribute.unit %} {{ attr_value.attribute.unit }}{% endif %}
+                        {{ attr_value.display_value }}{% if attr_value.attribute.unit %} {{ attr_value.attribute.unit.symbol }}{% endif %}
                     </dd>
                 </div>
                 {% endfor %}
             </dl>
+            {% else %}
+            <div class="text-center py-4 text-gray-500">
+                <p class="text-sm">No attribute values set.</p>
+                <p class="text-xs mt-1">This category has {{ category_attributes|length }} attribute(s) defined:</p>
+                <p class="text-xs text-gray-400 mt-1">
+                    {% for attr in category_attributes %}{{ attr.attribute.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                </p>
+            </div>
+            {% endif %}
+        </div>
+        {% elif item.category %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Attributes
+                </h2>
+                <a href="{% url 'inventory:category_attribute_create' %}?category={{ item.category.pk }}" class="text-sm text-blue-600 hover:text-blue-800">
+                    + Define Attributes
+                </a>
+            </div>
+            <p class="text-sm text-gray-500 text-center py-4">No attributes defined for category "{{ item.category.name }}".</p>
         </div>
         {% endif %}
 
