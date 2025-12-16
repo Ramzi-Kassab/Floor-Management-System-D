@@ -114,13 +114,17 @@ class InventoryItemForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Make item_type not required - will default to STOCK_ITEM if not provided
+        # Make item_type not required - will get from category default if not provided
         self.fields['item_type'].required = False
 
     def clean_item_type(self):
         item_type = self.cleaned_data.get('item_type')
         if not item_type:
-            # Default to STOCK_ITEM if not provided
+            # Try to get default from category
+            category = self.cleaned_data.get('category')
+            if category and category.item_type:
+                return category.item_type
+            # Final fallback
             return 'STOCK_ITEM'
         return item_type
 
