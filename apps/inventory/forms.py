@@ -60,7 +60,7 @@ class InventoryCategoryForm(forms.ModelForm):
 
 
 class CategoryAttributeForm(forms.ModelForm):
-    """Form for category attributes."""
+    """Form for category attributes (within a category context)."""
 
     class Meta:
         model = CategoryAttribute
@@ -91,6 +91,43 @@ class CategoryAttributeForm(forms.ModelForm):
             "is_required": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "is_used_in_name": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT_SM}),
+        }
+
+
+class StandaloneCategoryAttributeForm(forms.ModelForm):
+    """Form for creating attributes with category selection."""
+
+    class Meta:
+        model = CategoryAttribute
+        fields = [
+            "category",
+            "code",
+            "name",
+            "attribute_type",
+            "unit",
+            "min_value",
+            "max_value",
+            "options",
+            "is_required",
+            "is_used_in_name",
+            "display_order",
+        ]
+        widgets = {
+            "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "size"}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Size"}),
+            "attribute_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "unit": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "mm"}),
+            "min_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "max_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "options": forms.Textarea(attrs={
+                "class": TAILWIND_TEXTAREA,
+                "rows": 2,
+                "placeholder": '["Option1", "Option2"] or [{"value": "opt1", "label": "Option 1"}]'
+            }),
+            "is_required": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "is_used_in_name": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
         }
 
 
@@ -133,11 +170,14 @@ class InventoryItemForm(forms.ModelForm):
             "reorder_point",
             "reorder_quantity",
             "lead_time_days",
+            "shelf_life_days",
+            "requires_expiry_tracking",
             "primary_supplier",
             "supplier_part_number",
             "is_active",
             "is_serialized",
             "is_lot_controlled",
+            "has_variants",
             "image",
         ]
         widgets = {
@@ -165,11 +205,14 @@ class InventoryItemForm(forms.ModelForm):
             "reorder_point": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "reorder_quantity": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "lead_time_days": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "shelf_life_days": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Days"}),
+            "requires_expiry_tracking": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "primary_supplier": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "supplier_part_number": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
             "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "is_serialized": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "is_lot_controlled": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "has_variants": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "image": forms.FileInput(attrs={"class": TAILWIND_INPUT}),
         }
 
@@ -230,6 +273,77 @@ class ItemVariantForm(forms.ModelForm):
         instance.reclaim_category = cleaned_data.get('reclaim_category')
         instance.ownership = cleaned_data.get('ownership')
         instance.customer = cleaned_data.get('customer')
+        try:
+            instance.clean()
+        except Exception as e:
+            raise forms.ValidationError(str(e))
+        return cleaned_data
+
+
+class StandaloneVariantForm(forms.ModelForm):
+    """Form for creating variants with base item selection."""
+
+    class Meta:
+        model = ItemVariant
+        fields = [
+            "base_item",
+            "code",
+            "name",
+            "legacy_mat_no",
+            "erp_item_no",
+            "condition",
+            "acquisition",
+            "reclaim_category",
+            "ownership",
+            "customer",
+            "standard_cost",
+            "last_cost",
+            "valuation_percentage",
+            "source_bit_serial",
+            "source_work_order",
+            "is_active",
+            "notes",
+        ]
+        widgets = {
+            "base_item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Auto-generated"}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Variant Name"}),
+            "legacy_mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Legacy MAT No."}),
+            "erp_item_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "ERP Item No."}),
+            "condition": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_condition"}),
+            "acquisition": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_acquisition"}),
+            "reclaim_category": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_reclaim_category"}),
+            "ownership": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_ownership"}),
+            "customer": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_customer"}),
+            "standard_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01"}),
+            "last_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01"}),
+            "valuation_percentage": forms.NumberInput(attrs={
+                "class": TAILWIND_INPUT,
+                "step": "0.01",
+                "min": "0",
+                "max": "100"
+            }),
+            "source_bit_serial": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "source_work_order": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only show items that support variants
+        self.fields['base_item'].queryset = InventoryItem.objects.filter(is_active=True).order_by('code')
+
+    def clean(self):
+        cleaned_data = super().clean()
+        instance = self.instance
+        instance.condition = cleaned_data.get('condition')
+        instance.acquisition = cleaned_data.get('acquisition')
+        instance.reclaim_category = cleaned_data.get('reclaim_category')
+        instance.ownership = cleaned_data.get('ownership')
+        instance.customer = cleaned_data.get('customer')
+        if cleaned_data.get('base_item'):
+            instance.base_item = cleaned_data.get('base_item')
         try:
             instance.clean()
         except Exception as e:

@@ -262,6 +262,17 @@ class InventoryItem(models.Model):
     # NEW: Has variants flag
     has_variants = models.BooleanField(default=False, help_text="Item has condition/source variants")
 
+    # Shelf life tracking
+    shelf_life_days = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Shelf life in days (for perishable/time-sensitive items)"
+    )
+    requires_expiry_tracking = models.BooleanField(
+        default=False,
+        help_text="Track expiry dates for this item"
+    )
+
     # Image
     image = models.ImageField(upload_to="inventory/", null=True, blank=True)
 

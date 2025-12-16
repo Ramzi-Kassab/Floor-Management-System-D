@@ -381,6 +381,150 @@ class CategoryAttributeDeleteView(LoginRequiredMixin, DeleteView):
 
 
 # =============================================================================
+# Standalone Attribute Views (from Attributes list page)
+# =============================================================================
+
+
+class StandaloneAttributeCreateView(LoginRequiredMixin, CreateView):
+    """Create attribute from attributes list (with category selection)."""
+
+    model = CategoryAttribute
+    template_name = "inventory/standalone_attribute_form.html"
+    fields = ["category", "code", "name", "attribute_type", "unit", "min_value", "max_value", "options", "is_required", "is_used_in_name", "display_order"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Attribute '{form.instance.name}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:attribute_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Attribute"
+        context["form_title"] = "Create New Attribute"
+        context["categories"] = InventoryCategory.objects.all().order_by("name")
+        return context
+
+
+class StandaloneAttributeUpdateView(LoginRequiredMixin, UpdateView):
+    """Edit attribute from attributes list."""
+
+    model = CategoryAttribute
+    template_name = "inventory/standalone_attribute_form.html"
+    fields = ["category", "code", "name", "attribute_type", "unit", "min_value", "max_value", "options", "is_required", "is_used_in_name", "display_order"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Attribute '{form.instance.name}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:attribute_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.name}"
+        context["form_title"] = f"Edit Attribute: {self.object.name}"
+        context["categories"] = InventoryCategory.objects.all().order_by("name")
+        return context
+
+
+class StandaloneAttributeDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete attribute from attributes list."""
+
+    model = CategoryAttribute
+    template_name = "inventory/standalone_attribute_confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:attribute_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Attribute '{self.object.name}' deleted.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Delete Attribute"
+        return context
+
+
+# =============================================================================
+# Standalone Variant Views (from Variants list page)
+# =============================================================================
+
+
+class StandaloneVariantCreateView(LoginRequiredMixin, CreateView):
+    """Create variant from variants list (with base item selection)."""
+
+    model = ItemVariant
+    template_name = "inventory/standalone_variant_form.html"
+    fields = ["base_item", "code", "name", "legacy_mat_no", "erp_item_no", "condition", "acquisition", "reclaim_category", "ownership", "customer", "standard_cost", "last_cost", "valuation_percentage", "source_bit_serial", "source_work_order", "is_active", "notes"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant '{form.instance.name}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:variant_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Variant"
+        context["form_title"] = "Create New Variant"
+        context["items"] = InventoryItem.objects.filter(is_active=True).order_by("code")
+        context["conditions"] = ItemVariant.Condition.choices
+        context["acquisitions"] = ItemVariant.Acquisition.choices
+        context["reclaim_categories"] = ItemVariant.ReclaimCategory.choices
+        context["ownerships"] = ItemVariant.Ownership.choices
+        return context
+
+
+class StandaloneVariantUpdateView(LoginRequiredMixin, UpdateView):
+    """Edit variant from variants list."""
+
+    model = ItemVariant
+    template_name = "inventory/standalone_variant_form.html"
+    fields = ["base_item", "code", "name", "legacy_mat_no", "erp_item_no", "condition", "acquisition", "reclaim_category", "ownership", "customer", "standard_cost", "last_cost", "valuation_percentage", "source_bit_serial", "source_work_order", "is_active", "notes"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant '{form.instance.name}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:variant_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.name}"
+        context["form_title"] = f"Edit Variant: {self.object.name}"
+        context["items"] = InventoryItem.objects.filter(is_active=True).order_by("code")
+        context["conditions"] = ItemVariant.Condition.choices
+        context["acquisitions"] = ItemVariant.Acquisition.choices
+        context["reclaim_categories"] = ItemVariant.ReclaimCategory.choices
+        context["ownerships"] = ItemVariant.Ownership.choices
+        return context
+
+
+class StandaloneVariantDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete variant from variants list."""
+
+    model = ItemVariant
+    template_name = "inventory/standalone_variant_confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:variant_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant '{self.object.name}' deleted.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Delete Variant"
+        return context
+
+
+# =============================================================================
 # Location Views
 # =============================================================================
 
