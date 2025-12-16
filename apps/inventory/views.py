@@ -94,6 +94,39 @@ class CategoryUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+class CategoryDetailView(LoginRequiredMixin, DetailView):
+    """View category details with attributes."""
+
+    model = InventoryCategory
+    template_name = "inventory/category_detail.html"
+    context_object_name = "category"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"{self.object.code} - {self.object.name}"
+        context["attributes"] = self.object.category_attributes.select_related("attribute", "unit").order_by("display_order")
+        context["items"] = self.object.items.all()[:10]
+        context["item_count"] = self.object.items.count()
+        return context
+
+
+class CategoryDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete inventory category."""
+
+    model = InventoryCategory
+    template_name = "inventory/category_confirm_delete.html"
+    success_url = reverse_lazy("inventory:category_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Category '{self.object.name}' deleted successfully.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Delete Category"
+        return context
+
+
 # =============================================================================
 # Location Views
 # =============================================================================
@@ -946,3 +979,311 @@ class UnitOfMeasureDeleteView(LoginRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Delete Unit"
         return context
+
+
+# =============================================================================
+# Item Variant Views (within item context)
+# =============================================================================
+
+
+class ItemVariantCreateView(LoginRequiredMixin, CreateView):
+    """Create variant for a specific item."""
+
+    model = ItemVariant
+    template_name = "inventory/item_variant_form.html"
+    fields = ["code", "name", "legacy_mat_no", "erp_item_no", "condition", "acquisition", "reclaim_category", "ownership", "customer", "standard_cost", "last_cost", "valuation_percentage", "source_bit_serial", "source_work_order", "is_active", "notes"]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Create Variant for {item.code}"
+        context["form_title"] = f"Create Variant for {item.name}"
+        context["conditions"] = ItemVariant.Condition.choices
+        context["acquisitions"] = ItemVariant.Acquisition.choices
+        context["reclaim_categories"] = ItemVariant.ReclaimCategory.choices
+        context["ownerships"] = ItemVariant.Ownership.choices
+        return context
+
+    def form_valid(self, form):
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        form.instance.base_item = item
+        messages.success(self.request, f"Variant '{form.instance.code}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class ItemVariantUpdateView(LoginRequiredMixin, UpdateView):
+    """Update variant for a specific item."""
+
+    model = ItemVariant
+    template_name = "inventory/item_variant_form.html"
+    fields = ["code", "name", "legacy_mat_no", "erp_item_no", "condition", "acquisition", "reclaim_category", "ownership", "customer", "standard_cost", "last_cost", "valuation_percentage", "source_bit_serial", "source_work_order", "is_active", "notes"]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Edit {self.object.code}"
+        context["form_title"] = f"Edit Variant: {self.object.code}"
+        context["conditions"] = ItemVariant.Condition.choices
+        context["acquisitions"] = ItemVariant.Acquisition.choices
+        context["reclaim_categories"] = ItemVariant.ReclaimCategory.choices
+        context["ownerships"] = ItemVariant.Ownership.choices
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant '{form.instance.code}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class ItemVariantDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete variant for a specific item."""
+
+    model = ItemVariant
+    template_name = "inventory/item_variant_confirm_delete.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = "Delete Variant"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant '{self.object.code}' deleted.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+# =============================================================================
+# Material Lot Views
+# =============================================================================
+
+from .models import MaterialLot
+
+
+class MaterialLotListView(LoginRequiredMixin, ListView):
+    """List all material lots."""
+
+    model = MaterialLot
+    template_name = "inventory/lot_list.html"
+    context_object_name = "lots"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = MaterialLot.objects.select_related("item", "supplier", "location")
+
+        # Search filter
+        search = self.request.GET.get("q", "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(lot_number__icontains=search) |
+                Q(item__name__icontains=search) |
+                Q(item__code__icontains=search)
+            )
+
+        return queryset.order_by("-received_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Material Lots"
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
+class MaterialLotCreateView(LoginRequiredMixin, CreateView):
+    """Create a new material lot."""
+
+    model = MaterialLot
+    template_name = "inventory/lot_form.html"
+    fields = ["item", "lot_number", "supplier", "location", "quantity_received", "quantity_remaining", "unit_cost", "received_date", "expiry_date", "certificate_number", "notes"]
+
+    def form_valid(self, form):
+        form.instance.received_by = self.request.user
+        messages.success(self.request, f"Lot '{form.instance.lot_number}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:lot_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Lot"
+        context["form_title"] = "Create Material Lot"
+        return context
+
+
+class MaterialLotDetailView(LoginRequiredMixin, DetailView):
+    """View material lot details."""
+
+    model = MaterialLot
+    template_name = "inventory/lot_detail.html"
+    context_object_name = "lot"
+
+    def get_queryset(self):
+        return MaterialLot.objects.select_related("item", "supplier", "location", "received_by")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Lot {self.object.lot_number}"
+        return context
+
+
+class MaterialLotUpdateView(LoginRequiredMixin, UpdateView):
+    """Update a material lot."""
+
+    model = MaterialLot
+    template_name = "inventory/lot_form.html"
+    fields = ["item", "lot_number", "supplier", "location", "quantity_received", "quantity_remaining", "unit_cost", "received_date", "expiry_date", "certificate_number", "notes"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Lot '{form.instance.lot_number}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:lot_detail", kwargs={"pk": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.lot_number}"
+        context["form_title"] = f"Edit Lot: {self.object.lot_number}"
+        return context
+
+
+# =============================================================================
+# Import/Export Views
+# =============================================================================
+
+from django.http import HttpResponse, JsonResponse
+import csv
+
+
+class ItemImportView(LoginRequiredMixin, View):
+    """Import items from CSV."""
+
+    template_name = "inventory/item_import.html"
+
+    def get(self, request):
+        from django.shortcuts import render
+        return render(request, self.template_name, {"page_title": "Import Items"})
+
+    def post(self, request):
+        csv_file = request.FILES.get("csv_file")
+        if not csv_file:
+            messages.error(request, "Please select a CSV file.")
+            return redirect("inventory:item_import")
+
+        try:
+            decoded_file = csv_file.read().decode("utf-8").splitlines()
+            reader = csv.DictReader(decoded_file)
+
+            created_count = 0
+            for row in reader:
+                if not row.get("code") or not row.get("name"):
+                    continue
+
+                item, created = InventoryItem.objects.get_or_create(
+                    code=row["code"],
+                    defaults={
+                        "name": row.get("name", ""),
+                        "description": row.get("description", ""),
+                        "item_type": row.get("item_type", "COMPONENT"),
+                        "unit": row.get("unit", "EA"),
+                        "is_active": True,
+                    }
+                )
+                if created:
+                    created_count += 1
+
+            messages.success(request, f"Import complete. {created_count} items created.")
+        except Exception as e:
+            messages.error(request, f"Import failed: {str(e)}")
+
+        return redirect("inventory:item_list")
+
+
+class ItemExportView(LoginRequiredMixin, View):
+    """Export items to CSV."""
+
+    def get(self, request):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="inventory_items.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(["code", "name", "description", "item_type", "category", "unit", "standard_cost", "min_stock", "is_active"])
+
+        items = InventoryItem.objects.select_related("category").all()
+        for item in items:
+            writer.writerow([
+                item.code,
+                item.name,
+                item.description,
+                item.item_type,
+                item.category.name if item.category else "",
+                item.unit,
+                item.standard_cost,
+                item.min_stock,
+                item.is_active,
+            ])
+
+        return response
+
+
+class ItemImportTemplateView(LoginRequiredMixin, View):
+    """Download CSV template for item import."""
+
+    def get(self, request):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="item_import_template.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(["code", "name", "description", "item_type", "unit"])
+        writer.writerow(["ITEM-001", "Sample Item", "Description here", "COMPONENT", "EA"])
+
+        return response
+
+
+# =============================================================================
+# API Views
+# =============================================================================
+
+
+class CategoryAttributesAPIView(LoginRequiredMixin, View):
+    """API to get attributes for a category."""
+
+    def get(self, request, category_pk):
+        category = get_object_or_404(InventoryCategory, pk=category_pk)
+        attributes = category.category_attributes.select_related("attribute", "unit").order_by("display_order")
+
+        data = []
+        for attr in attributes:
+            data.append({
+                "id": attr.id,
+                "code": attr.attribute.code if attr.attribute else "",
+                "name": attr.attribute.name if attr.attribute else "",
+                "attribute_type": attr.attribute_type,
+                "unit": attr.unit.symbol if attr.unit else "",
+                "is_required": attr.is_required,
+                "min_value": str(attr.min_value) if attr.min_value else None,
+                "max_value": str(attr.max_value) if attr.max_value else None,
+                "options": attr.options,
+            })
+
+        return JsonResponse({"attributes": data})
+
+
+class CategoryGenerateCodeAPIView(LoginRequiredMixin, View):
+    """API to generate next item code for a category."""
+
+    def get(self, request, category_pk):
+        category = get_object_or_404(InventoryCategory, pk=category_pk)
+        code = category.generate_next_code()
+        return JsonResponse({"code": code})
