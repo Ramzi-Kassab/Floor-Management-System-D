@@ -65,7 +65,7 @@ class CategoryListView(LoginRequiredMixin, ListView):
 
 
 class CategoryCreateView(LoginRequiredMixin, CreateView):
-    """Create inventory category."""
+    """Create inventory category with inheritance support."""
 
     model = InventoryCategory
     form_class = InventoryCategoryForm
@@ -73,18 +73,57 @@ class CategoryCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy("inventory:category_list")
 
     def form_valid(self, form):
-        messages.success(self.request, f"Category '{form.instance.name}' created successfully.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        category = form.instance
+
+        # Copy attributes from parent category if exists
+        if category.parent:
+            self._copy_parent_attributes(category)
+
+            # Inherit name_template from parent if not set
+            if not category.name_template and category.parent.name_template:
+                category.name_template = category.parent.name_template
+                category.save(update_fields=["name_template"])
+
+        messages.success(self.request, f"Category '{category.name}' created successfully.")
+        return response
+
+    def _copy_parent_attributes(self, category):
+        """Copy attributes from parent category, marking them as inherited."""
+        for parent_attr in category.parent.attributes.all():
+            CategoryAttribute.objects.create(
+                category=category,
+                code=parent_attr.code,
+                name=parent_attr.name,
+                attribute_type=parent_attr.attribute_type,
+                unit=parent_attr.unit,
+                min_value=parent_attr.min_value,
+                max_value=parent_attr.max_value,
+                options=parent_attr.options,
+                is_required=parent_attr.is_required,
+                is_used_in_name=parent_attr.is_used_in_name,
+                display_order=parent_attr.display_order,
+                is_inherited=True,
+            )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Create Category"
         context["form_title"] = "Create Inventory Category"
+
+        # Pass parent category for code prefix guidance
+        parent_id = self.request.GET.get("parent")
+        if parent_id:
+            try:
+                context["parent_category"] = InventoryCategory.objects.get(pk=parent_id)
+            except InventoryCategory.DoesNotExist:
+                pass
+
         return context
 
 
 class CategoryUpdateView(LoginRequiredMixin, UpdateView):
-    """Update inventory category."""
+    """Update inventory category with sync to children support."""
 
     model = InventoryCategory
     form_class = InventoryCategoryForm
@@ -92,13 +131,67 @@ class CategoryUpdateView(LoginRequiredMixin, UpdateView):
     success_url = reverse_lazy("inventory:category_list")
 
     def form_valid(self, form):
-        messages.success(self.request, f"Category '{form.instance.name}' updated successfully.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        category = form.instance
+
+        # Handle sync to children if requested
+        sync_fields = self.request.POST.get("sync_to_children", "").split(",")
+        sync_fields = [f.strip() for f in sync_fields if f.strip()]
+
+        if sync_fields:
+            synced_count = self._sync_to_children(category, sync_fields)
+            if synced_count > 0:
+                messages.info(
+                    self.request,
+                    f"Changes synced to {synced_count} child categor{'y' if synced_count == 1 else 'ies'}."
+                )
+
+        messages.success(self.request, f"Category '{category.name}' updated successfully.")
+        return response
+
+    def _sync_to_children(self, category, fields):
+        """Sync specified fields to all child categories."""
+        children = category.children.all()
+        if not children.exists():
+            return 0
+
+        update_data = {}
+        if "item_type" in fields:
+            update_data["item_type"] = category.item_type
+        if "name_template" in fields:
+            update_data["name_template"] = category.name_template
+        if "is_active" in fields:
+            update_data["is_active"] = category.is_active
+
+        if update_data:
+            return children.update(**update_data)
+        return 0
+
+    def _get_inherited_attributes(self, category):
+        """Get attributes inherited from parent category chain."""
+        inherited = []
+        parent = category.parent
+        while parent:
+            for attr in parent.attributes.all():
+                inherited.append(attr)
+            parent = parent.parent
+        return inherited
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Edit {self.object.name}"
         context["form_title"] = "Edit Category"
+
+        # Add parent category for guidance
+        if self.object.parent:
+            context["parent_category"] = self.object.parent
+
+        # Add child categories
+        context["child_categories"] = list(self.object.children.all())
+
+        # Add inherited attributes from parent chain
+        context["inherited_attributes"] = self._get_inherited_attributes(self.object)
+
         return context
 
 

@@ -15,10 +15,12 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-2xl">
+<div x-data="categoryForm()" class="max-w-2xl">
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <form method="post">
+        <form method="post" @submit="handleSubmit($event)">
             {% csrf_token %}
+            <!-- Hidden field for sync options -->
+            <input type="hidden" name="sync_to_children" x-model="syncToChildren">
 
             <div class="space-y-6">
                 <!-- Basic Information -->
@@ -46,7 +48,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default Item Type *</label>
-                        {{ form.item_type }}
+                        <div @change="trackChange('item_type')">{{ form.item_type }}</div>
                         <p class="text-xs text-gray-500 mt-1">Auto-selected when creating items in this category</p>
                     </div>
                 </div>
@@ -58,6 +60,13 @@
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Code Prefix</label>
                         {{ form.code_prefix }}
                         <p class="text-xs text-gray-500 mt-1">{{ form.code_prefix.help_text }}</p>
+                        {% if parent_category %}
+                        <div class="mt-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded text-xs text-blue-700 dark:text-blue-300">
+                            <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
+                            Parent prefix: <span class="font-mono">{{ parent_category.code_prefix|default:parent_category.code }}</span>
+                            — Consider extending it (e.g., {{ parent_category.code_prefix|default:parent_category.code|slice:":3" }}3, {{ parent_category.code_prefix|default:parent_category.code|slice:":3" }}4)
+                        </div>
+                        {% endif %}
                         {% if form.code_prefix.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code_prefix.errors.0 }}</p>{% endif %}
                     </div>
                 </div>
@@ -67,8 +76,14 @@
                     <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Auto-Generated Name</h3>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name Template</label>
-                        {{ form.name_template }}
+                        <div @change="trackChange('name_template')">{{ form.name_template }}</div>
                         <p class="text-xs text-gray-500 mt-1">{{ form.name_template.help_text }}</p>
+                        {% if parent_category and parent_category.name_template %}
+                        <div class="mt-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded text-xs text-blue-700 dark:text-blue-300">
+                            <i data-lucide="git-merge" class="w-3 h-3 inline mr-1"></i>
+                            Inherited from parent: <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">{{ parent_category.name_template }}</code>
+                        </div>
+                        {% endif %}
                         <div class="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs">
                             <p class="font-medium text-gray-700 dark:text-gray-300 mb-1">Example templates:</p>
                             <ul class="text-gray-600 dark:text-gray-400 space-y-1">
@@ -87,7 +102,7 @@
                 </div>
 
                 <!-- Status -->
-                <div class="flex items-center">
+                <div class="flex items-center" @change="trackChange('is_active')">
                     {{ form.is_active }}
                     <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
                 </div>
@@ -103,7 +118,97 @@
     </div>
 
     {% if object %}
-    <!-- Attributes Section (only for existing categories) -->
+    <!-- Child Categories Section -->
+    {% if child_categories %}
+    <div class="mt-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+                <i data-lucide="git-branch" class="w-5 h-5 inline mr-2 text-gray-400"></i>
+                Child Categories ({{ child_categories|length }})
+            </h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                        <th class="pb-2 font-medium">Code</th>
+                        <th class="pb-2 font-medium">Name</th>
+                        <th class="pb-2 font-medium">Prefix</th>
+                        <th class="pb-2 font-medium">Items</th>
+                        <th class="pb-2 font-medium text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    {% for child in child_categories %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="py-2 font-mono text-xs">
+                            <a href="{% url 'inventory:category_update' child.pk %}" class="text-blue-600 hover:text-blue-800">{{ child.code }}</a>
+                        </td>
+                        <td class="py-2">{{ child.name }}</td>
+                        <td class="py-2 font-mono text-xs">{{ child.code_prefix|default:"-" }}</td>
+                        <td class="py-2">{{ child.items.count }}</td>
+                        <td class="py-2 text-center">
+                            {% if child.is_active %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Inherited Attributes Section (if has parent) -->
+    {% if inherited_attributes %}
+    <div class="mt-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+                <i data-lucide="git-merge" class="w-5 h-5 inline mr-2 text-purple-500"></i>
+                Inherited Attributes from Parent
+            </h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                        <th class="pb-2 font-medium">Code</th>
+                        <th class="pb-2 font-medium">Name</th>
+                        <th class="pb-2 font-medium">Type</th>
+                        <th class="pb-2 font-medium">From</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    {% for attr in inherited_attributes %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 bg-purple-50/30 dark:bg-purple-900/10">
+                        <td class="py-2 font-mono text-xs">{{ attr.code }}</td>
+                        <td class="py-2">{{ attr.name }}</td>
+                        <td class="py-2">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if attr.attribute_type == 'NUMBER' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                                {% elif attr.attribute_type == 'SELECT' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                                {% elif attr.attribute_type == 'BOOLEAN' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                {{ attr.get_attribute_type_display }}
+                            </span>
+                        </td>
+                        <td class="py-2 text-gray-500">{{ attr.category.code }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">
+            <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
+            Inherited attributes are defined on the parent category. Items in this category will have access to these attributes.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Category's Own Attributes Section -->
     <div class="mt-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-medium text-gray-900 dark:text-white">Category Attributes</h3>
@@ -174,5 +279,121 @@
         {% endif %}
     </div>
     {% endif %}
+
+    <!-- Sync Confirmation Modal -->
+    <div x-show="showSyncModal" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         aria-labelledby="modal-title"
+         role="dialog"
+         aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div x-show="showSyncModal"
+                 x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0"
+                 class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+                 @click="showSyncModal = false"></div>
+
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div x-show="showSyncModal"
+                 x-transition:enter="ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave="ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                 class="relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 sm:mx-0 sm:h-10 sm:w-10">
+                        <i data-lucide="git-branch" class="h-6 w-6 text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white" id="modal-title">
+                            Sync Changes to Child Categories?
+                        </h3>
+                        <div class="mt-2">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                You've modified inheritable fields. Do you want to apply these changes to all child categories?
+                            </p>
+                            <div class="mt-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm">
+                                <p class="font-medium text-gray-700 dark:text-gray-300 mb-2">Changed fields:</p>
+                                <ul class="list-disc list-inside text-gray-600 dark:text-gray-400 space-y-1">
+                                    <template x-for="field in changedFields" :key="field">
+                                        <li x-text="fieldLabels[field]"></li>
+                                    </template>
+                                </ul>
+                            </div>
+                            {% if child_categories %}
+                            <div class="mt-3 text-xs text-gray-500">
+                                <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
+                                This will update {{ child_categories|length }} child categor{{ child_categories|length|pluralize:"y,ies" }}.
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse gap-3">
+                    <button type="button" @click="confirmSync(true)"
+                            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none sm:w-auto sm:text-sm">
+                        Yes, Sync All
+                    </button>
+                    <button type="button" @click="confirmSync(false)"
+                            class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">
+                        No, This Category Only
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script>
+function categoryForm() {
+    return {
+        showSyncModal: false,
+        changedFields: [],
+        syncToChildren: '',
+        pendingSubmit: null,
+        hasChildren: {{ child_categories|length|default:0 }} > 0,
+        fieldLabels: {
+            'item_type': 'Default Item Type',
+            'name_template': 'Name Template',
+            'is_active': 'Active Status'
+        },
+
+        trackChange(field) {
+            if (!this.changedFields.includes(field)) {
+                this.changedFields.push(field);
+            }
+        },
+
+        handleSubmit(event) {
+            // Only show modal if there are children and inheritable fields were changed
+            if (this.hasChildren && this.changedFields.length > 0) {
+                event.preventDefault();
+                this.pendingSubmit = event.target;
+                this.showSyncModal = true;
+            }
+            // Otherwise let the form submit normally
+        },
+
+        confirmSync(shouldSync) {
+            this.syncToChildren = shouldSync ? this.changedFields.join(',') : '';
+            this.showSyncModal = false;
+            if (this.pendingSubmit) {
+                this.pendingSubmit.submit();
+            }
+        }
+    }
+}
+</script>
+
+<style>
+[x-cloak] { display: none !important; }
+</style>
 {% endblock %}
