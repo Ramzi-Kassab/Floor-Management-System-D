@@ -321,6 +321,7 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Create Item"
         context["form_title"] = "Create Inventory Item"
+        context["categories"] = InventoryCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
         return context
 
 
@@ -342,6 +343,7 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Edit {self.object.code}"
         context["form_title"] = "Edit Inventory Item"
+        context["categories"] = InventoryCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
         return context
 
 
