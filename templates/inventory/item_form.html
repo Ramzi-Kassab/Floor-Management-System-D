@@ -312,6 +312,15 @@ function itemForm() {
             // Load attributes if category is pre-selected
             if (this.selectedCategory) {
                 this.loadAttributes();
+
+                // Set item type from category default if not already set
+                if (!this.itemType || this.itemType === '') {
+                    const select = document.getElementById('id_category');
+                    const option = select.options[select.selectedIndex];
+                    if (option && option.dataset.itemType) {
+                        this.itemType = option.dataset.itemType;
+                    }
+                }
             }
         },
 
