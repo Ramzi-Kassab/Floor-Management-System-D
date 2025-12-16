@@ -658,11 +658,11 @@ class AttributeListView(LoginRequiredMixin, ListView):
 
 
 class StandaloneAttributeCreateView(LoginRequiredMixin, CreateView):
-    """Create a new attribute (code is auto-generated)."""
+    """Create a new attribute."""
 
     model = Attribute
     template_name = "inventory/standalone_attribute_form.html"
-    fields = ["name", "description", "is_active"]
+    fields = ["code", "name", "description", "is_active"]
 
     def form_valid(self, form):
         messages.success(self.request, f"Attribute '{form.instance.name}' created with code {form.instance.code}.")
