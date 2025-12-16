@@ -35,6 +35,7 @@ from .models import (
     InventoryLocation,
     InventoryStock,
     InventoryTransaction,
+    ItemAttributeValue,
     ItemBitSpec,
     ItemCutterSpec,
     ItemIdentifier,
