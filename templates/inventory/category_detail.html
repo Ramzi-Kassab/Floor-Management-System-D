@@ -91,7 +91,7 @@
                     <i data-lucide="sliders" class="w-5 h-5 inline mr-2 text-gray-400"></i>
                     Category Attributes
                 </h3>
-                <a href="{% url 'inventory:category_attribute_create' category.pk %}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+                <a href="{% url 'inventory:category_attribute_create' %}?category={{ category.pk }}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
                     <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add
                 </a>
             </div>
@@ -208,7 +208,7 @@
             <div class="text-center py-8 text-gray-500 dark:text-gray-400">
                 <i data-lucide="sliders" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
                 <p>No attributes defined for this category.</p>
-                <a href="{% url 'inventory:category_attribute_create' category.pk %}" class="mt-2 inline-flex items-center text-blue-600 hover:text-blue-800 text-sm">
+                <a href="{% url 'inventory:category_attribute_create' %}?category={{ category.pk }}" class="mt-2 inline-flex items-center text-blue-600 hover:text-blue-800 text-sm">
                     <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add First Attribute
                 </a>
             </div>
