@@ -390,6 +390,18 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
     form_class = InventoryItemForm
     template_name = "inventory/item_form.html"
 
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form = self.get_form()
+
+        # Store attribute values from POST to preserve them if form fails
+        self._attr_values = {k: v for k, v in request.POST.items() if k.startswith('attr_')}
+
+        if form.is_valid():
+            return self.form_valid(form)
+        else:
+            return self.form_invalid(form)
+
     def form_valid(self, form):
         response = super().form_valid(form)
         item = self.object
@@ -421,11 +433,17 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
                         attr_value.text_value = value
 
                     attr_value.save()
-                except (ValueError, CategoryAttribute.DoesNotExist):
-                    pass
+                except (ValueError, CategoryAttribute.DoesNotExist) as e:
+                    print(f"Error saving attribute {key}: {e}")
 
         messages.success(self.request, f"Item '{form.instance.code}' updated successfully.")
         return response
+
+    def form_invalid(self, form):
+        # Log form errors for debugging
+        print(f"Form errors: {form.errors}")
+        messages.error(self.request, "Please correct the errors below.")
+        return super().form_invalid(form)
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.object.pk})
