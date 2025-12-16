@@ -1,8 +1,9 @@
 """
 ARDT FMS - Inventory Models
-Version: 5.5
+Version: 5.6
 
 Tables:
+- units_of_measure (NEW) - Master data for units
 - inventory_categories (P1) - Enhanced with item_type link, code_prefix, name_template
 - inventory_locations (P1)
 - inventory_items (P1) - Enhanced with legacy refs, auto-code
@@ -11,10 +12,65 @@ Tables:
 - category_attributes (NEW) - Smart attributes per category
 - item_attribute_values (NEW) - Attribute values for items
 - item_variants (NEW) - Variant tracking for condition/source
+- material_lots - Lot/batch tracking
 """
 
 from django.conf import settings
 from django.db import models
+
+
+# =============================================================================
+# MASTER DATA: UNITS OF MEASURE
+# =============================================================================
+
+
+class UnitOfMeasure(models.Model):
+    """
+    Master data for units of measure.
+    Provides standardized units for inventory items.
+    """
+
+    class UnitType(models.TextChoices):
+        QUANTITY = "QUANTITY", "Quantity (Count)"
+        LENGTH = "LENGTH", "Length"
+        WEIGHT = "WEIGHT", "Weight/Mass"
+        VOLUME = "VOLUME", "Volume"
+        AREA = "AREA", "Area"
+        TIME = "TIME", "Time"
+        OTHER = "OTHER", "Other"
+
+    code = models.CharField(max_length=10, unique=True, help_text="Short code (EA, KG, M, etc.)")
+    name = models.CharField(max_length=50, help_text="Full name (Each, Kilogram, Meter)")
+    unit_type = models.CharField(max_length=20, choices=UnitType.choices, default=UnitType.QUANTITY)
+    symbol = models.CharField(max_length=10, blank=True, help_text="Symbol for display (kg, m, L)")
+
+    # Conversion to base unit (optional)
+    base_unit = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="derived_units",
+        help_text="Base unit for conversion"
+    )
+    conversion_factor = models.DecimalField(
+        max_digits=15,
+        decimal_places=6,
+        default=1,
+        help_text="Multiply by this to convert to base unit"
+    )
+
+    is_active = models.BooleanField(default=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "units_of_measure"
+        ordering = ["unit_type", "code"]
+        verbose_name = "Unit of Measure"
+        verbose_name_plural = "Units of Measure"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
 
 
 class InventoryCategory(models.Model):

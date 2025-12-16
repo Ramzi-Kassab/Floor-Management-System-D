@@ -1,6 +1,6 @@
 """
 ARDT FMS - Inventory App Forms
-Version: 5.5
+Version: 5.6
 """
 
 from django import forms
@@ -14,6 +14,8 @@ from .models import (
     InventoryTransaction,
     ItemAttributeValue,
     ItemVariant,
+    MaterialLot,
+    UnitOfMeasure,
 )
 
 TAILWIND_INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -301,3 +303,76 @@ class StockAdjustmentForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2, "placeholder": "Additional notes"}),
     )
+
+
+# =============================================================================
+# MASTER DATA FORMS
+# =============================================================================
+
+
+class UnitOfMeasureForm(forms.ModelForm):
+    """Form for units of measure."""
+
+    class Meta:
+        model = UnitOfMeasure
+        fields = [
+            "code",
+            "name",
+            "unit_type",
+            "symbol",
+            "base_unit",
+            "conversion_factor",
+            "is_active",
+            "description",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "KG, M, EA"}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Kilogram, Meter, Each"}),
+            "unit_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "symbol": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "kg, m, pcs"}),
+            "base_unit": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "conversion_factor": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.000001"}),
+            "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+        }
+
+
+class MaterialLotForm(forms.ModelForm):
+    """Form for material lots."""
+
+    class Meta:
+        model = MaterialLot
+        fields = [
+            "lot_number",
+            "inventory_item",
+            "initial_quantity",
+            "quantity_on_hand",
+            "received_date",
+            "manufacture_date",
+            "expiry_date",
+            "vendor",
+            "purchase_order",
+            "vendor_lot_number",
+            "cert_number",
+            "certificate",
+            "location",
+            "status",
+            "unit_cost",
+        ]
+        widgets = {
+            "lot_number": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "LOT-2024-001"}),
+            "inventory_item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "initial_quantity": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "quantity_on_hand": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "received_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "manufacture_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "expiry_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "vendor": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "purchase_order": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "vendor_lot_number": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "cert_number": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "certificate": forms.FileInput(attrs={"class": TAILWIND_INPUT}),
+            "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "status": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "unit_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+        }

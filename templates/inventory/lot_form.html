@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Track material batches for traceability</p>
+    </div>
+    <a href="{% url 'inventory:lot_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="space-y-6">
+                <!-- Basic Info -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Basic Information</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Lot Number *</label>
+                            {{ form.lot_number }}
+                            {% if form.lot_number.errors %}<p class="text-red-600 text-sm mt-1">{{ form.lot_number.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Inventory Item *</label>
+                            {{ form.inventory_item }}
+                            {% if form.inventory_item.errors %}<p class="text-red-600 text-sm mt-1">{{ form.inventory_item.errors.0 }}</p>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quantities -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Quantities</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Initial Quantity *</label>
+                            {{ form.initial_quantity }}
+                            {% if form.initial_quantity.errors %}<p class="text-red-600 text-sm mt-1">{{ form.initial_quantity.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quantity On Hand *</label>
+                            {{ form.quantity_on_hand }}
+                            {% if form.quantity_on_hand.errors %}<p class="text-red-600 text-sm mt-1">{{ form.quantity_on_hand.errors.0 }}</p>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dates -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Dates</h3>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Received Date *</label>
+                            {{ form.received_date }}
+                            {% if form.received_date.errors %}<p class="text-red-600 text-sm mt-1">{{ form.received_date.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Manufacture Date</label>
+                            {{ form.manufacture_date }}
+                            {% if form.manufacture_date.errors %}<p class="text-red-600 text-sm mt-1">{{ form.manufacture_date.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Expiry Date</label>
+                            {{ form.expiry_date }}
+                            {% if form.expiry_date.errors %}<p class="text-red-600 text-sm mt-1">{{ form.expiry_date.errors.0 }}</p>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Source -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Source Information</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Vendor</label>
+                            {{ form.vendor }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Purchase Order</label>
+                            {{ form.purchase_order }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Vendor Lot Number</label>
+                            {{ form.vendor_lot_number }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Location</label>
+                            {{ form.location }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Certification -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Certification</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Certificate Number</label>
+                            {{ form.cert_number }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Certificate File</label>
+                            {{ form.certificate }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status & Cost -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status *</label>
+                            {{ form.status }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Unit Cost</label>
+                            {{ form.unit_cost }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'inventory:lot_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    {% if object %}Update{% else %}Create{% endif %} Lot
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

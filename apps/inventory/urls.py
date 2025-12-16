@@ -26,9 +26,20 @@ urlpatterns = [
     path("items/<int:pk>/", views.ItemDetailView.as_view(), name="item_detail"),
     path("items/<int:pk>/edit/", views.ItemUpdateView.as_view(), name="item_update"),
     # Item Variants
+    path("variants/", views.ItemVariantListView.as_view(), name="variant_list"),
     path("items/<int:item_pk>/variants/create/", views.ItemVariantCreateView.as_view(), name="item_variant_create"),
     path("items/<int:item_pk>/variants/<int:pk>/edit/", views.ItemVariantUpdateView.as_view(), name="item_variant_update"),
     path("items/<int:item_pk>/variants/<int:pk>/delete/", views.ItemVariantDeleteView.as_view(), name="item_variant_delete"),
+    # Units of Measure (Master Data)
+    path("units/", views.UnitOfMeasureListView.as_view(), name="uom_list"),
+    path("units/create/", views.UnitOfMeasureCreateView.as_view(), name="uom_create"),
+    path("units/<int:pk>/edit/", views.UnitOfMeasureUpdateView.as_view(), name="uom_update"),
+    path("units/<int:pk>/delete/", views.UnitOfMeasureDeleteView.as_view(), name="uom_delete"),
+    # Material Lots
+    path("lots/", views.MaterialLotListView.as_view(), name="lot_list"),
+    path("lots/create/", views.MaterialLotCreateView.as_view(), name="lot_create"),
+    path("lots/<int:pk>/", views.MaterialLotDetailView.as_view(), name="lot_detail"),
+    path("lots/<int:pk>/edit/", views.MaterialLotUpdateView.as_view(), name="lot_update"),
     # Import/Export
     path("items/import/", views.ItemImportView.as_view(), name="item_import"),
     path("items/export/", views.ItemExportView.as_view(), name="item_export"),

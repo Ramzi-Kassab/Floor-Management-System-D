@@ -1,6 +1,6 @@
 """
 ARDT FMS - Inventory App Views
-Version: 5.5
+Version: 5.6
 """
 
 import io
@@ -29,7 +29,9 @@ from .forms import (
     InventoryStockForm,
     InventoryTransactionForm,
     ItemVariantForm,
+    MaterialLotForm,
     StockAdjustmentForm,
+    UnitOfMeasureForm,
 )
 from .models import (
     CategoryAttribute,
@@ -40,6 +42,8 @@ from .models import (
     InventoryTransaction,
     ItemAttributeValue,
     ItemVariant,
+    MaterialLot,
+    UnitOfMeasure,
 )
 
 
@@ -1425,4 +1429,241 @@ class ItemVariantDeleteView(LoginRequiredMixin, DeleteView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["item"] = self.item
+        return context
+
+
+class ItemVariantListView(LoginRequiredMixin, ListView):
+    """List all item variants across all items."""
+
+    model = ItemVariant
+    template_name = "inventory/item_variant_list.html"
+    context_object_name = "variants"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = ItemVariant.objects.select_related("base_item", "customer").order_by("-created_at")
+
+        # Filter by condition
+        condition = self.request.GET.get("condition")
+        if condition:
+            queryset = queryset.filter(condition=condition)
+
+        # Filter by source type
+        source_type = self.request.GET.get("source_type")
+        if source_type:
+            queryset = queryset.filter(source_type=source_type)
+
+        # Filter by status
+        status = self.request.GET.get("status")
+        if status == "active":
+            queryset = queryset.filter(is_active=True)
+        elif status == "inactive":
+            queryset = queryset.filter(is_active=False)
+
+        # Search
+        search = self.request.GET.get("search")
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(base_item__code__icontains=search) |
+                Q(base_item__name__icontains=search)
+            )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Item Variants"
+        context["conditions"] = ItemVariant.Condition.choices
+        context["source_types"] = ItemVariant.SourceType.choices
+        return context
+
+
+# =============================================================================
+# Unit of Measure Views
+# =============================================================================
+
+
+class UnitOfMeasureListView(LoginRequiredMixin, ListView):
+    """List all units of measure."""
+
+    model = UnitOfMeasure
+    template_name = "inventory/uom_list.html"
+    context_object_name = "units"
+
+    def get_queryset(self):
+        queryset = UnitOfMeasure.objects.all()
+
+        # Filter by type
+        unit_type = self.request.GET.get("type")
+        if unit_type:
+            queryset = queryset.filter(unit_type=unit_type)
+
+        # Filter by status
+        status = self.request.GET.get("status")
+        if status == "active":
+            queryset = queryset.filter(is_active=True)
+        elif status == "inactive":
+            queryset = queryset.filter(is_active=False)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Units of Measure"
+        context["unit_types"] = UnitOfMeasure.UnitType.choices
+        return context
+
+
+class UnitOfMeasureCreateView(LoginRequiredMixin, CreateView):
+    """Create unit of measure."""
+
+    model = UnitOfMeasure
+    form_class = UnitOfMeasureForm
+    template_name = "inventory/uom_form.html"
+    success_url = reverse_lazy("inventory:uom_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Unit '{form.instance.code}' created successfully.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Unit of Measure"
+        context["form_title"] = "Create Unit of Measure"
+        return context
+
+
+class UnitOfMeasureUpdateView(LoginRequiredMixin, UpdateView):
+    """Update unit of measure."""
+
+    model = UnitOfMeasure
+    form_class = UnitOfMeasureForm
+    template_name = "inventory/uom_form.html"
+    success_url = reverse_lazy("inventory:uom_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Unit '{form.instance.code}' updated successfully.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.code}"
+        context["form_title"] = f"Edit Unit: {self.object.code}"
+        return context
+
+
+class UnitOfMeasureDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete unit of measure."""
+
+    model = UnitOfMeasure
+    template_name = "inventory/uom_confirm_delete.html"
+    success_url = reverse_lazy("inventory:uom_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Unit '{self.object.code}' deleted successfully.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# Material Lot Views
+# =============================================================================
+
+
+class MaterialLotListView(LoginRequiredMixin, ListView):
+    """List all material lots."""
+
+    model = MaterialLot
+    template_name = "inventory/lot_list.html"
+    context_object_name = "lots"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = MaterialLot.objects.select_related(
+            "inventory_item", "vendor", "location"
+        ).order_by("-received_date")
+
+        # Filter by status
+        status = self.request.GET.get("status")
+        if status:
+            queryset = queryset.filter(status=status)
+
+        # Filter by item
+        item = self.request.GET.get("item")
+        if item:
+            queryset = queryset.filter(inventory_item_id=item)
+
+        # Search
+        search = self.request.GET.get("search")
+        if search:
+            queryset = queryset.filter(
+                Q(lot_number__icontains=search) |
+                Q(inventory_item__code__icontains=search) |
+                Q(inventory_item__name__icontains=search) |
+                Q(vendor_lot_number__icontains=search)
+            )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Material Lots"
+        context["statuses"] = MaterialLot.Status.choices
+        return context
+
+
+class MaterialLotDetailView(LoginRequiredMixin, DetailView):
+    """View material lot details."""
+
+    model = MaterialLot
+    template_name = "inventory/lot_detail.html"
+    context_object_name = "lot"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Lot {self.object.lot_number}"
+        # Get consumption records
+        context["consumptions"] = self.object.consumptions.select_related(
+            "work_order", "consumed_by"
+        ).order_by("-consumed_at")[:10]
+        return context
+
+
+class MaterialLotCreateView(LoginRequiredMixin, CreateView):
+    """Create material lot."""
+
+    model = MaterialLot
+    form_class = MaterialLotForm
+    template_name = "inventory/lot_form.html"
+    success_url = reverse_lazy("inventory:lot_list")
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Lot '{form.instance.lot_number}' created successfully.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Material Lot"
+        context["form_title"] = "Create Material Lot"
+        return context
+
+
+class MaterialLotUpdateView(LoginRequiredMixin, UpdateView):
+    """Update material lot."""
+
+    model = MaterialLot
+    form_class = MaterialLotForm
+    template_name = "inventory/lot_form.html"
+    success_url = reverse_lazy("inventory:lot_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Lot '{form.instance.lot_number}' updated successfully.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Lot {self.object.lot_number}"
+        context["form_title"] = f"Edit Lot: {self.object.lot_number}"
         return context
