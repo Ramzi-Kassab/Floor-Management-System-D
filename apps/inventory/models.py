@@ -672,13 +672,20 @@ class InventoryLocation(models.Model):
 
 class InventoryStock(models.Model):
     """
-    🟢 P1: Stock levels by location.
+    Stock levels by location.
+
+    LEDGER-BASED ARCHITECTURE:
+    - quantity_on_hand is a CACHED value for performance
+    - The source of truth is InventoryTransaction ledger
+    - Use recalculate_from_ledger() to sync with transactions
+    - All stock changes should go through InventoryTransaction
     """
 
     item = models.ForeignKey(InventoryItem, on_delete=models.CASCADE, related_name="stock_records")
     location = models.ForeignKey(InventoryLocation, on_delete=models.CASCADE, related_name="stock_records")
 
-    quantity_on_hand = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    # Cached quantities (source of truth is transaction ledger)
+    quantity_on_hand = models.DecimalField(max_digits=15, decimal_places=3, default=0, help_text="Cached - recalculate from ledger")
     quantity_reserved = models.DecimalField(max_digits=15, decimal_places=3, default=0)
     quantity_available = models.DecimalField(max_digits=15, decimal_places=3, default=0)
 
@@ -702,6 +709,37 @@ class InventoryStock(models.Model):
     def save(self, *args, **kwargs):
         self.quantity_available = float(self.quantity_on_hand) - float(self.quantity_reserved)
         super().save(*args, **kwargs)
+
+    def recalculate_from_ledger(self):
+        """
+        Recalculate quantity_on_hand from transaction ledger.
+        This is the source of truth for inventory.
+        """
+        from django.db.models import Sum, Case, When, F, DecimalField
+
+        # Get all transactions for this item/location
+        transactions = InventoryTransaction.objects.filter(item=self.item)
+
+        # Inbound: to_location matches
+        inbound = transactions.filter(to_location=self.location).aggregate(
+            total=Sum('quantity')
+        )['total'] or 0
+
+        # Outbound: from_location matches
+        outbound = transactions.filter(from_location=self.location).aggregate(
+            total=Sum('quantity')
+        )['total'] or 0
+
+        self.quantity_on_hand = inbound - outbound
+        self.quantity_available = float(self.quantity_on_hand) - float(self.quantity_reserved)
+        self.save(update_fields=['quantity_on_hand', 'quantity_available'])
+        return self.quantity_on_hand
+
+    @classmethod
+    def recalculate_all(cls):
+        """Recalculate all stock records from ledger."""
+        for stock in cls.objects.all():
+            stock.recalculate_from_ledger()
 
 
 class VariantStock(models.Model):
@@ -1130,3 +1168,150 @@ class ItemIdentifier(models.Model):
     def __str__(self):
         return f"{self.item.code} - {self.identifier_type} ({self.pack_level})"
 
+
+# =============================================================================
+# SPECIALIZED SPEC TABLES (For Heavy/Critical Domains)
+# =============================================================================
+
+
+class ItemCutterSpec(models.Model):
+    """
+    Specialized specification table for PDC Cutters.
+    Strong validation and better reporting for this critical domain.
+    Use Attributes for most categories, but cutters need dedicated specs.
+    """
+
+    class Grade(models.TextChoices):
+        PREMIUM = "PREMIUM", "Premium"
+        STANDARD = "STANDARD", "Standard"
+        ECONOMY = "ECONOMY", "Economy"
+
+    class ChamferType(models.TextChoices):
+        NONE = "NONE", "No Chamfer"
+        SINGLE = "SINGLE", "Single Chamfer"
+        DOUBLE = "DOUBLE", "Double Chamfer"
+        MULTI = "MULTI", "Multi-Chamfer"
+
+    item = models.OneToOneField(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="cutter_spec",
+        primary_key=True
+    )
+
+    # Size specs
+    cutter_size = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        help_text="Cutter diameter in mm"
+    )
+    thickness = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        null=True, blank=True,
+        help_text="Cutter thickness in mm"
+    )
+    diamond_table_thickness = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        null=True, blank=True,
+        help_text="Diamond table thickness in mm"
+    )
+
+    # Material/Grade
+    grade = models.CharField(max_length=20, choices=Grade.choices, default=Grade.STANDARD)
+    substrate_material = models.CharField(max_length=50, blank=True, help_text="e.g., Tungsten Carbide")
+
+    # Chamfer specs
+    chamfer_type = models.CharField(max_length=20, choices=ChamferType.choices, default=ChamferType.NONE)
+    chamfer_angle = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    chamfer_size = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+
+    # Braze specs
+    braze_temp_min = models.IntegerField(null=True, blank=True, help_text="Min braze temp °C")
+    braze_temp_max = models.IntegerField(null=True, blank=True, help_text="Max braze temp °C")
+
+    # Performance
+    impact_resistance = models.CharField(max_length=20, blank=True)
+    abrasion_resistance = models.CharField(max_length=20, blank=True)
+    thermal_stability_temp = models.IntegerField(null=True, blank=True, help_text="Max thermal stability °C")
+
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "item_cutter_specs"
+        verbose_name = "Cutter Specification"
+        verbose_name_plural = "Cutter Specifications"
+
+    def __str__(self):
+        return f"{self.item.code} - {self.cutter_size}mm {self.grade}"
+
+
+class ItemBitSpec(models.Model):
+    """
+    Specialized specification table for Drill Bit designs/SKUs.
+    Links inventory items that are bit designs to their technical specs.
+    Use this for the SKU/design level, not individual serial numbers.
+    """
+
+    class BitType(models.TextChoices):
+        PDC = "PDC", "PDC (Fixed Cutter)"
+        ROLLER_CONE = "RC", "Roller Cone"
+        HYBRID = "HYBRID", "Hybrid"
+        DIAMOND = "DIAMOND", "Diamond Impregnated"
+
+    item = models.OneToOneField(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="bit_spec",
+        primary_key=True
+    )
+
+    # Bit identification
+    bit_type = models.CharField(max_length=20, choices=BitType.choices, default=BitType.PDC)
+    iadc_code = models.CharField(max_length=10, blank=True, help_text="IADC classification code")
+
+    # Size
+    bit_size = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        help_text="Bit diameter in inches"
+    )
+
+    # Connection
+    connection_type = models.CharField(max_length=50, blank=True, help_text="e.g., API REG, IF")
+    connection_size = models.CharField(max_length=20, blank=True, help_text="e.g., 4-1/2 IF")
+
+    # PDC specific
+    blade_count = models.IntegerField(null=True, blank=True)
+    cutter_count = models.IntegerField(null=True, blank=True)
+    cutter_size = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True, help_text="Primary cutter size mm")
+
+    # Nozzle configuration
+    nozzle_count = models.IntegerField(null=True, blank=True)
+    tfa_range_min = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True, help_text="Min TFA sq.in")
+    tfa_range_max = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True, help_text="Max TFA sq.in")
+
+    # Operating parameters
+    weight_on_bit_min = models.IntegerField(null=True, blank=True, help_text="Min WOB (klbs)")
+    weight_on_bit_max = models.IntegerField(null=True, blank=True, help_text="Max WOB (klbs)")
+    rpm_min = models.IntegerField(null=True, blank=True)
+    rpm_max = models.IntegerField(null=True, blank=True)
+
+    # Application
+    formation_hardness = models.CharField(max_length=50, blank=True, help_text="Soft/Medium/Hard/Very Hard")
+    application = models.CharField(max_length=100, blank=True, help_text="e.g., Curve Drilling, Vertical")
+
+    # Design details
+    gauge_protection = models.CharField(max_length=50, blank=True)
+    body_material = models.CharField(max_length=50, blank=True, help_text="Steel/Matrix")
+
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "item_bit_specs"
+        verbose_name = "Bit Specification"
+        verbose_name_plural = "Bit Specifications"
+
+    def __str__(self):
+        return f"{self.item.code} - {self.bit_size}\" {self.bit_type}"
