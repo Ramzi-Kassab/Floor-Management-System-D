@@ -382,7 +382,7 @@ class QualityReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
             "critical": qs.filter(severity="CRITICAL").count(),
             "closed_this_month": qs.filter(
                 status="CLOSED",
-                closed_at__month=timezone.now().month,
+                closed_date__month=timezone.now().month,
             ).count(),
         }
 
@@ -406,7 +406,7 @@ class QualityReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
                 ("description", "Description"),
                 ("reported_by.username", "Reported By"),
                 ("created_at", "Created"),
-                ("closed_at", "Closed Date"),
+                ("closed_date", "Closed Date"),
             ]
             return self.export_to_excel(self.get_queryset(), columns, "quality_report", "NCRs")
         return super().get(request, *args, **kwargs)
@@ -452,6 +452,7 @@ class MaintenanceReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Maintenance Report"
         context["status_choices"] = MaintenanceWorkOrder.Status.choices
+        context["work_type_choices"] = MaintenanceWorkOrder.WorkType.choices
 
         # Summary
         qs = self.get_queryset()
@@ -498,8 +499,8 @@ class EquipmentHealthReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
         return (
             Equipment.objects.select_related("category")
             .annotate(
-                mwo_count=Count("work_orders"),
-                completed_mwos=Count("work_orders", filter=Q(work_orders__status="COMPLETED")),
+                mwo_count=Count("maintenance_work_orders"),
+                completed_mwos=Count("maintenance_work_orders", filter=Q(maintenance_work_orders__status="COMPLETED")),
             )
             .order_by("-mwo_count")
         )
@@ -539,7 +540,7 @@ class SupplyChainReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        qs = PurchaseOrder.objects.select_related("vendor", "created_by").order_by("-created_at")
+        qs = PurchaseOrder.objects.select_related("supplier", "created_by").order_by("-created_at")
 
         # Date range
         date_from = self.request.GET.get("date_from")
@@ -582,7 +583,7 @@ class SupplyChainReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
         if request.GET.get("export") == "excel":
             columns = [
                 ("po_number", "PO Number"),
-                ("vendor.name", "Supplier"),
+                ("supplier.name", "Supplier"),
                 ("status", "Status"),
                 ("order_date", "Order Date"),
                 ("expected_date", "Expected Date"),

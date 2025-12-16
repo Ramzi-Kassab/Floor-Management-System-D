@@ -76,21 +76,4 @@ urlpatterns = [
     path("status-logs/", views.StatusTransitionLogListView.as_view(), name="statustransitionlog_list"),
     path("repair-history/", views.BitRepairHistoryListView.as_view(), name="bitrepairhistory_list"),
     path("operation-executions/", views.OperationExecutionListView.as_view(), name="operationexecution_list"),
-    # ========================================================================
-    # PHASE 2 - Reference Data URLs
-    # ========================================================================
-    # BitType URLs
-    path("bit-types/", views.BitTypeListView.as_view(), name="bittype_list"),
-    path("bit-types/create/", views.BitTypeCreateView.as_view(), name="bittype_create"),
-    path("bit-types/<int:pk>/", views.BitTypeDetailView.as_view(), name="bittype_detail"),
-    path("bit-types/<int:pk>/edit/", views.BitTypeUpdateView.as_view(), name="bittype_update"),
-    # BitSize URLs
-    path("bit-sizes/", views.BitSizeListView.as_view(), name="bitsize_list"),
-    path("bit-sizes/create/", views.BitSizeCreateView.as_view(), name="bitsize_create"),
-    path("bit-sizes/<int:pk>/edit/", views.BitSizeUpdateView.as_view(), name="bitsize_update"),
-    # Location URLs
-    path("locations/", views.LocationListView.as_view(), name="location_list"),
-    path("locations/create/", views.LocationCreateView.as_view(), name="location_create"),
-    path("locations/<int:pk>/", views.LocationDetailView.as_view(), name="location_detail"),
-    path("locations/<int:pk>/edit/", views.LocationUpdateView.as_view(), name="location_update"),
 ]

@@ -267,7 +267,7 @@ class TestPlanningToExecutionWorkflow:
         # Create work order for the inspection task
         drill_bit = DrillBit.objects.create(
             serial_number='FC-INSP-001',
-            bit_type=DrillBit.BitCategory.FC,
+            bit_type=DrillBit.BitType.FC,
             size=Decimal('8.500'),
             status=DrillBit.Status.IN_FIELD,
             created_by=project_manager

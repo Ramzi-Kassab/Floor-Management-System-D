@@ -1,32 +1,28 @@
 {% extends "base.html" %}
 
-{% block title %}{{ design.mat_no }} - ARDT FMS{% endblock %}
+{% block title %}{{ design.code }} - ARDT FMS{% endblock %}
 
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
-    <div class="flex items-center gap-4">
-        <a href="{% url 'technology:design_list' %}" class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-            <i data-lucide="arrow-left" class="w-5 h-5"></i>
-        </a>
-        <div>
-            <div class="flex items-center gap-3">
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-white font-mono">{{ design.mat_no }}</h1>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                    {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
-                    {% elif design.status == 'DRAFT' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
-                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
-                    {{ design.get_status_display }}
-                </span>
-            </div>
-            <p class="text-gray-600 dark:text-gray-400 mt-1">
-                {{ design.hdbs_type }}{% if design.smi_type and design.smi_type != design.hdbs_type %} / {{ design.smi_type }}{% endif %}
-                {% if design.size %} - {{ design.size.size_display }}{% endif %}
-            </p>
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white font-mono">{{ design.code }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {% if design.bit_type == 'FC' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200{% else %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200{% endif %}">
+                {{ design.get_bit_type_display }}
+            </span>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800{% elif design.status == 'DRAFT' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ design.get_status_display }}
+            </span>
         </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ design.name }}</p>
     </div>
     <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
-        <a href="{% url 'technology:design_update' design.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+        <a href="{% url 'technology:design_update' design.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
             <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'technology:design_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
         </a>
     </div>
 </div>
@@ -34,387 +30,128 @@
 
 {% block content %}
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Main Content -->
     <div class="lg:col-span-2 space-y-6">
-
-        <!-- Identity Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="tag" class="w-5 h-5"></i>
-                    Identity
-                </h2>
-            </div>
-            <div class="px-6 py-4">
-                <dl class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white font-mono font-medium">{{ design.mat_no|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">HDBS Type</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white font-medium">{{ design.hdbs_type|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SMI Type</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.smi_type|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</dt>
-                        <dd class="mt-1">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                {{ design.get_category_display }}
-                            </span>
-                        </dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Size</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.size %}{{ design.size.size_display }}{% else %}--{% endif %}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IADC Code</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white font-mono">{% if design.iadc_code_ref %}{{ design.iadc_code_ref.code }}{% else %}--{% endif %}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Order Level</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.get_order_level_display|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Revision</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.revision|default:"A" }}</dd>
-                    </div>
-                </dl>
-            </div>
-        </div>
-
-        <!-- Technical Specs Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="cpu" class="w-5 h-5"></i>
-                    Technical Specifications
-                </h2>
-            </div>
-            <div class="px-6 py-4">
-                <dl class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Body Material</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.get_body_material_display|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Series</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.series|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">No. of Blades</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.no_of_blades|default_if_none:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cutter Size Grade</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.cutter_size|default_if_none:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total Cutters Count</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white font-semibold">{{ design.total_pockets_count|default_if_none:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Gage Length (in)</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.gage_length is not None %}{{ design.gage_length }}{% else %}--{% endif %}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Gage Relief</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.gage_relief is not None %}{{ design.gage_relief }} thou{% else %}--{% endif %}</dd>
-                    </div>
-                </dl>
-            </div>
-        </div>
-
-        <!-- Hydraulics Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="droplets" class="w-5 h-5"></i>
-                    Hydraulics
-                </h2>
-            </div>
-            <div class="px-6 py-4">
-                <dl class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nozzle Count</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.nozzle_count|default_if_none:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nozzle Bore Size</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.nozzle_bore_size|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Port Count</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.port_count|default_if_none:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Port Size</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.port_size is not None %}{{ design.port_size }}{% else %}--{% endif %}</dd>
-                    </div>
-                    <div class="col-span-2">
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nozzle Config</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.nozzle_config|default:"--" }}</dd>
-                    </div>
-                </dl>
-            </div>
-        </div>
-
-        <!-- Connection Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="link" class="w-5 h-5"></i>
-                    Connection
-                </h2>
-            </div>
-            <div class="px-6 py-4">
-                {% if design.connection_ref %}
-                <dl class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white font-mono">{{ design.connection_ref.mat_no }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.connection_ref.connection_type.code }} - {{ design.connection_ref.connection_type.name }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Size</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.connection_ref.connection_size.size_inches }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Can Replace in KSA</dt>
-                        <dd class="mt-1">
-                            {% if design.connection_ref.can_replace_in_ksa %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Yes</span>
-                            {% else %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">No</span>
-                            {% endif %}
-                        </dd>
-                    </div>
-                </dl>
+        <!-- Specifications -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Specifications</h2>
+            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Size</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ design.size }}"</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">IADC Code</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ design.iadc_code|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Revision</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.revision }}</dd>
+                </div>
+                {% if design.bit_type == 'FC' %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Blade Count</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.blade_count|default:"--" }}</dd>
+                </div>
                 {% else %}
-                <p class="text-gray-500 dark:text-gray-400">No connection selected</p>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Cone Count</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.cone_count|default:"--" }}</dd>
+                </div>
                 {% endif %}
-            </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Connection</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.connection_type|default:"--" }} {{ design.connection_size }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">TFA</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.tfa|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Formation</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.formation_type|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Application</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.application|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Nozzle Config</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.nozzle_config|default:"--" }}</dd>
+                </div>
+            </dl>
         </div>
 
-        <!-- Breaker Slot Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="wrench" class="w-5 h-5"></i>
-                    Breaker Slot
-                </h2>
-            </div>
-            <div class="px-6 py-4">
-                {% if design.breaker_slot %}
-                <dl class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white font-mono">{{ design.breaker_slot.mat_no }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Dimensions</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.breaker_slot.slot_width }} x {{ design.breaker_slot.slot_depth }} in</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Material</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.breaker_slot.get_material_display }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hardness</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.breaker_slot.hardness|default:"--" }}</dd>
-                    </div>
-                </dl>
-                {% else %}
-                <p class="text-gray-500 dark:text-gray-400">No breaker slot selected</p>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Pockets Layout and Features Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="grid-3x3" class="w-5 h-5"></i>
-                    Pockets Layout and Features
-                </h2>
-                <a href="{% url 'technology:design_pockets' design.pk %}" class="text-sm text-blue-600 hover:underline flex items-center gap-1">
-                    <i data-lucide="settings" class="w-4 h-4"></i> Manage Pockets
+        <!-- BOMs -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Bills of Materials</h2>
+                <a href="{% url 'technology:bom_create' %}?design={{ design.pk }}" class="text-sm text-blue-600 hover:underline">
+                    <i data-lucide="plus" class="w-4 h-4 inline"></i> Add BOM
                 </a>
             </div>
-            <div class="px-6 py-4">
-                <dl class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Layout No.</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white font-mono font-medium">{{ design.pocket_layout_number|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rows Count</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ design.pocket_rows_count|default:"1" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Pocket Configs</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ pocket_configs_count }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Overall Status</dt>
-                        <dd class="mt-1">
-                            {% if pocket_layout_complete %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                <i data-lucide="check-circle" class="w-3 h-3 mr-1"></i> Complete
-                            </span>
-                            {% elif pocket_configs_count > 0 %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                                <i data-lucide="clock" class="w-3 h-3 mr-1"></i> In Progress
-                            </span>
-                            {% else %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                <i data-lucide="circle" class="w-3 h-3 mr-1"></i> Not Started
-                            </span>
-                            {% endif %}
-                        </dd>
-                    </div>
-                </dl>
-
-                <!-- 3-Tab Completion Status -->
-                {% if pocket_configs_count > 0 %}
-                <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-3">Configuration Progress</p>
-                    <div class="grid grid-cols-3 gap-3">
-                        <!-- Grid Tab -->
-                        <div class="flex items-center gap-2 p-2 rounded-lg {% if grid_complete %}bg-green-50 dark:bg-green-900/20{% else %}bg-gray-50 dark:bg-gray-700/50{% endif %}">
-                            {% if grid_complete %}
-                            <i data-lucide="check-circle" class="w-4 h-4 text-green-600 dark:text-green-400"></i>
-                            {% else %}
-                            <i data-lucide="circle" class="w-4 h-4 text-gray-400 dark:text-gray-500"></i>
-                            {% endif %}
-                            <span class="text-sm {% if grid_complete %}text-green-700 dark:text-green-300{% else %}text-gray-600 dark:text-gray-400{% endif %}">Grid</span>
+            {% if boms %}
+            <div class="space-y-3">
+                {% for bom in boms %}
+                <a href="{% url 'technology:bom_detail' bom.pk %}" class="block p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ bom.code }}</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">{{ bom.name }}</p>
                         </div>
-                        <!-- Locations Tab -->
-                        <div class="flex items-center gap-2 p-2 rounded-lg {% if locations_complete %}bg-green-50 dark:bg-green-900/20{% else %}bg-gray-50 dark:bg-gray-700/50{% endif %}">
-                            {% if locations_complete %}
-                            <i data-lucide="check-circle" class="w-4 h-4 text-green-600 dark:text-green-400"></i>
-                            {% else %}
-                            <i data-lucide="circle" class="w-4 h-4 text-gray-400 dark:text-gray-500"></i>
-                            {% endif %}
-                            <span class="text-sm {% if locations_complete %}text-green-700 dark:text-green-300{% else %}text-gray-600 dark:text-gray-400{% endif %}">Locations</span>
-                        </div>
-                        <!-- Engagements Tab -->
-                        <div class="flex items-center gap-2 p-2 rounded-lg {% if engagements_complete %}bg-green-50 dark:bg-green-900/20{% else %}bg-gray-50 dark:bg-gray-700/50{% endif %}">
-                            {% if engagements_complete %}
-                            <i data-lucide="check-circle" class="w-4 h-4 text-green-600 dark:text-green-400"></i>
-                            {% else %}
-                            <i data-lucide="circle" class="w-4 h-4 text-gray-400 dark:text-gray-500"></i>
-                            {% endif %}
-                            <span class="text-sm {% if engagements_complete %}text-green-700 dark:text-green-300{% else %}text-gray-600 dark:text-gray-400{% endif %}">Engagements</span>
-                        </div>
+                        <span class="text-xs px-2 py-1 rounded {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ bom.get_status_display }}
+                        </span>
                     </div>
-
-                    <!-- Assignment Progress Bar -->
-                    <div class="mt-4">
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-gray-500 dark:text-gray-400">Pockets Assigned:</span>
-                            <span class="font-medium {% if grid_complete %}text-green-600 dark:text-green-400{% elif pocket_assignments_count > 0 %}text-yellow-600 dark:text-yellow-400{% else %}text-gray-600 dark:text-gray-400{% endif %}">
-                                {{ pocket_assignments_count }} / {{ pocket_configs_total }}
-                            </span>
-                        </div>
-                        <div class="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                            <div class="{% if grid_complete %}bg-green-600{% elif pocket_assignments_count > 0 %}bg-yellow-500{% else %}bg-gray-400{% endif %} h-2 rounded-full transition-all"
-                                 style="width: {% widthratio pocket_assignments_count pocket_configs_total 100 %}%"></div>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- BOMs Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="package" class="w-5 h-5"></i>
-                    Bills of Materials (Level 5)
-                </h2>
-                <a href="{% url 'technology:bom_create' %}?design={{ design.pk }}" class="text-sm text-blue-600 hover:underline flex items-center gap-1">
-                    <i data-lucide="plus" class="w-4 h-4"></i> Add BOM
                 </a>
+                {% endfor %}
             </div>
-            <div class="px-6 py-4">
-                {% if boms %}
-                <div class="space-y-3">
-                    {% for bom in boms %}
-                    <a href="{% url 'technology:bom_detail' bom.pk %}" class="block p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <p class="font-medium text-gray-900 dark:text-white">{{ bom.code }}</p>
-                                <p class="text-sm text-gray-600 dark:text-gray-400">{{ bom.name }}</p>
-                            </div>
-                            <span class="text-xs px-2 py-1 rounded {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                                {{ bom.get_status_display }}
-                            </span>
-                        </div>
-                    </a>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <p class="text-gray-500 dark:text-gray-400">No BOMs defined for this design</p>
-                {% endif %}
-            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">No BOMs defined for this design</p>
+            {% endif %}
         </div>
 
-        <!-- Special Technologies Section -->
-        {% if design.special_technologies.exists %}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="cpu" class="w-5 h-5"></i>
-                    Special Technologies & Features
-                </h2>
+        <!-- Cutter Layouts (for FC bits) -->
+        {% if design.bit_type == 'FC' %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Cutter Layout</h2>
             </div>
-            <div class="px-6 py-4">
-                <div class="flex flex-wrap gap-2">
-                    {% for tech in design.special_technologies.all %}
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                        {{ tech.name }}
-                    </span>
-                    {% endfor %}
-                </div>
+            {% if cutter_layouts %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                            <th class="px-4 py-2">Blade</th>
+                            <th class="px-4 py-2">Pos</th>
+                            <th class="px-4 py-2">Type</th>
+                            <th class="px-4 py-2">Size (mm)</th>
+                            <th class="px-4 py-2">Radial (mm)</th>
+                            <th class="px-4 py-2">Backrake</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for layout in cutter_layouts %}
+                        <tr>
+                            <td class="px-4 py-2">{{ layout.blade_number }}</td>
+                            <td class="px-4 py-2">{{ layout.position_number }}</td>
+                            <td class="px-4 py-2">{{ layout.cutter_type }}</td>
+                            <td class="px-4 py-2">{{ layout.cutter_size }}</td>
+                            <td class="px-4 py-2">{{ layout.radial_position }}</td>
+                            <td class="px-4 py-2">{{ layout.backrake|default:"--" }}°</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">No cutter layout defined</p>
+            {% endif %}
         </div>
         {% endif %}
-
-        <!-- Application Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="target" class="w-5 h-5"></i>
-                    Application
-                </h2>
-            </div>
-            <div class="px-6 py-4">
-                <dl class="grid grid-cols-2 gap-4">
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Formation Type</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.formation_type_ref %}{{ design.formation_type_ref.name }}{% else %}--{% endif %}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Application</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{% if design.application_ref %}{{ design.application_ref.name }}{% else %}--{% endif %}</dd>
-                    </div>
-                </dl>
-            </div>
-        </div>
     </div>
 
-    <!-- Sidebar -->
     <div class="space-y-6">
-        <!-- Usage Stats -->
+        <!-- Stats -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Usage</h2>
             <div class="text-center">
@@ -423,36 +160,31 @@
             </div>
         </div>
 
-        <!-- Description & Notes -->
-        {% if design.description or design.notes %}
+        <!-- Description -->
+        {% if design.description %}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notes</h2>
-            {% if design.description %}
-            <div class="mb-4">
-                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Description</dt>
-                <dd class="text-gray-900 dark:text-white">{{ design.description }}</dd>
-            </div>
-            {% endif %}
-            {% if design.notes %}
-            <div>
-                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Notes</dt>
-                <dd class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ design.notes }}</dd>
-            </div>
-            {% endif %}
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description</h2>
+            <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ design.description }}</p>
         </div>
         {% endif %}
 
-        <!-- Timestamps -->
+        <!-- Audit -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Timestamps</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Audit</h2>
             <dl class="space-y-3 text-sm">
+                {% if design.designed_by %}
                 <div class="flex justify-between">
-                    <dt class="text-gray-500 dark:text-gray-400">Created</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ design.created_at|date:"M d, Y H:i" }}</dd>
+                    <dt class="text-gray-500">Designed By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.designed_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.created_at|date:"M d, Y" }}</dd>
                 </div>
                 <div class="flex justify-between">
-                    <dt class="text-gray-500 dark:text-gray-400">Last Updated</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ design.updated_at|date:"M d, Y H:i" }}</dd>
+                    <dt class="text-gray-500">Updated</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.updated_at|date:"M d, Y" }}</dd>
                 </div>
             </dl>
         </div>

@@ -24,7 +24,7 @@ class TestSerialNumberEdgeCases:
         max_serial = 'X' * 50  # max_length=50
         bit = DrillBit.objects.create(
             serial_number=max_serial,
-            bit_type=DrillBit.BitCategory.FC,
+            bit_type=DrillBit.BitType.FC,
             size=Decimal('8.500'),
             created_by=base_user
         )
@@ -36,7 +36,7 @@ class TestSerialNumberEdgeCases:
         special_serial = 'FC-2024-001/A-1'
         bit = DrillBit.objects.create(
             serial_number=special_serial,
-            bit_type=DrillBit.BitCategory.FC,
+            bit_type=DrillBit.BitType.FC,
             size=Decimal('8.500'),
             created_by=base_user
         )
@@ -48,7 +48,7 @@ class TestSerialNumberEdgeCases:
         unicode_serial = 'FC-テスト-001'
         bit = DrillBit.objects.create(
             serial_number=unicode_serial,
-            bit_type=DrillBit.BitCategory.FC,
+            bit_type=DrillBit.BitType.FC,
             size=Decimal('8.500'),
             created_by=base_user
         )
@@ -80,7 +80,7 @@ class TestDecimalPrecisionEdgeCases:
         # Max: 999.999
         bit = DrillBit.objects.create(
             serial_number='SIZE-PREC-001',
-            bit_type=DrillBit.BitCategory.FC,
+            bit_type=DrillBit.BitType.FC,
             size=Decimal('999.999'),
             created_by=base_user
         )
@@ -91,7 +91,7 @@ class TestDecimalPrecisionEdgeCases:
         from apps.workorders.models import DrillBit
         bit = DrillBit.objects.create(
             serial_number='SIZE-MIN-001',
-            bit_type=DrillBit.BitCategory.FC,
+            bit_type=DrillBit.BitType.FC,
             size=Decimal('0.001'),
             created_by=base_user
         )
@@ -340,7 +340,7 @@ class TestForeignKeyEdgeCases:
         from apps.workorders.models import DrillBit
         bit = DrillBit.objects.create(
             serial_number='BIT-NULL-FK-001',
-            bit_type=DrillBit.BitCategory.FC,
+            bit_type=DrillBit.BitType.FC,
             size=Decimal('8.500'),
             design=None,
             customer=None,
@@ -398,7 +398,7 @@ class TestUniqueConstraintEdgeCases:
         with pytest.raises(IntegrityError):
             DrillBit.objects.create(
                 serial_number=drill_bit.serial_number,
-                bit_type=DrillBit.BitCategory.FC,
+                bit_type=DrillBit.BitType.FC,
                 size=Decimal('8.500'),
                 created_by=base_user
             )
@@ -660,7 +660,7 @@ class TestQRCodeEdgeCases:
         from apps.workorders.models import DrillBit
         bit = DrillBit.objects.create(
             serial_number='QR-AUTO-001',
-            bit_type=DrillBit.BitCategory.FC,
+            bit_type=DrillBit.BitType.FC,
             size=Decimal('8.500'),
             created_by=base_user
         )
@@ -671,7 +671,7 @@ class TestQRCodeEdgeCases:
         from apps.workorders.models import DrillBit
         bit = DrillBit.objects.create(
             serial_number='QR-KEEP-001',
-            bit_type=DrillBit.BitCategory.FC,
+            bit_type=DrillBit.BitType.FC,
             size=Decimal('8.500'),
             qr_code='CUSTOM-QR-CODE',
             created_by=base_user

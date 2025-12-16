@@ -3,7 +3,7 @@
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto">
+<div class="max-w-3xl mx-auto">
     <div class="mb-6">
         <div class="flex items-center gap-4">
             <a href="{% url 'technology:design_list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">
@@ -13,392 +13,39 @@
         </div>
     </div>
 
-    <form method="post" enctype="multipart/form-data" class="space-y-6">
+    <form method="post" class="space-y-6">
         {% csrf_token %}
 
-        <!-- Form Errors -->
-        {% if form.errors %}
-        <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
-            <div class="flex items-start">
-                <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 mr-3"></i>
-                <div>
-                    <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Please correct the errors below:</h3>
-                    <ul class="mt-2 text-sm text-red-700 dark:text-red-300 list-disc list-inside">
-                        {% for field in form %}
-                            {% for error in field.errors %}
-                            <li>{{ field.label }}: {{ error }}</li>
-                            {% endfor %}
-                        {% endfor %}
-                        {% for error in form.non_field_errors %}
-                        <li>{{ error }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- IDENTITY (Merged Section) -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="tag" class="w-5 h-5"></i>
-                    Design Identity
-                </h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Basic Information</h3>
             </div>
             <div class="px-6 py-4 space-y-4">
-                <!-- Row 1: Order Level, Category, MAT No., Ref MAT No. -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Order Level</label>
-                        <div class="mt-1">{{ form.order_level }}</div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Code <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.code }}</div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Category <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.category }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">MAT No. <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.mat_no }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Ref MAT No.</label>
-                        <div class="mt-1">{{ form.ref_mat_no }}</div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Name <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.name }}</div>
                     </div>
                 </div>
-
-                <!-- Row 2: Size, HDBS Type, SMI Type, IADC Code -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Size</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Bit Type <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.bit_type }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Size (inches) <span class="text-red-500">*</span></label>
                         <div class="mt-1">{{ form.size }}</div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">HDBS Type <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.hdbs_type }}</div>
-                        <p class="mt-1 text-xs text-gray-500">Auto-fills fields below</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMI Type</label>
-                        <div class="mt-1">{{ form.smi_type }}</div>
-                    </div>
-                    <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">IADC Code</label>
-                        <div class="mt-1">{{ form.iadc_code_ref }}</div>
+                        <div class="mt-1">{{ form.iadc_code }}</div>
                     </div>
                 </div>
-
-                <!-- Row 3: ARDT Item No. -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">ARDT Item No.</label>
-                        <div class="mt-1">{{ form.ardt_item_no }}</div>
-                    </div>
-                </div>
-
-                <!-- Row 4: Auto-filled from HDBS Type -->
-                <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                    <p class="text-xs text-gray-500 mb-3 flex items-center gap-1">
-                        <i data-lucide="zap" class="w-3 h-3"></i>
-                        Auto-filled from HDBS Type
-                    </p>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Body Material</label>
-                            <div class="mt-1">{{ form.body_material }}</div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Series</label>
-                            <div class="mt-1">{{ form.series }}</div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">No. of Blades</label>
-                            <div class="mt-1">{{ form.no_of_blades }}</div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Cutter Size Grade</label>
-                            <div class="mt-1">{{ form.cutter_size }}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Row 5: Total Cutters Count, Gage specs -->
-                <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Total Cutters Count</label>
-                        <div class="mt-1">{{ form.total_pockets_count }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Length (in)</label>
-                        <div class="mt-1">{{ form.gage_length }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Relief (thou)</label>
-                        <div class="mt-1">{{ form.gage_relief }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- HYDRAULICS -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="droplets" class="w-5 h-5"></i>
-                    Hydraulics
-                </h3>
-            </div>
-            <div class="px-6 py-4 space-y-4">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Count</label>
-                        <div class="mt-1">{{ form.nozzle_count }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Bore Size</label>
-                        <div class="mt-1">{{ form.nozzle_bore_size }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Port Count</label>
-                        <div class="mt-1">{{ form.port_count }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Port Size</label>
-                        <div class="mt-1">{{ form.port_size }}</div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Config</label>
-                        <div class="mt-1">{{ form.nozzle_config }}</div>
-                        <p class="mt-1 text-xs text-gray-500">Layout of nozzles (see Milling Drawing)</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Milling Drawing (PDF)</label>
-                        <div class="mt-1">{{ form.milling_drawing }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- CONNECTION -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="link" class="w-5 h-5"></i>
-                    Connection
-                </h3>
-            </div>
-            <div class="px-6 py-4">
-                {{ form.connection_ref }}
-                <div class="flex items-center gap-4">
-                    <button type="button" id="btn-select-connection" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                        <i data-lucide="search" class="w-4 h-4"></i>
-                        Select Connection
-                    </button>
-                    <div id="selected-connection-display" class="flex-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <span class="text-gray-500 dark:text-gray-400" id="connection-placeholder">No connection selected</span>
-                        <div id="connection-details" class="hidden">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <span class="font-medium text-gray-900 dark:text-white" id="conn-mat-no"></span>
-                                    <span class="text-gray-500 dark:text-gray-400 mx-2">|</span>
-                                    <span class="text-gray-600 dark:text-gray-300" id="conn-type"></span>
-                                    <span class="text-gray-600 dark:text-gray-300 ml-1" id="conn-size"></span>
-                                </div>
-                                <button type="button" id="btn-clear-connection" class="text-red-500 hover:text-red-700">
-                                    <i data-lucide="x" class="w-4 h-4"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- BREAKER SLOT -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="wrench" class="w-5 h-5"></i>
-                    Breaker Slot
-                </h3>
-            </div>
-            <div class="px-6 py-4">
-                {{ form.breaker_slot }}
-                <div class="flex items-center gap-4">
-                    <button type="button" id="btn-select-breaker" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                        <i data-lucide="search" class="w-4 h-4"></i>
-                        Select Breaker Slot
-                    </button>
-                    <div id="selected-breaker-display" class="flex-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <span class="text-gray-500 dark:text-gray-400" id="breaker-placeholder">No breaker slot selected</span>
-                        <div id="breaker-details" class="hidden">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <span class="font-medium text-gray-900 dark:text-white" id="breaker-mat-no"></span>
-                                    <span class="text-gray-500 dark:text-gray-400 mx-2">|</span>
-                                    <span class="text-gray-600 dark:text-gray-300" id="breaker-dims"></span>
-                                    <span class="text-gray-600 dark:text-gray-300 ml-1" id="breaker-material"></span>
-                                </div>
-                                <button type="button" id="btn-clear-breaker" class="text-red-500 hover:text-red-700">
-                                    <i data-lucide="x" class="w-4 h-4"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- POCKETS LAYOUT -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="grid-3x3" class="w-5 h-5"></i>
-                    Pockets Layout
-                </h3>
-            </div>
-            <div class="px-6 py-4 space-y-4">
-                <!-- Pocket Layout Number -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Pocket Layout No.</label>
-                        <div class="mt-1">{{ form.pocket_layout_number }}</div>
-                        <p class="mt-1 text-xs text-gray-500">Auto-incremented for new designs</p>
-                    </div>
-                </div>
-
-                {% if object %}
-                <div class="border-t border-gray-200 dark:border-gray-700 pt-4 flex items-center justify-between">
-                    <div class="text-sm text-gray-600 dark:text-gray-400">
-                        <p>Configure pocket sizes, shapes, and layout positions for this design.</p>
-                        {% if object.total_pockets_count %}
-                        <p class="mt-2">
-                            <span class="font-medium text-gray-900 dark:text-white">{{ object.total_pockets_count }}</span> total pockets ·
-                            <span class="font-medium text-gray-900 dark:text-white">{{ object.pocket_rows_count|default:1 }}</span> row{{ object.pocket_rows_count|default:1|pluralize }}
-                        </p>
-                        {% endif %}
-                    </div>
-                    <a href="{% url 'technology:design_pockets' object.pk %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
-                        <i data-lucide="grid-3x3" class="w-4 h-4 mr-2"></i>
-                        Configure Pockets
-                    </a>
-                </div>
-                {% else %}
-                <div class="border-t border-gray-200 dark:border-gray-700 pt-4 text-center">
-                    <p class="text-gray-500 dark:text-gray-400">
-                        <i data-lucide="info" class="w-4 h-4 inline-block mr-1"></i>
-                        Save the design first to configure pockets layout grid
-                    </p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- BILLS OF MATERIALS (Level 5) -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="package" class="w-5 h-5"></i>
-                    Bills of Materials (Level 5)
-                </h3>
-                {% if object %}
-                <a href="{% url 'technology:bom_create' %}?design={{ object.pk }}" class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                    <i data-lucide="plus" class="w-4 h-4"></i>
-                    Add BOM
-                </a>
-                {% endif %}
-            </div>
-            <div class="px-6 py-4">
-                {% if object %}
-                    {% if object.boms.exists %}
-                    <div class="space-y-2">
-                        {% for bom in object.boms.all %}
-                        <a href="{% url 'technology:bom_detail' bom.pk %}" class="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <span class="font-medium text-gray-900 dark:text-white">{{ bom.code }}</span>
-                                    <span class="text-sm text-gray-600 dark:text-gray-400 ml-2">{{ bom.name }}</span>
-                                </div>
-                                <span class="text-xs px-2 py-1 rounded {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
-                                    {{ bom.get_status_display }}
-                                </span>
-                            </div>
-                        </a>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <p class="text-gray-500 dark:text-gray-400 text-center py-4">No BOMs defined for this design</p>
-                    {% endif %}
-                {% else %}
-                <div class="text-center py-4">
-                    <p class="text-gray-500 dark:text-gray-400">
-                        <i data-lucide="info" class="w-4 h-4 inline-block mr-1"></i>
-                        Save the design first to add Bills of Materials
-                    </p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- SPECIAL TECHNOLOGIES & FEATURES -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="cpu" class="w-5 h-5"></i>
-                    Special Technologies & Features
-                </h3>
-            </div>
-            <div class="px-6 py-4">
-                <p class="text-sm text-gray-500 mb-3">Select all applicable (includes Erosion Sleeve, Crush & Shear):</p>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {% for checkbox in form.special_technologies %}
-                    <div class="flex items-center">
-                        {{ checkbox.tag }}
-                        <label for="{{ checkbox.id_for_label }}" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                            {{ checkbox.choice_label }}
-                        </label>
-                    </div>
-                    {% empty %}
-                    <p class="text-sm text-gray-400 col-span-4">Run: python manage.py seed_special_technologies</p>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-
-        <!-- APPLICATION -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="target" class="w-5 h-5"></i>
-                    Application
-                </h3>
-            </div>
-            <div class="px-6 py-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Formation Type</label>
-                        <div class="mt-1">{{ form.formation_type_ref }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Application</label>
-                        <div class="mt-1">{{ form.application_ref }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- STATUS -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="check-circle" class="w-5 h-5"></i>
-                    Status
-                </h3>
-            </div>
-            <div class="px-6 py-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Status <span class="text-red-500">*</span></label>
                         <div class="mt-1">{{ form.status }}</div>
@@ -407,23 +54,56 @@
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Revision</label>
                         <div class="mt-1">{{ form.revision }}</div>
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Blade Count (FC)</label>
+                        <div class="mt-1">{{ form.blade_count }}</div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- NOTES -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="file-text" class="w-5 h-5"></i>
-                    Notes
-                </h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Technical Details</h3>
             </div>
             <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection Type</label>
+                        <div class="mt-1">{{ form.connection_type }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection Size</label>
+                        <div class="mt-1">{{ form.connection_size }}</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Formation Type</label>
+                        <div class="mt-1">{{ form.formation_type }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Application</label>
+                        <div class="mt-1">{{ form.application }}</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Config</label>
+                        <div class="mt-1">{{ form.nozzle_config }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">TFA</label>
+                        <div class="mt-1">{{ form.tfa }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gauge Protection</label>
+                        <div class="mt-1">{{ form.gauge_protection }}</div>
+                    </div>
+                </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
                     <div class="mt-1">{{ form.description }}</div>
-                    <p class="mt-1 text-xs text-gray-500">Auto-generated: Size - SMI Type (or HDBS Type) - MAT No.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
@@ -432,557 +112,12 @@
             </div>
         </div>
 
-        <!-- Actions -->
-        <div class="flex justify-end gap-3 sticky bottom-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg shadow-lg">
-            <a href="{% url 'technology:design_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</a>
-            <button type="submit" class="px-6 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2">
-                <i data-lucide="save" class="w-4 h-4"></i>
-                {% if object %}Update{% else %}Create{% endif %} Design
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'technology:design_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Cancel</a>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                {{ submit_text|default:"Save" }}
             </button>
         </div>
     </form>
 </div>
-
-<!-- Connection Selection Modal -->
-<div id="connection-modal" class="fixed inset-0 z-50 hidden">
-    <div class="fixed inset-0 bg-black/50" id="connection-modal-backdrop"></div>
-    <div class="fixed inset-4 md:inset-10 bg-white dark:bg-gray-800 rounded-lg shadow-xl flex flex-col">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Select Connection</h3>
-                <a href="{% url 'technology:connection_list' %}" target="_blank" class="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">
-                    <i data-lucide="external-link" class="w-4 h-4"></i>
-                    Manage Connections
-                </a>
-            </div>
-            <button type="button" id="close-connection-modal" class="text-gray-500 hover:text-gray-700">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-        </div>
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search MAT No.</label>
-                    <input type="text" id="conn-search" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Search...">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Type</label>
-                    <select id="conn-filter-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                        <option value="">All Types</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Size</label>
-                    <select id="conn-filter-size" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                        <option value="">All Sizes</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Can Replace in KSA</label>
-                    <select id="conn-filter-ksa" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                        <option value="">All</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-        <div class="flex-1 overflow-auto px-6 py-4">
-            <table class="w-full">
-                <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700">
-                    <tr>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Size</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">KSA</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Features</th>
-                        <th class="px-4 py-2"></th>
-                    </tr>
-                </thead>
-                <tbody id="connection-results" class="divide-y divide-gray-200 dark:divide-gray-700">
-                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- Breaker Slot Selection Modal -->
-<div id="breaker-modal" class="fixed inset-0 z-50 hidden">
-    <div class="fixed inset-0 bg-black/50" id="breaker-modal-backdrop"></div>
-    <div class="fixed inset-4 md:inset-10 bg-white dark:bg-gray-800 rounded-lg shadow-xl flex flex-col">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Select Breaker Slot</h3>
-                <a href="{% url 'technology:breaker_slot_list' %}" target="_blank" class="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">
-                    <i data-lucide="external-link" class="w-4 h-4"></i>
-                    Manage Breaker Slots
-                </a>
-            </div>
-            <button type="button" id="close-breaker-modal" class="text-gray-500 hover:text-gray-700">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-        </div>
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search MAT No.</label>
-                    <input type="text" id="breaker-search" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Search...">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Material</label>
-                    <select id="breaker-filter-material" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                        <option value="">All Materials</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Width Range (in)</label>
-                    <div class="flex gap-2">
-                        <input type="number" id="breaker-min-width" class="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Min">
-                        <input type="number" id="breaker-max-width" class="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Max">
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="flex-1 overflow-auto px-6 py-4">
-            <table class="w-full">
-                <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700">
-                    <tr>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Width (in)</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Depth (in)</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Material</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hardness</th>
-                        <th class="px-4 py-2"></th>
-                    </tr>
-                </thead>
-                <tbody id="breaker-results" class="divide-y divide-gray-200 dark:divide-gray-700">
-                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const hdbsInput = document.getElementById('id_hdbs_type');
-    const smiInput = document.getElementById('id_smi_type');
-    const matNoInput = document.getElementById('id_mat_no');
-    const sizeSelect = document.getElementById('id_size');
-    const seriesInput = document.getElementById('id_series');
-    const bladesInput = document.getElementById('id_no_of_blades');
-    const cutterSizeInput = document.getElementById('id_cutter_size');
-    const bodyMaterialSelect = document.getElementById('id_body_material');
-    const descriptionInput = document.getElementById('id_description');
-
-    function parseHDBSType(hdbsType) {
-        const match = hdbsType.match(/^([A-Z]+)(\d)(\d)?/i);
-        if (match) {
-            return {
-                series: match[1].toUpperCase(),
-                blades: parseInt(match[2]),
-                cutterGrade: match[3] ? parseInt(match[3]) : null
-            };
-        }
-        return null;
-    }
-
-    function detectBodyMaterial(hdbsType) {
-        // Steel if S at start or end (before suffix like -1)
-        const baseType = hdbsType.split('-')[0];
-        const upper = baseType.toUpperCase();
-        return (upper.startsWith('S') || upper.endsWith('S')) ? 'S' : 'M';
-    }
-
-    function updateDescription() {
-        // Get size text from select
-        let sizeText = '';
-        if (sizeSelect && sizeSelect.selectedIndex > 0) {
-            sizeText = sizeSelect.options[sizeSelect.selectedIndex].text;
-        }
-
-        // Get type (SMI if available, else HDBS)
-        const smiType = smiInput ? smiInput.value.trim() : '';
-        const hdbsType = hdbsInput ? hdbsInput.value.trim() : '';
-        const typeText = smiType || hdbsType;
-
-        // Get MAT No.
-        const matNo = matNoInput ? matNoInput.value.trim() : '';
-
-        // Build description: Size - Type - MAT No.
-        const parts = [sizeText, typeText, matNo].filter(p => p);
-        if (descriptionInput && parts.length > 0) {
-            descriptionInput.value = parts.join(' - ');
-        }
-    }
-
-    function updateAutoFields() {
-        const hdbsType = hdbsInput ? hdbsInput.value.trim() : '';
-        if (!hdbsType) return;
-
-        const parsed = parseHDBSType(hdbsType);
-        if (parsed) {
-            if (seriesInput) seriesInput.value = parsed.series;
-            if (bladesInput) bladesInput.value = parsed.blades;
-            if (parsed.cutterGrade !== null && cutterSizeInput) {
-                cutterSizeInput.value = parsed.cutterGrade;
-            }
-        }
-
-        if (bodyMaterialSelect) {
-            bodyMaterialSelect.value = detectBodyMaterial(hdbsType);
-        }
-
-        // Update description
-        updateDescription();
-    }
-
-    // HDBS Type triggers auto-fill
-    if (hdbsInput) {
-        hdbsInput.addEventListener('input', updateAutoFields);
-        hdbsInput.addEventListener('blur', updateAutoFields);
-        if (hdbsInput.value) updateAutoFields();
-    }
-
-    // SMI Type, Size, MAT No. changes update description
-    if (smiInput) {
-        smiInput.addEventListener('input', updateDescription);
-        smiInput.addEventListener('blur', updateDescription);
-    }
-    if (sizeSelect) {
-        sizeSelect.addEventListener('change', updateDescription);
-    }
-    if (matNoInput) {
-        matNoInput.addEventListener('input', updateDescription);
-        matNoInput.addEventListener('blur', updateDescription);
-    }
-
-    // Initial description update
-    updateDescription();
-
-    // =========================================================================
-    // CONNECTION MODAL
-    // =========================================================================
-    const connModal = document.getElementById('connection-modal');
-    const connBtn = document.getElementById('btn-select-connection');
-    const connClose = document.getElementById('close-connection-modal');
-    const connBackdrop = document.getElementById('connection-modal-backdrop');
-    const connInput = document.getElementById('id_connection_ref');
-    const connDetails = document.getElementById('connection-details');
-    const connPlaceholder = document.getElementById('connection-placeholder');
-    const connClear = document.getElementById('btn-clear-connection');
-
-    function openConnectionModal() {
-        connModal.classList.remove('hidden');
-        loadConnections();
-        loadConnectionFilters();
-    }
-
-    function closeConnectionModal() {
-        connModal.classList.add('hidden');
-    }
-
-    function loadConnectionFilters() {
-        fetch('{% url "technology:api_connections" %}')
-            .then(r => r.json())
-            .then(data => {
-                const typeSelect = document.getElementById('conn-filter-type');
-                const sizeSelect = document.getElementById('conn-filter-size');
-
-                if (data.filters) {
-                    typeSelect.innerHTML = '<option value="">All Types</option>';
-                    data.filters.types.forEach(t => {
-                        typeSelect.innerHTML += `<option value="${t.id}">${t.code} - ${t.name}</option>`;
-                    });
-
-                    sizeSelect.innerHTML = '<option value="">All Sizes</option>';
-                    data.filters.sizes.forEach(s => {
-                        sizeSelect.innerHTML += `<option value="${s.id}">${s.size}</option>`;
-                    });
-                }
-            })
-            .catch(err => console.error('Error loading connection filters:', err));
-    }
-
-    function loadConnections() {
-        const params = new URLSearchParams();
-        const search = document.getElementById('conn-search').value;
-        const type = document.getElementById('conn-filter-type').value;
-        const size = document.getElementById('conn-filter-size').value;
-        const ksa = document.getElementById('conn-filter-ksa').value;
-
-        if (search) params.append('q', search);
-        if (type) params.append('type', type);
-        if (size) params.append('size', size);
-        if (ksa) params.append('can_replace', ksa);
-
-        fetch(`{% url "technology:api_connections" %}?${params.toString()}`)
-            .then(r => r.json())
-            .then(data => {
-                const tbody = document.getElementById('connection-results');
-                if (!data.connections || data.connections.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No connections found</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = data.connections.map(c => `
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" data-id="${c.id}" data-mat="${c.mat_no}" data-type="${c.type_name}" data-size="${c.size}">
-                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">${c.mat_no}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${c.type} - ${c.type_name}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${c.size}</td>
-                        <td class="px-4 py-3">
-                            ${c.can_replace_in_ksa
-                                ? '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Yes</span>'
-                                : '<span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">No</span>'}
-                        </td>
-                        <td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">${c.special_features || '-'}</td>
-                        <td class="px-4 py-3">
-                            <button type="button" class="select-conn-btn px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">Select</button>
-                        </td>
-                    </tr>
-                `).join('');
-
-                // Add click handlers
-                tbody.querySelectorAll('.select-conn-btn').forEach(btn => {
-                    btn.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        const row = this.closest('tr');
-                        selectConnection(row.dataset.id, row.dataset.mat, row.dataset.type, row.dataset.size);
-                    });
-                });
-
-                tbody.querySelectorAll('tr[data-id]').forEach(row => {
-                    row.addEventListener('click', function() {
-                        selectConnection(this.dataset.id, this.dataset.mat, this.dataset.type, this.dataset.size);
-                    });
-                });
-            })
-            .catch(err => {
-                console.error('Error loading connections:', err);
-                document.getElementById('connection-results').innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-red-500">Error loading connections</td></tr>';
-            });
-    }
-
-    function selectConnection(id, mat, type, size) {
-        connInput.value = id;
-        document.getElementById('conn-mat-no').textContent = mat;
-        document.getElementById('conn-type').textContent = type;
-        document.getElementById('conn-size').textContent = size;
-        connDetails.classList.remove('hidden');
-        connPlaceholder.classList.add('hidden');
-        closeConnectionModal();
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    function clearConnection() {
-        connInput.value = '';
-        connDetails.classList.add('hidden');
-        connPlaceholder.classList.remove('hidden');
-    }
-
-    if (connBtn) connBtn.addEventListener('click', openConnectionModal);
-    if (connClose) connClose.addEventListener('click', closeConnectionModal);
-    if (connBackdrop) connBackdrop.addEventListener('click', closeConnectionModal);
-    if (connClear) connClear.addEventListener('click', clearConnection);
-
-    // Connection filter listeners
-    ['conn-search', 'conn-filter-type', 'conn-filter-size', 'conn-filter-ksa'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('change', loadConnections);
-            if (el.tagName === 'INPUT') el.addEventListener('input', debounce(loadConnections, 300));
-        }
-    });
-
-    // =========================================================================
-    // BREAKER SLOT MODAL
-    // =========================================================================
-    const breakerModal = document.getElementById('breaker-modal');
-    const breakerBtn = document.getElementById('btn-select-breaker');
-    const breakerClose = document.getElementById('close-breaker-modal');
-    const breakerBackdrop = document.getElementById('breaker-modal-backdrop');
-    const breakerInput = document.getElementById('id_breaker_slot');
-    const breakerDetails = document.getElementById('breaker-details');
-    const breakerPlaceholder = document.getElementById('breaker-placeholder');
-    const breakerClear = document.getElementById('btn-clear-breaker');
-
-    function openBreakerModal() {
-        breakerModal.classList.remove('hidden');
-        loadBreakerSlots();
-        loadBreakerFilters();
-    }
-
-    function closeBreakerModal() {
-        breakerModal.classList.add('hidden');
-    }
-
-    function loadBreakerFilters() {
-        fetch('{% url "technology:api_breaker_slots" %}')
-            .then(r => r.json())
-            .then(data => {
-                const materialSelect = document.getElementById('breaker-filter-material');
-
-                if (data.filters) {
-                    materialSelect.innerHTML = '<option value="">All Materials</option>';
-                    data.filters.materials.forEach(m => {
-                        materialSelect.innerHTML += `<option value="${m.code}">${m.name}</option>`;
-                    });
-                }
-            })
-            .catch(err => console.error('Error loading breaker slot filters:', err));
-    }
-
-    function loadBreakerSlots() {
-        const params = new URLSearchParams();
-        const search = document.getElementById('breaker-search').value;
-        const material = document.getElementById('breaker-filter-material').value;
-        const minWidth = document.getElementById('breaker-min-width').value;
-        const maxWidth = document.getElementById('breaker-max-width').value;
-
-        if (search) params.append('q', search);
-        if (material) params.append('material', material);
-        if (minWidth) params.append('min_width', minWidth);
-        if (maxWidth) params.append('max_width', maxWidth);
-
-        fetch(`{% url "technology:api_breaker_slots" %}?${params.toString()}`)
-            .then(r => r.json())
-            .then(data => {
-                const tbody = document.getElementById('breaker-results');
-                if (!data.breaker_slots || data.breaker_slots.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No breaker slots found</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = data.breaker_slots.map(b => `
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" data-id="${b.id}" data-mat="${b.mat_no}" data-dims="${b.slot_width}x${b.slot_depth}"" data-material="${b.material_display}">
-                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">${b.mat_no}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${b.slot_width}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${b.slot_depth}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${b.material_display}</td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${b.hardness || '-'}</td>
-                        <td class="px-4 py-3">
-                            <button type="button" class="select-breaker-btn px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">Select</button>
-                        </td>
-                    </tr>
-                `).join('');
-
-                // Add click handlers
-                tbody.querySelectorAll('.select-breaker-btn').forEach(btn => {
-                    btn.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        const row = this.closest('tr');
-                        selectBreakerSlot(row.dataset.id, row.dataset.mat, row.dataset.dims, row.dataset.material);
-                    });
-                });
-
-                tbody.querySelectorAll('tr[data-id]').forEach(row => {
-                    row.addEventListener('click', function() {
-                        selectBreakerSlot(this.dataset.id, this.dataset.mat, this.dataset.dims, this.dataset.material);
-                    });
-                });
-            })
-            .catch(err => {
-                console.error('Error loading breaker slots:', err);
-                document.getElementById('breaker-results').innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-red-500">Error loading breaker slots</td></tr>';
-            });
-    }
-
-    function selectBreakerSlot(id, mat, dims, material) {
-        breakerInput.value = id;
-        document.getElementById('breaker-mat-no').textContent = mat;
-        document.getElementById('breaker-dims').textContent = dims;
-        document.getElementById('breaker-material').textContent = material;
-        breakerDetails.classList.remove('hidden');
-        breakerPlaceholder.classList.add('hidden');
-        closeBreakerModal();
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    function clearBreakerSlot() {
-        breakerInput.value = '';
-        breakerDetails.classList.add('hidden');
-        breakerPlaceholder.classList.remove('hidden');
-    }
-
-    if (breakerBtn) breakerBtn.addEventListener('click', openBreakerModal);
-    if (breakerClose) breakerClose.addEventListener('click', closeBreakerModal);
-    if (breakerBackdrop) breakerBackdrop.addEventListener('click', closeBreakerModal);
-    if (breakerClear) breakerClear.addEventListener('click', clearBreakerSlot);
-
-    // Breaker slot filter listeners
-    ['breaker-search', 'breaker-filter-material', 'breaker-min-width', 'breaker-max-width'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('change', loadBreakerSlots);
-            if (el.tagName === 'INPUT') el.addEventListener('input', debounce(loadBreakerSlots, 300));
-        }
-    });
-
-    // =========================================================================
-    // UTILITY FUNCTIONS
-    // =========================================================================
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-    // =========================================================================
-    // INITIALIZE EXISTING SELECTIONS (for edit mode)
-    // =========================================================================
-    function initializeExistingConnection() {
-        if (connInput && connInput.value) {
-            const connId = connInput.value;
-            fetch(`{% url "technology:api_connections" %}?id=${connId}`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.connections && data.connections.length > 0) {
-                        const c = data.connections[0];
-                        document.getElementById('conn-mat-no').textContent = c.mat_no;
-                        document.getElementById('conn-type').textContent = c.type_name || c.type;
-                        document.getElementById('conn-size').textContent = c.size;
-                        connDetails.classList.remove('hidden');
-                        connPlaceholder.classList.add('hidden');
-                    }
-                })
-                .catch(err => console.error('Error loading existing connection:', err));
-        }
-    }
-
-    function initializeExistingBreakerSlot() {
-        if (breakerInput && breakerInput.value) {
-            const breakerId = breakerInput.value;
-            fetch(`{% url "technology:api_breaker_slots" %}?id=${breakerId}`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.breaker_slots && data.breaker_slots.length > 0) {
-                        const b = data.breaker_slots[0];
-                        document.getElementById('breaker-mat-no').textContent = b.mat_no;
-                        document.getElementById('breaker-dims').textContent = `${b.slot_width}x${b.slot_depth}"`;
-                        document.getElementById('breaker-material').textContent = b.material_display;
-                        breakerDetails.classList.remove('hidden');
-                        breakerPlaceholder.classList.add('hidden');
-                    }
-                })
-                .catch(err => console.error('Error loading existing breaker slot:', err));
-        }
-    }
-
-    // Initialize existing selections on page load
-    initializeExistingConnection();
-    initializeExistingBreakerSlot();
-
-    // Initialize icons
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-});
-</script>
 {% endblock %}

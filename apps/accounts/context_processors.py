@@ -5,32 +5,6 @@ Version: 5.4
 Context processors for template-level permission checking.
 """
 
-from django.db.models import Q
-
-
-def saved_dashboards(request):
-    """
-    Add user's accessible saved dashboards to template context for sidebar display.
-    """
-    if not request.user.is_authenticated:
-        return {'saved_dashboards': []}
-
-    from apps.dashboard.models import SavedDashboard
-
-    user = request.user
-    user_roles = user.roles.all()
-
-    dashboards = SavedDashboard.objects.filter(
-        Q(created_by=user) |
-        Q(visibility=SavedDashboard.Visibility.PUBLIC) |
-        Q(visibility=SavedDashboard.Visibility.SHARED, shared_with_roles__in=user_roles)
-    ).filter(
-        is_active=True,
-        show_in_sidebar=True
-    ).distinct().order_by("-is_default", "name")[:10]
-
-    return {'saved_dashboards': dashboards}
-
 
 def permissions(request):
     """

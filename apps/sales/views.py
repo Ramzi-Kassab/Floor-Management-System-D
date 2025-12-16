@@ -996,7 +996,7 @@ class FieldTechnicianListView(LoginRequiredMixin, ListView):
         search = self.request.GET.get("q")
         if search:
             queryset = queryset.filter(
-                Q(employee_id__icontains=search)
+                Q(tech_id__icontains=search)
                 | Q(employee__first_name__icontains=search)
                 | Q(employee__last_name__icontains=search)
             )
@@ -1005,7 +1005,7 @@ class FieldTechnicianListView(LoginRequiredMixin, ListView):
         if status:
             queryset = queryset.filter(status=status)
 
-        return queryset.order_by("employee_id")
+        return queryset.order_by("tech_id")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1026,7 +1026,7 @@ class FieldTechnicianDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Field Technician: {self.object.employee_id}"
+        context["page_title"] = f"Field Technician: {self.object.tech_id}"
         return context
 
 
@@ -1045,7 +1045,7 @@ class FieldTechnicianCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-        messages.success(self.request, f"Field technician '{form.instance.employee_id}' created.")
+        messages.success(self.request, f"Field technician '{form.instance.tech_id}' created.")
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -1061,12 +1061,12 @@ class FieldTechnicianUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Edit Field Technician: {self.object.employee_id}"
+        context["page_title"] = f"Edit Field Technician: {self.object.tech_id}"
         context["submit_text"] = "Update Technician"
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"Field technician '{form.instance.employee_id}' updated.")
+        messages.success(self.request, f"Field technician '{form.instance.tech_id}' updated.")
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -1082,11 +1082,11 @@ class FieldTechnicianDeleteView(LoginRequiredMixin, DeleteView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Delete Field Technician: {self.object.employee_id}"
+        context["page_title"] = f"Delete Field Technician: {self.object.tech_id}"
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"Field technician '{self.object.employee_id}' deleted.")
+        messages.success(self.request, f"Field technician '{self.object.tech_id}' deleted.")
         return super().form_valid(form)
 
 
@@ -1587,7 +1587,7 @@ class FieldDrillStringRunListView(LoginRequiredMixin, ListView):
         if status:
             queryset = queryset.filter(status=status)
 
-        return queryset.order_by("-spud_time")
+        return queryset.order_by("-start_time")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1688,15 +1688,15 @@ class FieldRunDataListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = FieldRunData.objects.select_related("field_run", "field_run__drill_bit")
+        queryset = FieldRunData.objects.select_related("drill_string_run", "drill_string_run__drill_bit")
 
         search = self.request.GET.get("q")
         if search:
             queryset = queryset.filter(
-                Q(field_run__run_number__icontains=search)
+                Q(drill_string_run__run_number__icontains=search)
             )
 
-        return queryset.order_by("-timestamp")
+        return queryset.order_by("-recorded_at")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1713,7 +1713,7 @@ class FieldRunDataDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "data"
 
     def get_queryset(self):
-        return FieldRunData.objects.select_related("field_run", "field_run__drill_bit")
+        return FieldRunData.objects.select_related("drill_string_run", "drill_string_run__drill_bit")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1796,16 +1796,16 @@ class FieldPerformanceLogListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = FieldPerformanceLog.objects.select_related(
-            "field_run", "logged_by"
+            "drill_string_run", "technician"
         )
 
         search = self.request.GET.get("q")
         if search:
             queryset = queryset.filter(
-                Q(field_run__run_number__icontains=search)
+                Q(drill_string_run__run_number__icontains=search)
             )
 
-        return queryset.order_by("-start_time")
+        return queryset.order_by("-log_date")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1823,7 +1823,7 @@ class FieldPerformanceLogDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return FieldPerformanceLog.objects.select_related(
-            "field_run", "logged_by"
+            "drill_string_run", "technician"
         )
 
     def get_context_data(self, **kwargs):
@@ -1907,7 +1907,7 @@ class FieldInspectionListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = FieldInspection.objects.select_related(
-            "field_run", "inspector"
+            "drill_string_run", "inspector"
         )
 
         search = self.request.GET.get("q")
@@ -1939,7 +1939,7 @@ class FieldInspectionDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return FieldInspection.objects.select_related(
-            "field_run", "inspector"
+            "drill_string_run", "inspector"
         )
 
     def get_context_data(self, **kwargs):
@@ -2023,16 +2023,16 @@ class RunHoursListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = RunHours.objects.select_related(
-            "field_run", "recorded_by"
+            "drill_string_run", "technician"
         )
 
         search = self.request.GET.get("q")
         if search:
             queryset = queryset.filter(
-                Q(field_run__run_number__icontains=search)
+                Q(drill_string_run__run_number__icontains=search)
             )
 
-        return queryset.order_by("-created_at")
+        return queryset.order_by("-record_date")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2050,7 +2050,7 @@ class RunHoursDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return RunHours.objects.select_related(
-            "field_run", "recorded_by", "drill_bit"
+            "drill_string_run", "technician", "verified_by"
         )
 
     def get_context_data(self, **kwargs):
@@ -2134,7 +2134,7 @@ class FieldIncidentListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = FieldIncident.objects.select_related(
-            "service_site", "reported_by"
+            "service_site", "technician", "reported_by"
         )
 
         search = self.request.GET.get("q")
@@ -2173,7 +2173,7 @@ class FieldIncidentDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return FieldIncident.objects.select_related(
-            "service_site", "reported_by"
+            "service_site", "technician", "reported_by"
         )
 
     def get_context_data(self, **kwargs):
@@ -2257,14 +2257,14 @@ class FieldDataEntryListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = FieldDataEntry.objects.select_related(
-            "field_run", "recorded_by"
+            "drill_string_run", "recorded_by"
         )
 
         search = self.request.GET.get("q")
         if search:
             queryset = queryset.filter(
                 Q(entry_number__icontains=search)
-                | Q(field_run__run_number__icontains=search)
+                | Q(drill_string_run__run_number__icontains=search)
             )
 
         return queryset.order_by("-entry_date")
@@ -2285,7 +2285,7 @@ class FieldDataEntryDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return FieldDataEntry.objects.select_related(
-            "field_run", "recorded_by", "verified_by"
+            "drill_string_run", "recorded_by", "verified_by"
         )
 
     def get_context_data(self, **kwargs):
@@ -2369,7 +2369,7 @@ class FieldPhotoListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = FieldPhoto.objects.select_related(
-            "field_run", "service_site", "taken_by"
+            "drill_string_run", "service_site", "taken_by"
         )
 
         search = self.request.GET.get("q")
@@ -2401,7 +2401,7 @@ class FieldPhotoDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return FieldPhoto.objects.select_related(
-            "field_run", "service_site", "taken_by"
+            "drill_string_run", "service_site", "taken_by"
         )
 
     def get_context_data(self, **kwargs):
@@ -2485,7 +2485,7 @@ class FieldDocumentListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = FieldDocument.objects.select_related(
-            "field_run", "service_site", "uploaded_by"
+            "drill_string_run", "service_site", "uploaded_by"
         )
 
         search = self.request.GET.get("q")
@@ -2520,7 +2520,7 @@ class FieldDocumentDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return FieldDocument.objects.select_related(
-            "field_run", "service_site", "uploaded_by"
+            "drill_string_run", "service_site", "uploaded_by"
         )
 
     def get_context_data(self, **kwargs):
@@ -2604,7 +2604,7 @@ class GPSLocationListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = GPSLocation.objects.select_related(
-            "field_technician", "service_site"
+            "technician", "service_site"
         )
 
         search = self.request.GET.get("q")
@@ -2631,7 +2631,7 @@ class GPSLocationDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return GPSLocation.objects.select_related(
-            "field_technician", "service_site"
+            "technician", "service_site"
         )
 
     def get_context_data(self, **kwargs):
@@ -2834,7 +2834,7 @@ class FieldAssetAssignmentListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = FieldAssetAssignment.objects.select_related(
-            "drill_bit", "service_site", "assigned_to", "checked_out_by"
+            "drill_bit", "service_site", "technician", "assigned_by"
         )
 
         search = self.request.GET.get("q")
@@ -2865,7 +2865,7 @@ class FieldAssetAssignmentDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return FieldAssetAssignment.objects.select_related(
-            "drill_bit", "service_site", "assigned_to", "checked_out_by", "checked_in_by"
+            "drill_bit", "service_site", "technician", "assigned_by", "returned_to"
         )
 
     def get_context_data(self, **kwargs):

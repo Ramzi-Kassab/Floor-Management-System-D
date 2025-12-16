@@ -140,7 +140,6 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'apps.accounts.context_processors.permissions',
-                'apps.accounts.context_processors.saved_dashboards',
             ],
         },
     },
@@ -324,11 +323,6 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=not DEBUG)
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'Lax'
-
-# CSRF Trusted Origins (for GitHub Codespaces and other trusted domains)
-CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[
-    'https://*.app.github.dev',
-])
 
 # Additional Security Headers
 SECURE_CONTENT_TYPE_NOSNIFF = True

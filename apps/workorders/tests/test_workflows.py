@@ -132,7 +132,7 @@ class TestDrillBitLifecycleWorkflow:
         # 1. Register new bit
         bit = DrillBit.objects.create(
             serial_number='FC-LIFE-001',
-            bit_type=DrillBit.BitCategory.FC,
+            bit_type=DrillBit.BitType.FC,
             size=Decimal('8.500'),
             status=DrillBit.Status.NEW,
             created_by=base_user
@@ -182,7 +182,7 @@ class TestDrillBitLifecycleWorkflow:
         # Create Aramco contract bit
         bit = DrillBit.objects.create(
             serial_number='ARAMCO-TEST-001',
-            bit_type=DrillBit.BitCategory.FC,
+            bit_type=DrillBit.BitType.FC,
             size=Decimal('8.500'),
             status=DrillBit.Status.IN_STOCK,
             is_aramco_contract=True,

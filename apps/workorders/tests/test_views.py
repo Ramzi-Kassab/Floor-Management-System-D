@@ -232,7 +232,7 @@ class TestDrillBitListView:
         """Test list view filters by type."""
         from apps.workorders.models import DrillBit
         url = reverse('workorders:drillbit_list')
-        response = authenticated_client.get(url, {'type': DrillBit.BitCategory.FC})
+        response = authenticated_client.get(url, {'type': DrillBit.BitType.FC})
         assert response.status_code == 200
 
     def test_list_view_search(self, authenticated_client, drill_bit):
@@ -302,7 +302,7 @@ class TestDrillBitCreateView:
         url = reverse('workorders:drillbit_create')
         form_data = {
             'serial_number': 'FC-VIEW-001',
-            'bit_type': DrillBit.BitCategory.FC,
+            'bit_type': DrillBit.BitType.FC,
             'size': '8.500',
             'iadc_code': 'M423',
             'status': DrillBit.Status.NEW,

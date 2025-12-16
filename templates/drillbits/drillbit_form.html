@@ -78,32 +78,30 @@
                     </div>
                     {% endif %}
 
-                    <!-- Bit Type (Product Type) -->
+                    <!-- Bit Type -->
                     <div>
-                        <label for="id_product_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label for="id_bit_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Bit Type <span class="text-red-500">*</span>
                         </label>
-                        <select name="product_type" id="id_product_type" required
+                        <select name="bit_type" id="id_bit_type" required
                                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                             <option value="">Select type...</option>
-                            {% for choice in form.fields.product_type.queryset %}
-                            <option value="{{ choice.pk }}" {% if form.product_type.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice }}</option>
+                            {% for value, label in form.fields.bit_type.choices %}
+                            <option value="{{ value }}" {% if form.bit_type.value == value %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                     </div>
 
-                    <!-- Size (Bit Size Reference) -->
+                    <!-- Size -->
                     <div>
-                        <label for="id_bit_size_ref" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Size <span class="text-red-500">*</span>
+                        <label for="id_size" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Size (inches) <span class="text-red-500">*</span>
                         </label>
-                        <select name="bit_size_ref" id="id_bit_size_ref" required
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="">Select size...</option>
-                            {% for choice in form.fields.bit_size_ref.queryset %}
-                            <option value="{{ choice.pk }}" {% if form.bit_size_ref.value == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice }}</option>
-                            {% endfor %}
-                        </select>
+                        <input type="number" name="size" id="id_size"
+                               value="{{ form.size.value|default:'' }}"
+                               required step="0.001" min="0"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="e.g., 8.5">
                     </div>
 
                     <!-- IADC Code -->
