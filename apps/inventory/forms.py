@@ -112,6 +112,18 @@ class InventoryItemForm(forms.ModelForm):
             "image": forms.FileInput(attrs={"class": TAILWIND_INPUT}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make item_type not required - will default to STOCK_ITEM if not provided
+        self.fields['item_type'].required = False
+
+    def clean_item_type(self):
+        item_type = self.cleaned_data.get('item_type')
+        if not item_type:
+            # Default to STOCK_ITEM if not provided
+            return 'STOCK_ITEM'
+        return item_type
+
 
 class InventoryStockForm(forms.ModelForm):
     """Form for inventory stock records."""
