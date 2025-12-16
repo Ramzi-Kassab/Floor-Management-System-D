@@ -6,7 +6,7 @@
 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-        <p class="text-gray-600 dark:text-gray-400">Organize inventory items by category</p>
+        <p class="text-gray-600 dark:text-gray-400">Organize inventory items by category with attributes and templates</p>
     </div>
     <div class="mt-4 md:mt-0">
         <a href="{% url 'inventory:category_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
@@ -23,16 +23,30 @@
         {% for category in categories %}
         <div class="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30">
             <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-3">
-                    <span class="font-mono text-blue-600 dark:text-blue-400">{{ category.code }}</span>
-                    <span class="text-gray-900 dark:text-white font-medium">{{ category.name }}</span>
+                <div class="flex items-center space-x-3 flex-1">
+                    <a href="{% url 'inventory:category_detail' category.pk %}" class="font-mono text-blue-600 dark:text-blue-400 hover:text-blue-800">{{ category.code }}</a>
+                    <a href="{% url 'inventory:category_detail' category.pk %}" class="text-gray-900 dark:text-white font-medium hover:text-blue-600">{{ category.name }}</a>
                     {% if not category.is_active %}
                     <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">Inactive</span>
                     {% endif %}
+                    {% if category.code_prefix %}
+                    <span class="px-2 py-0.5 text-xs bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded font-mono">{{ category.code_prefix }}</span>
+                    {% endif %}
                 </div>
-                <a href="{% url 'inventory:category_update' category.pk %}" class="text-gray-400 hover:text-blue-600">
-                    <i data-lucide="edit" class="w-4 h-4"></i>
-                </a>
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs text-gray-500 mr-2">
+                        {{ category.attributes.count }} attr{{ category.attributes.count|pluralize }}
+                    </span>
+                    <a href="{% url 'inventory:category_detail' category.pk %}" class="text-gray-400 hover:text-blue-600" title="View">
+                        <i data-lucide="eye" class="w-4 h-4"></i>
+                    </a>
+                    <a href="{% url 'inventory:category_update' category.pk %}" class="text-gray-400 hover:text-blue-600" title="Edit">
+                        <i data-lucide="edit" class="w-4 h-4"></i>
+                    </a>
+                    <a href="{% url 'inventory:category_delete' category.pk %}" class="text-gray-400 hover:text-red-600" title="Delete">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </a>
+                </div>
             </div>
             {% if category.description %}
             <p class="text-sm text-gray-500 mt-1 ml-20">{{ category.description|truncatewords:20 }}</p>
@@ -41,13 +55,30 @@
             <div class="ml-8 mt-3 space-y-2">
                 {% for child in category.children.all %}
                 <div class="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700/50 rounded">
-                    <div class="flex items-center space-x-3">
-                        <span class="font-mono text-sm text-gray-500">{{ child.code }}</span>
-                        <span class="text-gray-700 dark:text-gray-300">{{ child.name }}</span>
+                    <div class="flex items-center space-x-3 flex-1">
+                        <a href="{% url 'inventory:category_detail' child.pk %}" class="font-mono text-sm text-gray-500 hover:text-blue-600">{{ child.code }}</a>
+                        <a href="{% url 'inventory:category_detail' child.pk %}" class="text-gray-700 dark:text-gray-300 hover:text-blue-600">{{ child.name }}</a>
+                        {% if not child.is_active %}
+                        <span class="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">Inactive</span>
+                        {% endif %}
+                        {% if child.code_prefix %}
+                        <span class="px-2 py-0.5 text-xs bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded font-mono">{{ child.code_prefix }}</span>
+                        {% endif %}
                     </div>
-                    <a href="{% url 'inventory:category_update' child.pk %}" class="text-gray-400 hover:text-blue-600">
-                        <i data-lucide="edit" class="w-4 h-4"></i>
-                    </a>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs text-gray-500 mr-2">
+                            {{ child.attributes.count }} attr{{ child.attributes.count|pluralize }}
+                        </span>
+                        <a href="{% url 'inventory:category_detail' child.pk %}" class="text-gray-400 hover:text-blue-600" title="View">
+                            <i data-lucide="eye" class="w-4 h-4"></i>
+                        </a>
+                        <a href="{% url 'inventory:category_update' child.pk %}" class="text-gray-400 hover:text-blue-600" title="Edit">
+                            <i data-lucide="edit" class="w-4 h-4"></i>
+                        </a>
+                        <a href="{% url 'inventory:category_delete' child.pk %}" class="text-gray-400 hover:text-red-600" title="Delete">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </a>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -59,6 +90,7 @@
     <div class="text-center py-16">
         <i data-lucide="folder" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No categories found</h3>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Categories help organize your inventory items with custom attributes.</p>
         <a href="{% url 'inventory:category_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Category
         </a>

@@ -195,6 +195,55 @@ class CategoryUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+class CategoryDetailView(LoginRequiredMixin, DetailView):
+    """View category details with attributes, children, and items."""
+
+    model = InventoryCategory
+    template_name = "inventory/category_detail.html"
+    context_object_name = "category"
+
+    def _get_inherited_attributes(self, category):
+        """Get attributes inherited from parent category chain."""
+        inherited = []
+        parent = category.parent
+        while parent:
+            for attr in parent.attributes.all():
+                inherited.append(attr)
+            parent = parent.parent
+        return inherited
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"{self.object.code} - {self.object.name}"
+
+        # Child categories
+        context["child_categories"] = self.object.children.all()
+
+        # Own attributes (not inherited)
+        context["own_attributes"] = self.object.attributes.filter(is_inherited=False)
+
+        # Inherited attributes from parent chain
+        context["inherited_attributes"] = self._get_inherited_attributes(self.object)
+
+        # Items in this category
+        context["items"] = self.object.items.all()[:10]  # Limit to 10 for preview
+        context["items_count"] = self.object.items.count()
+
+        return context
+
+
+class CategoryDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete inventory category."""
+
+    model = InventoryCategory
+    template_name = "inventory/category_confirm_delete.html"
+    success_url = reverse_lazy("inventory:category_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Category '{self.object.name}' deleted successfully.")
+        return super().form_valid(form)
+
+
 # =============================================================================
 # Category Attribute Views
 # =============================================================================
