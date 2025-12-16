@@ -391,8 +391,41 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
     template_name = "inventory/item_form.html"
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        item = self.object
+
+        # Process attribute values from POST data
+        for key, value in self.request.POST.items():
+            if key.startswith('attr_') and value:
+                try:
+                    attr_id = int(key.replace('attr_', ''))
+                    category_attr = CategoryAttribute.objects.get(pk=attr_id)
+
+                    # Create or update the attribute value
+                    attr_value, created = ItemAttributeValue.objects.get_or_create(
+                        item=item,
+                        attribute=category_attr
+                    )
+
+                    # Set the appropriate value field based on type
+                    if category_attr.attribute_type == 'NUMBER':
+                        attr_value.number_value = value
+                        attr_value.text_value = ''
+                    elif category_attr.attribute_type == 'BOOLEAN':
+                        attr_value.boolean_value = value.lower() in ('true', '1', 'yes', 'on')
+                        attr_value.text_value = ''
+                    elif category_attr.attribute_type == 'DATE':
+                        attr_value.date_value = value
+                        attr_value.text_value = ''
+                    else:
+                        attr_value.text_value = value
+
+                    attr_value.save()
+                except (ValueError, CategoryAttribute.DoesNotExist):
+                    pass
+
         messages.success(self.request, f"Item '{form.instance.code}' updated successfully.")
-        return super().form_valid(form)
+        return response
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.object.pk})
@@ -402,6 +435,21 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
         context["page_title"] = f"Edit {self.object.code}"
         context["form_title"] = "Edit Inventory Item"
         context["categories"] = InventoryCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
+
+        # Pass existing attribute values for pre-populating the form
+        if self.object.category:
+            existing_values = {}
+            for av in self.object.attribute_values.select_related('attribute', 'attribute__attribute'):
+                code = av.attribute.attribute.code if av.attribute.attribute else str(av.attribute.pk)
+                # Convert Decimal to float/string for JSON serialization
+                val = av.display_value
+                if val is not None and hasattr(val, '__float__'):
+                    val = float(val)
+                existing_values[code] = val
+            import json
+            context["existing_attribute_values"] = json.dumps(existing_values)
+        else:
+            context["existing_attribute_values"] = "{}"
         return context
 
 
