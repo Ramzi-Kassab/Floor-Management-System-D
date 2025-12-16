@@ -104,9 +104,25 @@ class CategoryDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"{self.object.code} - {self.object.name}"
-        context["attributes"] = self.object.category_attributes.select_related("attribute", "unit").order_by("display_order")
+
+        # Own attributes (directly on this category)
+        context["own_attributes"] = self.object.category_attributes.select_related("attribute", "unit").order_by("display_order")
+
+        # Inherited attributes from parent categories
+        inherited = []
+        parent = self.object.parent
+        while parent:
+            for attr in parent.category_attributes.select_related("attribute", "unit").order_by("display_order"):
+                inherited.append(attr)
+            parent = parent.parent
+        context["inherited_attributes"] = inherited
+
+        # Child categories
+        context["child_categories"] = self.object.children.all()
+
+        # Items in this category
         context["items"] = self.object.items.all()[:10]
-        context["item_count"] = self.object.items.count()
+        context["items_count"] = self.object.items.count()
         return context
 
 
@@ -1079,15 +1095,15 @@ class MaterialLotListView(LoginRequiredMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        queryset = MaterialLot.objects.select_related("item", "supplier", "location")
+        queryset = MaterialLot.objects.select_related("inventory_item", "vendor", "location")
 
         # Search filter
         search = self.request.GET.get("q", "").strip()
         if search:
             queryset = queryset.filter(
                 Q(lot_number__icontains=search) |
-                Q(item__name__icontains=search) |
-                Q(item__code__icontains=search)
+                Q(inventory_item__name__icontains=search) |
+                Q(inventory_item__code__icontains=search)
             )
 
         return queryset.order_by("-received_date")
@@ -1104,10 +1120,10 @@ class MaterialLotCreateView(LoginRequiredMixin, CreateView):
 
     model = MaterialLot
     template_name = "inventory/lot_form.html"
-    fields = ["item", "lot_number", "supplier", "location", "quantity_received", "quantity_remaining", "unit_cost", "received_date", "expiry_date", "certificate_number", "notes"]
+    fields = ["inventory_item", "lot_number", "vendor", "location", "initial_quantity", "quantity_on_hand", "unit_cost", "received_date", "expiry_date", "cert_number"]
 
     def form_valid(self, form):
-        form.instance.received_by = self.request.user
+        form.instance.created_by = self.request.user
         messages.success(self.request, f"Lot '{form.instance.lot_number}' created.")
         return super().form_valid(form)
 
@@ -1129,7 +1145,7 @@ class MaterialLotDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "lot"
 
     def get_queryset(self):
-        return MaterialLot.objects.select_related("item", "supplier", "location", "received_by")
+        return MaterialLot.objects.select_related("inventory_item", "vendor", "location", "created_by")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1142,7 +1158,7 @@ class MaterialLotUpdateView(LoginRequiredMixin, UpdateView):
 
     model = MaterialLot
     template_name = "inventory/lot_form.html"
-    fields = ["item", "lot_number", "supplier", "location", "quantity_received", "quantity_remaining", "unit_cost", "received_date", "expiry_date", "certificate_number", "notes"]
+    fields = ["inventory_item", "lot_number", "vendor", "location", "initial_quantity", "quantity_on_hand", "unit_cost", "received_date", "expiry_date", "cert_number", "status"]
 
     def form_valid(self, form):
         messages.success(self.request, f"Lot '{form.instance.lot_number}' updated.")
