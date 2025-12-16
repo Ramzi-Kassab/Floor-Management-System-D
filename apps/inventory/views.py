@@ -253,6 +253,51 @@ class CategoryDeleteView(LoginRequiredMixin, DeleteView):
 # =============================================================================
 
 
+class CategoryAttributeListView(LoginRequiredMixin, ListView):
+    """List all attributes across all categories."""
+
+    model = CategoryAttribute
+    template_name = "inventory/category_attribute_list.html"
+    context_object_name = "attributes"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = CategoryAttribute.objects.select_related("category").order_by(
+            "category__name", "display_order", "name"
+        )
+
+        # Filter by category
+        category_id = self.request.GET.get("category")
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+
+        # Filter by attribute type
+        attr_type = self.request.GET.get("type")
+        if attr_type:
+            queryset = queryset.filter(attribute_type=attr_type)
+
+        # Search
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(code__icontains=search) |
+                Q(category__name__icontains=search)
+            )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Category Attributes"
+        context["categories"] = InventoryCategory.objects.all().order_by("name")
+        context["attribute_types"] = CategoryAttribute.AttributeType.choices
+        context["selected_category"] = self.request.GET.get("category", "")
+        context["selected_type"] = self.request.GET.get("type", "")
+        context["search_query"] = self.request.GET.get("q", "")
+        return context
+
+
 class CategoryAttributeCreateView(LoginRequiredMixin, CreateView):
     """Create attribute for a category."""
 
@@ -1448,10 +1493,20 @@ class ItemVariantListView(LoginRequiredMixin, ListView):
         if condition:
             queryset = queryset.filter(condition=condition)
 
-        # Filter by source type
-        source_type = self.request.GET.get("source_type")
-        if source_type:
-            queryset = queryset.filter(source_type=source_type)
+        # Filter by acquisition
+        acquisition = self.request.GET.get("acquisition")
+        if acquisition:
+            queryset = queryset.filter(acquisition=acquisition)
+
+        # Filter by reclaim category
+        reclaim_category = self.request.GET.get("reclaim_category")
+        if reclaim_category:
+            queryset = queryset.filter(reclaim_category=reclaim_category)
+
+        # Filter by ownership
+        ownership = self.request.GET.get("ownership")
+        if ownership:
+            queryset = queryset.filter(ownership=ownership)
 
         # Filter by status
         status = self.request.GET.get("status")
@@ -1466,6 +1521,8 @@ class ItemVariantListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(
                 Q(code__icontains=search) |
                 Q(name__icontains=search) |
+                Q(legacy_mat_no__icontains=search) |
+                Q(erp_item_no__icontains=search) |
                 Q(base_item__code__icontains=search) |
                 Q(base_item__name__icontains=search)
             )
@@ -1476,7 +1533,9 @@ class ItemVariantListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Item Variants"
         context["conditions"] = ItemVariant.Condition.choices
-        context["source_types"] = ItemVariant.SourceType.choices
+        context["acquisitions"] = ItemVariant.Acquisition.choices
+        context["reclaim_categories"] = ItemVariant.ReclaimCategory.choices
+        context["ownerships"] = ItemVariant.Ownership.choices
         return context
 
 

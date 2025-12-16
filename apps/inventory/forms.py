@@ -175,15 +175,19 @@ class InventoryItemForm(forms.ModelForm):
 
 
 class ItemVariantForm(forms.ModelForm):
-    """Form for item variants."""
+    """Form for item variants with normalized fields."""
 
     class Meta:
         model = ItemVariant
         fields = [
             "code",
             "name",
+            "legacy_mat_no",
+            "erp_item_no",
             "condition",
-            "source_type",
+            "acquisition",
+            "reclaim_category",
+            "ownership",
             "customer",
             "standard_cost",
             "last_cost",
@@ -196,9 +200,13 @@ class ItemVariantForm(forms.ModelForm):
         widgets = {
             "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Auto-generated"}),
             "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Variant Name"}),
-            "condition": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "source_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "customer": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "legacy_mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Legacy MAT No."}),
+            "erp_item_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "ERP Item No."}),
+            "condition": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_condition"}),
+            "acquisition": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_acquisition"}),
+            "reclaim_category": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_reclaim_category"}),
+            "ownership": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_ownership"}),
+            "customer": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_customer"}),
             "standard_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01"}),
             "last_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01"}),
             "valuation_percentage": forms.NumberInput(attrs={
@@ -212,6 +220,21 @@ class ItemVariantForm(forms.ModelForm):
             "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        # Call model's clean method for business rule validation
+        instance = self.instance
+        instance.condition = cleaned_data.get('condition')
+        instance.acquisition = cleaned_data.get('acquisition')
+        instance.reclaim_category = cleaned_data.get('reclaim_category')
+        instance.ownership = cleaned_data.get('ownership')
+        instance.customer = cleaned_data.get('customer')
+        try:
+            instance.clean()
+        except Exception as e:
+            raise forms.ValidationError(str(e))
+        return cleaned_data
 
 
 class InventoryStockForm(forms.ModelForm):

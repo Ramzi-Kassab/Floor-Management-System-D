@@ -6,7 +6,7 @@
 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-        <p class="text-gray-600 dark:text-gray-400">All item variants across inventory items (condition/source tracking)</p>
+        <p class="text-gray-600 dark:text-gray-400">All item variants across inventory items (condition, acquisition, ownership tracking)</p>
     </div>
 </div>
 {% endblock %}
@@ -20,7 +20,7 @@
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
                 <input type="text" name="search" value="{{ request.GET.search }}"
                        class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                       placeholder="Code, name, item...">
+                       placeholder="Code, MAT No, ERP No..." autocomplete="off">
             </div>
             <div>
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Condition</label>
@@ -32,11 +32,29 @@
                 </select>
             </div>
             <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Source Type</label>
-                <select name="source_type" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-                    <option value="">All Sources</option>
-                    {% for value, label in source_types %}
-                    <option value="{{ value }}" {% if request.GET.source_type == value %}selected{% endif %}>{{ label }}</option>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Acquisition</label>
+                <select name="acquisition" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All</option>
+                    {% for value, label in acquisitions %}
+                    <option value="{{ value }}" {% if request.GET.acquisition == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Reclaim Category</label>
+                <select name="reclaim_category" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All</option>
+                    {% for value, label in reclaim_categories %}
+                    <option value="{{ value }}" {% if request.GET.reclaim_category == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ownership</label>
+                <select name="ownership" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All</option>
+                    {% for value, label in ownerships %}
+                    <option value="{{ value }}" {% if request.GET.ownership == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -64,9 +82,13 @@
             <thead>
                 <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                     <th class="px-4 py-3 font-medium">Variant Code</th>
+                    <th class="px-4 py-3 font-medium">Legacy MAT No.</th>
+                    <th class="px-4 py-3 font-medium">ERP Item No.</th>
                     <th class="px-4 py-3 font-medium">Base Item</th>
                     <th class="px-4 py-3 font-medium">Condition</th>
-                    <th class="px-4 py-3 font-medium">Source Type</th>
+                    <th class="px-4 py-3 font-medium">Acquisition</th>
+                    <th class="px-4 py-3 font-medium">Reclaim Cat.</th>
+                    <th class="px-4 py-3 font-medium">Ownership</th>
                     <th class="px-4 py-3 font-medium">Customer</th>
                     <th class="px-4 py-3 font-medium text-right">Valuation %</th>
                     <th class="px-4 py-3 font-medium text-center">Status</th>
@@ -76,7 +98,16 @@
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                 {% for variant in variants %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                    <td class="px-4 py-3 font-mono text-blue-600 dark:text-blue-400">{{ variant.code }}</td>
+                    <td class="px-4 py-3">
+                        <span class="font-mono text-blue-600 dark:text-blue-400">{{ variant.code }}</span>
+                        <span class="text-gray-500 dark:text-gray-400 text-xs block">{{ variant.legacy_display_name }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">
+                        {{ variant.legacy_mat_no|default:"-" }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">
+                        {{ variant.erp_item_no|default:"-" }}
+                    </td>
                     <td class="px-4 py-3">
                         <a href="{% url 'inventory:item_detail' variant.base_item.pk %}" class="text-blue-600 hover:text-blue-800">
                             {{ variant.base_item.code }}
@@ -86,13 +117,32 @@
                     <td class="px-4 py-3">
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                             {% if variant.condition == 'NEW' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
-                            {% elif variant.condition == 'RECLAIMED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
-                            {% elif variant.condition == 'USED' %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
-                            {% else %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200{% endif %}">
+                            {% else %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200{% endif %}">
                             {{ variant.get_condition_display }}
                         </span>
                     </td>
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{{ variant.get_source_type_display }}</td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if variant.acquisition == 'PURCHASED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                            {% elif variant.acquisition == 'RECLAIMED' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                            {% else %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200{% endif %}">
+                            {{ variant.get_acquisition_display }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">
+                        {% if variant.reclaim_category %}
+                        {{ variant.get_reclaim_category_display }}
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if variant.ownership == 'ARDT' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+                            {% else %}bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200{% endif %}">
+                            {{ variant.get_ownership_display }}
+                        </span>
+                    </td>
                     <td class="px-4 py-3">
                         {% if variant.customer %}
                         {{ variant.customer.name|truncatewords:3 }}

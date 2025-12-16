@@ -12,6 +12,7 @@ urlpatterns = [
     path("categories/<int:pk>/edit/", views.CategoryUpdateView.as_view(), name="category_update"),
     path("categories/<int:pk>/delete/", views.CategoryDeleteView.as_view(), name="category_delete"),
     # Category Attributes
+    path("attributes/", views.CategoryAttributeListView.as_view(), name="attribute_list"),
     path("categories/<int:category_pk>/attributes/create/", views.CategoryAttributeCreateView.as_view(), name="category_attribute_create"),
     path("categories/<int:category_pk>/attributes/<int:pk>/edit/", views.CategoryAttributeUpdateView.as_view(), name="category_attribute_update"),
     path("categories/<int:category_pk>/attributes/<int:pk>/delete/", views.CategoryAttributeDeleteView.as_view(), name="category_attribute_delete"),

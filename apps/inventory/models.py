@@ -380,23 +380,29 @@ class ItemAttributeValue(models.Model):
 
 class ItemVariant(models.Model):
     """
-    NEW: Tracks item variants based on condition and source.
+    NEW: Tracks item variants based on condition, acquisition, and ownership.
     Each variant is a separate SKU with its own stock tracking.
+    Normalized model for proper financial treatment and reporting.
     """
 
     class Condition(models.TextChoices):
         NEW = "NEW", "New"
-        RECLAIMED = "RECLAIMED", "Reclaimed"
         USED = "USED", "Used"
-        REFURBISHED = "REFURBISHED", "Refurbished"
 
-    class SourceType(models.TextChoices):
-        PURCHASED = "PURCHASED", "Purchased New"
-        RETROFIT = "RETROFIT", "Retrofit (New Reclaimed)"
+    class Acquisition(models.TextChoices):
+        PURCHASED = "PURCHASED", "Purchased"
+        RECLAIMED = "RECLAIMED", "Reclaimed"
+        CLIENT_PROVIDED = "CLIENT_PROVIDED", "Client Provided"
+
+    class ReclaimCategory(models.TextChoices):
+        RETROFIT = "RETROFIT", "Retrofit (as New)"
         E_AND_O = "E_AND_O", "E&O (Excessive & Obsolete)"
-        ARDT_RECLAIMED = "ARDT_RECLAIMED", "ARDT Reclaimed Used"
-        LSTK_RECLAIMED = "LSTK_RECLAIMED", "LSTK (Halliburton) Reclaimed"
-        CLIENT_SPECIFIC = "CLIENT_SPECIFIC", "Client Specific"
+        GROUND = "GROUND", "Ground (Surface Damage)"
+        STANDARD = "STANDARD", "Standard Reclaim"
+
+    class Ownership(models.TextChoices):
+        ARDT = "ARDT", "ARDT"
+        CLIENT = "CLIENT", "Client"
 
     # Link to base item
     base_item = models.ForeignKey(
@@ -409,17 +415,52 @@ class ItemVariant(models.Model):
     code = models.CharField(max_length=60, unique=True)
     name = models.CharField(max_length=250)
 
-    # Condition and source
-    condition = models.CharField(max_length=20, choices=Condition.choices, default=Condition.NEW)
-    source_type = models.CharField(max_length=20, choices=SourceType.choices, default=SourceType.PURCHASED)
+    # Legacy references
+    legacy_mat_no = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Legacy MAT number from old system"
+    )
+    erp_item_no = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="ERP Item number reference"
+    )
 
-    # Customer (for CLIENT_SPECIFIC source)
+    # Normalized fields
+    condition = models.CharField(
+        max_length=20,
+        choices=Condition.choices,
+        default=Condition.NEW,
+        help_text="Physical state: New or Used"
+    )
+    acquisition = models.CharField(
+        max_length=20,
+        choices=Acquisition.choices,
+        default=Acquisition.PURCHASED,
+        help_text="How the item was obtained"
+    )
+    reclaim_category = models.CharField(
+        max_length=20,
+        choices=ReclaimCategory.choices,
+        blank=True,
+        help_text="Category for reclaimed items (determines financial treatment)"
+    )
+    ownership = models.CharField(
+        max_length=20,
+        choices=Ownership.choices,
+        default=Ownership.ARDT,
+        help_text="Who owns this variant"
+    )
+
+    # Customer (for CLIENT ownership or CLIENT_PROVIDED acquisition)
     customer = models.ForeignKey(
         "sales.Customer",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="item_variants"
+        related_name="item_variants",
+        help_text="Customer (required when ownership is CLIENT)"
     )
 
     # Cost (different from base item)
@@ -464,32 +505,85 @@ class ItemVariant(models.Model):
 
     class Meta:
         db_table = "item_variants"
-        ordering = ["base_item", "condition", "source_type"]
+        ordering = ["base_item", "ownership", "condition", "acquisition"]
         verbose_name = "Item Variant"
         verbose_name_plural = "Item Variants"
         indexes = [
             models.Index(fields=["condition"]),
-            models.Index(fields=["source_type"]),
+            models.Index(fields=["acquisition"]),
+            models.Index(fields=["ownership"]),
             models.Index(fields=["base_item", "condition"]),
+            models.Index(fields=["legacy_mat_no"]),
+            models.Index(fields=["erp_item_no"]),
         ]
 
     def __str__(self):
-        return f"{self.code} - {self.get_condition_display()} ({self.get_source_type_display()})"
+        return f"{self.code} - {self.get_condition_display()} ({self.legacy_display_name})"
+
+    @property
+    def legacy_display_name(self):
+        """Generate legacy-style display name for familiarity."""
+        if self.acquisition == self.Acquisition.CLIENT_PROVIDED:
+            customer_name = self.customer.name if self.customer else "Client"
+            return f"{customer_name} {'New' if self.condition == self.Condition.NEW else 'Reclaim'}"
+        elif self.acquisition == self.Acquisition.RECLAIMED:
+            if self.reclaim_category == self.ReclaimCategory.RETROFIT:
+                return "Retrofit"
+            elif self.reclaim_category == self.ReclaimCategory.E_AND_O:
+                return "E&O"
+            elif self.reclaim_category == self.ReclaimCategory.GROUND:
+                return "Ground Reclaim"
+            else:
+                return "Standard Reclaim"
+        else:
+            return f"{'New' if self.condition == self.Condition.NEW else 'Used'} Stock"
 
     @property
     def total_stock(self):
         """Total stock for this variant across all locations."""
         return self.stock_records.aggregate(total=models.Sum("quantity_on_hand"))["total"] or 0
 
+    def clean(self):
+        """Validate business rules."""
+        from django.core.exceptions import ValidationError
+
+        # CLIENT_PROVIDED requires CLIENT ownership
+        if self.acquisition == self.Acquisition.CLIENT_PROVIDED and self.ownership != self.Ownership.CLIENT:
+            raise ValidationError("Client Provided items must have CLIENT ownership.")
+
+        # CLIENT ownership requires customer
+        if self.ownership == self.Ownership.CLIENT and not self.customer:
+            raise ValidationError("Client ownership requires a customer to be selected.")
+
+        # Reclaim category only for RECLAIMED acquisition
+        if self.acquisition != self.Acquisition.RECLAIMED and self.reclaim_category:
+            raise ValidationError("Reclaim category is only valid for RECLAIMED acquisition.")
+
+        # RECLAIMED requires reclaim_category
+        if self.acquisition == self.Acquisition.RECLAIMED and not self.reclaim_category:
+            raise ValidationError("Reclaimed items must have a reclaim category.")
+
+        # Condition validation based on reclaim category
+        if self.reclaim_category in [self.ReclaimCategory.RETROFIT, self.ReclaimCategory.E_AND_O]:
+            if self.condition != self.Condition.NEW:
+                raise ValidationError(f"{self.get_reclaim_category_display()} must have NEW condition.")
+        elif self.reclaim_category in [self.ReclaimCategory.GROUND, self.ReclaimCategory.STANDARD]:
+            if self.condition != self.Condition.USED:
+                raise ValidationError(f"{self.get_reclaim_category_display()} must have USED condition.")
+
     def save(self, *args, **kwargs):
         # Auto-generate code if not set
         if not self.code:
-            suffix = f"{self.condition[:3]}-{self.source_type[:3]}"
-            self.code = f"{self.base_item.code}-{suffix}"
+            parts = [self.base_item.code, self.condition[:3], self.acquisition[:3]]
+            if self.reclaim_category:
+                parts.append(self.reclaim_category[:3])
+            if self.ownership == self.Ownership.CLIENT and self.customer:
+                parts.append(self.customer.code[:3] if hasattr(self.customer, 'code') else "CLI")
+            self.code = "-".join(parts)
 
         # Auto-generate name if not set
         if not self.name:
-            self.name = f"{self.base_item.name} ({self.get_condition_display()} - {self.get_source_type_display()})"
+            self.name = f"{self.base_item.name} ({self.legacy_display_name})"
 
         # Set has_variants on base item
         if not self.base_item.has_variants:
