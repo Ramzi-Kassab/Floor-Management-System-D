@@ -33,11 +33,14 @@ class InventoryCategoryForm(forms.ModelForm):
 
     class Meta:
         model = InventoryCategory
-        fields = ["code", "name", "parent", "description", "is_active"]
+        fields = ["code", "name", "parent", "item_type", "code_prefix", "name_template", "description", "is_active"]
         widgets = {
             "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "CAT-001"}),
             "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Category Name"}),
             "parent": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "item_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "code_prefix": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "CUT, MAT, NOZ"}),
+            "name_template": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "{size}mm {material} {grade}"}),
             "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
             "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
         }
