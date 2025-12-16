@@ -21,6 +21,7 @@ class Command(BaseCommand):
         ("seed_customers", "Customers (8)"),
         ("seed_rigs", "Rigs (5)"),
         ("seed_wells", "Wells (21)"),
+        ("seed_variant_cases", "Variant Cases (10)"),
     ]
 
     def add_arguments(self, parser):
@@ -75,5 +76,6 @@ class Command(BaseCommand):
         self.stdout.write("  - 8 Companies")
         self.stdout.write("  - 5 Rigs")
         self.stdout.write("  - 21 Wells")
+        self.stdout.write("  - 10 Variant Cases")
 
         self.stdout.write(self.style.SUCCESS("\n✓ All seeding complete! System is ready.\n"))
