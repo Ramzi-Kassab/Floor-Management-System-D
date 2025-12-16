@@ -8,7 +8,7 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
         <p class="text-gray-600 dark:text-gray-400">Define a standard variant case (condition + acquisition combination)</p>
     </div>
-    <a href="{% url 'inventory:variant_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+    <a href="{% url 'inventory:variant_case_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
         <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
     </a>
 </div>
@@ -101,7 +101,7 @@
             </div>
 
             <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <a href="{% url 'inventory:variant_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+                <a href="{% url 'inventory:variant_case_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
                 <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                     {% if object %}Update{% else %}Create{% endif %} Variant Case
                 </button>

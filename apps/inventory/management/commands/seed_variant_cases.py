@@ -1,10 +1,6 @@
 """
 Seed Variant Cases - Master data for item variants.
-Creates the standard 10 variant cases used across all items.
-
-Based on user specification:
-- 6 ARDT-owned cases (New Stock, Used Stock, Retrofit, E&O, Ground, Standard Reclaim)
-- 4 CLIENT-owned cases (LSTK New, LSTK Used, Hall New, Hall Used)
+Creates the standard ~10 variant cases used across all items.
 """
 from django.core.management.base import BaseCommand
 
@@ -12,142 +8,99 @@ from apps.inventory.models import VariantCase
 
 
 class Command(BaseCommand):
-    help = "Seed variant cases master data (10 standard cases)"
-
-    def add_arguments(self, parser):
-        parser.add_argument(
-            "--clear",
-            action="store_true",
-            help="Delete all existing variant cases before seeding",
-        )
+    help = "Seed variant cases master data"
 
     def handle(self, *args, **options):
-        if options["clear"]:
-            deleted_count = VariantCase.objects.all().delete()[0]
-            self.stdout.write(f"Deleted {deleted_count} existing variant cases")
+        self.stdout.write("Seeding Variant Cases...")
 
-        self.stdout.write("Seeding Variant Cases (10 standard cases)...")
-
-        # Define the 10 standard variant cases per user specification
+        # Define the standard variant cases
         cases = [
-            # ARDT Owned - New/Used Stock
+            # NEW Items
             {
-                "code": "ARDT-NEW",
-                "name": "ARDT New Stock",
+                "code": "NEW-PUR",
+                "name": "New Purchased",
                 "condition": "NEW",
                 "acquisition": "PURCHASED",
                 "reclaim_category": "",
                 "ownership": "ARDT",
-                "client_code": "",
-                "description": "New items purchased and owned by ARDT",
+                "description": "Brand new items purchased from suppliers",
                 "display_order": 1,
             },
             {
-                "code": "ARDT-USED",
-                "name": "ARDT Used Stock",
-                "condition": "USED",
-                "acquisition": "PURCHASED",
+                "code": "NEW-MFG",
+                "name": "New Manufactured",
+                "condition": "NEW",
+                "acquisition": "MANUFACTURED",
                 "reclaim_category": "",
                 "ownership": "ARDT",
-                "client_code": "",
-                "description": "Used items purchased and owned by ARDT",
+                "description": "New items manufactured in-house",
                 "display_order": 2,
             },
-            # ARDT Owned - Reclaimed Items
+            # RECLAIMED Items (ARDT ownership)
             {
-                "code": "ARDT-RET",
-                "name": "Retrofit (ARDT)",
-                "condition": "NEW",
+                "code": "USED-RET",
+                "name": "Retrofit (as New)",
+                "condition": "NEW",  # Retrofit items are treated as new
                 "acquisition": "RECLAIMED",
                 "reclaim_category": "RETROFIT",
                 "ownership": "ARDT",
-                "client_code": "",
                 "description": "Reclaimed items fully refurbished to new condition",
                 "display_order": 3,
             },
             {
-                "code": "ARDT-EO",
-                "name": "E&O (ARDT)",
-                "condition": "NEW",
+                "code": "USED-EO",
+                "name": "E&O (Excess & Obsolete)",
+                "condition": "NEW",  # E&O items are new but excess
                 "acquisition": "RECLAIMED",
                 "reclaim_category": "E_AND_O",
                 "ownership": "ARDT",
-                "client_code": "",
                 "description": "Excess or obsolete inventory, typically discounted",
                 "display_order": 4,
             },
             {
-                "code": "ARDT-GRD",
-                "name": "Ground (ARDT)",
+                "code": "USED-GRD",
+                "name": "Ground (Surface Damage)",
                 "condition": "USED",
                 "acquisition": "RECLAIMED",
                 "reclaim_category": "GROUND",
                 "ownership": "ARDT",
-                "client_code": "",
                 "description": "Reclaimed with surface grinding, partial life remaining",
                 "display_order": 5,
             },
             {
-                "code": "ARDT-RCL",
-                "name": "Standard Reclaim (ARDT)",
+                "code": "USED-RCL",
+                "name": "Standard Reclaim",
                 "condition": "USED",
                 "acquisition": "RECLAIMED",
                 "reclaim_category": "STANDARD",
                 "ownership": "ARDT",
-                "client_code": "",
                 "description": "Standard reclaimed items, usable condition",
                 "display_order": 6,
             },
-            # CLIENT Owned - LSTK
+            # CLIENT Owned Items
             {
-                "code": "LSTK-NEW",
-                "name": "LSTK New",
+                "code": "CLI-NEW",
+                "name": "Client New",
                 "condition": "NEW",
                 "acquisition": "CLIENT_PROVIDED",
                 "reclaim_category": "",
                 "ownership": "CLIENT",
-                "client_code": "LSTK",
-                "description": "New items provided by LSTK client",
+                "description": "New items provided by client for repair work",
                 "display_order": 7,
             },
             {
-                "code": "LSTK-USED",
-                "name": "LSTK Used",
+                "code": "CLI-RCL",
+                "name": "Client Reclaim",
                 "condition": "USED",
                 "acquisition": "CLIENT_PROVIDED",
                 "reclaim_category": "",
                 "ownership": "CLIENT",
-                "client_code": "LSTK",
-                "description": "Used items provided by LSTK client",
+                "description": "Used/reclaimed items provided by client",
                 "display_order": 8,
-            },
-            # CLIENT Owned - Halliburton
-            {
-                "code": "HALL-NEW",
-                "name": "Hall New",
-                "condition": "NEW",
-                "acquisition": "CLIENT_PROVIDED",
-                "reclaim_category": "",
-                "ownership": "CLIENT",
-                "client_code": "Halliburton",
-                "description": "New items provided by Halliburton client",
-                "display_order": 9,
-            },
-            {
-                "code": "HALL-USED",
-                "name": "Hall Used",
-                "condition": "USED",
-                "acquisition": "CLIENT_PROVIDED",
-                "reclaim_category": "",
-                "ownership": "CLIENT",
-                "client_code": "Halliburton",
-                "description": "Used items provided by Halliburton client",
-                "display_order": 10,
             },
         ]
 
         created_count = 0
-        updated_count = 0
         for case_data in cases:
             case, created = VariantCase.objects.update_or_create(
                 code=case_data["code"],
@@ -157,7 +110,6 @@ class Command(BaseCommand):
                     "acquisition": case_data["acquisition"],
                     "reclaim_category": case_data["reclaim_category"],
                     "ownership": case_data["ownership"],
-                    "client_code": case_data["client_code"],
                     "description": case_data["description"],
                     "display_order": case_data["display_order"],
                     "is_active": True,
@@ -167,9 +119,6 @@ class Command(BaseCommand):
                 created_count += 1
                 self.stdout.write(f"  Created: {case.code} - {case.name}")
             else:
-                updated_count += 1
                 self.stdout.write(f"  Updated: {case.code} - {case.name}")
 
-        self.stdout.write(self.style.SUCCESS(
-            f"\nTotal variant cases: {VariantCase.objects.count()} (created: {created_count}, updated: {updated_count})"
-        ))
+        self.stdout.write(self.style.SUCCESS(f"\nTotal variant cases: {VariantCase.objects.count()} (new: {created_count})"))

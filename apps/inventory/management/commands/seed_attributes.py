@@ -15,112 +15,111 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write("Seeding Attributes (global list)...\n")
 
-        # Common attributes - just name and description
-        # Code is auto-generated as ATT-001, ATT-002, etc.
+        # Common attributes - just code and name
         # Type, unit, validation are defined when connecting to category
         attributes = [
             # Physical dimensions
-            ("Size", "Physical size (could be number or text depending on category)"),
-            ("Diameter", "Diameter measurement"),
-            ("Length", "Length measurement"),
-            ("Width", "Width measurement"),
-            ("Height", "Height measurement"),
-            ("Thickness", "Thickness measurement"),
-            ("Depth", "Depth measurement"),
-            ("Weight", "Weight measurement"),
-            ("Volume", "Volume measurement"),
+            ("size", "Size", "Physical size (could be number or text depending on category)"),
+            ("diameter", "Diameter", "Diameter measurement"),
+            ("length", "Length", "Length measurement"),
+            ("width", "Width", "Width measurement"),
+            ("height", "Height", "Height measurement"),
+            ("thickness", "Thickness", "Thickness measurement"),
+            ("depth", "Depth", "Depth measurement"),
+            ("weight", "Weight", "Weight measurement"),
+            ("volume", "Volume", "Volume measurement"),
 
             # Material properties
-            ("Material", "Material type or composition"),
-            ("Grade", "Quality grade or classification"),
-            ("Hardness", "Hardness rating"),
-            ("Density", "Material density"),
-            ("Tensile Strength", "Tensile strength rating"),
-            ("Finish", "Surface finish"),
-            ("Coating", "Coating type"),
+            ("material", "Material", "Material type or composition"),
+            ("grade", "Grade", "Quality grade or classification"),
+            ("hardness", "Hardness", "Hardness rating"),
+            ("density", "Density", "Material density"),
+            ("tensile_strength", "Tensile Strength", "Tensile strength rating"),
+            ("finish", "Finish", "Surface finish"),
+            ("coating", "Coating", "Coating type"),
 
             # Appearance
-            ("Color", "Color designation"),
-            ("Pattern", "Pattern or design"),
-            ("Style", "Style designation"),
+            ("color", "Color", "Color designation"),
+            ("pattern", "Pattern", "Pattern or design"),
+            ("style", "Style", "Style designation"),
 
             # Technical specifications
-            ("Model", "Model number or designation"),
-            ("Series", "Product series"),
-            ("Version", "Version number"),
-            ("Generation", "Product generation"),
-            ("Capacity", "Capacity measurement"),
-            ("Power", "Power rating"),
-            ("Voltage", "Voltage rating"),
-            ("Current", "Current rating"),
-            ("Frequency", "Frequency rating"),
-            ("Pressure", "Pressure rating"),
-            ("Temperature", "Temperature rating"),
-            ("Speed", "Speed rating (RPM, etc.)"),
-            ("Torque", "Torque rating"),
-            ("Flow Rate", "Flow rate measurement"),
+            ("model", "Model", "Model number or designation"),
+            ("series", "Series", "Product series"),
+            ("version", "Version", "Version number"),
+            ("generation", "Generation", "Product generation"),
+            ("capacity", "Capacity", "Capacity measurement"),
+            ("power", "Power", "Power rating"),
+            ("voltage", "Voltage", "Voltage rating"),
+            ("current", "Current", "Current rating"),
+            ("frequency", "Frequency", "Frequency rating"),
+            ("pressure", "Pressure", "Pressure rating"),
+            ("temperature", "Temperature", "Temperature rating"),
+            ("speed", "Speed", "Speed rating (RPM, etc.)"),
+            ("torque", "Torque", "Torque rating"),
+            ("flow_rate", "Flow Rate", "Flow rate measurement"),
 
             # Thread/connection specs
-            ("Thread Type", "Thread type (API, NPT, etc.)"),
-            ("Thread Size", "Thread size specification"),
-            ("Connection Type", "Connection type"),
-            ("Connection Size", "Connection size"),
+            ("thread_type", "Thread Type", "Thread type (API, NPT, etc.)"),
+            ("thread_size", "Thread Size", "Thread size specification"),
+            ("connection_type", "Connection Type", "Connection type"),
+            ("connection_size", "Connection Size", "Connection size"),
 
             # Bit/cutter specific
-            ("Body OD", "Body outer diameter"),
-            ("Gauge", "Gauge measurement"),
-            ("TFA", "Total Flow Area"),
-            ("Blade Count", "Number of blades"),
-            ("Cutter Count", "Number of cutters"),
-            ("Nozzle Count", "Number of nozzles"),
-            ("Nozzle Size", "Nozzle size"),
-            ("Jet Count", "Number of jets"),
-            ("Insert Type", "Type of insert"),
-            ("Insert Count", "Number of inserts"),
+            ("body_od", "Body OD", "Body outer diameter"),
+            ("gauge", "Gauge", "Gauge measurement"),
+            ("tfa", "TFA", "Total Flow Area"),
+            ("blade_count", "Blade Count", "Number of blades"),
+            ("cutter_count", "Cutter Count", "Number of cutters"),
+            ("nozzle_count", "Nozzle Count", "Number of nozzles"),
+            ("nozzle_size", "Nozzle Size", "Nozzle size"),
+            ("jet_count", "Jet Count", "Number of jets"),
+            ("insert_type", "Insert Type", "Type of insert"),
+            ("insert_count", "Insert Count", "Number of inserts"),
 
             # Classification
-            ("Category", "Category classification"),
-            ("Type", "Type classification"),
-            ("Class", "Class rating"),
-            ("Rating", "General rating"),
+            ("category", "Category", "Category classification"),
+            ("type", "Type", "Type classification"),
+            ("class", "Class", "Class rating"),
+            ("rating", "Rating", "General rating"),
 
             # Manufacturer info
-            ("Manufacturer", "Manufacturer name"),
-            ("Brand", "Brand name"),
-            ("Country of Origin", "Manufacturing country"),
+            ("manufacturer", "Manufacturer", "Manufacturer name"),
+            ("brand", "Brand", "Brand name"),
+            ("country_of_origin", "Country of Origin", "Manufacturing country"),
 
             # Certification/compliance
-            ("Certification", "Certification type"),
-            ("Standard", "Standard compliance"),
-            ("API Spec", "API specification"),
+            ("certification", "Certification", "Certification type"),
+            ("standard", "Standard", "Standard compliance"),
+            ("api_spec", "API Spec", "API specification"),
 
             # Packaging
-            ("Quantity per Pack", "Items per package"),
-            ("Pack Size", "Package size"),
-            ("Shelf Life", "Shelf life duration"),
+            ("quantity_per_pack", "Quantity per Pack", "Items per package"),
+            ("pack_size", "Pack Size", "Package size"),
+            ("shelf_life", "Shelf Life", "Shelf life duration"),
 
             # Other common attributes
-            ("Tolerance", "Tolerance specification"),
-            ("Accuracy", "Accuracy rating"),
-            ("Resolution", "Resolution specification"),
-            ("Range", "Operating range"),
-            ("Efficiency", "Efficiency rating"),
+            ("tolerance", "Tolerance", "Tolerance specification"),
+            ("accuracy", "Accuracy", "Accuracy rating"),
+            ("resolution", "Resolution", "Resolution specification"),
+            ("range", "Range", "Operating range"),
+            ("efficiency", "Efficiency", "Efficiency rating"),
         ]
 
         created_count = 0
-        for name, description in attributes:
-            # Check if attribute with this name already exists
+        for code, name, description in attributes:
             attr, created = Attribute.objects.get_or_create(
-                name=name,
+                code=code,
                 defaults={
+                    "name": name,
                     "description": description,
                     "is_active": True,
                 }
             )
             if created:
-                self.stdout.write(f"  Created: {attr.code} - {name}")
+                self.stdout.write(f"  Created: {name}")
                 created_count += 1
             else:
-                self.stdout.write(f"  Exists: {attr.code} - {name}")
+                self.stdout.write(f"  Exists: {name}")
 
         self.stdout.write(self.style.SUCCESS(f"\nTotal attributes: {Attribute.objects.count()} (new: {created_count})"))
