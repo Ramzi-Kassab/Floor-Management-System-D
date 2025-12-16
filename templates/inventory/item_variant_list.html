@@ -8,6 +8,11 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         <p class="text-gray-600 dark:text-gray-400">All item variants across inventory items (condition, acquisition, ownership tracking)</p>
     </div>
+    <a href="{% url 'inventory:standalone_variant_create' %}"
+       class="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors mt-4 md:mt-0">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+        Create Variant
+    </a>
 </div>
 {% endblock %}
 
@@ -159,7 +164,18 @@
                         {% endif %}
                     </td>
                     <td class="px-4 py-3 text-right">
-                        <a href="{% url 'inventory:item_variant_update' variant.base_item.pk variant.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                        <div class="flex items-center justify-end gap-2">
+                            <a href="{% url 'inventory:standalone_variant_update' pk=variant.pk %}"
+                               class="p-1.5 text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 transition-colors"
+                               title="Edit">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'inventory:standalone_variant_delete' pk=variant.pk %}"
+                               class="p-1.5 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                               title="Delete">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </a>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
@@ -187,7 +203,12 @@
     <div class="text-center py-16">
         <i data-lucide="layers" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No variants found</h3>
-        <p class="text-gray-500 dark:text-gray-400">Variants are created from individual item pages.</p>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Variants can be created from individual item pages or using the button above.</p>
+        <a href="{% url 'inventory:standalone_variant_create' %}"
+           class="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+            Create Variant
+        </a>
     </div>
     {% endif %}
 </div>
