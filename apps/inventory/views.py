@@ -20,14 +20,24 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from .forms import (
+    CategoryAttributeForm,
     InventoryCategoryForm,
     InventoryItemForm,
     InventoryLocationForm,
     InventoryStockForm,
     InventoryTransactionForm,
+    ItemVariantForm,
     StockAdjustmentForm,
 )
-from .models import InventoryCategory, InventoryItem, InventoryLocation, InventoryStock, InventoryTransaction
+from .models import (
+    CategoryAttribute,
+    InventoryCategory,
+    InventoryItem,
+    InventoryLocation,
+    InventoryStock,
+    InventoryTransaction,
+    ItemVariant,
+)
 
 
 # =============================================================================
@@ -86,6 +96,93 @@ class CategoryUpdateView(LoginRequiredMixin, UpdateView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Edit {self.object.name}"
         context["form_title"] = "Edit Category"
+        return context
+
+
+# =============================================================================
+# Category Attribute Views
+# =============================================================================
+
+
+class CategoryAttributeCreateView(LoginRequiredMixin, CreateView):
+    """Create attribute for a category."""
+
+    model = CategoryAttribute
+    form_class = CategoryAttributeForm
+    template_name = "inventory/category_attribute_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.category = get_object_or_404(InventoryCategory, pk=kwargs["category_pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.category = self.category
+        messages.success(self.request, f"Attribute '{form.instance.name}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:category_update", kwargs={"pk": self.category.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Add Attribute"
+        context["form_title"] = f"Add Attribute to {self.category.name}"
+        context["category"] = self.category
+        return context
+
+
+class CategoryAttributeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update category attribute."""
+
+    model = CategoryAttribute
+    form_class = CategoryAttributeForm
+    template_name = "inventory/category_attribute_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.category = get_object_or_404(InventoryCategory, pk=kwargs["category_pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self):
+        return get_object_or_404(CategoryAttribute, pk=self.kwargs["pk"], category=self.category)
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Attribute '{form.instance.name}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:category_update", kwargs={"pk": self.category.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.name}"
+        context["form_title"] = f"Edit Attribute: {self.object.name}"
+        context["category"] = self.category
+        return context
+
+
+class CategoryAttributeDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete category attribute."""
+
+    model = CategoryAttribute
+    template_name = "inventory/category_attribute_confirm_delete.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.category = get_object_or_404(InventoryCategory, pk=kwargs["category_pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self):
+        return get_object_or_404(CategoryAttribute, pk=self.kwargs["pk"], category=self.category)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:category_update", kwargs={"pk": self.category.pk})
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Attribute '{self.object.name}' deleted.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["category"] = self.category
         return context
 
 

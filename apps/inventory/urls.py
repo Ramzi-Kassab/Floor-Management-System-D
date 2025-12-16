@@ -9,6 +9,10 @@ urlpatterns = [
     path("categories/", views.CategoryListView.as_view(), name="category_list"),
     path("categories/create/", views.CategoryCreateView.as_view(), name="category_create"),
     path("categories/<int:pk>/edit/", views.CategoryUpdateView.as_view(), name="category_update"),
+    # Category Attributes
+    path("categories/<int:category_pk>/attributes/create/", views.CategoryAttributeCreateView.as_view(), name="category_attribute_create"),
+    path("categories/<int:category_pk>/attributes/<int:pk>/edit/", views.CategoryAttributeUpdateView.as_view(), name="category_attribute_update"),
+    path("categories/<int:category_pk>/attributes/<int:pk>/delete/", views.CategoryAttributeDeleteView.as_view(), name="category_attribute_delete"),
     # Locations
     path("locations/", views.LocationListView.as_view(), name="location_list"),
     path("locations/create/", views.LocationCreateView.as_view(), name="location_create"),

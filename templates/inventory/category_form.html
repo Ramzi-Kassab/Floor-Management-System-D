@@ -6,6 +6,7 @@
 <div class="flex items-center justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Configure category settings, code generation, and name templates</p>
     </div>
     <a href="{% url 'inventory:category_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
         <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
@@ -14,35 +15,78 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-xl">
+<div class="max-w-2xl">
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
         <form method="post">
             {% csrf_token %}
 
             <div class="space-y-6">
+                <!-- Basic Information -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Basic Information</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Code *</label>
+                            {{ form.code }}
+                            {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name *</label>
+                            {{ form.name }}
+                            {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Code *</label>
-                        {{ form.code }}
-                        {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Parent Category</label>
+                        {{ form.parent }}
+                        <p class="text-xs text-gray-500 mt-1">Optional - for hierarchical categories</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name *</label>
-                        {{ form.name }}
-                        {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default Item Type *</label>
+                        {{ form.item_type }}
+                        <p class="text-xs text-gray-500 mt-1">Auto-selected when creating items in this category</p>
                     </div>
                 </div>
 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Parent Category</label>
-                    {{ form.parent }}
+                <!-- Code Generation -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Code Generation</h3>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Code Prefix</label>
+                        {{ form.code_prefix }}
+                        <p class="text-xs text-gray-500 mt-1">{{ form.code_prefix.help_text }}</p>
+                        {% if form.code_prefix.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code_prefix.errors.0 }}</p>{% endif %}
+                    </div>
                 </div>
 
-                <div>
+                <!-- Name Template -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Auto-Generated Name</h3>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name Template</label>
+                        {{ form.name_template }}
+                        <p class="text-xs text-gray-500 mt-1">{{ form.name_template.help_text }}</p>
+                        <div class="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs">
+                            <p class="font-medium text-gray-700 dark:text-gray-300 mb-1">Example templates:</p>
+                            <ul class="text-gray-600 dark:text-gray-400 space-y-1">
+                                <li><code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">{material} Cutter {size}mm {grade}</code> → "PDC Cutter 13mm Premium"</li>
+                                <li><code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">{type} Nozzle {size}/{material}</code> → "Standard Nozzle 12/TC"</li>
+                            </ul>
+                        </div>
+                        {% if form.name_template.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name_template.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
                     {{ form.description }}
                 </div>
 
+                <!-- Status -->
                 <div class="flex items-center">
                     {{ form.is_active }}
                     <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
@@ -57,5 +101,78 @@
             </div>
         </form>
     </div>
+
+    {% if object %}
+    <!-- Attributes Section (only for existing categories) -->
+    <div class="mt-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white">Category Attributes</h3>
+            <a href="{% url 'inventory:category_attribute_create' object.pk %}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+                <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add Attribute
+            </a>
+        </div>
+
+        {% if object.attributes.exists %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                        <th class="pb-2 font-medium">Code</th>
+                        <th class="pb-2 font-medium">Name</th>
+                        <th class="pb-2 font-medium">Type</th>
+                        <th class="pb-2 font-medium">Unit</th>
+                        <th class="pb-2 font-medium text-center">Required</th>
+                        <th class="pb-2 font-medium text-center">In Name</th>
+                        <th class="pb-2 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    {% for attr in object.attributes.all %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="py-2 font-mono text-xs">{{ attr.code }}</td>
+                        <td class="py-2">{{ attr.name }}</td>
+                        <td class="py-2">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if attr.attribute_type == 'NUMBER' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                                {% elif attr.attribute_type == 'SELECT' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                                {% elif attr.attribute_type == 'BOOLEAN' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                {% elif attr.attribute_type == 'DATE' %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
+                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                {{ attr.get_attribute_type_display }}
+                            </span>
+                        </td>
+                        <td class="py-2 text-gray-500">{{ attr.unit|default:"-" }}</td>
+                        <td class="py-2 text-center">
+                            {% if attr.is_required %}
+                            <i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>
+                            {% else %}
+                            <i data-lucide="minus" class="w-4 h-4 text-gray-400 inline"></i>
+                            {% endif %}
+                        </td>
+                        <td class="py-2 text-center">
+                            {% if attr.is_used_in_name %}
+                            <i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>
+                            {% else %}
+                            <i data-lucide="minus" class="w-4 h-4 text-gray-400 inline"></i>
+                            {% endif %}
+                        </td>
+                        <td class="py-2 text-right">
+                            <a href="{% url 'inventory:category_attribute_update' object.pk attr.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                            <a href="{% url 'inventory:category_attribute_delete' object.pk attr.pk %}" class="text-red-600 hover:text-red-800 text-xs ml-2">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+            <i data-lucide="sliders" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
+            <p>No attributes defined for this category.</p>
+            <p class="text-sm">Add attributes to enable smart item naming and validation.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
