@@ -45,6 +45,11 @@ urlpatterns = [
     path("units/create/", views.UnitOfMeasureCreateView.as_view(), name="uom_create"),
     path("units/<int:pk>/edit/", views.UnitOfMeasureUpdateView.as_view(), name="uom_update"),
     path("units/<int:pk>/delete/", views.UnitOfMeasureDeleteView.as_view(), name="uom_delete"),
+    # Variant Cases (Master Data)
+    path("variant-cases/", views.VariantCaseListView.as_view(), name="variant_case_list"),
+    path("variant-cases/create/", views.VariantCaseCreateView.as_view(), name="variant_case_create"),
+    path("variant-cases/<int:pk>/edit/", views.VariantCaseUpdateView.as_view(), name="variant_case_update"),
+    path("variant-cases/<int:pk>/delete/", views.VariantCaseDeleteView.as_view(), name="variant_case_delete"),
     # Material Lots
     path("lots/", views.MaterialLotListView.as_view(), name="lot_list"),
     path("lots/create/", views.MaterialLotCreateView.as_view(), name="lot_create"),

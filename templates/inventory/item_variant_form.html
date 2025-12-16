@@ -21,81 +21,77 @@
             {% csrf_token %}
 
             <div class="space-y-6">
-                <!-- Variant Identification -->
+                <!-- Variant Case Selection -->
                 <div>
-                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Variant Identification</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Variant Code</label>
-                            {{ form.code }}
-                            <p class="text-xs text-gray-500 mt-1">Auto-generated if left empty</p>
-                            {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Variant Name</label>
-                            {{ form.name }}
-                            <p class="text-xs text-gray-500 mt-1">Auto-generated if left empty</p>
-                            {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Variant Case</h3>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Variant Case *</label>
+                        {{ form.variant_case }}
+                        <p class="text-xs text-gray-500 mt-1">Select the condition + acquisition type for this variant</p>
+                        {% if form.variant_case.errors %}<p class="text-red-600 text-sm mt-1">{{ form.variant_case.errors.0 }}</p>{% endif %}
+                    </div>
+
+                    <!-- Show variant case options as reference -->
+                    {% if variant_cases %}
+                    <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Available Variant Cases:</p>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            {% for case in variant_cases %}
+                            <div class="flex items-center space-x-2">
+                                <span class="font-mono text-gray-700 dark:text-gray-300">{{ case.code }}</span>
+                                <span class="text-gray-500 dark:text-gray-400">- {{ case.name }}</span>
+                            </div>
+                            {% endfor %}
                         </div>
                     </div>
+                    {% endif %}
                 </div>
 
-                <!-- Condition & Source -->
+                <!-- Customer (for Client-owned variants) -->
                 <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Condition & Source</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Condition *</label>
-                            {{ form.condition }}
-                            {% if form.condition.errors %}<p class="text-red-600 text-sm mt-1">{{ form.condition.errors.0 }}</p>{% endif %}
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Source Type *</label>
-                            {{ form.source_type }}
-                            {% if form.source_type.errors %}<p class="text-red-600 text-sm mt-1">{{ form.source_type.errors.0 }}</p>{% endif %}
-                        </div>
-                    </div>
-                    <div class="mt-4">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Customer (for Client Specific)</label>
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Client Assignment</h3>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Customer</label>
                         {{ form.customer }}
-                        <p class="text-xs text-gray-500 mt-1">Required when Source Type is "Client Specific"</p>
+                        <p class="text-xs text-gray-500 mt-1">Required for Client-owned variant cases (CLI-NEW, CLI-RCL)</p>
+                        {% if form.customer.errors %}<p class="text-red-600 text-sm mt-1">{{ form.customer.errors.0 }}</p>{% endif %}
                     </div>
                 </div>
 
                 <!-- Costing -->
                 <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Costing</h3>
-                    <div class="grid grid-cols-3 gap-4">
+                    <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Standard Cost</label>
                             {{ form.standard_cost }}
+                            <p class="text-xs text-gray-500 mt-1">Cost for this specific variant</p>
                             {% if form.standard_cost.errors %}<p class="text-red-600 text-sm mt-1">{{ form.standard_cost.errors.0 }}</p>{% endif %}
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Last Cost</label>
                             {{ form.last_cost }}
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Valuation %</label>
-                            {{ form.valuation_percentage }}
-                            <p class="text-xs text-gray-500 mt-1">% of base cost for valuation</p>
+                            <p class="text-xs text-gray-500 mt-1">Most recent purchase cost</p>
+                            {% if form.last_cost.errors %}<p class="text-red-600 text-sm mt-1">{{ form.last_cost.errors.0 }}</p>{% endif %}
                         </div>
                     </div>
                 </div>
 
-                <!-- Source Tracking -->
+                <!-- Legacy References -->
                 <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Source Tracking</h3>
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Legacy References</h3>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Source Bit Serial</label>
-                            {{ form.source_bit_serial }}
-                            <p class="text-xs text-gray-500 mt-1">Serial number of source bit (for reclaimed)</p>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Legacy MAT No.</label>
+                            {{ form.legacy_mat_no }}
+                            <p class="text-xs text-gray-500 mt-1">SAP Legacy MAT number</p>
+                            {% if form.legacy_mat_no.errors %}<p class="text-red-600 text-sm mt-1">{{ form.legacy_mat_no.errors.0 }}</p>{% endif %}
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Source Work Order</label>
-                            {{ form.source_work_order }}
-                            <p class="text-xs text-gray-500 mt-1">WO that produced this reclaimed item</p>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ERP Item No.</label>
+                            {{ form.erp_item_no }}
+                            <p class="text-xs text-gray-500 mt-1">Parallel ERP Item number</p>
+                            {% if form.erp_item_no.errors %}<p class="text-red-600 text-sm mt-1">{{ form.erp_item_no.errors.0 }}</p>{% endif %}
                         </div>
                     </div>
                 </div>

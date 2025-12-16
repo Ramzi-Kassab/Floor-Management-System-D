@@ -212,7 +212,7 @@
     <div class="mt-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-medium text-gray-900 dark:text-white">Category Attributes</h3>
-            <a href="{% url 'inventory:category_attribute_create' object.pk %}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+            <a href="{% url 'inventory:category_attribute_create' %}?category={{ object.pk }}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
                 <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add Attribute
             </a>
         </div>

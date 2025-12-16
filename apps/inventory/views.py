@@ -32,6 +32,7 @@ from .models import (
     InventoryTransaction,
     ItemVariant,
     UnitOfMeasure,
+    VariantCase,
 )
 
 
@@ -730,15 +731,31 @@ class CategoryAttributeCreateView(LoginRequiredMixin, CreateView):
     template_name = "inventory/category_attribute_form.html"
     form_class = CategoryAttributeForm
 
+    def get_initial(self):
+        initial = super().get_initial()
+        category_pk = self.request.GET.get("category")
+        if category_pk:
+            initial["category"] = category_pk
+        return initial
+
     def form_valid(self, form):
         messages.success(self.request, f"Attribute linked to category.")
         return super().form_valid(form)
 
     def get_success_url(self):
+        # Return to category detail if we came from there
+        if self.object.category:
+            return reverse_lazy("inventory:category_detail", kwargs={"pk": self.object.category.pk})
         return reverse_lazy("inventory:category_attribute_list")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        # Get category from query param
+        category_pk = self.request.GET.get("category")
+        if category_pk:
+            context["category"] = get_object_or_404(InventoryCategory, pk=category_pk)
+        else:
+            context["category"] = None
         context["page_title"] = "Link Attribute to Category"
         context["form_title"] = "Configure Attribute for Category"
         context["categories"] = InventoryCategory.objects.all().order_by("name")
@@ -760,10 +777,13 @@ class CategoryAttributeUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
     def get_success_url(self):
+        if self.object.category:
+            return reverse_lazy("inventory:category_detail", kwargs={"pk": self.object.category.pk})
         return reverse_lazy("inventory:category_attribute_list")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["category"] = self.object.category
         context["page_title"] = "Edit Category Attribute"
         attr_name = self.object.attribute.name if self.object.attribute else "Unknown"
         context["form_title"] = f"Edit: {attr_name} in {self.object.category.name}"
@@ -798,8 +818,96 @@ class CategoryAttributeDeleteView(LoginRequiredMixin, DeleteView):
 # =============================================================================
 
 
+# =============================================================================
+# Variant Case Views (Master Data)
+# =============================================================================
+
+
+class VariantCaseListView(LoginRequiredMixin, ListView):
+    """List all variant cases (master data)."""
+
+    model = VariantCase
+    template_name = "inventory/variant_case_list.html"
+    context_object_name = "cases"
+    paginate_by = 50
+
+    def get_queryset(self):
+        return VariantCase.objects.all().order_by("display_order", "code")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Variant Cases"
+        return context
+
+
+class VariantCaseCreateView(LoginRequiredMixin, CreateView):
+    """Create a new variant case."""
+
+    model = VariantCase
+    template_name = "inventory/variant_case_form.html"
+    fields = ["code", "name", "condition", "acquisition", "reclaim_category", "ownership", "description", "display_order", "is_active"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant case '{form.instance.name}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:variant_case_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Variant Case"
+        context["form_title"] = "Create New Variant Case"
+        return context
+
+
+class VariantCaseUpdateView(LoginRequiredMixin, UpdateView):
+    """Edit a variant case."""
+
+    model = VariantCase
+    template_name = "inventory/variant_case_form.html"
+    fields = ["code", "name", "condition", "acquisition", "reclaim_category", "ownership", "description", "display_order", "is_active"]
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant case '{form.instance.name}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:variant_case_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.name}"
+        context["form_title"] = f"Edit Variant Case: {self.object.name}"
+        return context
+
+
+class VariantCaseDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a variant case."""
+
+    model = VariantCase
+    template_name = "inventory/variant_case_confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:variant_case_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Variant case '{self.object.name}' deleted.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Delete Variant Case"
+        return context
+
+
+# =============================================================================
+# Item Variant Views (Item-to-Case links)
+# =============================================================================
+
+
 class ItemVariantListView(LoginRequiredMixin, ListView):
-    """List all item variants."""
+    """List all item variants (item-to-case links)."""
 
     model = ItemVariant
     template_name = "inventory/item_variant_list.html"
@@ -807,18 +915,18 @@ class ItemVariantListView(LoginRequiredMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        queryset = ItemVariant.objects.select_related("base_item", "customer")
+        queryset = ItemVariant.objects.select_related("base_item", "variant_case", "customer")
 
         # Search filter
         search = self.request.GET.get("q", "").strip()
         if search:
             queryset = queryset.filter(
                 Q(code__icontains=search) |
-                Q(name__icontains=search) |
-                Q(base_item__name__icontains=search)
+                Q(base_item__name__icontains=search) |
+                Q(variant_case__name__icontains=search)
             )
 
-        return queryset.order_by("base_item__code", "code")
+        return queryset.order_by("base_item__code", "variant_case__display_order")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -828,11 +936,11 @@ class ItemVariantListView(LoginRequiredMixin, ListView):
 
 
 class StandaloneVariantCreateView(LoginRequiredMixin, CreateView):
-    """Create variant from variants list (with base item selection)."""
+    """Create variant from variants list (with base item and case selection)."""
 
     model = ItemVariant
     template_name = "inventory/standalone_variant_form.html"
-    fields = ["base_item", "code", "name", "legacy_mat_no", "erp_item_no", "condition", "acquisition", "reclaim_category", "ownership", "customer", "standard_cost", "last_cost", "valuation_percentage", "source_bit_serial", "source_work_order", "is_active", "notes"]
+    fields = ["base_item", "variant_case", "customer", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
 
     def form_valid(self, form):
         messages.success(self.request, f"Variant '{form.instance.code}' created.")
@@ -846,10 +954,7 @@ class StandaloneVariantCreateView(LoginRequiredMixin, CreateView):
         context["page_title"] = "Create Variant"
         context["form_title"] = "Create New Variant"
         context["items"] = InventoryItem.objects.filter(is_active=True).order_by("code")
-        context["conditions"] = ItemVariant.Condition.choices
-        context["acquisitions"] = ItemVariant.Acquisition.choices
-        context["reclaim_categories"] = ItemVariant.ReclaimCategory.choices
-        context["ownerships"] = ItemVariant.Ownership.choices
+        context["variant_cases"] = VariantCase.objects.filter(is_active=True).order_by("display_order")
         return context
 
 
@@ -858,7 +963,7 @@ class StandaloneVariantUpdateView(LoginRequiredMixin, UpdateView):
 
     model = ItemVariant
     template_name = "inventory/standalone_variant_form.html"
-    fields = ["base_item", "code", "name", "legacy_mat_no", "erp_item_no", "condition", "acquisition", "reclaim_category", "ownership", "customer", "standard_cost", "last_cost", "valuation_percentage", "source_bit_serial", "source_work_order", "is_active", "notes"]
+    fields = ["base_item", "variant_case", "customer", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
 
     def form_valid(self, form):
         messages.success(self.request, f"Variant '{form.instance.code}' updated.")
@@ -872,10 +977,7 @@ class StandaloneVariantUpdateView(LoginRequiredMixin, UpdateView):
         context["page_title"] = f"Edit {self.object.code}"
         context["form_title"] = f"Edit Variant: {self.object.code}"
         context["items"] = InventoryItem.objects.filter(is_active=True).order_by("code")
-        context["conditions"] = ItemVariant.Condition.choices
-        context["acquisitions"] = ItemVariant.Acquisition.choices
-        context["reclaim_categories"] = ItemVariant.ReclaimCategory.choices
-        context["ownerships"] = ItemVariant.Ownership.choices
+        context["variant_cases"] = VariantCase.objects.filter(is_active=True).order_by("display_order")
         return context
 
 
@@ -1005,11 +1107,11 @@ class UnitOfMeasureDeleteView(LoginRequiredMixin, DeleteView):
 
 
 class ItemVariantCreateView(LoginRequiredMixin, CreateView):
-    """Create variant for a specific item."""
+    """Create variant for a specific item (link to a VariantCase)."""
 
     model = ItemVariant
     template_name = "inventory/item_variant_form.html"
-    fields = ["code", "name", "legacy_mat_no", "erp_item_no", "condition", "acquisition", "reclaim_category", "ownership", "customer", "standard_cost", "last_cost", "valuation_percentage", "source_bit_serial", "source_work_order", "is_active", "notes"]
+    fields = ["variant_case", "customer", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1017,15 +1119,18 @@ class ItemVariantCreateView(LoginRequiredMixin, CreateView):
         context["item"] = item
         context["page_title"] = f"Create Variant for {item.code}"
         context["form_title"] = f"Create Variant for {item.name}"
-        context["conditions"] = ItemVariant.Condition.choices
-        context["acquisitions"] = ItemVariant.Acquisition.choices
-        context["reclaim_categories"] = ItemVariant.ReclaimCategory.choices
-        context["ownerships"] = ItemVariant.Ownership.choices
+        context["variant_cases"] = VariantCase.objects.filter(is_active=True).order_by("display_order", "code")
         return context
 
     def form_valid(self, form):
         item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
         form.instance.base_item = item
+        # Auto-generate code if not provided
+        if not form.instance.code:
+            parts = [item.code, form.instance.variant_case.code]
+            if form.instance.customer:
+                parts.append(form.instance.customer.code[:6] if hasattr(form.instance.customer, 'code') else "CLI")
+            form.instance.code = "-".join(parts)
         messages.success(self.request, f"Variant '{form.instance.code}' created.")
         return super().form_valid(form)
 
@@ -1038,7 +1143,7 @@ class ItemVariantUpdateView(LoginRequiredMixin, UpdateView):
 
     model = ItemVariant
     template_name = "inventory/item_variant_form.html"
-    fields = ["code", "name", "legacy_mat_no", "erp_item_no", "condition", "acquisition", "reclaim_category", "ownership", "customer", "standard_cost", "last_cost", "valuation_percentage", "source_bit_serial", "source_work_order", "is_active", "notes"]
+    fields = ["variant_case", "customer", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1046,10 +1151,7 @@ class ItemVariantUpdateView(LoginRequiredMixin, UpdateView):
         context["item"] = item
         context["page_title"] = f"Edit {self.object.code}"
         context["form_title"] = f"Edit Variant: {self.object.code}"
-        context["conditions"] = ItemVariant.Condition.choices
-        context["acquisitions"] = ItemVariant.Acquisition.choices
-        context["reclaim_categories"] = ItemVariant.ReclaimCategory.choices
-        context["ownerships"] = ItemVariant.Ownership.choices
+        context["variant_cases"] = VariantCase.objects.filter(is_active=True).order_by("display_order", "code")
         return context
 
     def form_valid(self, form):

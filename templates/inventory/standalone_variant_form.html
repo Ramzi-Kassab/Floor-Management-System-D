@@ -15,6 +15,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ form_title }}</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Link an inventory item to a variant case</p>
         </div>
 
         <form method="post" class="p-6 space-y-6">
@@ -25,28 +26,57 @@
                 <label for="id_base_item" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Base Item <span class="text-red-500">*</span>
                 </label>
-                <select name="base_item" id="id_base_item" required
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                    <option value="">Select an item...</option>
-                    {% for item in items %}
-                    <option value="{{ item.pk }}" {% if form.base_item.value|stringformat:"d" == item.pk|stringformat:"d" %}selected{% endif %}>{{ item.code }} - {{ item.name }}</option>
-                    {% endfor %}
-                </select>
+                {{ form.base_item }}
+                <p class="text-xs text-gray-500 mt-1">Select the base inventory item for this variant</p>
             </div>
 
-            <!-- Code and Name -->
+            <!-- Variant Case Selection -->
+            <div class="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg space-y-4">
+                <h3 class="font-medium text-gray-900 dark:text-white">Variant Case</h3>
+
+                <div>
+                    <label for="id_variant_case" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Select Variant Case <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.variant_case }}
+                    <p class="text-xs text-gray-500 mt-1">The condition + acquisition combination for this variant</p>
+                </div>
+
+                <!-- Show variant case options as reference -->
+                {% if variant_cases %}
+                <div class="mt-4 p-3 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                    <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Available Variant Cases:</p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                        {% for case in variant_cases %}
+                        <div class="flex items-center space-x-1">
+                            <span class="font-mono text-gray-700 dark:text-gray-300">{{ case.code }}</span>
+                            <span class="text-gray-400">-</span>
+                            <span class="text-gray-500 dark:text-gray-400 truncate" title="{{ case.name }}">{{ case.name }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Customer -->
+                <div>
+                    <label for="id_customer" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Customer</label>
+                    {{ form.customer }}
+                    <p class="text-xs text-gray-500 mt-1">Required for Client-owned variant cases (CLI-NEW, CLI-RCL)</p>
+                </div>
+            </div>
+
+            <!-- Cost Information -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code</label>
-                    <input type="text" name="code" id="id_code" value="{{ form.code.value|default:'' }}"
-                           placeholder="Auto-generated if empty"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <label for="id_standard_cost" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Standard Cost</label>
+                    {{ form.standard_cost }}
+                    <p class="text-xs text-gray-500 mt-1">Standard cost for this variant</p>
                 </div>
                 <div>
-                    <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-                    <input type="text" name="name" id="id_name" value="{{ form.name.value|default:'' }}"
-                           placeholder="Auto-generated if empty"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <label for="id_last_cost" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Cost</label>
+                    {{ form.last_cost }}
+                    <p class="text-xs text-gray-500 mt-1">Most recent purchase cost</p>
                 </div>
             </div>
 
@@ -54,114 +84,25 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label for="id_legacy_mat_no" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Legacy MAT No.</label>
-                    <input type="text" name="legacy_mat_no" id="id_legacy_mat_no" value="{{ form.legacy_mat_no.value|default:'' }}"
-                           placeholder="From old system"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    {{ form.legacy_mat_no }}
+                    <p class="text-xs text-gray-500 mt-1">SAP Legacy MAT number</p>
                 </div>
                 <div>
                     <label for="id_erp_item_no" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ERP Item No.</label>
-                    <input type="text" name="erp_item_no" id="id_erp_item_no" value="{{ form.erp_item_no.value|default:'' }}"
-                           placeholder="ERP reference"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                </div>
-            </div>
-
-            <!-- Normalized Fields -->
-            <div class="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg space-y-4">
-                <h3 class="font-medium text-gray-900 dark:text-white">Classification</h3>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                        <label for="id_condition" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Condition <span class="text-red-500">*</span></label>
-                        <select name="condition" id="id_condition" required
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                            {% for value, label in conditions %}
-                            <option value="{{ value }}" {% if form.condition.value == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label for="id_acquisition" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Acquisition <span class="text-red-500">*</span></label>
-                        <select name="acquisition" id="id_acquisition" required
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                            {% for value, label in acquisitions %}
-                            <option value="{{ value }}" {% if form.acquisition.value == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label for="id_reclaim_category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reclaim Category</label>
-                        <select name="reclaim_category" id="id_reclaim_category"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                            <option value="">N/A</option>
-                            {% for value, label in reclaim_categories %}
-                            <option value="{{ value }}" {% if form.reclaim_category.value == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label for="id_ownership" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ownership <span class="text-red-500">*</span></label>
-                        <select name="ownership" id="id_ownership" required
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                            {% for value, label in ownerships %}
-                            <option value="{{ value }}" {% if form.ownership.value == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Customer -->
-                <div>
-                    <label for="id_customer" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Customer (for CLIENT ownership)</label>
-                    {{ form.customer }}
-                </div>
-            </div>
-
-            <!-- Cost Information -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                    <label for="id_standard_cost" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Standard Cost</label>
-                    <input type="number" step="0.01" name="standard_cost" id="id_standard_cost" value="{{ form.standard_cost.value|default:0 }}"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                </div>
-                <div>
-                    <label for="id_last_cost" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Cost</label>
-                    <input type="number" step="0.01" name="last_cost" id="id_last_cost" value="{{ form.last_cost.value|default:0 }}"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                </div>
-                <div>
-                    <label for="id_valuation_percentage" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Valuation %</label>
-                    <input type="number" step="0.01" min="0" max="100" name="valuation_percentage" id="id_valuation_percentage" value="{{ form.valuation_percentage.value|default:100 }}"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                </div>
-            </div>
-
-            <!-- Source Tracking -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label for="id_source_bit_serial" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Source Bit Serial</label>
-                    <input type="text" name="source_bit_serial" id="id_source_bit_serial" value="{{ form.source_bit_serial.value|default:'' }}"
-                           placeholder="For reclaimed items"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                </div>
-                <div>
-                    <label for="id_source_work_order" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Source Work Order</label>
-                    <input type="text" name="source_work_order" id="id_source_work_order" value="{{ form.source_work_order.value|default:'' }}"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    {{ form.erp_item_no }}
+                    <p class="text-xs text-gray-500 mt-1">Parallel ERP Item number</p>
                 </div>
             </div>
 
             <!-- Status and Notes -->
             <div class="flex items-center gap-4">
-                <input type="checkbox" name="is_active" id="id_is_active" {% if form.is_active.value != False %}checked{% endif %}
-                       class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:focus:ring-primary-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+                {{ form.is_active }}
                 <label for="id_is_active" class="text-sm font-medium text-gray-700 dark:text-gray-300">Active</label>
             </div>
 
             <div>
                 <label for="id_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
-                <textarea name="notes" id="id_notes" rows="2"
-                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">{{ form.notes.value|default:'' }}</textarea>
+                {{ form.notes }}
             </div>
 
             {% if form.errors %}
