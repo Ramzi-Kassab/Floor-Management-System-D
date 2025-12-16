@@ -381,6 +381,7 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         context["page_title"] = "Create Item"
         context["form_title"] = "Create Inventory Item"
         context["categories"] = InventoryCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
+        context["type_choices"] = InventoryItem.ItemType.choices
         return context
 
 
@@ -454,6 +455,7 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
         context["page_title"] = f"Edit {self.object.code}"
         context["form_title"] = "Edit Inventory Item"
         context["categories"] = InventoryCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
+        context["type_choices"] = InventoryItem.ItemType.choices
 
         # Pass existing attribute values for pre-populating the form
         if self.object.category:
