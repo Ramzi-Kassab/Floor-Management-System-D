@@ -137,10 +137,53 @@ class InventoryCategory(models.Model):
         return code
 
 
+# =============================================================================
+# MASTER DATA: ATTRIBUTES (Simple Global List)
+# =============================================================================
+
+
+class Attribute(models.Model):
+    """
+    Master data for attributes - simple global list of attribute names.
+    Examples: Size, Color, Material, Grade, Finish, etc.
+
+    The actual type, unit, validation, and options are defined when
+    connecting an attribute to a category via CategoryAttribute.
+    """
+
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Unique code (e.g., size, color, material)"
+    )
+    name = models.CharField(max_length=100, help_text="Display name (e.g., Size, Color, Material)")
+    description = models.TextField(blank=True, help_text="Optional description of this attribute")
+    is_active = models.BooleanField(default=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "attributes"
+        ordering = ["name"]
+        verbose_name = "Attribute"
+        verbose_name_plural = "Attributes"
+
+    def __str__(self):
+        return self.name
+
+
 class CategoryAttribute(models.Model):
     """
-    NEW: Defines attributes for each category.
-    Each category can have multiple attributes with validation rules.
+    Links an Attribute to a Category with specific configuration.
+    This is where type, unit, validation, and options are defined.
+
+    The same Attribute (e.g., "Size") can have different configurations
+    per category:
+    - For Clothing: Size is SELECT type with options [S, M, L, XL]
+    - For Tools: Size is NUMBER type with unit "mm"
+    - For Pipes: Size is NUMBER type with unit "inch"
     """
 
     class AttributeType(models.TextChoices):
@@ -153,14 +196,33 @@ class CategoryAttribute(models.Model):
     category = models.ForeignKey(
         InventoryCategory,
         on_delete=models.CASCADE,
-        related_name="attributes"
+        related_name="category_attributes"
     )
-    code = models.CharField(max_length=50, help_text="Attribute code for templates (e.g., size, material)")
-    name = models.CharField(max_length=100, help_text="Display name")
-    attribute_type = models.CharField(max_length=20, choices=AttributeType.choices, default=AttributeType.TEXT)
+    attribute = models.ForeignKey(
+        Attribute,
+        on_delete=models.CASCADE,
+        null=True,  # Temporary for migration
+        related_name="category_usages",
+        help_text="The attribute being configured for this category"
+    )
+
+    # Configuration for this category
+    attribute_type = models.CharField(
+        max_length=20,
+        choices=AttributeType.choices,
+        default=AttributeType.TEXT,
+        help_text="How this attribute is used in this category"
+    )
 
     # For NUMBER type
-    unit = models.CharField(max_length=20, blank=True, help_text="Unit of measure (mm, kg, etc.)")
+    unit = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="category_attributes",
+        help_text="Unit of measure for NUMBER type"
+    )
     min_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
     max_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
 
@@ -183,13 +245,23 @@ class CategoryAttribute(models.Model):
 
     class Meta:
         db_table = "category_attributes"
-        ordering = ["category", "display_order", "name"]
-        unique_together = ["category", "code"]
+        ordering = ["category", "display_order"]
+        unique_together = ["category", "attribute"]
         verbose_name = "Category Attribute"
         verbose_name_plural = "Category Attributes"
 
     def __str__(self):
-        return f"{self.category.code} - {self.name}"
+        return f"{self.category.code} - {self.attribute.name}"
+
+    @property
+    def code(self):
+        """Return the attribute code for backward compatibility."""
+        return self.attribute.code
+
+    @property
+    def name(self):
+        """Return the attribute name for backward compatibility."""
+        return self.attribute.name
 
 
 class InventoryItem(models.Model):

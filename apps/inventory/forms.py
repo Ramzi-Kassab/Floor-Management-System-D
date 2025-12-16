@@ -6,6 +6,7 @@ Version: 5.6
 from django import forms
 
 from .models import (
+    Attribute,
     CategoryAttribute,
     InventoryCategory,
     InventoryItem,
@@ -60,49 +61,13 @@ class InventoryCategoryForm(forms.ModelForm):
 
 
 class CategoryAttributeForm(forms.ModelForm):
-    """Form for category attributes (within a category context)."""
-
-    class Meta:
-        model = CategoryAttribute
-        fields = [
-            "code",
-            "name",
-            "attribute_type",
-            "unit",
-            "min_value",
-            "max_value",
-            "options",
-            "is_required",
-            "is_used_in_name",
-            "display_order",
-        ]
-        widgets = {
-            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT_SM, "placeholder": "size"}),
-            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT_SM, "placeholder": "Size"}),
-            "attribute_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "unit": forms.TextInput(attrs={"class": TAILWIND_INPUT_SM, "placeholder": "mm"}),
-            "min_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT_SM, "step": "0.0001"}),
-            "max_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT_SM, "step": "0.0001"}),
-            "options": forms.Textarea(attrs={
-                "class": TAILWIND_TEXTAREA,
-                "rows": 2,
-                "placeholder": '["Option1", "Option2"] or [{"value": "opt1", "label": "Option 1"}]'
-            }),
-            "is_required": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
-            "is_used_in_name": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
-            "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT_SM}),
-        }
-
-
-class StandaloneCategoryAttributeForm(forms.ModelForm):
-    """Form for creating attributes with category selection."""
+    """Form for linking attributes to categories with configuration."""
 
     class Meta:
         model = CategoryAttribute
         fields = [
             "category",
-            "code",
-            "name",
+            "attribute",
             "attribute_type",
             "unit",
             "min_value",
@@ -114,12 +79,11 @@ class StandaloneCategoryAttributeForm(forms.ModelForm):
         ]
         widgets = {
             "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "size"}),
-            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Size"}),
+            "attribute": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "attribute_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "unit": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "mm"}),
-            "min_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
-            "max_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "unit": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "min_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT_SM, "step": "0.0001"}),
+            "max_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT_SM, "step": "0.0001"}),
             "options": forms.Textarea(attrs={
                 "class": TAILWIND_TEXTAREA,
                 "rows": 2,
@@ -127,7 +91,7 @@ class StandaloneCategoryAttributeForm(forms.ModelForm):
             }),
             "is_required": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "is_used_in_name": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
-            "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT_SM}),
         }
 
 
