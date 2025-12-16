@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Item: {{ item.code }} - {{ item.name }}</p>
+    </div>
+    <a href="{% url 'inventory:item_detail' item.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Item
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-xl">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <form method="post">
+            {% csrf_token %}
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Supplier *</label>
+                    {{ form.supplier }}
+                    {% if form.supplier.errors %}<p class="text-red-600 text-sm mt-1">{{ form.supplier.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Supplier Part Number</label>
+                    {{ form.supplier_part_number }}
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Unit Price</label>
+                        {{ form.unit_price }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Currency</label>
+                        {{ form.currency }}
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Lead Time (days)</label>
+                        {{ form.lead_time_days }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Min Order Qty</label>
+                        {{ form.min_order_qty }}
+                    </div>
+                </div>
+                <div class="flex items-center space-x-6">
+                    <div class="flex items-center">
+                        {{ form.is_preferred }}
+                        <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Preferred Supplier</label>
+                    </div>
+                    <div class="flex items-center">
+                        {{ form.is_active }}
+                        <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'inventory:item_detail' item.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

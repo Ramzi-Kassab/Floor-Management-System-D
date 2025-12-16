@@ -65,6 +65,24 @@ urlpatterns = [
     # Stock
     path("stock/", views.StockListView.as_view(), name="stock_list"),
     path("stock/<int:pk>/adjust/", views.StockAdjustView.as_view(), name="stock_adjust"),
+    # Item Planning (per-warehouse)
+    path("items/<int:item_pk>/planning/create/", views.ItemPlanningCreateView.as_view(), name="item_planning_create"),
+    path("items/<int:item_pk>/planning/<int:pk>/edit/", views.ItemPlanningUpdateView.as_view(), name="item_planning_update"),
+    path("items/<int:item_pk>/planning/<int:pk>/delete/", views.ItemPlanningDeleteView.as_view(), name="item_planning_delete"),
+    # Item Supplier (multiple suppliers)
+    path("items/<int:item_pk>/suppliers/create/", views.ItemSupplierCreateView.as_view(), name="item_supplier_create"),
+    path("items/<int:item_pk>/suppliers/<int:pk>/edit/", views.ItemSupplierUpdateView.as_view(), name="item_supplier_update"),
+    path("items/<int:item_pk>/suppliers/<int:pk>/delete/", views.ItemSupplierDeleteView.as_view(), name="item_supplier_delete"),
+    # Item Identifier (barcodes)
+    path("items/<int:item_pk>/identifiers/create/", views.ItemIdentifierCreateView.as_view(), name="item_identifier_create"),
+    path("items/<int:item_pk>/identifiers/<int:pk>/edit/", views.ItemIdentifierUpdateView.as_view(), name="item_identifier_update"),
+    path("items/<int:item_pk>/identifiers/<int:pk>/delete/", views.ItemIdentifierDeleteView.as_view(), name="item_identifier_delete"),
+    # Item Bit Spec
+    path("items/<int:item_pk>/bit-spec/create/", views.ItemBitSpecCreateView.as_view(), name="item_bit_spec_create"),
+    path("items/<int:item_pk>/bit-spec/edit/", views.ItemBitSpecUpdateView.as_view(), name="item_bit_spec_update"),
+    # Item Cutter Spec
+    path("items/<int:item_pk>/cutter-spec/create/", views.ItemCutterSpecCreateView.as_view(), name="item_cutter_spec_create"),
+    path("items/<int:item_pk>/cutter-spec/edit/", views.ItemCutterSpecUpdateView.as_view(), name="item_cutter_spec_update"),
     # API Endpoints
     path("api/category/<int:category_pk>/attributes/", views.CategoryAttributesAPIView.as_view(), name="api_category_attributes"),
     path("api/category/<int:category_pk>/generate-code/", views.CategoryGenerateCodeAPIView.as_view(), name="api_category_generate_code"),

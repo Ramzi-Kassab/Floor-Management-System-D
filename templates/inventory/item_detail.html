@@ -174,6 +174,296 @@
         </div>
         {% endif %}
 
+        <!-- Suppliers Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Suppliers
+                    <span class="text-sm font-normal text-gray-500">({{ suppliers|length }})</span>
+                </h2>
+                <a href="{% url 'inventory:item_supplier_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
+                    + Add Supplier
+                </a>
+            </div>
+            {% if suppliers %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Supplier</th>
+                        <th class="px-6 py-3 font-medium">Part Number</th>
+                        <th class="px-6 py-3 font-medium text-right">Unit Cost</th>
+                        <th class="px-6 py-3 font-medium text-center">Lead Time</th>
+                        <th class="px-6 py-3 font-medium text-center">Preferred</th>
+                        <th class="px-6 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for sup in suppliers %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-6 py-4 text-gray-900 dark:text-white">{{ sup.supplier.name }}</td>
+                        <td class="px-6 py-4 font-mono text-gray-600 dark:text-gray-400">{{ sup.supplier_part_number|default:"--" }}</td>
+                        <td class="px-6 py-4 text-right font-mono">{{ sup.currency }} {{ sup.unit_price }}</td>
+                        <td class="px-6 py-4 text-center text-gray-600">{{ sup.lead_time_days }} days</td>
+                        <td class="px-6 py-4 text-center">
+                            {% if sup.is_preferred %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Preferred</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <a href="{% url 'inventory:item_supplier_update' item.pk sup.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                            <a href="{% url 'inventory:item_supplier_delete' item.pk sup.pk %}" class="text-red-600 hover:text-red-800 text-xs ml-2">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-6">
+                <p class="text-gray-500">No suppliers configured</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Identifiers / Barcodes Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Identifiers / Barcodes
+                    <span class="text-sm font-normal text-gray-500">({{ identifiers|length }})</span>
+                </h2>
+                <a href="{% url 'inventory:item_identifier_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
+                    + Add Identifier
+                </a>
+            </div>
+            {% if identifiers %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Type</th>
+                        <th class="px-6 py-3 font-medium">Value</th>
+                        <th class="px-6 py-3 font-medium text-center">Primary</th>
+                        <th class="px-6 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for ident in identifiers %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                {% if ident.identifier_type == 'BARCODE' %}bg-blue-100 text-blue-800
+                                {% elif ident.identifier_type == 'QR' %}bg-purple-100 text-purple-800
+                                {% elif ident.identifier_type == 'RFID' %}bg-green-100 text-green-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ ident.get_identifier_type_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 font-mono text-gray-900 dark:text-white">{{ ident.value }}</td>
+                        <td class="px-6 py-4 text-center">
+                            {% if ident.is_primary %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Primary</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <a href="{% url 'inventory:item_identifier_update' item.pk ident.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                            <a href="{% url 'inventory:item_identifier_delete' item.pk ident.pk %}" class="text-red-600 hover:text-red-800 text-xs ml-2">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-6">
+                <p class="text-gray-500">No barcodes or identifiers configured</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Warehouse Planning Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Warehouse Planning
+                    <span class="text-sm font-normal text-gray-500">({{ planning_records|length }})</span>
+                </h2>
+                <a href="{% url 'inventory:item_planning_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
+                    + Add Planning
+                </a>
+            </div>
+            {% if planning_records %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Warehouse</th>
+                        <th class="px-6 py-3 font-medium text-right">Min Stock</th>
+                        <th class="px-6 py-3 font-medium text-right">Max Stock</th>
+                        <th class="px-6 py-3 font-medium text-right">Reorder Point</th>
+                        <th class="px-6 py-3 font-medium text-right">Reorder Qty</th>
+                        <th class="px-6 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for plan in planning_records %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-6 py-4 text-gray-900 dark:text-white">{{ plan.warehouse.name }}</td>
+                        <td class="px-6 py-4 text-right font-mono">{{ plan.min_stock }}</td>
+                        <td class="px-6 py-4 text-right font-mono">{{ plan.max_stock|default:"--" }}</td>
+                        <td class="px-6 py-4 text-right font-mono">{{ plan.reorder_point }}</td>
+                        <td class="px-6 py-4 text-right font-mono">{{ plan.reorder_quantity }}</td>
+                        <td class="px-6 py-4 text-right">
+                            <a href="{% url 'inventory:item_planning_update' item.pk plan.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                            <a href="{% url 'inventory:item_planning_delete' item.pk plan.pk %}" class="text-red-600 hover:text-red-800 text-xs ml-2">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-6">
+                <p class="text-gray-500">No warehouse-specific planning configured</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Bit Spec Section (conditional) -->
+        {% if is_bit_item %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Bit Specifications</h2>
+                {% if not bit_spec %}
+                <a href="{% url 'inventory:item_bit_spec_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
+                    + Add Spec
+                </a>
+                {% else %}
+                <a href="{% url 'inventory:item_bit_spec_update' item.pk %}" class="text-sm text-blue-600 hover:underline">
+                    Edit
+                </a>
+                {% endif %}
+            </div>
+            {% if bit_spec %}
+            <div class="p-6">
+                <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <dt class="text-gray-500">Bit Type</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium">{{ bit_spec.get_bit_type_display }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">IADC Code</dt>
+                        <dd class="text-gray-900 dark:text-white font-mono">{{ bit_spec.iadc_code|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Bit Size</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.bit_size|default:"--" }}"</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Connection</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.connection_type }} {{ bit_spec.connection_size|default:"" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Blade Count</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.blade_count|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Cutter Count</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.cutter_count|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Nozzle Count</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.nozzle_count|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">TFA Range</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.tfa_range_min|default:"--" }} - {{ bit_spec.tfa_range_max|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">WOB Range</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.weight_on_bit_min|default:"--" }} - {{ bit_spec.weight_on_bit_max|default:"--" }} klb</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">RPM Range</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.rpm_min|default:"--" }} - {{ bit_spec.rpm_max|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Formation</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.formation_hardness|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Application</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.application|default:"--" }}</dd>
+                    </div>
+                </dl>
+            </div>
+            {% else %}
+            <div class="text-center py-6">
+                <p class="text-gray-500">No bit specifications configured</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Cutter Spec Section (conditional) -->
+        {% if is_cutter_item %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Cutter Specifications</h2>
+                {% if not cutter_spec %}
+                <a href="{% url 'inventory:item_cutter_spec_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
+                    + Add Spec
+                </a>
+                {% else %}
+                <a href="{% url 'inventory:item_cutter_spec_update' item.pk %}" class="text-sm text-blue-600 hover:underline">
+                    Edit
+                </a>
+                {% endif %}
+            </div>
+            {% if cutter_spec %}
+            <div class="p-6">
+                <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <dt class="text-gray-500">Cutter Size</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.cutter_size|default:"--" }} mm</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Thickness</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.thickness|default:"--" }} mm</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Diamond Table</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.diamond_table_thickness|default:"--" }} mm</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Grade</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.grade|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Substrate</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.substrate_material|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Chamfer</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.chamfer_type|default:"--" }} {{ cutter_spec.chamfer_angle|default:"" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Impact Resistance</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.impact_resistance|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Abrasion Resistance</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.abrasion_resistance|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500">Thermal Stability</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.thermal_stability_temp|default:"--" }} C</dd>
+                    </div>
+                </dl>
+            </div>
+            {% else %}
+            <div class="text-center py-6">
+                <p class="text-gray-500">No cutter specifications configured</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <!-- Stock by Location -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">

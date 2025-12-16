@@ -20,6 +20,11 @@ from .forms import (
     InventoryLocationForm,
     InventoryStockForm,
     InventoryTransactionForm,
+    ItemBitSpecForm,
+    ItemCutterSpecForm,
+    ItemIdentifierForm,
+    ItemPlanningForm,
+    ItemSupplierForm,
     StockAdjustmentForm,
 )
 from .models import (
@@ -30,6 +35,11 @@ from .models import (
     InventoryLocation,
     InventoryStock,
     InventoryTransaction,
+    ItemBitSpec,
+    ItemCutterSpec,
+    ItemIdentifier,
+    ItemPlanning,
+    ItemSupplier,
     ItemVariant,
     UnitOfMeasure,
     VariantCase,
@@ -279,7 +289,7 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "item"
 
     def get_queryset(self):
-        return InventoryItem.objects.select_related("category", "primary_supplier", "created_by")
+        return InventoryItem.objects.select_related("category", "primary_supplier", "created_by", "manufacturer", "uom")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -299,6 +309,32 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
 
         # Is low stock?
         context["is_low_stock"] = item.total_stock <= item.min_stock
+
+        # NEW: Planning data (per-warehouse min/max/reorder)
+        context["planning_records"] = ItemPlanning.objects.filter(item=item).select_related("warehouse")
+
+        # NEW: Suppliers (multiple suppliers per item)
+        context["suppliers"] = ItemSupplier.objects.filter(item=item).select_related("supplier")
+
+        # NEW: Identifiers (multiple barcodes/identifiers)
+        context["identifiers"] = ItemIdentifier.objects.filter(item=item)
+
+        # NEW: Bit Spec (if exists)
+        try:
+            context["bit_spec"] = item.bit_spec
+        except ItemBitSpec.DoesNotExist:
+            context["bit_spec"] = None
+
+        # NEW: Cutter Spec (if exists)
+        try:
+            context["cutter_spec"] = item.cutter_spec
+        except ItemCutterSpec.DoesNotExist:
+            context["cutter_spec"] = None
+
+        # Check if item category suggests it's a bit or cutter for showing spec forms
+        category_name = item.category.name.lower() if item.category else ""
+        context["is_bit_item"] = "bit" in category_name or "pdc" in category_name or "tci" in category_name
+        context["is_cutter_item"] = "cutter" in category_name or "pdc" in category_name
 
         return context
 
@@ -1407,3 +1443,339 @@ class CategoryGenerateCodeAPIView(LoginRequiredMixin, View):
         category = get_object_or_404(InventoryCategory, pk=category_pk)
         code = category.generate_next_code()
         return JsonResponse({"code": code})
+
+
+# =============================================================================
+# Item Planning Views (per-warehouse planning)
+# =============================================================================
+
+
+class ItemPlanningCreateView(LoginRequiredMixin, CreateView):
+    """Create planning record for an item."""
+
+    model = ItemPlanning
+    form_class = ItemPlanningForm
+    template_name = "inventory/item_planning_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Add Planning for {item.code}"
+        context["form_title"] = "Add Warehouse Planning"
+        return context
+
+    def form_valid(self, form):
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        form.instance.item = item
+        messages.success(self.request, "Planning record added.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class ItemPlanningUpdateView(LoginRequiredMixin, UpdateView):
+    """Update planning record."""
+
+    model = ItemPlanning
+    form_class = ItemPlanningForm
+    template_name = "inventory/item_planning_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Edit Planning for {item.code}"
+        context["form_title"] = "Edit Warehouse Planning"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Planning record updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class ItemPlanningDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete planning record."""
+
+    model = ItemPlanning
+    template_name = "inventory/item_planning_confirm_delete.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = "Delete Planning"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Planning record deleted.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+# =============================================================================
+# Item Supplier Views (multiple suppliers per item)
+# =============================================================================
+
+
+class ItemSupplierCreateView(LoginRequiredMixin, CreateView):
+    """Add supplier to an item."""
+
+    model = ItemSupplier
+    form_class = ItemSupplierForm
+    template_name = "inventory/item_supplier_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Add Supplier for {item.code}"
+        context["form_title"] = "Add Supplier"
+        return context
+
+    def form_valid(self, form):
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        form.instance.item = item
+        messages.success(self.request, "Supplier added.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class ItemSupplierUpdateView(LoginRequiredMixin, UpdateView):
+    """Update item supplier."""
+
+    model = ItemSupplier
+    form_class = ItemSupplierForm
+    template_name = "inventory/item_supplier_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Edit Supplier for {item.code}"
+        context["form_title"] = "Edit Supplier"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Supplier updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class ItemSupplierDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete item supplier."""
+
+    model = ItemSupplier
+    template_name = "inventory/item_supplier_confirm_delete.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = "Delete Supplier"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Supplier removed.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+# =============================================================================
+# Item Identifier Views (barcodes, QR codes, etc.)
+# =============================================================================
+
+
+class ItemIdentifierCreateView(LoginRequiredMixin, CreateView):
+    """Add identifier to an item."""
+
+    model = ItemIdentifier
+    form_class = ItemIdentifierForm
+    template_name = "inventory/item_identifier_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Add Identifier for {item.code}"
+        context["form_title"] = "Add Barcode/Identifier"
+        return context
+
+    def form_valid(self, form):
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        form.instance.item = item
+        messages.success(self.request, "Identifier added.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class ItemIdentifierUpdateView(LoginRequiredMixin, UpdateView):
+    """Update item identifier."""
+
+    model = ItemIdentifier
+    form_class = ItemIdentifierForm
+    template_name = "inventory/item_identifier_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Edit Identifier for {item.code}"
+        context["form_title"] = "Edit Barcode/Identifier"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Identifier updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class ItemIdentifierDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete item identifier."""
+
+    model = ItemIdentifier
+    template_name = "inventory/item_identifier_confirm_delete.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = "Delete Identifier"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Identifier removed.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+# =============================================================================
+# Item Bit Spec Views
+# =============================================================================
+
+
+class ItemBitSpecCreateView(LoginRequiredMixin, CreateView):
+    """Add bit specification to an item."""
+
+    model = ItemBitSpec
+    form_class = ItemBitSpecForm
+    template_name = "inventory/item_bit_spec_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Add Bit Spec for {item.code}"
+        context["form_title"] = "Bit Specifications"
+        return context
+
+    def form_valid(self, form):
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        form.instance.item = item
+        messages.success(self.request, "Bit specifications added.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class ItemBitSpecUpdateView(LoginRequiredMixin, UpdateView):
+    """Update bit specification."""
+
+    model = ItemBitSpec
+    form_class = ItemBitSpecForm
+    template_name = "inventory/item_bit_spec_form.html"
+
+    def get_object(self, queryset=None):
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        return get_object_or_404(ItemBitSpec, item=item)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Edit Bit Spec for {item.code}"
+        context["form_title"] = "Edit Bit Specifications"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Bit specifications updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+# =============================================================================
+# Item Cutter Spec Views
+# =============================================================================
+
+
+class ItemCutterSpecCreateView(LoginRequiredMixin, CreateView):
+    """Add cutter specification to an item."""
+
+    model = ItemCutterSpec
+    form_class = ItemCutterSpecForm
+    template_name = "inventory/item_cutter_spec_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Add Cutter Spec for {item.code}"
+        context["form_title"] = "Cutter Specifications"
+        return context
+
+    def form_valid(self, form):
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        form.instance.item = item
+        messages.success(self.request, "Cutter specifications added.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class ItemCutterSpecUpdateView(LoginRequiredMixin, UpdateView):
+    """Update cutter specification."""
+
+    model = ItemCutterSpec
+    form_class = ItemCutterSpecForm
+    template_name = "inventory/item_cutter_spec_form.html"
+
+    def get_object(self, queryset=None):
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        return get_object_or_404(ItemCutterSpec, item=item)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Edit Cutter Spec for {item.code}"
+        context["form_title"] = "Edit Cutter Specifications"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Cutter specifications updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
