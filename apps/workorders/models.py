@@ -33,6 +33,53 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 
+class BitSize(models.Model):
+    """
+    Standard bit sizes used in the industry.
+    Created by migration 0005_phase2_bit_tracking.
+    """
+
+    code = models.CharField(max_length=20, unique=True, help_text="e.g., '8.500'")
+    size_decimal = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        help_text="Size in decimal inches (e.g., 8.500)"
+    )
+    size_display = models.CharField(max_length=20, help_text="Display format (e.g., '8 1/2\"')")
+    size_inches = models.CharField(max_length=20, help_text="Fraction format (e.g., '8 1/2')")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "bit_sizes"
+        ordering = ["size_decimal"]
+        verbose_name = "Bit Size"
+        verbose_name_plural = "Bit Sizes"
+
+    def __str__(self):
+        return self.size_display
+
+
+class BitType(models.Model):
+    """
+    Bit type/model definitions.
+    Created by migration 0005_phase2_bit_tracking.
+    """
+
+    code = models.CharField(max_length=50, unique=True, help_text="Model code (e.g., 'GT65RHS')")
+    name = models.CharField(max_length=100)
+    series = models.CharField(max_length=20, blank=True, help_text="Series (GT, HD, MM, FX, etc.)")
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "bit_types"
+        ordering = ["series", "code"]
+        verbose_name = "Bit Type"
+        verbose_name_plural = "Bit Types"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
 class DrillBit(models.Model):
     """
     🟢 P1: Drill bit master - tracks individual bits through their lifecycle.

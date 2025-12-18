@@ -598,7 +598,7 @@ class ItemVariant(models.Model):
         related_name="item_variants"
     )
     client = models.ForeignKey(
-        "organization.Customer", on_delete=models.SET_NULL,
+        "sales.Customer", on_delete=models.SET_NULL,
         null=True, blank=True, related_name="item_variants",
         help_text="Client-specific variant (if applicable)"
     )
