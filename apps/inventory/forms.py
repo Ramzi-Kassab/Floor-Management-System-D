@@ -5,7 +5,19 @@ Version: 5.4
 
 from django import forms
 
-from .models import InventoryCategory, InventoryItem, InventoryLocation, InventoryStock, InventoryTransaction
+from .models import (
+    CategoryAttribute,
+    InventoryCategory,
+    InventoryItem,
+    InventoryLocation,
+    InventoryStock,
+    InventoryTransaction,
+    ItemBitSpec,
+    ItemCutterSpec,
+    ItemIdentifier,
+    ItemPlanning,
+    ItemSupplier,
+)
 
 TAILWIND_INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 TAILWIND_SELECT = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
@@ -184,3 +196,181 @@ class StockAdjustmentForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2, "placeholder": "Additional notes"}),
     )
+
+
+class CategoryAttributeForm(forms.ModelForm):
+    """Form for category attributes."""
+
+    class Meta:
+        model = CategoryAttribute
+        fields = [
+            "category",
+            "attribute",
+            "attribute_type",
+            "min_value",
+            "max_value",
+            "options",
+            "is_required",
+            "is_used_in_name",
+            "display_order",
+            "is_inherited",
+        ]
+        widgets = {
+            "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "attribute": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "attribute_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "min_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "max_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "options": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3, "placeholder": '["Option1", "Option2"]'}),
+            "is_required": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "is_used_in_name": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "is_inherited": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+        }
+
+
+class ItemPlanningForm(forms.ModelForm):
+    """Form for item planning records."""
+
+    class Meta:
+        model = ItemPlanning
+        fields = [
+            "item",
+            "warehouse",
+            "min_stock",
+            "max_stock",
+            "reorder_point",
+            "reorder_quantity",
+            "safety_stock",
+            "lead_time_days",
+            "is_active",
+            "notes",
+        ]
+        widgets = {
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "warehouse": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "min_stock": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "max_stock": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "reorder_point": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "reorder_quantity": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "safety_stock": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "lead_time_days": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+
+
+class ItemSupplierForm(forms.ModelForm):
+    """Form for item supplier records."""
+
+    class Meta:
+        model = ItemSupplier
+        fields = [
+            "item",
+            "supplier",
+            "supplier_part_number",
+            "supplier_description",
+            "unit_cost",
+            "currency",
+            "min_order_qty",
+            "lead_time_days",
+            "priority",
+            "is_preferred",
+            "is_active",
+            "notes",
+        ]
+        widgets = {
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "supplier": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "supplier_part_number": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "supplier_description": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "unit_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "currency": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "SAR"}),
+            "min_order_qty": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "lead_time_days": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "priority": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": "1"}),
+            "is_preferred": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+
+
+class ItemIdentifierForm(forms.ModelForm):
+    """Form for item identifiers."""
+
+    class Meta:
+        model = ItemIdentifier
+        fields = [
+            "item",
+            "identifier_type",
+            "identifier_value",
+            "description",
+            "is_primary",
+            "is_active",
+        ]
+        widgets = {
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "identifier_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "identifier_value": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "description": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "is_primary": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+        }
+
+
+class ItemBitSpecForm(forms.ModelForm):
+    """Form for item bit specifications."""
+
+    class Meta:
+        model = ItemBitSpec
+        fields = [
+            "item",
+            "bit_size",
+            "bit_type",
+            "tfa",
+            "blade_count",
+            "cutter_count",
+            "nozzle_count",
+            "iadc_code",
+            "notes",
+        ]
+        widgets = {
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "bit_size": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "bit_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "tfa": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "blade_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "cutter_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "nozzle_count": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "iadc_code": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+
+
+class ItemCutterSpecForm(forms.ModelForm):
+    """Form for item cutter specifications."""
+
+    class Meta:
+        model = ItemCutterSpec
+        fields = [
+            "item",
+            "cutter_type",
+            "cutter_shape",
+            "diameter",
+            "thickness",
+            "chamfer_size",
+            "grade",
+            "substrate",
+            "notes",
+        ]
+        widgets = {
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "cutter_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "cutter_shape": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "diameter": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "thickness": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "chamfer_size": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "grade": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "substrate": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
