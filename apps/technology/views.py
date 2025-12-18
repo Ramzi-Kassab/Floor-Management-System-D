@@ -13,7 +13,8 @@ from django.urls import reverse_lazy
 from django.views.generic import CreateView, DetailView, ListView, UpdateView, View
 
 from .forms import BOMForm, BOMLineForm, DesignCutterLayoutForm, DesignForm
-from .models import BOM, BOMLine, Design, DesignCutterLayout
+from .models import BOM, BOMLine, Design, DesignCutterLayout, PocketSize
+from workorders.models import BitSize
 
 
 # =============================================================================
@@ -271,3 +272,69 @@ class CutterLayoutDeleteView(LoginRequiredMixin, View):
         layout.delete()
         messages.success(request, "Cutter layout deleted.")
         return redirect("technology:design_detail", pk=design_pk)
+
+
+# =============================================================================
+# POCKET LAYOUT VIEWS
+# =============================================================================
+
+
+class PocketsLayoutListView(LoginRequiredMixin, ListView):
+    """List all designs for pocket layout management."""
+
+    model = Design
+    template_name = "technology/pockets_layout_list.html"
+    context_object_name = "designs"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = Design.objects.select_related("size").order_by("mat_no")
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(mat_no__icontains=search) | Q(hdbs_type__icontains=search)
+            )
+
+        size = self.request.GET.get("size")
+        if size:
+            queryset = queryset.filter(size_id=size)
+
+        status = self.request.GET.get("status")
+        if status:
+            queryset = queryset.filter(status=status)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Pockets Layout"
+        context["search_query"] = self.request.GET.get("q", "")
+        context["current_size"] = self.request.GET.get("size", "")
+        context["current_status"] = self.request.GET.get("status", "")
+        context["sizes"] = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+        context["status_choices"] = Design.Status.choices
+        return context
+
+
+class DesignPocketsView(LoginRequiredMixin, DetailView):
+    """Configure pocket layout for a design."""
+
+    model = Design
+    template_name = "technology/design_pockets.html"
+    context_object_name = "design"
+
+    def get_queryset(self):
+        return Design.objects.select_related("size")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Pockets Layout - {self.object.mat_no}"
+        context["pocket_configs"] = self.object.pocket_configs.select_related(
+            "pocket_shape", "pocket_size"
+        ).order_by("row_number", "order")
+        context["pockets"] = self.object.pockets.select_related("pocket_config").order_by(
+            "blade_number", "row_number", "position_in_row"
+        )
+        context["pocket_sizes"] = PocketSize.objects.filter(is_active=True).order_by("sort_order")
+        return context

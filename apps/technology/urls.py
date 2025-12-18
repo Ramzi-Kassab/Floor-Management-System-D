@@ -19,4 +19,7 @@ urlpatterns = [
     path("boms/<int:pk>/edit/", views.BOMUpdateView.as_view(), name="bom_update"),
     path("boms/<int:pk>/lines/add/", views.BOMLineCreateView.as_view(), name="bom_line_create"),
     path("boms/<int:pk>/lines/<int:line_pk>/delete/", views.BOMLineDeleteView.as_view(), name="bom_line_delete"),
+    # Pocket Layouts
+    path("pockets/", views.PocketsLayoutListView.as_view(), name="pockets_layout_list"),
+    path("designs/<int:pk>/pockets/", views.DesignPocketsView.as_view(), name="design_pockets"),
 ]
