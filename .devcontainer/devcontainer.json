@@ -1,13 +1,9 @@
 {
   "name": "ARDT FMS Development",
-  "dockerComposeFile": "docker-compose.yml",
-  "service": "app",
-  "workspaceFolder": "/workspace",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
 
   "features": {
-    "ghcr.io/devcontainers/features/git:1": {
-      "version": "latest"
-    }
+    "ghcr.io/devcontainers/features/git:1": {}
   },
 
   "customizations": {
@@ -15,67 +11,21 @@
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance",
-        "ms-python.black-formatter",
-        "ms-python.isort",
         "batisteo.vscode-django",
-        "mtxr.sqltools",
-        "mtxr.sqltools-driver-pg",
-        "esbenp.prettier-vscode",
-        "bradlc.vscode-tailwindcss",
-        "eamodio.gitlens",
-        "ms-azuretools.vscode-docker",
-        "GitHub.vscode-pull-request-github"
+        "eamodio.gitlens"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/usr/local/bin/python",
-        "python.linting.enabled": true,
-        "python.linting.pylintEnabled": false,
-        "python.linting.flake8Enabled": true,
         "[python]": {
-          "editor.defaultFormatter": "ms-python.black-formatter",
-          "editor.formatOnSave": true,
-          "editor.codeActionsOnSave": {
-            "source.organizeImports": "explicit"
-          }
-        },
-        "files.exclude": {
-          "**/__pycache__": true,
-          "**/*.pyc": true,
-          ".git": true
-        },
-        "files.associations": {
-          "*.html": "django-html"
-        },
-        "emmet.includeLanguages": {
-          "django-html": "html"
+          "editor.formatOnSave": true
         }
       }
     }
   },
 
-  "forwardPorts": [8000, 5432, 6379],
+  "forwardPorts": [8000],
 
-  "portsAttributes": {
-    "8000": {
-      "label": "Django Application",
-      "onAutoForward": "notify"
-    },
-    "5432": {
-      "label": "PostgreSQL Database",
-      "onAutoForward": "silent"
-    },
-    "6379": {
-      "label": "Redis Cache",
-      "onAutoForward": "silent"
-    }
-  },
+  "postCreateCommand": "pip install -r requirements.txt && cp .env.codespaces .env && python manage.py migrate && python manage.py collectstatic --no-input",
 
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
-
-  "remoteUser": "vscode",
-
-  "containerEnv": {
-    "PYTHONDONTWRITEBYTECODE": "1",
-    "PYTHONUNBUFFERED": "1"
-  }
+  "postStartCommand": "echo '✅ Ready! Run: python manage.py runserver 0.0.0.0:8000'"
 }
