@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Logs - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">System activity history</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="w-full md:w-40">
+            <select name="action" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Actions</option>
+                {% for value, label in action_choices %}
+                <option value="{{ value }}" {% if current_action == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-full md:w-48">
+            <select name="entity_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Types</option>
+                {% for type in entity_types %}
+                <option value="{{ type }}" {% if current_entity_type == type %}selected{% endif %}>{{ type }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">Filter</button>
+    </form>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if logs %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">Timestamp</th>
+                    <th class="px-6 py-3 font-medium">User</th>
+                    <th class="px-6 py-3 font-medium">Action</th>
+                    <th class="px-6 py-3 font-medium">Entity</th>
+                    <th class="px-6 py-3 font-medium">Description</th>
+                    <th class="px-6 py-3 font-medium text-right">Details</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for log in logs %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                        {{ log.created_at|date:"M d, Y H:i:s" }}
+                    </td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white">
+                        {{ log.user.get_full_name|default:log.user.username|default:"System" }}
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if log.action == 'CREATE' %}bg-green-100 text-green-800
+                            {% elif log.action == 'UPDATE' %}bg-blue-100 text-blue-800
+                            {% elif log.action == 'DELETE' %}bg-red-100 text-red-800
+                            {% elif log.action == 'LOGIN' %}bg-purple-100 text-purple-800
+                            {% elif log.action == 'LOGOUT' %}bg-gray-100 text-gray-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ log.get_action_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400 font-mono text-xs">
+                        {{ log.entity_type }}{% if log.entity_id %}:{{ log.entity_id }}{% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
+                        {{ log.entity_repr|truncatewords:8|default:"--" }}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{% url 'notifications:audit_detail' log.pk %}" class="text-blue-600 hover:underline">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+        <div class="flex items-center justify-between">
+            <p class="text-sm text-gray-500">
+                Showing {{ page_obj.start_index }} - {{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+            </p>
+            <div class="flex space-x-2">
+                {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50">Previous</a>
+                {% endif %}
+                {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}" class="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50">Next</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="scroll" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No audit logs</h3>
+        <p class="text-gray-500 dark:text-gray-400">Activity will appear here</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

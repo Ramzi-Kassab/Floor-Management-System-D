@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}QC Dashboard - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+    <p class="text-gray-600 dark:text-gray-400">Quality control inspections and NCR management</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- KPI Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <!-- Pending QC -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Pending Inspection</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">{{ pending_qc_count }}</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="clipboard-check" class="w-6 h-6 text-purple-600 dark:text-purple-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-gray-500 dark:text-gray-400">awaiting QC review</span>
+        </div>
+    </div>
+
+    <!-- Open NCRs -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Open NCRs</p>
+                <p class="text-3xl font-bold {% if open_ncrs > 0 %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %} mt-1">{{ open_ncrs }}</p>
+            </div>
+            <div class="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-gray-500 dark:text-gray-400">requires resolution</span>
+        </div>
+    </div>
+
+    <!-- Pass Rate -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">First Pass Rate</p>
+                <p class="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">--</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="percent" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-gray-500 dark:text-gray-400">this month</span>
+        </div>
+    </div>
+</div>
+
+<!-- Pending QC Work Orders -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Pending QC Inspections</h2>
+        <span class="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs font-medium px-2.5 py-0.5 rounded-full">{{ pending_qc_count }}</span>
+    </div>
+
+    {% if pending_qc %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+                    <th class="pb-3 font-medium">WO #</th>
+                    <th class="pb-3 font-medium">Customer</th>
+                    <th class="pb-3 font-medium">Drill Bit</th>
+                    <th class="pb-3 font-medium">Completed By</th>
+                    <th class="pb-3 font-medium">Due Date</th>
+                    <th class="pb-3 font-medium">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y dark:divide-gray-700">
+                {% for wo in pending_qc %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="py-3">
+                        <a href="{% url 'workorders:detail' wo.pk %}" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                            {{ wo.wo_number }}
+                        </a>
+                    </td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ wo.customer.name|default:"--" }}</td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ wo.drill_bit.serial_number|default:"--" }}</td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ wo.assigned_to.get_full_name|default:"--" }}</td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ wo.due_date|date:"M d, Y"|default:"--" }}</td>
+                    <td class="py-3">
+                        <div class="flex space-x-2">
+                            <a href="{% url 'workorders:detail' wo.pk %}" class="inline-flex items-center px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-lg hover:bg-purple-700 transition-colors">
+                                <i data-lucide="clipboard-check" class="w-3 h-3 mr-1"></i>
+                                Inspect
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+        <i data-lucide="check-circle" class="w-16 h-16 mx-auto mb-4 opacity-50 text-green-500"></i>
+        <p class="text-lg">All caught up!</p>
+        <p class="text-sm mt-2">No work orders pending QC inspection</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Recent NCRs -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent NCRs</h2>
+        <a href="#" class="text-sm text-primary-600 dark:text-primary-400 hover:underline">View all NCRs</a>
+    </div>
+
+    {% if recent_ncrs %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+                    <th class="pb-3 font-medium">NCR #</th>
+                    <th class="pb-3 font-medium">Work Order</th>
+                    <th class="pb-3 font-medium">Description</th>
+                    <th class="pb-3 font-medium">Detected By</th>
+                    <th class="pb-3 font-medium">Status</th>
+                    <th class="pb-3 font-medium">Created</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y dark:divide-gray-700">
+                {% for ncr in recent_ncrs %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="py-3">
+                        <a href="#" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                            {{ ncr.ncr_number }}
+                        </a>
+                    </td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">
+                        {% if ncr.work_order %}
+                        <a href="{% url 'workorders:detail' ncr.work_order.pk %}" class="hover:underline">
+                            {{ ncr.work_order.wo_number }}
+                        </a>
+                        {% else %}
+                        --
+                        {% endif %}
+                    </td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400 max-w-xs truncate">{{ ncr.description|truncatechars:50 }}</td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ ncr.detected_by.get_full_name|default:"--" }}</td>
+                    <td class="py-3">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if ncr.status == 'OPEN' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                            {% elif ncr.status == 'INVESTIGATING' or ncr.status == 'PENDING_DISPOSITION' or ncr.status == 'IN_REWORK' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                            {% elif ncr.status == 'CLOSED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ ncr.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="py-3 text-gray-600 dark:text-gray-400">{{ ncr.created_at|date:"M d, Y" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+        <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+        <p>No recent NCRs</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Quick Actions -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="plus-circle" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">Create NCR</span>
+        </a>
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="scan" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">Scan QR Code</span>
+        </a>
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="bar-chart-3" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">QC Reports</span>
+        </a>
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="settings" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">QC Settings</span>
+        </a>
+    </div>
+</div>
+{% endblock %}

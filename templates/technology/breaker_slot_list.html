@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Breaker Slots - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Breaker Slots</h1>
+        <p class="text-gray-600 dark:text-gray-400">Manage breaker slot specifications for bit designs</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'technology:breaker_slot_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Breaker Slot
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1">
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search by MAT No..."
+                       class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            </div>
+        </div>
+        <div class="w-full md:w-48">
+            <select name="material" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Materials</option>
+                {% for code, name in material_choices %}
+                <option value="{{ code }}" {% if request.GET.material == code %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>Filter
+        </button>
+    </form>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if breaker_slots %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">MAT No.</th>
+                    <th class="px-6 py-3 font-medium">Width (mm)</th>
+                    <th class="px-6 py-3 font-medium">Depth (mm)</th>
+                    <th class="px-6 py-3 font-medium">Length (mm)</th>
+                    <th class="px-6 py-3 font-medium">Material</th>
+                    <th class="px-6 py-3 font-medium">Hardness</th>
+                    <th class="px-6 py-3 font-medium">Designs</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for slot in breaker_slots %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4">
+                        <a href="{% url 'technology:breaker_slot_detail' slot.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium font-mono">
+                            {{ slot.mat_no }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white">{{ slot.slot_width }}</td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ slot.slot_depth }}</td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ slot.slot_length|default:"-" }}</td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            {{ slot.get_material_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ slot.hardness|default:"-" }}</td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ slot.designs.count }}</td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex items-center justify-end space-x-2">
+                            <a href="{% url 'technology:breaker_slot_detail' slot.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'technology:breaker_slot_update' slot.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'technology:breaker_slot_delete' slot.pk %}" class="p-1 text-gray-400 hover:text-red-600" title="Delete">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="wrench" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No breaker slots found</h3>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Create your first breaker slot</p>
+        <a href="{% url 'technology:breaker_slot_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Breaker Slot
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

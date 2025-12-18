@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Delete Leave Request - ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto mt-8">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+            <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
+        </div>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">Confirm Deletion</h2>
+        <p class="text-gray-600 dark:text-gray-400 text-center mb-6">
+            Are you sure you want to delete leave request <strong>{{ leaverequest.request_number }}</strong>?
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex justify-center gap-3">
+                <a href="{% url 'hr:leave-detail' leaverequest.pk %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">Cancel</a>
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} | ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+            <p class="text-gray-600 dark:text-gray-400">Generate reports and export data</p>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <i data-lucide="clipboard-list" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.work_orders_this_month }}</p>
+                    <p class="text-xs text-gray-500">WOs This Month</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                    <i data-lucide="activity" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.active_work_orders }}</p>
+                    <p class="text-xs text-gray-500">Active WOs</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 dark:text-yellow-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.low_stock_items }}</p>
+                    <p class="text-xs text-gray-500">Low Stock Items</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                    <i data-lucide="x-circle" class="w-5 h-5 text-red-600 dark:text-red-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.open_ncrs }}</p>
+                    <p class="text-xs text-gray-500">Open NCRs</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                    <i data-lucide="wrench" class="w-5 h-5 text-orange-600 dark:text-orange-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.pending_maintenance }}</p>
+                    <p class="text-xs text-gray-500">Pending Maint.</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                    <i data-lucide="shopping-cart" class="w-5 h-5 text-purple-600 dark:text-purple-400"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.pending_pos }}</p>
+                    <p class="text-xs text-gray-500">Pending POs</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Categories -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Work Orders -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                        <i data-lucide="clipboard-list" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Work Orders</h3>
+                        <p class="text-sm text-gray-500">Production and work order analytics</p>
+                    </div>
+                </div>
+                <a href="{% url 'reports:workorder_report' %}"
+                   class="block w-full text-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                    View Report
+                </a>
+            </div>
+        </div>
+
+        <!-- Inventory -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                        <i data-lucide="package" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Inventory</h3>
+                        <p class="text-sm text-gray-500">Stock levels and transactions</p>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <a href="{% url 'reports:inventory_report' %}"
+                       class="block w-full text-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
+                        Stock Report
+                    </a>
+                    <a href="{% url 'reports:low_stock_alert' %}"
+                       class="block w-full text-center px-4 py-2 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-colors">
+                        Low Stock Alerts ({{ stats.low_stock_items }})
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quality -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                        <i data-lucide="shield-check" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Quality</h3>
+                        <p class="text-sm text-gray-500">NCRs and inspection reports</p>
+                    </div>
+                </div>
+                <a href="{% url 'reports:quality_report' %}"
+                   class="block w-full text-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                    View Report
+                </a>
+            </div>
+        </div>
+
+        <!-- Maintenance -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                        <i data-lucide="wrench" class="w-6 h-6 text-orange-600 dark:text-orange-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Maintenance</h3>
+                        <p class="text-sm text-gray-500">MWOs and equipment tracking</p>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <a href="{% url 'reports:maintenance_report' %}"
+                       class="block w-full text-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors">
+                        MWO Report
+                    </a>
+                    <a href="{% url 'reports:equipment_health' %}"
+                       class="block w-full text-center px-4 py-2 border border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors">
+                        Equipment Health
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Supply Chain -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                        <i data-lucide="truck" class="w-6 h-6 text-purple-600 dark:text-purple-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Supply Chain</h3>
+                        <p class="text-sm text-gray-500">POs, PRs, and procurement</p>
+                    </div>
+                </div>
+                <a href="{% url 'reports:supplychain_report' %}"
+                   class="block w-full text-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                    View Report
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

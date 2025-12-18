@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}New{% endif %} Position - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'organization:position-list' %}" class="hover:text-blue-600">Positions</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{% if form.instance.pk %}Edit{% else %}New{% endif %}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if form.instance.pk %}Edit Position{% else %}New Position{% endif %}</h1>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-2xl">
+    <form method="post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        {% csrf_token %}
+        <div class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code *</label>
+                    <input type="text" name="code" id="id_code" value="{{ form.code.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    {% if form.code.errors %}<p class="mt-1 text-sm text-red-600">{{ form.code.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label for="id_title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title *</label>
+                    <input type="text" name="title" id="id_title" value="{{ form.title.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    {% if form.title.errors %}<p class="mt-1 text-sm text-red-600">{{ form.title.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+            <div>
+                <label for="id_title_ar" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Arabic Title</label>
+                <input type="text" name="title_ar" id="id_title_ar" value="{{ form.title_ar.value|default:'' }}" dir="rtl"
+                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="id_department" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department</label>
+                    <select name="department" id="id_department"
+                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                        <option value="">-- Select Department --</option>
+                        {% for dept in form.department.field.queryset %}
+                        <option value="{{ dept.pk }}" {% if form.department.value|stringformat:"s" == dept.pk|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="id_level" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Level</label>
+                    <select name="level" id="id_level"
+                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                        {% for i in "12345" %}
+                        <option value="{{ i }}" {% if form.level.value|stringformat:"s" == i %}selected{% endif %}>Level {{ i }}{% if i == "1" %} (Entry){% elif i == "5" %} (Executive){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <textarea name="description" id="id_description" rows="4"
+                          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">{{ form.description.value|default:'' }}</textarea>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" name="is_active" id="id_is_active" {% if form.is_active.value %}checked{% endif %}
+                       class="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                <label for="id_is_active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <a href="{% url 'organization:position-list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">Cancel</a>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                {% if form.instance.pk %}Update{% else %}Create{% endif %} Position
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

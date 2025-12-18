@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Tasks - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            {{ pending_count }} pending, {{ in_progress_count }} in progress
+        </p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'notifications:task_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Task
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="flex gap-2">
+            <a href="?view=assigned" class="px-4 py-2 rounded-lg {% if current_view == 'assigned' %}bg-blue-600 text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200{% endif %}">
+                Assigned to Me
+            </a>
+            <a href="?view=created" class="px-4 py-2 rounded-lg {% if current_view == 'created' %}bg-blue-600 text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200{% endif %}">
+                Created by Me
+            </a>
+        </div>
+        <div class="flex-1"></div>
+        <div class="w-full md:w-40">
+            <select name="status" onchange="this.form.submit()" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Statuses</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-full md:w-40">
+            <select name="priority" onchange="this.form.submit()" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Priorities</option>
+                {% for value, label in priority_choices %}
+                <option value="{{ value }}" {% if current_priority == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <input type="hidden" name="view" value="{{ current_view }}">
+    </form>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if tasks %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">Task</th>
+                    <th class="px-6 py-3 font-medium">{% if current_view == 'created' %}Assigned To{% else %}Assigned By{% endif %}</th>
+                    <th class="px-6 py-3 font-medium">Due Date</th>
+                    <th class="px-6 py-3 font-medium">Priority</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for task in tasks %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4">
+                        <a href="{% url 'notifications:task_detail' task.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                            {{ task.title }}
+                        </a>
+                        {% if task.description %}
+                        <p class="text-sm text-gray-500 mt-1">{{ task.description|truncatewords:10 }}</p>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
+                        {% if current_view == 'created' %}
+                        {{ task.assigned_to.get_full_name|default:task.assigned_to.username }}
+                        {% else %}
+                        {{ task.assigned_by.get_full_name|default:"--" }}
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
+                        {% if task.due_date %}
+                        <span class="{% if task.due_date < now %}text-red-600{% endif %}">
+                            {{ task.due_date|date:"M d, Y" }}
+                        </span>
+                        {% else %}
+                        --
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if task.priority == 'URGENT' %}bg-red-100 text-red-800
+                            {% elif task.priority == 'HIGH' %}bg-orange-100 text-orange-800
+                            {% elif task.priority == 'LOW' %}bg-gray-100 text-gray-800
+                            {% else %}bg-blue-100 text-blue-800{% endif %}">
+                            {{ task.get_priority_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if task.status == 'COMPLETED' %}bg-green-100 text-green-800
+                            {% elif task.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-800
+                            {% elif task.status == 'CANCELLED' %}bg-gray-100 text-gray-800
+                            {% else %}bg-blue-100 text-blue-800{% endif %}">
+                            {{ task.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex items-center justify-end space-x-2">
+                            {% if task.status == 'PENDING' or task.status == 'IN_PROGRESS' %}
+                            <form method="post" action="{% url 'notifications:task_complete' task.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="p-1 text-gray-400 hover:text-green-600" title="Complete">
+                                    <i data-lucide="check" class="w-4 h-4"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            <a href="{% url 'notifications:task_update' task.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="check-square" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No tasks found</h3>
+        <a href="{% url 'notifications:task_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Task
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

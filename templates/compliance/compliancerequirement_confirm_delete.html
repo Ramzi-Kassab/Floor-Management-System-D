@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Delete {{ object.requirement_code }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto mt-8">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <div class="text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900 mb-4">
+                <i data-lucide="alert-triangle" class="h-6 w-6 text-red-600 dark:text-red-400"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Delete Compliance Requirement</h3>
+            <p class="text-gray-500 dark:text-gray-400 mb-6">
+                Are you sure you want to delete <strong class="text-gray-900 dark:text-white">{{ object.requirement_code }}</strong>?
+                <br>This action cannot be undone.
+            </p>
+
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6 text-left">
+                <dl class="space-y-2">
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Title:</dt>
+                        <dd class="text-sm text-gray-900 dark:text-white">{{ object.title|truncatewords:10 }}</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Type:</dt>
+                        <dd class="text-sm text-gray-900 dark:text-white">{{ object.get_requirement_type_display }}</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Status:</dt>
+                        <dd class="text-sm text-gray-900 dark:text-white">{{ object.get_status_display }}</dd>
+                    </div>
+                </dl>
+            </div>
+
+            <form method="post" class="flex justify-center gap-4">
+                {% csrf_token %}
+                <a href="{% url 'compliance:compliancerequirement_list' %}"
+                   class="px-6 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-medium rounded-lg transition">
+                    Cancel
+                </a>
+                <button type="submit"
+                        class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition">
+                    <i data-lucide="trash-2" class="w-4 h-4 inline mr-2"></i>
+                    Delete
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

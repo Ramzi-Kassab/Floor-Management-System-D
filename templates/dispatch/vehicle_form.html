@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Vehicle - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
+                <i data-lucide="home" class="w-4 h-4"></i>
+            </a>
+        </li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'dispatch:dispatch-list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">Dispatch</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'dispatch:vehicle-list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">Vehicles</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">{% if form.instance.pk %}Edit{% else %}Add{% endif %}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if form.instance.pk %}Edit Vehicle{% else %}Add Vehicle{% endif %}</h1>
+    <p class="text-gray-600 dark:text-gray-400">{% if form.instance.pk %}Update vehicle information{% else %}Register a new vehicle{% endif %}</p>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-2xl">
+    <form method="post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        {% csrf_token %}
+        <div class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code *</label>
+                    <input type="text" name="code" id="id_code" value="{{ form.code.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    {% if form.code.errors %}<p class="mt-1 text-sm text-red-600">{{ form.code.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label for="id_plate_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Plate Number *</label>
+                    <input type="text" name="plate_number" id="id_plate_number" value="{{ form.plate_number.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    {% if form.plate_number.errors %}<p class="mt-1 text-sm text-red-600">{{ form.plate_number.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label for="id_make" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Make</label>
+                    <input type="text" name="make" id="id_make" value="{{ form.make.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                           placeholder="e.g., Toyota">
+                </div>
+                <div>
+                    <label for="id_model" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model</label>
+                    <input type="text" name="model" id="id_model" value="{{ form.model.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                           placeholder="e.g., Hilux">
+                </div>
+                <div>
+                    <label for="id_year" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Year</label>
+                    <input type="number" name="year" id="id_year" value="{{ form.year.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                           placeholder="2024">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="id_capacity" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Capacity</label>
+                    <input type="text" name="capacity" id="id_capacity" value="{{ form.capacity.value|default:'' }}"
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                           placeholder="e.g., 2 tons">
+                </div>
+                <div>
+                    <label for="id_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                    <select name="status" id="id_status"
+                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                        {% for value, label in form.fields.status.choices %}
+                        <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" name="is_active" id="id_is_active" {% if form.is_active.value %}checked{% endif %}
+                       class="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                <label for="id_is_active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <a href="{% url 'dispatch:vehicle-list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">Cancel</a>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                {% if form.instance.pk %}Update{% else %}Add{% endif %} Vehicle
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

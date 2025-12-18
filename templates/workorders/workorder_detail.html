@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ work_order.wo_number }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        <li><a href="{% url 'dashboard:index' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Dashboard</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'workorders:list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Work Orders</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li class="text-gray-900 dark:text-white font-medium">{{ work_order.wo_number }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ work_order.wo_number }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if work_order.status == 'DRAFT' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+                {% elif work_order.status == 'PLANNED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                {% elif work_order.status == 'RELEASED' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200
+                {% elif work_order.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                {% elif work_order.status == 'ON_HOLD' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                {% elif work_order.status == 'QC_PENDING' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                {% elif work_order.status == 'QC_PASSED' %}bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200
+                {% elif work_order.status == 'QC_FAILED' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                {% elif work_order.status == 'COMPLETED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                {% elif work_order.status == 'CANCELLED' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ work_order.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ work_order.get_wo_type_display }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        {% if work_order.status == 'RELEASED' or work_order.status == 'PLANNED' %}
+        <form method="post" action="{% url 'workorders:start' work_order.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                <i data-lucide="play" class="w-4 h-4 mr-2"></i>
+                Start Work
+            </button>
+        </form>
+        {% elif work_order.status == 'IN_PROGRESS' %}
+        <form method="post" action="{% url 'workorders:complete' work_order.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i data-lucide="check" class="w-4 h-4 mr-2"></i>
+                Complete
+            </button>
+        </form>
+        {% endif %}
+        <a href="{% url 'workorders:update' work_order.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
+            Edit
+        </a>
+        <a href="{% url 'workorders:list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Content -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Work Order Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Work Order Details</h2>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">WO Number</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ work_order.wo_number }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ work_order.get_wo_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Priority</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if work_order.priority == 'CRITICAL' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                            {% elif work_order.priority == 'URGENT' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                            {% elif work_order.priority == 'HIGH' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                            {% elif work_order.priority == 'NORMAL' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                            {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                            {{ work_order.get_priority_display }}
+                        </span>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Progress</dt>
+                    <dd class="flex items-center">
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
+                            <div class="bg-blue-600 h-2 rounded-full" style="width: {{ work_order.progress_percent }}%"></div>
+                        </div>
+                        <span class="text-sm text-gray-600 dark:text-gray-400">{{ work_order.progress_percent }}%</span>
+                    </dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Drill Bit Info -->
+        {% if work_order.drill_bit %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Drill Bit Information</h2>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Serial Number</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.serial_number }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ work_order.drill_bit.get_bit_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Size</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ work_order.drill_bit.size }}"</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">IADC Code</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ work_order.drill_bit.iadc_code|default:"--" }}</dd>
+                </div>
+                {% if work_order.drill_bit.design %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Design</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ work_order.drill_bit.design.code }}</dd>
+                </div>
+                {% endif %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Status</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ work_order.drill_bit.get_status_display }}</dd>
+                </div>
+            </dl>
+        </div>
+        {% endif %}
+
+        <!-- Description & Notes -->
+        {% if work_order.description or work_order.notes %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description & Notes</h2>
+            {% if work_order.description %}
+            <div class="mb-4">
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Description</h3>
+                <p class="text-gray-900 dark:text-white whitespace-pre-wrap">{{ work_order.description }}</p>
+            </div>
+            {% endif %}
+            {% if work_order.notes %}
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</h3>
+                <p class="text-gray-900 dark:text-white whitespace-pre-wrap">{{ work_order.notes }}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Sidebar -->
+    <div class="space-y-6">
+        <!-- Customer Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Customer</h2>
+            {% if work_order.customer %}
+            <div class="flex items-center mb-4">
+                <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mr-3">
+                    <i data-lucide="building" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                </div>
+                <div>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ work_order.customer.name }}</p>
+                    {% if work_order.customer.customer_code %}
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ work_order.customer.customer_code }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% if work_order.rig %}
+            <div class="text-sm">
+                <span class="text-gray-500 dark:text-gray-400">Rig:</span>
+                <span class="text-gray-900 dark:text-white ml-1">{{ work_order.rig.name }}</span>
+            </div>
+            {% endif %}
+            {% if work_order.well %}
+            <div class="text-sm">
+                <span class="text-gray-500 dark:text-gray-400">Well:</span>
+                <span class="text-gray-900 dark:text-white ml-1">{{ work_order.well.name }}</span>
+            </div>
+            {% endif %}
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">No customer assigned</p>
+            {% endif %}
+        </div>
+
+        <!-- Schedule -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Schedule</h2>
+            <dl class="space-y-3">
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Due Date</dt>
+                    <dd class="text-sm {% if work_order.due_date %}{% if work_order.due_date < today %}text-red-600 dark:text-red-400 font-medium{% else %}text-gray-900 dark:text-white{% endif %}{% else %}text-gray-400{% endif %}">
+                        {{ work_order.due_date|date:"M d, Y"|default:"Not set" }}
+                    </dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Planned Start</dt>
+                    <dd class="text-sm text-gray-900 dark:text-white">{{ work_order.planned_start|date:"M d, Y"|default:"--" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Planned End</dt>
+                    <dd class="text-sm text-gray-900 dark:text-white">{{ work_order.planned_end|date:"M d, Y"|default:"--" }}</dd>
+                </div>
+                {% if work_order.actual_start %}
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Actual Start</dt>
+                    <dd class="text-sm text-gray-900 dark:text-white">{{ work_order.actual_start|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% endif %}
+                {% if work_order.actual_end %}
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Actual End</dt>
+                    <dd class="text-sm text-gray-900 dark:text-white">{{ work_order.actual_end|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <!-- Assignment -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Assignment</h2>
+            {% if work_order.assigned_to %}
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center mr-3">
+                    <span class="text-sm font-medium text-gray-600 dark:text-gray-300">
+                        {{ work_order.assigned_to.first_name|slice:":1" }}{{ work_order.assigned_to.last_name|slice:":1" }}
+                    </span>
+                </div>
+                <div>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ work_order.assigned_to.get_full_name }}</p>
+                    {% if work_order.department %}
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ work_order.department.name }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">Not assigned</p>
+            {% endif %}
+        </div>
+
+        <!-- Audit Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Audit</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ work_order.created_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% if work_order.created_by %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Created By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ work_order.created_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Last Updated</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ work_order.updated_at|date:"M d, Y H:i" }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

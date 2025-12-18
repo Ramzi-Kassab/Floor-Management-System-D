@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} | ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <div class="flex items-center space-x-2">
+                <a href="{% url 'reports:dashboard' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                </a>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+            </div>
+            <p class="text-gray-600 dark:text-gray-400 mt-1">Equipment health scoring based on maintenance history</p>
+        </div>
+    </div>
+
+    <!-- Health Legend -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Health Score Legend</h3>
+        <div class="flex items-center space-x-6">
+            <div class="flex items-center">
+                <div class="w-4 h-4 rounded-full bg-green-500 mr-2"></div>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Good (70-100)</span>
+            </div>
+            <div class="flex items-center">
+                <div class="w-4 h-4 rounded-full bg-yellow-500 mr-2"></div>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Fair (40-69)</span>
+            </div>
+            <div class="flex items-center">
+                <div class="w-4 h-4 rounded-full bg-red-500 mr-2"></div>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Poor (0-39)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Equipment Health Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for item in equipment_health %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+            <div class="p-6">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ item.equipment.code }}</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">{{ item.equipment.name }}</p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-3xl font-bold {{ item.status_class }}">{{ item.health_score }}</div>
+                        <div class="text-xs text-gray-500">Health Score</div>
+                    </div>
+                </div>
+
+                <!-- Health Bar -->
+                <div class="mt-4">
+                    <div class="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full transition-all duration-500
+                            {% if item.health_score >= 70 %}bg-green-500
+                            {% elif item.health_score >= 40 %}bg-yellow-500
+                            {% else %}bg-red-500{% endif %}"
+                            style="width: {{ item.health_score }}%">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="mt-4 grid grid-cols-2 gap-4 text-center">
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <p class="text-xl font-bold text-gray-900 dark:text-white">{{ item.equipment.mwo_count }}</p>
+                        <p class="text-xs text-gray-500">Total MWOs</p>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <p class="text-xl font-bold text-green-600">{{ item.equipment.completed_mwos }}</p>
+                        <p class="text-xs text-gray-500">Completed</p>
+                    </div>
+                </div>
+
+                <!-- Status and Actions -->
+                <div class="mt-4 flex items-center justify-between">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full
+                        {% if item.equipment.status == 'OPERATIONAL' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                        {% elif item.equipment.status == 'MAINTENANCE' %}bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400
+                        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                        {{ item.equipment.get_status_display }}
+                    </span>
+                    <a href="{% url 'maintenance:equipment_detail' item.equipment.pk %}"
+                       class="text-sm text-blue-600 hover:underline">
+                        View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-3">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+                <div class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="settings" class="w-8 h-8 text-gray-400"></i>
+                </div>
+                <p class="text-lg font-medium text-gray-900 dark:text-white">No Equipment Found</p>
+                <p class="text-gray-500 dark:text-gray-400">Add equipment to start tracking health scores.</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

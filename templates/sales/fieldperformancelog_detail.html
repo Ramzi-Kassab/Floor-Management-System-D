@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Performance Log #{{ log.pk }}</h1>
+            <p class="text-sm text-gray-500 mt-1">Log Date: {{ log.log_date|date:"M d, Y"|default:"N/A" }}</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:fieldperformancelog_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:fieldperformancelog_update' log.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Run Information</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Drill String Run</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.drill_string_run.run_number|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Shift</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.get_shift_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Technician</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.technician.tech_id|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Formation</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.formation|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Time Breakdown</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Drilling Hours</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.drilling_hours|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Rotating Hours</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.rotating_hours|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Circulating Hours</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.circulating_hours|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Tripping Hours</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.tripping_hours|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Performance Metrics</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Footage Drilled</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.footage_drilled|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Avg ROP</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.avg_rop|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Max ROP</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.max_rop|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Performance Rating</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.get_performance_rating_display|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Drilling Parameters</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Avg WOB</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.avg_wob|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Avg RPM</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.avg_rpm|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Avg Torque</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.avg_torque|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Avg Flow Rate</dt><dd class="font-medium text-gray-900 dark:text-white">{{ log.avg_flow_rate|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+    {% if log.observations or log.recommendations %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Notes</h3>
+        {% if log.observations %}<div class="mb-4"><h4 class="text-sm font-medium text-gray-500 mb-1">Observations</h4><p class="text-gray-900 dark:text-white">{{ log.observations }}</p></div>{% endif %}
+        {% if log.recommendations %}<div><h4 class="text-sm font-medium text-gray-500 mb-1">Recommendations</h4><p class="text-gray-900 dark:text-white">{{ log.recommendations }}</p></div>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

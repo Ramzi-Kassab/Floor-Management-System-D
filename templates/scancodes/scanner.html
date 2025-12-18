@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Scanner - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
+                <i data-lucide="home" class="w-4 h-4"></i>
+            </a>
+        </li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'scancodes:scancode-list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">Scan Codes</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">Scanner</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Scan QR codes or barcodes</p>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'scancodes:scancode-list' %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="list" class="w-4 h-4 mr-2"></i>View All Codes
+        </a>
+        <a href="{% url 'scancodes:scanlog-list' %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="history" class="w-4 h-4 mr-2"></i>Scan History
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+        <form id="scan-form" method="post" action="{% url 'scancodes:verify-scan' %}">
+            {% csrf_token %}
+            <div class="mb-4">
+                <label for="code-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Scan or Enter Code</label>
+                <input type="text" name="code" id="code-input" autofocus
+                       class="w-full px-4 py-3 text-lg border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 font-mono"
+                       placeholder="Scan barcode or enter code manually...">
+            </div>
+            <div class="mb-4">
+                <label for="purpose-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Purpose</label>
+                <select name="purpose" id="purpose-select"
+                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="IDENTIFY">Identification</option>
+                    <option value="VERIFY">Verification</option>
+                    <option value="CHECK_IN">Check In</option>
+                    <option value="CHECK_OUT">Check Out</option>
+                    <option value="STEP_COMPLETE">Step Completion</option>
+                    <option value="TRANSFER">Transfer</option>
+                </select>
+            </div>
+            <button type="submit" class="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                <i data-lucide="scan" class="w-5 h-5 inline mr-2"></i>Verify Code
+            </button>
+        </form>
+    </div>
+
+    <div id="scan-result" class="hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div id="result-success" class="hidden">
+                <div class="flex items-center justify-center w-16 h-16 mx-auto bg-green-100 dark:bg-green-900/30 rounded-full mb-4">
+                    <i data-lucide="check-circle" class="w-8 h-8 text-green-600 dark:text-green-400"></i>
+                </div>
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-white text-center mb-4">Code Verified</h2>
+                <dl class="space-y-3" id="result-details">
+                </dl>
+            </div>
+            <div id="result-error" class="hidden">
+                <div class="flex items-center justify-center w-16 h-16 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+                    <i data-lucide="x-circle" class="w-8 h-8 text-red-600 dark:text-red-400"></i>
+                </div>
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-white text-center mb-2">Verification Failed</h2>
+                <p id="error-message" class="text-gray-600 dark:text-gray-400 text-center"></p>
+            </div>
+            <button type="button" id="scan-again" class="w-full mt-6 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+                Scan Another Code
+            </button>
+        </div>
+    </div>
+
+    <div class="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-6 mt-6">
+        <h3 class="font-medium text-blue-900 dark:text-blue-200 mb-2">
+            <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>Tips
+        </h3>
+        <ul class="text-sm text-blue-800 dark:text-blue-300 space-y-1">
+            <li>Position the barcode in front of your scanner</li>
+            <li>The code will auto-submit when scanned</li>
+            <li>Or manually enter the code and click Verify</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('scan-form');
+    const input = document.getElementById('code-input');
+    const resultDiv = document.getElementById('scan-result');
+    const successDiv = document.getElementById('result-success');
+    const errorDiv = document.getElementById('result-error');
+    const detailsDiv = document.getElementById('result-details');
+    const errorMsg = document.getElementById('error-message');
+    const scanAgain = document.getElementById('scan-again');
+
+    // Auto-submit on barcode scan (usually ends with Enter)
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            form.dispatchEvent(new Event('submit'));
+        }
+    });
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+
+        fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            resultDiv.classList.remove('hidden');
+
+            if (data.success) {
+                successDiv.classList.remove('hidden');
+                errorDiv.classList.add('hidden');
+
+                detailsDiv.innerHTML = `
+                    <div class="flex justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+                        <dt class="text-gray-500 dark:text-gray-400">Code</dt>
+                        <dd class="text-gray-900 dark:text-white font-mono">${data.code}</dd>
+                    </div>
+                    <div class="flex justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+                        <dt class="text-gray-500 dark:text-gray-400">Type</dt>
+                        <dd class="text-gray-900 dark:text-white">${data.code_type}</dd>
+                    </div>
+                    <div class="flex justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+                        <dt class="text-gray-500 dark:text-gray-400">Entity</dt>
+                        <dd class="text-gray-900 dark:text-white">${data.entity_type}</dd>
+                    </div>
+                    ${data.entity_id ? `
+                    <div class="flex justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+                        <dt class="text-gray-500 dark:text-gray-400">Entity ID</dt>
+                        <dd class="text-gray-900 dark:text-white">#${data.entity_id}</dd>
+                    </div>
+                    ` : ''}
+                    ${data.is_external ? `
+                    <div class="flex justify-between py-2">
+                        <dt class="text-gray-500 dark:text-gray-400">Source</dt>
+                        <dd class="text-gray-900 dark:text-white">${data.external_source || 'External'}</dd>
+                    </div>
+                    ` : ''}
+                `;
+            } else {
+                successDiv.classList.add('hidden');
+                errorDiv.classList.remove('hidden');
+                errorMsg.textContent = data.error;
+            }
+
+            input.value = '';
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            resultDiv.classList.remove('hidden');
+            successDiv.classList.add('hidden');
+            errorDiv.classList.remove('hidden');
+            errorMsg.textContent = 'Network error. Please try again.';
+        });
+    });
+
+    scanAgain.addEventListener('click', function() {
+        resultDiv.classList.add('hidden');
+        input.focus();
+    });
+});
+</script>
+{% endblock %}

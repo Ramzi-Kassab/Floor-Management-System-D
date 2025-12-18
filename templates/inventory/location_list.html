@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Storage locations within warehouses</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'inventory:location_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Location
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search by code or name..."
+                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+        </div>
+        <div class="w-full md:w-48">
+            <select name="warehouse" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Warehouses</option>
+                {% for wh in warehouses %}
+                <option value="{{ wh.pk }}" {% if current_warehouse == wh.pk|stringformat:"s" %}selected{% endif %}>{{ wh.code }} - {{ wh.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="search" class="w-4 h-4"></i>
+        </button>
+    </form>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if locations %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">Code</th>
+                    <th class="px-6 py-3 font-medium">Name</th>
+                    <th class="px-6 py-3 font-medium">Warehouse</th>
+                    <th class="px-6 py-3 font-medium">Path</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for loc in locations %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4 font-mono text-blue-600 dark:text-blue-400">{{ loc.code }}</td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white">{{ loc.name }}</td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ loc.warehouse.name }}</td>
+                    <td class="px-6 py-4 text-gray-500 font-mono text-xs">
+                        {% if loc.aisle %}{{ loc.aisle }}{% endif %}
+                        {% if loc.rack %}-{{ loc.rack }}{% endif %}
+                        {% if loc.shelf %}-{{ loc.shelf }}{% endif %}
+                        {% if loc.bin %}-{{ loc.bin }}{% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if loc.is_active %}
+                        <span class="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded">Active</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-800 rounded">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{% url 'inventory:location_update' loc.pk %}" class="text-gray-400 hover:text-blue-600">
+                            <i data-lucide="edit" class="w-4 h-4"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="map-pin" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No locations found</h3>
+        <a href="{% url 'inventory:location_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Location
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

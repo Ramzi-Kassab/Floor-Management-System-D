@@ -1,0 +1,402 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <div class="h-16 w-16 rounded-full bg-ardt-blue flex items-center justify-center text-white text-2xl font-bold">
+                {{ customer.name|slice:":2"|upper }}
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ customer.name }}</h1>
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="text-sm text-gray-500 dark:text-gray-400">{{ customer.code }}</span>
+                    {% if customer.is_aramco %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                        ARAMCO
+                    </span>
+                    {% endif %}
+                    {% if customer.is_active %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                        Active
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                        Inactive
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:customer_list' %}"
+               class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                Back to List
+            </a>
+            <a href="{% url 'sales:customer_update' customer.pk %}"
+               class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
+                Edit Customer
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Contacts</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.total_contacts }}</p>
+                </div>
+                <i data-lucide="users" class="w-8 h-8 text-blue-500"></i>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Rigs</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.total_rigs }}</p>
+                </div>
+                <i data-lucide="hard-hat" class="w-8 h-8 text-amber-500"></i>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Wells</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.total_wells }}</p>
+                </div>
+                <i data-lucide="droplets" class="w-8 h-8 text-cyan-500"></i>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Work Orders</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.total_work_orders|default:0 }}</p>
+                </div>
+                <i data-lucide="clipboard-list" class="w-8 h-8 text-green-500"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs Content -->
+    <div x-data="{ activeTab: 'overview' }">
+        <!-- Tab Navigation -->
+        <div class="border-b border-gray-200 dark:border-gray-700">
+            <nav class="-mb-px flex space-x-8">
+                <button @click="activeTab = 'overview'" :class="activeTab === 'overview' ? 'border-ardt-blue text-ardt-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm">
+                    Overview
+                </button>
+                <button @click="activeTab = 'contacts'" :class="activeTab === 'contacts' ? 'border-ardt-blue text-ardt-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm">
+                    Contacts ({{ stats.total_contacts }})
+                </button>
+                <button @click="activeTab = 'rigs'" :class="activeTab === 'rigs' ? 'border-ardt-blue text-ardt-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm">
+                    Rigs ({{ stats.total_rigs }})
+                </button>
+                <button @click="activeTab = 'wells'" :class="activeTab === 'wells' ? 'border-ardt-blue text-ardt-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm">
+                    Wells ({{ stats.total_wells }})
+                </button>
+            </nav>
+        </div>
+
+        <!-- Overview Tab -->
+        <div x-show="activeTab === 'overview'" class="py-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Customer Information -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Customer Information</h3>
+                    </div>
+                    <div class="px-6 py-4 space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Type</p>
+                                <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ customer.get_customer_type_display }}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Account Manager</p>
+                                <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ customer.account_manager.get_full_name|default:"-" }}</p>
+                            </div>
+                        </div>
+                        {% if customer.name_ar %}
+                        <div>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Name (Arabic)</p>
+                            <p class="mt-1 text-sm text-gray-900 dark:text-white" dir="rtl">{{ customer.name_ar }}</p>
+                        </div>
+                        {% endif %}
+                        <div>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Address</p>
+                            <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                                {{ customer.address|default:"-" }}<br>
+                                {% if customer.city %}{{ customer.city }}, {% endif %}{{ customer.country }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact Information -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Contact Information</h3>
+                    </div>
+                    <div class="px-6 py-4 space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Phone</p>
+                                <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                                    {% if customer.phone %}
+                                    <a href="tel:{{ customer.phone }}" class="hover:text-ardt-blue">{{ customer.phone }}</a>
+                                    {% else %}-{% endif %}
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Email</p>
+                                <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                                    {% if customer.email %}
+                                    <a href="mailto:{{ customer.email }}" class="hover:text-ardt-blue">{{ customer.email }}</a>
+                                    {% else %}-{% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Website</p>
+                            <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                                {% if customer.website %}
+                                <a href="{{ customer.website }}" target="_blank" class="hover:text-ardt-blue">{{ customer.website }}</a>
+                                {% else %}-{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Business Information -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Business Information</h3>
+                    </div>
+                    <div class="px-6 py-4 space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Tax ID</p>
+                                <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ customer.tax_id|default:"-" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Payment Terms</p>
+                                <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ customer.payment_terms|default:"-" }}</p>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Credit Limit</p>
+                            <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                                {% if customer.credit_limit %}SAR {{ customer.credit_limit|floatformat:2 }}{% else %}-{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Information -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">System Information</h3>
+                    </div>
+                    <div class="px-6 py-4 space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Created</p>
+                                <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ customer.created_at|date:"M d, Y H:i" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Created By</p>
+                                <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ customer.created_by.get_full_name|default:"-" }}</p>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Last Updated</p>
+                            <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ customer.updated_at|date:"M d, Y H:i" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contacts Tab -->
+        <div x-show="activeTab === 'contacts'" x-cloak class="py-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Contacts</h3>
+                    <a href="{% url 'sales:contact_add' customer.pk %}"
+                       class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
+                        Add Contact
+                    </a>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Title</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Email</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Phone</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            {% for contact in contacts %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ contact.name }}</span>
+                                        {% if contact.is_primary %}
+                                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Primary</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ contact.title|default:"-" }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                    {% if contact.email %}<a href="mailto:{{ contact.email }}" class="hover:text-ardt-blue">{{ contact.email }}</a>{% else %}-{% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ contact.phone|default:contact.mobile|default:"-" }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <a href="{% url 'sales:contact_edit' contact.pk %}" class="text-ardt-blue hover:text-blue-700 mr-3">Edit</a>
+                                    <a href="{% url 'sales:contact_delete' contact.pk %}" class="text-red-600 hover:text-red-700">Delete</a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                                    No contacts found. <a href="{% url 'sales:contact_add' customer.pk %}" class="text-ardt-blue hover:underline">Add the first contact</a>.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rigs Tab -->
+        <div x-show="activeTab === 'rigs'" x-cloak class="py-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Rigs</h3>
+                    <a href="{% url 'sales:rig_create' %}?customer={{ customer.pk }}"
+                       class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
+                        Add Rig
+                    </a>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Rig</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Location</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            {% for rig in rigs %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <a href="{% url 'sales:rig_detail' rig.pk %}" class="text-sm font-medium text-gray-900 dark:text-white hover:text-ardt-blue">
+                                        {{ rig.code }} - {{ rig.name }}
+                                    </a>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ rig.rig_type|default:"-" }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ rig.location|default:"-" }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if rig.is_active %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                                    {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <a href="{% url 'sales:rig_detail' rig.pk %}" class="text-ardt-blue hover:text-blue-700">View</a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                                    No rigs found for this customer.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wells Tab -->
+        <div x-show="activeTab === 'wells'" x-cloak class="py-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Wells</h3>
+                    <a href="{% url 'sales:well_create' %}?customer={{ customer.pk }}"
+                       class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
+                        Add Well
+                    </a>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Well</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Rig</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Field</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Target Depth</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            {% for well in wells %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <a href="{% url 'sales:well_detail' well.pk %}" class="text-sm font-medium text-gray-900 dark:text-white hover:text-ardt-blue">
+                                        {{ well.code }} - {{ well.name }}
+                                    </a>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ well.rig.name|default:"-" }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ well.field_name|default:"-" }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                    {% if well.target_depth %}{{ well.target_depth|floatformat:0 }} ft{% else %}-{% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if well.is_active %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                                    {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                                    No wells found for this customer.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+[
+  {"model": "procedures.checkpointtype", "pk": 1, "fields": {"code": "OK_NOK", "name": "OK / Not OK", "description": "Simple pass/fail check", "input_type": "radio", "default_options": ["OK", "NOK"]}},
+  {"model": "procedures.checkpointtype", "pk": 2, "fields": {"code": "PASS_FAIL", "name": "Pass / Fail", "description": "Quality pass/fail determination", "input_type": "radio", "default_options": ["PASS", "FAIL"]}},
+  {"model": "procedures.checkpointtype", "pk": 3, "fields": {"code": "YES_NO", "name": "Yes / No", "description": "Binary yes/no question", "input_type": "radio", "default_options": ["YES", "NO"]}},
+  {"model": "procedures.checkpointtype", "pk": 4, "fields": {"code": "MEASURE", "name": "Measurement", "description": "Numeric measurement with tolerance", "input_type": "number", "default_options": null}},
+  {"model": "procedures.checkpointtype", "pk": 5, "fields": {"code": "SELECT", "name": "Selection", "description": "Select from predefined options", "input_type": "select", "default_options": null}},
+  {"model": "procedures.checkpointtype", "pk": 6, "fields": {"code": "TEXT", "name": "Text Entry", "description": "Free text entry", "input_type": "text", "default_options": null}},
+  {"model": "procedures.checkpointtype", "pk": 7, "fields": {"code": "NUMBER", "name": "Number", "description": "Numeric value without tolerance", "input_type": "number", "default_options": null}},
+  {"model": "procedures.checkpointtype", "pk": 8, "fields": {"code": "PHOTO", "name": "Photo Required", "description": "Must capture photo evidence", "input_type": "file", "default_options": null}},
+  {"model": "procedures.checkpointtype", "pk": 9, "fields": {"code": "SIGNATURE", "name": "Signature", "description": "Requires signature capture", "input_type": "signature", "default_options": null}},
+  {"model": "procedures.checkpointtype", "pk": 10, "fields": {"code": "CHECKLIST", "name": "Checklist", "description": "Multiple items to check off", "input_type": "checkbox", "default_options": null}}
+]

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ ncr.ncr_number }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ ncr.ncr_number }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if ncr.severity == 'CRITICAL' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                {% elif ncr.severity == 'MAJOR' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                {% else %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200{% endif %}">
+                {{ ncr.get_severity_display }}
+            </span>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if ncr.status == 'OPEN' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                {% elif ncr.status == 'INVESTIGATING' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                {% elif ncr.status == 'CLOSED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                {{ ncr.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ ncr.title }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        {% if ncr.status != 'CLOSED' %}
+        <a href="{% url 'quality:ncr_disposition' ncr.pk %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+            <i data-lucide="file-check" class="w-4 h-4 mr-2"></i>Disposition
+        </a>
+        {% endif %}
+        <a href="{% url 'quality:ncr_update' ncr.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'quality:ncr_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- NCR Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Non-Conformance Details</h2>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">NCR Number</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ ncr.ncr_number }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Detection Stage</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ ncr.detection_stage|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Work Order</dt>
+                    <dd>
+                        {% if ncr.work_order %}
+                        <a href="{% url 'workorders:detail' ncr.work_order.pk %}" class="text-blue-600 hover:underline">{{ ncr.work_order.wo_number }}</a>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Inspection</dt>
+                    <dd>
+                        {% if ncr.inspection %}
+                        <a href="{% url 'quality:inspection_detail' ncr.inspection.pk %}" class="text-blue-600 hover:underline">{{ ncr.inspection.inspection_number }}</a>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </dd>
+                </div>
+            </dl>
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Description</h3>
+                <p class="text-gray-900 dark:text-white whitespace-pre-wrap">{{ ncr.description }}</p>
+            </div>
+        </div>
+
+        <!-- Root Cause & Disposition -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Investigation & Disposition</h2>
+            <div class="space-y-4">
+                {% if ncr.root_cause %}
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Root Cause</h3>
+                    <p class="text-gray-900 dark:text-white whitespace-pre-wrap">{{ ncr.root_cause }}</p>
+                </div>
+                {% endif %}
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Disposition</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium">{{ ncr.get_disposition_display|default:"Pending" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Disposition Date</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ ncr.disposition_date|date:"M d, Y"|default:"--" }}</dd>
+                    </div>
+                </div>
+                {% if ncr.disposition_notes %}
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Disposition Notes</h3>
+                    <p class="text-gray-900 dark:text-white whitespace-pre-wrap">{{ ncr.disposition_notes }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Photos -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Photos</h2>
+            </div>
+            {% if photos %}
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                {% for photo in photos %}
+                <div class="relative group">
+                    <img src="{{ photo.photo.url }}" alt="{{ photo.caption }}" class="w-full h-32 object-cover rounded-lg">
+                    <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-lg flex items-center justify-center">
+                        <form method="post" action="{% url 'quality:ncr_photo_delete' ncr.pk photo.pk %}" class="hidden group-hover:block">
+                            {% csrf_token %}
+                            <button type="submit" class="p-2 bg-red-600 text-white rounded-full hover:bg-red-700" onclick="return confirm('Delete this photo?')">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </form>
+                    </div>
+                    {% if photo.caption %}
+                    <p class="text-xs text-gray-500 mt-1">{{ photo.caption }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 mb-4">No photos attached</p>
+            {% endif %}
+
+            <!-- Upload Form -->
+            <form method="post" action="{% url 'quality:ncr_photo_upload' ncr.pk %}" enctype="multipart/form-data" class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                {% csrf_token %}
+                <div class="flex gap-2">
+                    {{ photo_form.photo }}
+                    {{ photo_form.caption }}
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <i data-lucide="upload" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        <!-- Cost -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Cost Impact</h2>
+            <dl class="space-y-3">
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Estimated</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ ncr.estimated_cost|default:"--" }} SAR</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Actual</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ ncr.actual_cost|default:"--" }} SAR</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- People -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">People</h2>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Detected By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ ncr.detected_by.get_full_name|default:"--" }}</dd>
+                </div>
+                {% if ncr.investigated_by %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Investigated By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ ncr.investigated_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+                {% if ncr.disposition_by %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Disposition By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ ncr.disposition_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+                {% if ncr.closed_by %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Closed By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ ncr.closed_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <!-- Timeline -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Timeline</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Detected</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ ncr.detected_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% if ncr.disposition_date %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Disposition</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ ncr.disposition_date|date:"M d, Y" }}</dd>
+                </div>
+                {% endif %}
+                {% if ncr.closed_at %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Closed</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ ncr.closed_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% endif %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Updated</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ ncr.updated_at|date:"M d, Y H:i" }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Generate QR Codes - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
+                <i data-lucide="home" class="w-4 h-4"></i>
+            </a>
+        </li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'scancodes:scancode-list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">Scan Codes</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">Generate</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Generate QR codes for assets and documents</p>
+    </div>
+    <a href="{% url 'scancodes:scancode-list' %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 mt-4 md:mt-0">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
+    </a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Generate Single Code</h2>
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <div>
+                <label for="entity_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Entity Type</label>
+                <select name="entity_type" id="entity_type"
+                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    {% for value, label in entity_types %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="entity_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Entity ID</label>
+                <input type="number" name="entity_id" id="entity_id"
+                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                       placeholder="Enter entity ID">
+            </div>
+            <div>
+                <label for="custom_data" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Custom Data (JSON)</label>
+                <textarea name="custom_data" id="custom_data" rows="3"
+                          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                          placeholder='{"key": "value"}'></textarea>
+            </div>
+            <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <i data-lucide="qr-code" class="w-4 h-4 inline mr-2"></i>Generate QR Code
+            </button>
+        </form>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Generated Code</h2>
+        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-8 flex items-center justify-center min-h-[300px]">
+            <div class="text-center">
+                <div class="w-48 h-48 bg-white mx-auto rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600">
+                    <i data-lucide="qr-code" class="w-24 h-24 text-gray-300"></i>
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-4">QR code will appear here</p>
+            </div>
+        </div>
+        <div class="mt-4 flex gap-2">
+            <button type="button" disabled class="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-400 rounded-lg">
+                <i data-lucide="download" class="w-4 h-4 inline mr-2"></i>Download PNG
+            </button>
+            <button type="button" disabled class="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-400 rounded-lg">
+                <i data-lucide="printer" class="w-4 h-4 inline mr-2"></i>Print
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mt-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Batch Generation</h2>
+    <p class="text-gray-600 dark:text-gray-400 mb-4">Generate QR codes for multiple items at once.</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 text-center">
+            <i data-lucide="package" class="w-8 h-8 mx-auto text-blue-500 mb-2"></i>
+            <h3 class="font-medium text-gray-900 dark:text-white">Inventory Items</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Generate codes for inventory</p>
+            <button type="button" class="px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-200">
+                Select Items
+            </button>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 text-center">
+            <i data-lucide="hard-hat" class="w-8 h-8 mx-auto text-orange-500 mb-2"></i>
+            <h3 class="font-medium text-gray-900 dark:text-white">Equipment</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Generate codes for equipment</p>
+            <button type="button" class="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg text-sm hover:bg-orange-200">
+                Select Equipment
+            </button>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 text-center">
+            <i data-lucide="map-pin" class="w-8 h-8 mx-auto text-green-500 mb-2"></i>
+            <h3 class="font-medium text-gray-900 dark:text-white">Locations</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Generate codes for locations</p>
+            <button type="button" class="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm hover:bg-green-200">
+                Select Locations
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}

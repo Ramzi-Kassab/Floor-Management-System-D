@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div class="flex items-center space-x-3">
+        {% if wiki_page.icon %}
+        <i data-lucide="{{ wiki_page.icon }}" class="w-8 h-8 text-blue-500"></i>
+        {% else %}
+        <i data-lucide="file-text" class="w-8 h-8 text-gray-400"></i>
+        {% endif %}
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ wiki_page.title }}</h1>
+            <p class="text-gray-600 dark:text-gray-400">
+                <a href="{% url 'planning:wiki_space_detail' wiki_page.space.pk %}" class="hover:underline">{{ wiki_page.space.name }}</a>
+            </p>
+        </div>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'planning:wiki_page_create' %}?space={{ wiki_page.space.pk }}&parent={{ wiki_page.pk }}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Child
+        </a>
+        <a href="{% url 'planning:wiki_page_update' wiki_page.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'planning:wiki_space_detail' wiki_page.space.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <!-- Sidebar -->
+    <div class="lg:col-span-1 space-y-6">
+        <!-- Navigation -->
+        {% if wiki_page.parent %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Parent</h3>
+            <a href="{% url 'planning:wiki_page_detail' wiki_page.parent.pk %}" class="flex items-center text-gray-700 dark:text-gray-300 hover:text-blue-600">
+                <i data-lucide="corner-up-left" class="w-4 h-4 mr-2"></i>
+                {{ wiki_page.parent.title }}
+            </a>
+        </div>
+        {% endif %}
+
+        {% if children %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sub-pages</h3>
+            <nav class="space-y-1">
+                {% for child in children %}
+                <a href="{% url 'planning:wiki_page_detail' child.pk %}" class="flex items-center px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>
+                    {{ child.title }}
+                </a>
+                {% endfor %}
+            </nav>
+        </div>
+        {% endif %}
+
+        {% if siblings %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Related Pages</h3>
+            <nav class="space-y-1">
+                {% for sibling in siblings %}
+                <a href="{% url 'planning:wiki_page_detail' sibling.pk %}" class="flex items-center px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>
+                    {{ sibling.title }}
+                </a>
+                {% endfor %}
+            </nav>
+        </div>
+        {% endif %}
+
+        <!-- Page Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Info</h3>
+            <dl class="space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Views</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ wiki_page.view_count }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ wiki_page.created_at|date:"M d, Y" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Updated</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ wiki_page.updated_at|date:"M d, Y" }}</dd>
+                </div>
+                {% if wiki_page.last_edited_by %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Last Editor</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ wiki_page.last_edited_by.username }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="lg:col-span-3">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8">
+            {% if wiki_page.cover_image %}
+            <img src="{{ wiki_page.cover_image.url }}" alt="Cover" class="w-full h-48 object-cover rounded-lg mb-6">
+            {% endif %}
+
+            <article class="prose dark:prose-invert max-w-none">
+                {% if wiki_page.content %}
+                {{ wiki_page.content|linebreaks }}
+                {% else %}
+                <p class="text-gray-500 italic">No content yet. Click "Edit" to add content.</p>
+                {% endif %}
+            </article>
+        </div>
+    </div>
+</div>
+{% endblock %}

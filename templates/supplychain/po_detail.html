@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ po.po_number }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if po.status == 'RECEIVED' %}bg-green-100 text-green-800
+                {% elif po.status == 'CONFIRMED' or po.status == 'SENT' %}bg-blue-100 text-blue-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ po.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ po.supplier.name }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        {% if po.status == 'DRAFT' %}
+        <a href="{% url 'supplychain:po_add_line' po.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Line
+        </a>
+        {% endif %}
+        {% if po.status == 'CONFIRMED' or po.status == 'PARTIAL' %}
+        <a href="{% url 'supplychain:grn_create' %}?po={{ po.pk }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i data-lucide="package-check" class="w-4 h-4 mr-2"></i>Receive Goods
+        </a>
+        {% endif %}
+        <a href="{% url 'supplychain:po_pdf' po.pk %}" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+            <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>PDF
+        </a>
+        {% if po.supplier.email %}
+        <a href="{% url 'supplychain:po_email' po.pk %}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+            <i data-lucide="mail" class="w-4 h-4 mr-2"></i>Email
+        </a>
+        {% endif %}
+        <a href="{% url 'supplychain:po_update' po.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'supplychain:po_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Lines -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Order Lines</h2>
+            </div>
+            {% if lines %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">#</th>
+                        <th class="px-6 py-3 font-medium">Item</th>
+                        <th class="px-6 py-3 font-medium text-right">Qty</th>
+                        <th class="px-6 py-3 font-medium text-right">Unit Price</th>
+                        <th class="px-6 py-3 font-medium text-right">Received</th>
+                        <th class="px-6 py-3 font-medium text-right">Total</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for line in lines %}
+                    <tr>
+                        <td class="px-6 py-4 font-mono">{{ line.line_number }}</td>
+                        <td class="px-6 py-4">
+                            <span class="text-gray-900 dark:text-white">{{ line.inventory_item.name }}</span>
+                            <span class="text-gray-500 ml-2 font-mono text-xs">{{ line.inventory_item.code }}</span>
+                        </td>
+                        <td class="px-6 py-4 text-right font-mono">{{ line.quantity }}</td>
+                        <td class="px-6 py-4 text-right font-mono">${{ line.unit_price|floatformat:4 }}</td>
+                        <td class="px-6 py-4 text-right font-mono {% if line.received_quantity < line.quantity %}text-orange-600{% else %}text-green-600{% endif %}">{{ line.received_quantity }}</td>
+                        <td class="px-6 py-4 text-right font-mono font-medium">${{ line.line_total|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-gray-50 dark:bg-gray-700/50">
+                        <td colspan="5" class="px-6 py-3 text-right font-medium">Total:</td>
+                        <td class="px-6 py-3 text-right font-mono font-bold">${{ po.total_amount|floatformat:2 }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">No lines added yet</div>
+            {% endif %}
+        </div>
+
+        <!-- Receipts -->
+        {% if receipts %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Goods Receipts</h2>
+            </div>
+            <table class="w-full text-sm">
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for grn in receipts %}
+                    <tr>
+                        <td class="px-6 py-4">
+                            <a href="{% url 'supplychain:grn_detail' grn.pk %}" class="text-blue-600 hover:underline font-mono">{{ grn.grn_number }}</a>
+                        </td>
+                        <td class="px-6 py-4 text-gray-600">{{ grn.receipt_date|date:"M d, Y" }}</td>
+                        <td class="px-6 py-4 text-gray-600">{{ grn.received_by.username }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Details</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Supplier</dt>
+                    <dd class="text-gray-900 dark:text-white">
+                        <a href="{% url 'supplychain:supplier_detail' po.supplier.pk %}" class="text-blue-600 hover:underline">{{ po.supplier.code }}</a>
+                    </dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Order Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ po.order_date|date:"M d, Y" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Expected Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ po.expected_date|date:"M d, Y"|default:"-" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ po.created_by.username|default:"-" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        {% if po.notes %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Notes</h2>
+            <p class="text-gray-600 dark:text-gray-400 text-sm">{{ po.notes }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ item.code }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if item.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                {% if item.is_active %}Active{% else %}Inactive{% endif %}
+            </span>
+            {% if is_low_stock %}
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                Low Stock
+            </span>
+            {% endif %}
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ item.name }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'inventory:transaction_create' %}?item={{ item.pk }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i data-lucide="arrow-left-right" class="w-4 h-4 mr-2"></i>Transaction
+        </a>
+        <a href="{% url 'inventory:item_update' item.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'inventory:item_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Item Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Item Details</h2>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <dt class="text-gray-500">Type</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ item.get_item_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Category</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.category.name|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Unit</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.unit }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Standard Cost</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.currency }} {{ item.standard_cost }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Primary Supplier</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.primary_supplier.name|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Supplier Part #</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ item.supplier_part_number|default:"--" }}</dd>
+                </div>
+            </dl>
+            {% if item.description %}
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <dt class="text-gray-500 text-sm">Description</dt>
+                <dd class="text-gray-900 dark:text-white mt-1">{{ item.description }}</dd>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Stock by Location -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Stock by Location</h2>
+            </div>
+            {% if stock_by_location %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Location</th>
+                        <th class="px-6 py-3 font-medium text-right">On Hand</th>
+                        <th class="px-6 py-3 font-medium text-right">Reserved</th>
+                        <th class="px-6 py-3 font-medium text-right">Available</th>
+                        <th class="px-6 py-3 font-medium">Lot/Serial</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for stock in stock_by_location %}
+                    <tr>
+                        <td class="px-6 py-4 text-gray-900 dark:text-white">
+                            {{ stock.location.warehouse.code }}/{{ stock.location.code }}
+                        </td>
+                        <td class="px-6 py-4 text-right font-mono">{{ stock.quantity_on_hand }}</td>
+                        <td class="px-6 py-4 text-right font-mono text-gray-500">{{ stock.quantity_reserved }}</td>
+                        <td class="px-6 py-4 text-right font-mono font-medium">{{ stock.quantity_available }}</td>
+                        <td class="px-6 py-4 text-gray-500 font-mono text-xs">
+                            {{ stock.lot_number|default:"" }}{{ stock.serial_number|default:"" }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-8">
+                <p class="text-gray-500">No stock records</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Transactions</h2>
+                <a href="{% url 'inventory:transaction_list' %}?item={{ item.pk }}" class="text-sm text-blue-600 hover:underline">View All</a>
+            </div>
+            {% if recent_transactions %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Date</th>
+                        <th class="px-6 py-3 font-medium">Type</th>
+                        <th class="px-6 py-3 font-medium text-right">Qty</th>
+                        <th class="px-6 py-3 font-medium">Reference</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for trans in recent_transactions %}
+                    <tr>
+                        <td class="px-6 py-4 text-gray-500">{{ trans.transaction_date|date:"M d, Y H:i" }}</td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                {% if trans.transaction_type == 'RECEIPT' %}bg-green-100 text-green-800
+                                {% elif trans.transaction_type == 'ISSUE' %}bg-red-100 text-red-800
+                                {% elif trans.transaction_type == 'TRANSFER' %}bg-blue-100 text-blue-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ trans.get_transaction_type_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-right font-mono
+                            {% if trans.transaction_type == 'RECEIPT' %}text-green-600
+                            {% elif trans.transaction_type == 'ISSUE' %}text-red-600
+                            {% else %}text-gray-900{% endif %}">
+                            {% if trans.transaction_type == 'RECEIPT' %}+{% elif trans.transaction_type == 'ISSUE' %}-{% endif %}{{ trans.quantity }}
+                        </td>
+                        <td class="px-6 py-4 text-gray-500 font-mono text-xs">{{ trans.reference_number|default:trans.transaction_number }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-8">
+                <p class="text-gray-500">No transactions yet</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Suppliers Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Suppliers</h2>
+                <a href="{% url 'inventory:item_supplier_create' item_pk=item.pk %}" class="text-sm text-blue-600 hover:underline">+ Add Supplier</a>
+            </div>
+            {% if suppliers %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Supplier</th>
+                        <th class="px-6 py-3 font-medium">Part Number</th>
+                        <th class="px-6 py-3 font-medium text-right">Price</th>
+                        <th class="px-6 py-3 font-medium text-center">Preferred</th>
+                        <th class="px-6 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for sup in suppliers %}
+                    <tr>
+                        <td class="px-6 py-4 text-gray-900 dark:text-white">{{ sup.supplier.name }}</td>
+                        <td class="px-6 py-4 font-mono text-gray-500">{{ sup.supplier_part_number|default:"--" }}</td>
+                        <td class="px-6 py-4 text-right font-mono">{{ sup.unit_price|default:"--" }}</td>
+                        <td class="px-6 py-4 text-center">
+                            {% if sup.is_preferred %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Yes</span>
+                            {% else %}
+                            <span class="text-gray-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right space-x-2">
+                            <a href="{% url 'inventory:item_supplier_update' item_pk=item.pk pk=sup.pk %}" class="text-blue-600 hover:underline text-xs">Edit</a>
+                            <a href="{% url 'inventory:item_supplier_delete' item_pk=item.pk pk=sup.pk %}" class="text-red-600 hover:underline text-xs">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-8">
+                <p class="text-gray-500">No suppliers configured</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Identifiers/Barcodes Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Identifiers / Barcodes</h2>
+                <a href="{% url 'inventory:item_identifier_create' item_pk=item.pk %}" class="text-sm text-blue-600 hover:underline">+ Add Identifier</a>
+            </div>
+            {% if identifiers %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Type</th>
+                        <th class="px-6 py-3 font-medium">Value</th>
+                        <th class="px-6 py-3 font-medium text-center">Primary</th>
+                        <th class="px-6 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for ident in identifiers %}
+                    <tr>
+                        <td class="px-6 py-4 text-gray-900 dark:text-white">{{ ident.get_identifier_type_display }}</td>
+                        <td class="px-6 py-4 font-mono text-gray-600">{{ ident.value }}</td>
+                        <td class="px-6 py-4 text-center">
+                            {% if ident.is_primary %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Yes</span>
+                            {% else %}
+                            <span class="text-gray-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right space-x-2">
+                            <a href="{% url 'inventory:item_identifier_update' item_pk=item.pk pk=ident.pk %}" class="text-blue-600 hover:underline text-xs">Edit</a>
+                            <a href="{% url 'inventory:item_identifier_delete' item_pk=item.pk pk=ident.pk %}" class="text-red-600 hover:underline text-xs">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-8">
+                <p class="text-gray-500">No identifiers/barcodes configured</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Warehouse Planning Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Warehouse Planning</h2>
+                <a href="{% url 'inventory:item_planning_create' item_pk=item.pk %}" class="text-sm text-blue-600 hover:underline">+ Add Planning</a>
+            </div>
+            {% if planning_records %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Warehouse</th>
+                        <th class="px-6 py-3 font-medium text-right">Min Stock</th>
+                        <th class="px-6 py-3 font-medium text-right">Max Stock</th>
+                        <th class="px-6 py-3 font-medium text-right">Reorder Point</th>
+                        <th class="px-6 py-3 font-medium text-right">Reorder Qty</th>
+                        <th class="px-6 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for plan in planning_records %}
+                    <tr>
+                        <td class="px-6 py-4 text-gray-900 dark:text-white">{{ plan.warehouse.name }}</td>
+                        <td class="px-6 py-4 text-right font-mono">{{ plan.min_stock }}</td>
+                        <td class="px-6 py-4 text-right font-mono">{{ plan.max_stock|default:"--" }}</td>
+                        <td class="px-6 py-4 text-right font-mono">{{ plan.reorder_point }}</td>
+                        <td class="px-6 py-4 text-right font-mono">{{ plan.reorder_quantity }}</td>
+                        <td class="px-6 py-4 text-right space-x-2">
+                            <a href="{% url 'inventory:item_planning_update' item_pk=item.pk pk=plan.pk %}" class="text-blue-600 hover:underline text-xs">Edit</a>
+                            <a href="{% url 'inventory:item_planning_delete' item_pk=item.pk pk=plan.pk %}" class="text-red-600 hover:underline text-xs">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-8">
+                <p class="text-gray-500">No warehouse-specific planning configured</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Bit Specifications (if applicable) -->
+        {% if is_bit_item %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Bit Specifications</h2>
+                {% if bit_spec %}
+                <a href="{% url 'inventory:item_bit_spec_update' item_pk=item.pk %}" class="text-sm text-blue-600 hover:underline">Edit Spec</a>
+                {% else %}
+                <a href="{% url 'inventory:item_bit_spec_create' item_pk=item.pk %}" class="text-sm text-blue-600 hover:underline">+ Add Spec</a>
+                {% endif %}
+            </div>
+            {% if bit_spec %}
+            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 p-6 text-sm">
+                <div>
+                    <dt class="text-gray-500">Bit Type</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ bit_spec.get_bit_type_display|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">IADC Code</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ bit_spec.iadc_code|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Bit Size</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bit_spec.bit_size }}"</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Connection</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bit_spec.connection_type|default:"--" }} {{ bit_spec.connection_size|default:"" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Blade Count</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bit_spec.blade_count|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Cutter Count</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bit_spec.cutter_count|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">WOB Range</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bit_spec.weight_on_bit_min|default:"--" }} - {{ bit_spec.weight_on_bit_max|default:"--" }} klb</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">RPM Range</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bit_spec.rpm_min|default:"--" }} - {{ bit_spec.rpm_max|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Formation</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bit_spec.formation_hardness|default:"--" }}</dd>
+                </div>
+            </dl>
+            {% else %}
+            <div class="text-center py-8">
+                <p class="text-gray-500">No bit specifications configured</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Cutter Specifications (if applicable) -->
+        {% if is_cutter_item %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Cutter Specifications</h2>
+                {% if cutter_spec %}
+                <a href="{% url 'inventory:item_cutter_spec_update' item_pk=item.pk %}" class="text-sm text-blue-600 hover:underline">Edit Spec</a>
+                {% else %}
+                <a href="{% url 'inventory:item_cutter_spec_create' item_pk=item.pk %}" class="text-sm text-blue-600 hover:underline">+ Add Spec</a>
+                {% endif %}
+            </div>
+            {% if cutter_spec %}
+            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 p-6 text-sm">
+                <div>
+                    <dt class="text-gray-500">Cutter Size</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ cutter_spec.cutter_size }} mm</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Thickness</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ cutter_spec.thickness|default:"--" }} mm</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Grade</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ cutter_spec.get_grade_display|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Chamfer Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ cutter_spec.get_chamfer_type_display|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Chamfer Angle</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ cutter_spec.chamfer_angle|default:"--" }}°</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Impact Resistance</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ cutter_spec.impact_resistance|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Abrasion Resistance</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ cutter_spec.abrasion_resistance|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Thermal Stability</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ cutter_spec.thermal_stability_temp|default:"--" }}°C</dd>
+                </div>
+            </dl>
+            {% else %}
+            <div class="text-center py-8">
+                <p class="text-gray-500">No cutter specifications configured</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Category Attributes -->
+        {% if category_attributes or attribute_values %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Attributes
+                    {% if item.category %}<span class="text-sm font-normal text-gray-500">({{ item.category.name }})</span>{% endif %}
+                </h2>
+                <a href="{% url 'inventory:item_update' item.pk %}" class="text-sm text-blue-600 hover:underline">Edit Values</a>
+            </div>
+            {% if attribute_values %}
+            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 p-6 text-sm">
+                {% for attr_value in attribute_values %}
+                <div>
+                    <dt class="text-gray-500">{{ attr_value.attribute.attribute.name }}</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">
+                        {{ attr_value.display_value }}{% if attr_value.attribute.unit %} {{ attr_value.attribute.unit.symbol }}{% endif %}
+                    </dd>
+                </div>
+                {% endfor %}
+            </dl>
+            {% else %}
+            <div class="text-center py-8">
+                <p class="text-gray-500 text-sm">No attribute values set.</p>
+                <p class="text-xs text-gray-400 mt-1">This category has {{ category_attributes|length }} attribute(s) defined</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="space-y-6">
+        <!-- Stock Summary -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Stock Summary</h2>
+            <div class="text-center">
+                <div class="text-4xl font-bold {% if is_low_stock %}text-red-600{% else %}text-gray-900 dark:text-white{% endif %}">
+                    {{ total_stock }}
+                </div>
+                <div class="text-gray-500 mt-1">{{ item.unit }} Total</div>
+            </div>
+            <dl class="mt-6 space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Min Stock</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.min_stock }} {{ item.unit }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Max Stock</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.max_stock|default:"--" }} {{ item.unit }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Reorder Point</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.reorder_point }} {{ item.unit }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Reorder Qty</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.reorder_quantity }} {{ item.unit }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Lead Time</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.lead_time_days }} days</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Tracking Options -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tracking</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between items-center">
+                    <dt class="text-gray-500">Serial Tracked</dt>
+                    <dd>
+                        {% if item.is_serialized %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Yes</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">No</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="flex justify-between items-center">
+                    <dt class="text-gray-500">Lot Controlled</dt>
+                    <dd>
+                        {% if item.is_lot_controlled %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Yes</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">No</span>
+                        {% endif %}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Audit Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Audit Info</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.created_by.get_full_name|default:"--" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created At</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.created_at|date:"M d, Y" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Last Updated</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.updated_at|date:"M d, Y" }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

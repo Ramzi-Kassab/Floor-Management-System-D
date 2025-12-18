@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'sales:customer_list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Basic Information -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Basic Information</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Customer Code
+                        </label>
+                        <div class="mt-1">
+                            {{ form.code }}
+                        </div>
+                        {% if form.code.help_text %}
+                        <p class="mt-1 text-sm text-gray-500">{{ form.code.help_text }}</p>
+                        {% endif %}
+                        {% if form.code.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.code.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="id_customer_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Customer Type <span class="text-red-500">*</span>
+                        </label>
+                        <div class="mt-1">
+                            {{ form.customer_type }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Company Name <span class="text-red-500">*</span>
+                        </label>
+                        <div class="mt-1">
+                            {{ form.name }}
+                        </div>
+                        {% if form.name.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="id_name_ar" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Company Name (Arabic)
+                        </label>
+                        <div class="mt-1">
+                            {{ form.name_ar }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="flex items-center">
+                        {{ form.is_active }}
+                        <label for="id_is_active" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                            Active Customer
+                        </label>
+                    </div>
+                    <div class="flex items-center">
+                        {{ form.is_aramco }}
+                        <label for="id_is_aramco" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                            ARAMCO / ARAMCO Contractor
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact Information -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Contact Information</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div>
+                    <label for="id_address" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Address
+                    </label>
+                    <div class="mt-1">
+                        {{ form.address }}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_city" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            City
+                        </label>
+                        <div class="mt-1">
+                            {{ form.city }}
+                        </div>
+                    </div>
+                    <div>
+                        <label for="id_country" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Country
+                        </label>
+                        <div class="mt-1">
+                            {{ form.country }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Phone
+                        </label>
+                        <div class="mt-1">
+                            {{ form.phone }}
+                        </div>
+                    </div>
+                    <div>
+                        <label for="id_email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Email
+                        </label>
+                        <div class="mt-1">
+                            {{ form.email }}
+                        </div>
+                        {% if form.email.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.email.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <label for="id_website" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Website
+                    </label>
+                    <div class="mt-1">
+                        {{ form.website }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Business Information -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Business Information</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="id_tax_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Tax ID / VAT Number
+                        </label>
+                        <div class="mt-1">
+                            {{ form.tax_id }}
+                        </div>
+                    </div>
+                    <div>
+                        <label for="id_credit_limit" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Credit Limit (SAR)
+                        </label>
+                        <div class="mt-1">
+                            {{ form.credit_limit }}
+                        </div>
+                    </div>
+                    <div>
+                        <label for="id_payment_terms" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Payment Terms
+                        </label>
+                        <div class="mt-1">
+                            {{ form.payment_terms }}
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="id_account_manager" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Account Manager
+                    </label>
+                    <div class="mt-1">
+                        {{ form.account_manager }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'sales:customer_list' %}"
+               class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                {{ submit_text|default:"Save" }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

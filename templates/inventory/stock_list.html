@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Current stock levels by location</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="w-full md:w-48">
+            <select name="warehouse" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Warehouses</option>
+                {% for wh in warehouses %}
+                <option value="{{ wh.pk }}" {% if current_warehouse == wh.pk|stringformat:"s" %}selected{% endif %}>{{ wh.code }} - {{ wh.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">Filter</button>
+    </form>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if stock_records %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">Item</th>
+                    <th class="px-6 py-3 font-medium">Location</th>
+                    <th class="px-6 py-3 font-medium text-right">On Hand</th>
+                    <th class="px-6 py-3 font-medium text-right">Reserved</th>
+                    <th class="px-6 py-3 font-medium text-right">Available</th>
+                    <th class="px-6 py-3 font-medium">Lot/Serial</th>
+                    <th class="px-6 py-3 font-medium">Last Movement</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for stock in stock_records %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4">
+                        <a href="{% url 'inventory:item_detail' stock.item.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                            {{ stock.item.code }}
+                        </a>
+                        <span class="text-gray-500 ml-2">{{ stock.item.name|truncatewords:3 }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400 font-mono text-xs">
+                        {{ stock.location.warehouse.code }}/{{ stock.location.code }}
+                    </td>
+                    <td class="px-6 py-4 text-right font-mono text-gray-900 dark:text-white">
+                        {{ stock.quantity_on_hand }}
+                    </td>
+                    <td class="px-6 py-4 text-right font-mono text-gray-500">
+                        {{ stock.quantity_reserved }}
+                    </td>
+                    <td class="px-6 py-4 text-right font-mono font-medium
+                        {% if stock.quantity_available < 0 %}text-red-600{% else %}text-gray-900 dark:text-white{% endif %}">
+                        {{ stock.quantity_available }}
+                    </td>
+                    <td class="px-6 py-4 text-gray-500 font-mono text-xs">
+                        {{ stock.lot_number|default:"" }}{{ stock.serial_number|default:"" }}
+                        {% if stock.expiry_date %}<br><span class="text-orange-500">Exp: {{ stock.expiry_date|date:"Y-m-d" }}</span>{% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-gray-500 text-xs">
+                        {{ stock.last_movement_date|date:"M d, Y"|default:"-" }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="database" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No stock records</h3>
+        <p class="text-gray-500">Stock will appear here after receiving inventory.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

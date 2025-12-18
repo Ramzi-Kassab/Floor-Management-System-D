@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ technician.employee.get_full_name|default:technician.tech_id }}</h1>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="text-sm text-gray-500">{{ technician.tech_id }}</span>
+                <span class="px-2 py-1 text-xs font-medium rounded-full {% if technician.status == 'ACTIVE' %}bg-green-100 text-green-800{% elif technician.status == 'ON_LEAVE' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ technician.get_status_display|default:technician.status }}</span>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:fieldtechnician_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:fieldtechnician_update' technician.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Basic Information</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Tech ID</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.tech_id }}</dd></div>
+                <div><dt class="text-gray-500">Employee</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.employee.get_full_name|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Hire Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.hire_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Training Level</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.get_training_level_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Years Experience</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.years_experience|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Performance Rating</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.performance_rating|default:"-" }}/5</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Skills & Certifications</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Primary Skills</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.primary_skills|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Secondary Skills</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.secondary_skills|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Certifications</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.certifications|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Contact Information</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Phone</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.phone|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Home Base</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.home_base_location|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Emergency Contact</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.emergency_contact_name|default:"-" }} {{ technician.emergency_contact_phone }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Equipment</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Vehicle</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.vehicle_type|default:"-" }} {{ technician.vehicle_plate }}</dd></div>
+                <div><dt class="text-gray-500">Tools Issued</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.tools_issued|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">PPE Issued</dt><dd class="font-medium text-gray-900 dark:text-white">{{ technician.ppe_issued|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+[
+  {"model": "forms_engine.fieldtype", "pk": 1, "fields": {"code": "TEXT", "name": "Text", "html_input_type": "text", "has_options": false, "has_validation": true, "icon": "type"}},
+  {"model": "forms_engine.fieldtype", "pk": 2, "fields": {"code": "TEXTAREA", "name": "Text Area", "html_input_type": "textarea", "has_options": false, "has_validation": true, "icon": "align-left"}},
+  {"model": "forms_engine.fieldtype", "pk": 3, "fields": {"code": "NUMBER", "name": "Number", "html_input_type": "number", "has_options": false, "has_validation": true, "icon": "hash"}},
+  {"model": "forms_engine.fieldtype", "pk": 4, "fields": {"code": "DECIMAL", "name": "Decimal", "html_input_type": "number", "has_options": false, "has_validation": true, "icon": "percent"}},
+  {"model": "forms_engine.fieldtype", "pk": 5, "fields": {"code": "DATE", "name": "Date", "html_input_type": "date", "has_options": false, "has_validation": true, "icon": "calendar"}},
+  {"model": "forms_engine.fieldtype", "pk": 6, "fields": {"code": "TIME", "name": "Time", "html_input_type": "time", "has_options": false, "has_validation": true, "icon": "clock"}},
+  {"model": "forms_engine.fieldtype", "pk": 7, "fields": {"code": "DATETIME", "name": "Date & Time", "html_input_type": "datetime-local", "has_options": false, "has_validation": true, "icon": "calendar"}},
+  {"model": "forms_engine.fieldtype", "pk": 8, "fields": {"code": "SELECT", "name": "Dropdown", "html_input_type": "select", "has_options": true, "has_validation": true, "icon": "chevron-down"}},
+  {"model": "forms_engine.fieldtype", "pk": 9, "fields": {"code": "MULTISELECT", "name": "Multi-Select", "html_input_type": "select", "has_options": true, "has_validation": true, "icon": "list"}},
+  {"model": "forms_engine.fieldtype", "pk": 10, "fields": {"code": "CHECKBOX", "name": "Checkbox", "html_input_type": "checkbox", "has_options": false, "has_validation": false, "icon": "check-square"}},
+  {"model": "forms_engine.fieldtype", "pk": 11, "fields": {"code": "RADIO", "name": "Radio Buttons", "html_input_type": "radio", "has_options": true, "has_validation": true, "icon": "circle"}},
+  {"model": "forms_engine.fieldtype", "pk": 12, "fields": {"code": "FILE", "name": "File Upload", "html_input_type": "file", "has_options": false, "has_validation": true, "icon": "paperclip"}},
+  {"model": "forms_engine.fieldtype", "pk": 13, "fields": {"code": "IMAGE", "name": "Image Upload", "html_input_type": "file", "has_options": false, "has_validation": true, "icon": "image"}},
+  {"model": "forms_engine.fieldtype", "pk": 14, "fields": {"code": "SIGNATURE", "name": "Signature", "html_input_type": "text", "has_options": false, "has_validation": true, "icon": "edit-3"}},
+  {"model": "forms_engine.fieldtype", "pk": 15, "fields": {"code": "EMAIL", "name": "Email", "html_input_type": "email", "has_options": false, "has_validation": true, "icon": "mail"}},
+  {"model": "forms_engine.fieldtype", "pk": 16, "fields": {"code": "PHONE", "name": "Phone", "html_input_type": "tel", "has_options": false, "has_validation": true, "icon": "phone"}}
+]

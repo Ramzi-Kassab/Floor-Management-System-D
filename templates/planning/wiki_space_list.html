@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Documentation and knowledge base</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'planning:wiki_space_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Space
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for space in spaces %}
+    <a href="{% url 'planning:wiki_space_detail' space.pk %}" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow group">
+        <div class="flex items-center space-x-3 mb-3">
+            {% if space.icon %}
+            <i data-lucide="{{ space.icon }}" class="w-8 h-8 text-blue-500"></i>
+            {% else %}
+            <i data-lucide="book-open" class="w-8 h-8 text-gray-400"></i>
+            {% endif %}
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-blue-600">{{ space.name }}</h3>
+                <p class="text-sm text-gray-500 font-mono">{{ space.code }}</p>
+            </div>
+        </div>
+        {% if space.description %}
+        <p class="text-gray-600 dark:text-gray-400 text-sm mb-4">{{ space.description|truncatewords:15 }}</p>
+        {% endif %}
+        <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-500">{{ space.page_count }} pages</span>
+            {% if space.is_public %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Public</span>
+            {% else %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Private</span>
+            {% endif %}
+        </div>
+    </a>
+    {% empty %}
+    <div class="col-span-full text-center py-16 bg-white dark:bg-gray-800 rounded-xl">
+        <i data-lucide="book-open" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No wiki spaces yet</h3>
+        <p class="text-gray-500 mb-4">Create your first space to start documenting</p>
+        <a href="{% url 'planning:wiki_space_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Space
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

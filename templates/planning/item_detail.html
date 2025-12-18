@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3 mb-2">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                {% if item.item_type == 'EPIC' %}bg-purple-100 text-purple-800
+                {% elif item.item_type == 'STORY' %}bg-blue-100 text-blue-800
+                {% elif item.item_type == 'BUG' %}bg-red-100 text-red-800
+                {% elif item.item_type == 'SUBTASK' %}bg-gray-100 text-gray-800
+                {% else %}bg-green-100 text-green-800{% endif %}">
+                {{ item.get_item_type_display }}
+            </span>
+            <span class="text-gray-500 font-mono">{{ item.code }}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ item.title }}</h1>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'planning:item_update' item.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        {% if item.board %}
+        <a href="{% url 'planning:board_detail' item.board.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="kanban" class="w-4 h-4 mr-2"></i>Board
+        </a>
+        {% endif %}
+        <a href="{% url 'planning:item_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Description -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description</h2>
+            {% if item.description %}
+            <div class="prose dark:prose-invert max-w-none">
+                <p>{{ item.description|linebreaks }}</p>
+            </div>
+            {% else %}
+            <p class="text-gray-500 italic">No description provided</p>
+            {% endif %}
+        </div>
+
+        <!-- Subtasks / Children -->
+        {% if children %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Subtasks</h2>
+                <a href="{% url 'planning:item_create' %}?parent={{ item.pk }}" class="text-sm text-blue-600 hover:underline">Add Subtask</a>
+            </div>
+            <table class="w-full text-sm">
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for child in children %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-6 py-3">
+                            <a href="{% url 'planning:item_detail' child.pk %}" class="text-blue-600 hover:underline font-mono">{{ child.code }}</a>
+                        </td>
+                        <td class="px-6 py-3 text-gray-900 dark:text-white">{{ child.title }}</td>
+                        <td class="px-6 py-3 text-gray-500">{{ child.column.name|default:"Backlog" }}</td>
+                        <td class="px-6 py-3 text-gray-500">{{ child.assignee.username|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Parent Item -->
+        {% if item.parent %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Parent Item</h2>
+            <a href="{% url 'planning:item_detail' item.parent.pk %}" class="flex items-center p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500">
+                <span class="font-mono text-blue-600 mr-3">{{ item.parent.code }}</span>
+                <span class="text-gray-900 dark:text-white">{{ item.parent.title }}</span>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="space-y-6">
+        <!-- Item Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Details</h2>
+            <dl class="space-y-4 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Status</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.column.name|default:"Unassigned" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Priority</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if item.priority == 'HIGHEST' %}bg-red-100 text-red-800
+                            {% elif item.priority == 'HIGH' %}bg-orange-100 text-orange-800
+                            {% elif item.priority == 'MEDIUM' %}bg-yellow-100 text-yellow-800
+                            {% elif item.priority == 'LOW' %}bg-blue-100 text-blue-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ item.get_priority_display }}
+                        </span>
+                    </dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Assignee</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.assignee.get_full_name|default:item.assignee.username|default:"-" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Reporter</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.reporter.get_full_name|default:item.reporter.username|default:"-" }}</dd>
+                </div>
+                {% if item.sprint %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Sprint</dt>
+                    <dd>
+                        <a href="{% url 'planning:sprint_detail' item.sprint.pk %}" class="text-blue-600 hover:underline">{{ item.sprint.code }}</a>
+                    </dd>
+                </div>
+                {% endif %}
+                {% if item.board %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Board</dt>
+                    <dd>
+                        <a href="{% url 'planning:board_detail' item.board.pk %}" class="text-blue-600 hover:underline">{{ item.board.name }}</a>
+                    </dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <!-- Estimation -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Estimation</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Story Points</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ item.story_points|default:"-" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Estimated Hours</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ item.estimated_hours|default:"-" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Actual Hours</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ item.actual_hours|default:"-" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Dates -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Dates</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Start Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.start_date|date:"M d, Y"|default:"-" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Due Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.due_date|date:"M d, Y"|default:"-" }}</dd>
+                </div>
+                {% if item.completed_date %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Completed</dt>
+                    <dd class="text-green-600">{{ item.completed_date|date:"M d, Y" }}</dd>
+                </div>
+                {% endif %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ item.created_at|date:"M d, Y" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Labels -->
+        {% if item.labels.exists %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Labels</h2>
+            <div class="flex flex-wrap gap-2">
+                {% for label in item.labels.all %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm" style="background-color: {{ label.color }}20; color: {{ label.color }}">
+                    <span class="w-2 h-2 rounded-full mr-2" style="background-color: {{ label.color }}"></span>
+                    {{ label.name }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

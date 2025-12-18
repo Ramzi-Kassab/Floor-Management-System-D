@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Base Item: {{ item.code }} - {{ item.name }}</p>
+    </div>
+    <a href="{% url 'inventory:item_detail' item.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Item
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="space-y-6">
+                <!-- Variant Identification -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Variant Identification</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Variant Code</label>
+                            {{ form.code }}
+                            <p class="text-xs text-gray-500 mt-1">Auto-generated if left empty</p>
+                            {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Variant Name</label>
+                            {{ form.name }}
+                            <p class="text-xs text-gray-500 mt-1">Auto-generated if left empty</p>
+                            {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Condition & Source -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Condition & Source</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Condition *</label>
+                            {{ form.condition }}
+                            {% if form.condition.errors %}<p class="text-red-600 text-sm mt-1">{{ form.condition.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Source Type *</label>
+                            {{ form.source_type }}
+                            {% if form.source_type.errors %}<p class="text-red-600 text-sm mt-1">{{ form.source_type.errors.0 }}</p>{% endif %}
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Customer (for Client Specific)</label>
+                        {{ form.customer }}
+                        <p class="text-xs text-gray-500 mt-1">Required when Source Type is "Client Specific"</p>
+                    </div>
+                </div>
+
+                <!-- Costing -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Costing</h3>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Standard Cost</label>
+                            {{ form.standard_cost }}
+                            {% if form.standard_cost.errors %}<p class="text-red-600 text-sm mt-1">{{ form.standard_cost.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Last Cost</label>
+                            {{ form.last_cost }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Valuation %</label>
+                            {{ form.valuation_percentage }}
+                            <p class="text-xs text-gray-500 mt-1">% of base cost for valuation</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Source Tracking -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Source Tracking</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Source Bit Serial</label>
+                            {{ form.source_bit_serial }}
+                            <p class="text-xs text-gray-500 mt-1">Serial number of source bit (for reclaimed)</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Source Work Order</label>
+                            {{ form.source_work_order }}
+                            <p class="text-xs text-gray-500 mt-1">WO that produced this reclaimed item</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status & Notes -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <div class="flex items-center mb-4">
+                        {{ form.is_active }}
+                        <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
+                        {{ form.notes }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'inventory:item_detail' item.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+                <button type="submit" class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                    {% if object %}Update{% else %}Create{% endif %} Variant
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

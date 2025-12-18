@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ report.report_number }}</h1>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="px-2 py-1 text-xs font-medium rounded-full {% if report.status == 'APPROVED' %}bg-green-100 text-green-800{% elif report.status == 'SUBMITTED' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ report.get_status_display|default:report.status }}</span>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:servicereport_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:servicereport_update' report.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Report Information</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Report Number</dt><dd class="font-medium text-gray-900 dark:text-white">{{ report.report_number }}</dd></div>
+                <div><dt class="text-gray-500">Report Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ report.report_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Service Request</dt><dd class="font-medium text-gray-900 dark:text-white">{% if report.service_request %}<a href="{% url 'sales:fieldservicerequest_detail' report.service_request.pk %}" class="text-ardt-blue hover:underline">{{ report.service_request.request_number }}</a>{% else %}-{% endif %}</dd></div>
+                <div><dt class="text-gray-500">Site Visit</dt><dd class="font-medium text-gray-900 dark:text-white">{% if report.site_visit %}<a href="{% url 'sales:sitevisit_detail' report.site_visit.pk %}" class="text-ardt-blue hover:underline">{{ report.site_visit.visit_number }}</a>{% else %}-{% endif %}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Approval</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Prepared By</dt><dd class="font-medium text-gray-900 dark:text-white">{{ report.prepared_by.get_full_name|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Approved By</dt><dd class="font-medium text-gray-900 dark:text-white">{{ report.approved_by.get_full_name|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Approval Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ report.approval_date|date:"M d, Y"|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+    {% if report.summary or report.recommendations %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Report Details</h3>
+        {% if report.summary %}<div class="mb-4"><p class="text-sm text-gray-500">Summary</p><p class="text-gray-900 dark:text-white">{{ report.summary }}</p></div>{% endif %}
+        {% if report.recommendations %}<div><p class="text-sm text-gray-500">Recommendations</p><p class="text-gray-900 dark:text-white">{{ report.recommendations }}</p></div>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

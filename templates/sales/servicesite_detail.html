@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ site.site_name }}</h1>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="text-sm text-gray-500">{{ site.site_number }}</span>
+                <span class="px-2 py-1 text-xs font-medium rounded-full {% if site.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ site.get_status_display|default:site.status }}</span>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:servicesite_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:servicesite_update' site.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Site Information</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Site Number</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.site_number }}</dd></div>
+                <div><dt class="text-gray-500">Site Type</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.get_site_type_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Customer</dt><dd class="font-medium text-gray-900 dark:text-white">{% if site.customer %}<a href="{% url 'sales:customer_detail' site.customer.pk %}" class="text-ardt-blue hover:underline">{{ site.customer.name }}</a>{% else %}-{% endif %}</dd></div>
+                <div><dt class="text-gray-500">Rig Name</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.rig_name|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Location</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Address</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.address|default:"-" }}</dd></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><dt class="text-gray-500">City</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.city|default:"-" }}</dd></div>
+                    <div><dt class="text-gray-500">Country</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.country|default:"-" }}</dd></div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><dt class="text-gray-500">GPS Latitude</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.gps_latitude|default:"-" }}</dd></div>
+                    <div><dt class="text-gray-500">GPS Longitude</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.gps_longitude|default:"-" }}</dd></div>
+                </div>
+            </dl>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Well Information</h3>
+        <dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div><dt class="text-gray-500">Field Name</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.field_name|default:"-" }}</dd></div>
+            <div><dt class="text-gray-500">Formation</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.formation|default:"-" }}</dd></div>
+            <div><dt class="text-gray-500">Total Depth Planned</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.total_depth_planned|default:"-" }}</dd></div>
+            <div><dt class="text-gray-500">Current Depth</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.current_depth|default:"-" }}</dd></div>
+        </dl>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Contact Information</h3>
+        <dl class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div><dt class="text-gray-500">Contact Name</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.site_contact_name|default:"-" }}</dd></div>
+            <div><dt class="text-gray-500">Phone</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.site_contact_phone|default:"-" }}</dd></div>
+            <div><dt class="text-gray-500">Email</dt><dd class="font-medium text-gray-900 dark:text-white">{{ site.site_contact_email|default:"-" }}</dd></div>
+        </dl>
+    </div>
+</div>
+{% endblock %}

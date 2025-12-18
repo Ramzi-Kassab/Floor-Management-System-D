@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'sales:rig_list' %}" class="text-gray-500 hover:text-gray-700">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Rig Information</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Rig Code <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.code }}</div>
+                        {% if form.code.errors %}<p class="mt-1 text-sm text-red-600">{{ form.code.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Rig Name <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.name }}</div>
+                        {% if form.name.errors %}<p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_customer" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Customer (Operator)</label>
+                        <div class="mt-1">{{ form.customer }}</div>
+                    </div>
+                    <div>
+                        <label for="id_contractor" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Contractor</label>
+                        <div class="mt-1">{{ form.contractor }}</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="id_rig_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Rig Type</label>
+                    <div class="mt-1">{{ form.rig_type }}</div>
+                </div>
+
+                <div>
+                    <label for="id_location" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Location</label>
+                    <div class="mt-1">{{ form.location }}</div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_latitude" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Latitude</label>
+                        <div class="mt-1">{{ form.latitude }}</div>
+                    </div>
+                    <div>
+                        <label for="id_longitude" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Longitude</label>
+                        <div class="mt-1">{{ form.longitude }}</div>
+                    </div>
+                </div>
+
+                <div class="flex items-center">
+                    {{ form.is_active }}
+                    <label for="id_is_active" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Active Rig</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'sales:rig_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Cancel</a>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                {{ submit_text|default:"Save" }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

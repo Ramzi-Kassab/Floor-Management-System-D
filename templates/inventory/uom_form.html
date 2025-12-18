@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Define unit code, name, and conversion settings</p>
+    </div>
+    <a href="{% url 'inventory:uom_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="space-y-6">
+                <!-- Basic Info -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Basic Information</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Code *</label>
+                            {{ form.code }}
+                            <p class="text-xs text-gray-500 mt-1">Short code (e.g., EA, KG, M)</p>
+                            {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name *</label>
+                            {{ form.name }}
+                            <p class="text-xs text-gray-500 mt-1">Full name (e.g., Each, Kilogram)</p>
+                            {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type *</label>
+                        {{ form.unit_type }}
+                        {% if form.unit_type.errors %}<p class="text-red-600 text-sm mt-1">{{ form.unit_type.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Symbol</label>
+                        {{ form.symbol }}
+                        <p class="text-xs text-gray-500 mt-1">Display symbol (e.g., kg, m, L)</p>
+                        {% if form.symbol.errors %}<p class="text-red-600 text-sm mt-1">{{ form.symbol.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <!-- Conversion -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Conversion (Optional)</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Base Unit</label>
+                            {{ form.base_unit }}
+                            <p class="text-xs text-gray-500 mt-1">For conversion (e.g., G → KG)</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Conversion Factor</label>
+                            {{ form.conversion_factor }}
+                            <p class="text-xs text-gray-500 mt-1">Multiply to get base unit</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                    {{ form.description }}
+                </div>
+
+                <!-- Status -->
+                <div class="flex items-center">
+                    {{ form.is_active }}
+                    <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'inventory:uom_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    {% if object %}Update{% else %}Create{% endif %} Unit
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

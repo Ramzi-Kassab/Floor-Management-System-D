@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ category.name }}</h1>
+            {% if not category.is_active %}
+            <span class="px-2 py-1 text-xs bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded">Inactive</span>
+            {% else %}
+            <span class="px-2 py-1 text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded">Active</span>
+            {% endif %}
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 font-mono">{{ category.code }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex space-x-3">
+        <a href="{% url 'inventory:category_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+        <a href="{% url 'inventory:category_update' category.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'inventory:category_delete' category.pk %}" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Delete
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left Column: Category Info -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Basic Info Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Category Information</h3>
+            <dl class="grid grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Code</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white font-mono">{{ category.code }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Name</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ category.name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Parent Category</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {% if category.parent %}
+                        <a href="{% url 'inventory:category_detail' category.parent.pk %}" class="text-blue-600 hover:text-blue-800">
+                            {{ category.parent.code }} - {{ category.parent.name }}
+                        </a>
+                        {% else %}
+                        <span class="text-gray-500">Root category</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Default Item Type</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ category.get_item_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Code Prefix</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white font-mono">{{ category.code_prefix|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Next Sequence</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ category.next_sequence }}</dd>
+                </div>
+                {% if category.name_template %}
+                <div class="col-span-2">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Name Template</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white font-mono bg-gray-50 dark:bg-gray-700 px-2 py-1 rounded">{{ category.name_template }}</dd>
+                </div>
+                {% endif %}
+                {% if category.description %}
+                <div class="col-span-2">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Description</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ category.description }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <!-- Category Attributes Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+                    <i data-lucide="sliders" class="w-5 h-5 inline mr-2 text-gray-400"></i>
+                    Category Attributes
+                </h3>
+                <a href="{% url 'inventory:category_attribute_create' category.pk %}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add
+                </a>
+            </div>
+
+            {% if inherited_attributes %}
+            <!-- Inherited Attributes -->
+            <div class="mb-6">
+                <h4 class="text-sm font-medium text-purple-600 dark:text-purple-400 mb-3 flex items-center">
+                    <i data-lucide="git-merge" class="w-4 h-4 mr-1"></i>
+                    Inherited from Parent
+                </h4>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                                <th class="pb-2 font-medium">Code</th>
+                                <th class="pb-2 font-medium">Name</th>
+                                <th class="pb-2 font-medium">Type</th>
+                                <th class="pb-2 font-medium">Unit</th>
+                                <th class="pb-2 font-medium text-center">Required</th>
+                                <th class="pb-2 font-medium">From</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            {% for attr in inherited_attributes %}
+                            <tr class="bg-purple-50/30 dark:bg-purple-900/10">
+                                <td class="py-2 font-mono text-xs">{{ attr.code }}</td>
+                                <td class="py-2">{{ attr.name }}</td>
+                                <td class="py-2">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                        {% if attr.attribute_type == 'NUMBER' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                                        {% elif attr.attribute_type == 'SELECT' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                                        {% elif attr.attribute_type == 'BOOLEAN' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                        {% elif attr.attribute_type == 'DATE' %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
+                                        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                        {{ attr.get_attribute_type_display }}
+                                    </span>
+                                </td>
+                                <td class="py-2 text-gray-500">{{ attr.unit|default:"-" }}</td>
+                                <td class="py-2 text-center">
+                                    {% if attr.is_required %}
+                                    <i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>
+                                    {% else %}
+                                    <i data-lucide="minus" class="w-4 h-4 text-gray-400 inline"></i>
+                                    {% endif %}
+                                </td>
+                                <td class="py-2 text-gray-500 text-xs">{{ attr.category.code }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if own_attributes %}
+            <!-- Own Attributes -->
+            <div>
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Own Attributes</h4>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                                <th class="pb-2 font-medium">Code</th>
+                                <th class="pb-2 font-medium">Name</th>
+                                <th class="pb-2 font-medium">Type</th>
+                                <th class="pb-2 font-medium">Unit</th>
+                                <th class="pb-2 font-medium text-center">Required</th>
+                                <th class="pb-2 font-medium text-center">In Name</th>
+                                <th class="pb-2 font-medium text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            {% for attr in own_attributes %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                <td class="py-2 font-mono text-xs">{{ attr.code }}</td>
+                                <td class="py-2">{{ attr.name }}</td>
+                                <td class="py-2">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                        {% if attr.attribute_type == 'NUMBER' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                                        {% elif attr.attribute_type == 'SELECT' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                                        {% elif attr.attribute_type == 'BOOLEAN' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                        {% elif attr.attribute_type == 'DATE' %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
+                                        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                        {{ attr.get_attribute_type_display }}
+                                    </span>
+                                </td>
+                                <td class="py-2 text-gray-500">{{ attr.unit|default:"-" }}</td>
+                                <td class="py-2 text-center">
+                                    {% if attr.is_required %}
+                                    <i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>
+                                    {% else %}
+                                    <i data-lucide="minus" class="w-4 h-4 text-gray-400 inline"></i>
+                                    {% endif %}
+                                </td>
+                                <td class="py-2 text-center">
+                                    {% if attr.is_used_in_name %}
+                                    <i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>
+                                    {% else %}
+                                    <i data-lucide="minus" class="w-4 h-4 text-gray-400 inline"></i>
+                                    {% endif %}
+                                </td>
+                                <td class="py-2 text-right space-x-2">
+                                    <a href="{% url 'inventory:category_attribute_update' category.pk attr.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                                    <a href="{% url 'inventory:category_attribute_delete' category.pk attr.pk %}" class="text-red-600 hover:text-red-800 text-xs">Delete</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% elif not inherited_attributes %}
+            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                <i data-lucide="sliders" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
+                <p>No attributes defined for this category.</p>
+                <a href="{% url 'inventory:category_attribute_create' category.pk %}" class="mt-2 inline-flex items-center text-blue-600 hover:text-blue-800 text-sm">
+                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add First Attribute
+                </a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Items Preview Card -->
+        {% if items_count > 0 %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+                    <i data-lucide="package" class="w-5 h-5 inline mr-2 text-gray-400"></i>
+                    Items in Category ({{ items_count }})
+                </h3>
+                <a href="{% url 'inventory:item_list' %}?category={{ category.pk }}" class="text-blue-600 hover:text-blue-800 text-sm">
+                    View All <i data-lucide="arrow-right" class="w-4 h-4 inline"></i>
+                </a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                            <th class="pb-2 font-medium">Code</th>
+                            <th class="pb-2 font-medium">Name</th>
+                            <th class="pb-2 font-medium">Type</th>
+                            <th class="pb-2 font-medium text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        {% for item in items %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                            <td class="py-2">
+                                <a href="{% url 'inventory:item_detail' item.pk %}" class="font-mono text-blue-600 hover:text-blue-800">{{ item.code }}</a>
+                            </td>
+                            <td class="py-2">{{ item.name }}</td>
+                            <td class="py-2 text-gray-500">{{ item.get_item_type_display }}</td>
+                            <td class="py-2 text-center">
+                                {% if item.is_active %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                                {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400">Inactive</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if items_count > 10 %}
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">
+                Showing 10 of {{ items_count }} items.
+                <a href="{% url 'inventory:item_list' %}?category={{ category.pk }}" class="text-blue-600 hover:text-blue-800">View all</a>
+            </p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Right Column: Child Categories & Quick Stats -->
+    <div class="space-y-6">
+        <!-- Quick Stats -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Quick Stats</h3>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Child Categories</span>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-white">{{ child_categories.count }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Own Attributes</span>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-white">{{ own_attributes.count }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Inherited Attributes</span>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-white">{{ inherited_attributes|length }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">Items</span>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-white">{{ items_count }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Child Categories -->
+        {% if child_categories %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+                    <i data-lucide="git-branch" class="w-5 h-5 inline mr-2 text-gray-400"></i>
+                    Child Categories
+                </h3>
+                <a href="{% url 'inventory:category_create' %}?parent={{ category.pk }}" class="text-blue-600 hover:text-blue-800 text-sm">
+                    <i data-lucide="plus" class="w-4 h-4 inline"></i>Add
+                </a>
+            </div>
+            <div class="space-y-2">
+                {% for child in child_categories %}
+                <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <a href="{% url 'inventory:category_detail' child.pk %}" class="text-blue-600 hover:text-blue-800 font-medium">{{ child.name }}</a>
+                            <p class="text-xs text-gray-500 font-mono">{{ child.code }}</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            {% if not child.is_active %}
+                            <span class="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">Inactive</span>
+                            {% endif %}
+                            <a href="{% url 'inventory:category_update' child.pk %}" class="text-gray-400 hover:text-blue-600">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% if child.code_prefix %}
+                    <p class="text-xs text-gray-500 mt-1">Prefix: <span class="font-mono">{{ child.code_prefix }}</span></p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                <i data-lucide="git-branch" class="w-5 h-5 inline mr-2 text-gray-400"></i>
+                Child Categories
+            </h3>
+            <div class="text-center py-4 text-gray-500 dark:text-gray-400">
+                <p class="text-sm">No child categories</p>
+                <a href="{% url 'inventory:category_create' %}?parent={{ category.pk }}" class="mt-2 inline-flex items-center text-blue-600 hover:text-blue-800 text-sm">
+                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add Child Category
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

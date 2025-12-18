@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Drill Bits - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Manage and track all drill bits</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'workorders:drillbit_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+            Register Drill Bit
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <!-- Search -->
+        <div class="flex-1">
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" name="q" value="{{ search_query }}"
+                       placeholder="Search by serial number, IADC code, or customer..."
+                       class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+        </div>
+
+        <!-- Status Filter -->
+        <div class="w-full md:w-48">
+            <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                <option value="">All Statuses</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Type Filter -->
+        <div class="w-full md:w-40">
+            <select name="type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                <option value="">All Types</option>
+                {% for value, label in type_choices %}
+                <option value="{{ value }}" {% if current_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+            <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>
+            Filter
+        </button>
+
+        {% if search_query or current_status or current_type %}
+        <a href="{% url 'workorders:drillbit_list' %}" class="px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+            Clear
+        </a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Results Count -->
+<div class="flex items-center justify-between mb-4">
+    <p class="text-sm text-gray-600 dark:text-gray-400">
+        Showing {{ drill_bits|length }} of {{ page_obj.paginator.count|default:drill_bits|length }} drill bits
+    </p>
+</div>
+
+<!-- Drill Bits Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for bit in drill_bits %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+        <div class="p-6">
+            <!-- Header -->
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        <a href="{% url 'workorders:drillbit_detail' bit.pk %}" class="hover:text-blue-600 dark:hover:text-blue-400">
+                            {{ bit.serial_number }}
+                        </a>
+                    </h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ bit.get_bit_type_display }}</p>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                    {% if bit.status == 'NEW' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                    {% elif bit.status == 'IN_STOCK' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                    {% elif bit.status == 'ASSIGNED' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                    {% elif bit.status == 'IN_PRODUCTION' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                    {% elif bit.status == 'QC_PENDING' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                    {% elif bit.status == 'READY' %}bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200
+                    {% elif bit.status == 'DISPATCHED' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200
+                    {% elif bit.status == 'IN_FIELD' %}bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200
+                    {% elif bit.status == 'RETURNED' %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
+                    {% elif bit.status == 'SCRAPPED' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                    {{ bit.get_status_display }}
+                </span>
+            </div>
+
+            <!-- Details -->
+            <dl class="space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Size</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bit.size }}"</dd>
+                </div>
+                {% if bit.iadc_code %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">IADC Code</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ bit.iadc_code }}</dd>
+                </div>
+                {% endif %}
+                {% if bit.design %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Design</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bit.design.code }}</dd>
+                </div>
+                {% endif %}
+                {% if bit.customer %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Customer</dt>
+                    <dd class="text-gray-900 dark:text-white truncate max-w-[150px]">{{ bit.customer.name }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+
+            <!-- Usage Stats -->
+            {% if bit.run_count > 0 %}
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500 dark:text-gray-400">Runs: {{ bit.run_count }}</span>
+                    <span class="text-gray-500 dark:text-gray-400">{{ bit.total_footage|intcomma }} ft</span>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Actions -->
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-between">
+                <a href="{% url 'workorders:drillbit_detail' bit.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+                    View Details
+                </a>
+                <a href="{% url 'workorders:drillbit_qr' bit.pk %}" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                    <i data-lucide="qr-code" class="w-5 h-5"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <!-- Empty State -->
+    <div class="col-span-full text-center py-16 bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+        <i data-lucide="disc" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No drill bits found</h3>
+        {% if search_query or current_status or current_type %}
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Try adjusting your filters or search terms</p>
+        <a href="{% url 'workorders:drillbit_list' %}" class="inline-flex items-center px-4 py-2 text-blue-600 dark:text-blue-400 hover:underline">
+            Clear filters
+        </a>
+        {% else %}
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Get started by registering your first drill bit</p>
+        <a href="{% url 'workorders:drillbit_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+            Register Drill Bit
+        </a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="mt-6 flex justify-center">
+    <nav class="flex space-x-2">
+        {% if page_obj.has_previous %}
+        <a href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_type %}&type={{ current_type }}{% endif %}"
+           class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+            First
+        </a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_type %}&type={{ current_type }}{% endif %}"
+           class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+            Previous
+        </a>
+        {% endif %}
+
+        <span class="px-4 py-2 text-gray-600 dark:text-gray-400">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_type %}&type={{ current_type }}{% endif %}"
+           class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+            Next
+        </a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_type %}&type={{ current_type }}{% endif %}"
+           class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+            Last
+        </a>
+        {% endif %}
+    </nav>
+</div>
+{% endif %}
+{% endblock %}

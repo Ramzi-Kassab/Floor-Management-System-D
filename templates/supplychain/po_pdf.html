@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Purchase Order {{ po.po_number }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            color: #333;
+            line-height: 1.4;
+        }
+        .header {
+            margin-bottom: 30px;
+        }
+        .header-top {
+            display: table;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .company-info {
+            display: table-cell;
+            width: 50%;
+            vertical-align: top;
+        }
+        .company-name {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #1a365d;
+            margin-bottom: 5px;
+        }
+        .po-info {
+            display: table-cell;
+            width: 50%;
+            text-align: right;
+            vertical-align: top;
+        }
+        .po-number {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #1a365d;
+        }
+        .po-label {
+            font-size: 12pt;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .addresses {
+            display: table;
+            width: 100%;
+            margin-bottom: 25px;
+        }
+        .address-box {
+            display: table-cell;
+            width: 48%;
+            padding: 10px;
+            background-color: #f7fafc;
+            border: 1px solid #e2e8f0;
+            vertical-align: top;
+        }
+        .address-box:first-child {
+            margin-right: 4%;
+        }
+        .address-label {
+            font-weight: bold;
+            color: #4a5568;
+            margin-bottom: 8px;
+            font-size: 9pt;
+            text-transform: uppercase;
+        }
+        .supplier-name {
+            font-weight: bold;
+            font-size: 11pt;
+            margin-bottom: 5px;
+        }
+        .info-table {
+            width: 100%;
+            margin-bottom: 20px;
+            border-collapse: collapse;
+        }
+        .info-table td {
+            padding: 5px 10px;
+            border: 1px solid #e2e8f0;
+        }
+        .info-table .label {
+            background-color: #f7fafc;
+            font-weight: bold;
+            width: 150px;
+        }
+        table.items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table.items th {
+            background-color: #1a365d;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 9pt;
+            text-transform: uppercase;
+        }
+        table.items th.right {
+            text-align: right;
+        }
+        table.items td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        table.items td.right {
+            text-align: right;
+        }
+        table.items tr:nth-child(even) {
+            background-color: #f7fafc;
+        }
+        .totals {
+            width: 300px;
+            margin-left: auto;
+            border-collapse: collapse;
+        }
+        .totals td {
+            padding: 8px 10px;
+            border: 1px solid #e2e8f0;
+        }
+        .totals .label {
+            background-color: #f7fafc;
+            font-weight: bold;
+        }
+        .totals .grand-total {
+            background-color: #1a365d;
+            color: white;
+            font-weight: bold;
+            font-size: 12pt;
+        }
+        .notes {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f7fafc;
+            border: 1px solid #e2e8f0;
+        }
+        .notes-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            text-align: center;
+            font-size: 8pt;
+            color: #718096;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 9pt;
+            font-weight: bold;
+        }
+        .status-draft { background-color: #e2e8f0; color: #4a5568; }
+        .status-sent { background-color: #bee3f8; color: #2b6cb0; }
+        .status-confirmed { background-color: #c6f6d5; color: #276749; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-top">
+            <div class="company-info">
+                <div class="company-name">{{ company_name }}</div>
+                <div>Floor Management System</div>
+            </div>
+            <div class="po-info">
+                <div class="po-label">PURCHASE ORDER</div>
+                <div class="po-number">{{ po.po_number }}</div>
+                <div style="margin-top: 10px;">
+                    <span class="status-badge status-{{ po.status|lower }}">{{ po.get_status_display }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="addresses">
+        <div class="address-box">
+            <div class="address-label">Supplier</div>
+            <div class="supplier-name">{{ po.supplier.name }}</div>
+            {% if po.supplier.contact_person %}<div>Attn: {{ po.supplier.contact_person }}</div>{% endif %}
+            {% if po.supplier.address %}<div>{{ po.supplier.address }}</div>{% endif %}
+            {% if po.supplier.email %}<div>Email: {{ po.supplier.email }}</div>{% endif %}
+            {% if po.supplier.phone %}<div>Phone: {{ po.supplier.phone }}</div>{% endif %}
+        </div>
+        <div class="address-box">
+            <div class="address-label">Order Details</div>
+            <table style="width:100%; border:none;">
+                <tr><td style="border:none; padding:2px 0;"><strong>Order Date:</strong></td><td style="border:none; padding:2px 0;">{{ po.order_date|date:"M d, Y" }}</td></tr>
+                {% if po.expected_date %}
+                <tr><td style="border:none; padding:2px 0;"><strong>Expected:</strong></td><td style="border:none; padding:2px 0;">{{ po.expected_date|date:"M d, Y" }}</td></tr>
+                {% endif %}
+                {% if po.created_by %}
+                <tr><td style="border:none; padding:2px 0;"><strong>Created By:</strong></td><td style="border:none; padding:2px 0;">{{ po.created_by.get_full_name|default:po.created_by.username }}</td></tr>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <table class="items">
+        <thead>
+            <tr>
+                <th style="width: 40px;">#</th>
+                <th>Item Code</th>
+                <th>Description</th>
+                <th class="right" style="width: 80px;">Qty</th>
+                <th class="right" style="width: 100px;">Unit Price</th>
+                <th class="right" style="width: 100px;">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in lines %}
+            <tr>
+                <td>{{ line.line_number }}</td>
+                <td>{{ line.inventory_item.code }}</td>
+                <td>{{ line.inventory_item.name }}</td>
+                <td class="right">{{ line.quantity }}</td>
+                <td class="right">${{ line.unit_price|floatformat:2 }}</td>
+                <td class="right">${{ line.line_total|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 20px;">No items on this order.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <table class="totals">
+        <tr>
+            <td class="label">Subtotal</td>
+            <td class="right">${{ po.total_amount|floatformat:2 }}</td>
+        </tr>
+        <tr class="grand-total">
+            <td>Total</td>
+            <td class="right">${{ po.total_amount|floatformat:2 }}</td>
+        </tr>
+    </table>
+
+    {% if po.notes %}
+    <div class="notes">
+        <div class="notes-label">Notes:</div>
+        <div>{{ po.notes }}</div>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        <p>This is a computer-generated document. No signature required.</p>
+        <p>Generated on {% now "F d, Y" %} | {{ company_name }} - Floor Management System</p>
+    </div>
+</body>
+</html>

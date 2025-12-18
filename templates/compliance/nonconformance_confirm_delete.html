@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Delete NCR - ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto mt-8">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 text-center">
+        <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4"><i data-lucide="alert-triangle" class="h-6 w-6 text-red-600"></i></div>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Delete NCR</h3>
+        <p class="text-gray-500 mb-6">Are you sure you want to delete NCR <strong>#{{ object.ncr_number|default:object.pk }}</strong>?</p>
+        <form method="post" class="flex justify-center gap-4">
+            {% csrf_token %}
+            <a href="{% url 'compliance:nonconformance_list' %}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-lg">Delete</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

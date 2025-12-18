@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Breaker Slot {{ breaker_slot.mat_no }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div class="flex items-center gap-4">
+        <a href="{% url 'technology:breaker_slot_list' %}" class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white font-mono">{{ breaker_slot.mat_no }}</h1>
+            <p class="text-gray-600 dark:text-gray-400">{{ breaker_slot.slot_width }}x{{ breaker_slot.slot_depth }}mm - {{ breaker_slot.get_material_display }}</p>
+        </div>
+    </div>
+    <div class="mt-4 md:mt-0 flex gap-2">
+        <a href="{% url 'technology:breaker_slot_update' breaker_slot.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'technology:breaker_slot_delete' breaker_slot.pk %}" class="inline-flex items-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Delete
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Details -->
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="wrench" class="w-5 h-5"></i>
+                    Breaker Slot Details
+                </h3>
+            </div>
+            <div class="px-6 py-4">
+                <dl class="grid grid-cols-2 gap-4">
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">MAT No.</dt>
+                        <dd class="text-lg font-medium text-gray-900 dark:text-white font-mono">{{ breaker_slot.mat_no }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Material</dt>
+                        <dd class="mt-1">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                {{ breaker_slot.get_material_display }}
+                            </span>
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Slot Width</dt>
+                        <dd class="text-lg font-medium text-gray-900 dark:text-white">{{ breaker_slot.slot_width }} mm</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Slot Depth</dt>
+                        <dd class="text-lg font-medium text-gray-900 dark:text-white">{{ breaker_slot.slot_depth }} mm</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Slot Length</dt>
+                        <dd class="text-lg font-medium text-gray-900 dark:text-white">{{ breaker_slot.slot_length|default:"-" }}{% if breaker_slot.slot_length %} mm{% endif %}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Hardness</dt>
+                        <dd class="text-lg font-medium text-gray-900 dark:text-white">{{ breaker_slot.hardness|default:"-" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Status</dt>
+                        <dd class="mt-1">
+                            {% if breaker_slot.is_active %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
+                            {% endif %}
+                        </dd>
+                    </div>
+                </dl>
+                {% if breaker_slot.compatible_sizes.exists %}
+                <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400 mb-2">Compatible Bit Sizes</dt>
+                    <dd class="flex flex-wrap gap-2">
+                        {% for size in breaker_slot.compatible_sizes.all %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                            {{ size.size }}
+                        </span>
+                        {% endfor %}
+                    </dd>
+                </div>
+                {% endif %}
+                {% if breaker_slot.remarks %}
+                <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Remarks</dt>
+                    <dd class="mt-1 text-gray-900 dark:text-white">{{ breaker_slot.remarks }}</dd>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Related Designs -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-5 h-5"></i>
+                    Designs Using This Breaker Slot
+                    <span class="ml-2 px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded-full">{{ related_designs.count }}</span>
+                </h3>
+            </div>
+            <div class="px-6 py-4">
+                {% if related_designs %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-gray-500 dark:text-gray-400">
+                                <th class="pb-2 font-medium">MAT No.</th>
+                                <th class="pb-2 font-medium">HDBS Type</th>
+                                <th class="pb-2 font-medium">Size</th>
+                                <th class="pb-2 font-medium">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            {% for design in related_designs %}
+                            <tr>
+                                <td class="py-2">
+                                    <a href="{% url 'technology:design_detail' design.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">{{ design.mat_no }}</a>
+                                </td>
+                                <td class="py-2 text-gray-900 dark:text-white">{{ design.hdbs_type }}</td>
+                                <td class="py-2 text-gray-600 dark:text-gray-400">{{ design.size }}</td>
+                                <td class="py-2">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                        {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                        {% elif design.status == 'DRAFT' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                                        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                        {{ design.get_status_display }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-gray-500 dark:text-gray-400 text-center py-4">No designs are using this breaker slot yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Timestamps</h3>
+            </div>
+            <div class="px-6 py-4">
+                <dl class="space-y-3 text-sm">
+                    <div>
+                        <dt class="text-gray-500 dark:text-gray-400">Created</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ breaker_slot.created_at|date:"M d, Y H:i" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-gray-500 dark:text-gray-400">Last Updated</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ breaker_slot.updated_at|date:"M d, Y H:i" }}</dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

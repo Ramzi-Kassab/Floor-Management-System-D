@@ -1,0 +1,146 @@
+[
+  {
+    "model": "accounts.role",
+    "pk": 1,
+    "fields": {
+      "code": "ADMIN",
+      "name": "Administrator",
+      "description": "Full system access - can configure system settings, manage users, and access all modules",
+      "is_system": true,
+      "is_active": true,
+      "level": 100
+    }
+  },
+  {
+    "model": "accounts.role",
+    "pk": 2,
+    "fields": {
+      "code": "MANAGER",
+      "name": "Manager",
+      "description": "Department oversight and approvals - can approve work orders, NCRs, and manage department staff",
+      "is_system": true,
+      "is_active": true,
+      "level": 80
+    }
+  },
+  {
+    "model": "accounts.role",
+    "pk": 3,
+    "fields": {
+      "code": "PLANNER",
+      "name": "Planner",
+      "description": "Work order creation and scheduling - can create WOs, assign procedures, and manage production schedule",
+      "is_system": true,
+      "is_active": true,
+      "level": 60
+    }
+  },
+  {
+    "model": "accounts.role",
+    "pk": 4,
+    "fields": {
+      "code": "ENGINEER",
+      "name": "Engineer",
+      "description": "Technical role - can create designs, procedures, BOMs, and manage technical documentation",
+      "is_system": true,
+      "is_active": true,
+      "level": 60
+    }
+  },
+  {
+    "model": "accounts.role",
+    "pk": 5,
+    "fields": {
+      "code": "TECHNICIAN",
+      "name": "Technician",
+      "description": "Shop floor execution - can execute procedures, log time, and report issues",
+      "is_system": true,
+      "is_active": true,
+      "level": 40
+    }
+  },
+  {
+    "model": "accounts.role",
+    "pk": 6,
+    "fields": {
+      "code": "QC",
+      "name": "QC Inspector",
+      "description": "Quality control - can perform inspections, create NCRs, and approve quality checkpoints",
+      "is_system": true,
+      "is_active": true,
+      "level": 50
+    }
+  },
+  {
+    "model": "accounts.role",
+    "pk": 7,
+    "fields": {
+      "code": "SALES",
+      "name": "Sales",
+      "description": "Sales operations - can manage customers, sales orders, and customer communications",
+      "is_system": true,
+      "is_active": true,
+      "level": 50
+    }
+  },
+  {
+    "model": "accounts.role",
+    "pk": 8,
+    "fields": {
+      "code": "LOGISTICS",
+      "name": "Logistics",
+      "description": "Logistics and receiving - can process DRSS requests, manage dispatch, and handle bit returns",
+      "is_system": true,
+      "is_active": true,
+      "level": 50
+    }
+  },
+  {
+    "model": "accounts.role",
+    "pk": 9,
+    "fields": {
+      "code": "WAREHOUSE",
+      "name": "Warehouse",
+      "description": "Inventory management - can manage stock, process transactions, and handle material issues",
+      "is_system": true,
+      "is_active": true,
+      "level": 40
+    }
+  },
+  {
+    "model": "accounts.role",
+    "pk": 10,
+    "fields": {
+      "code": "MAINTENANCE",
+      "name": "Maintenance",
+      "description": "Equipment maintenance - can manage equipment, process MWOs, and schedule maintenance",
+      "is_system": true,
+      "is_active": true,
+      "level": 50
+    }
+  },
+  {
+    "model": "accounts.role",
+    "pk": 11,
+    "fields": {
+      "code": "PROCUREMENT",
+      "name": "Procurement",
+      "description": "Purchasing - can manage suppliers, create PRs/POs, and process goods receipts",
+      "is_system": false,
+      "is_active": true,
+      "level": 50
+    }
+  },
+  {
+    "model": "accounts.role",
+    "pk": 12,
+    "fields": {
+      "code": "VIEWER",
+      "name": "View Only",
+      "description": "Read-only access - can view reports and dashboards but cannot modify data",
+      "is_system": true,
+      "is_active": true,
+      "level": 10
+    }
+  }
+]

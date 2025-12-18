@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Variant - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Delete Variant</h1>
+        <p class="text-gray-600 dark:text-gray-400">Base Item: {{ item.code }} - {{ item.name }}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="text-center mb-6">
+            <div class="mx-auto w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mb-4">
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+            </div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                Delete "{{ object.code }}"?
+            </h2>
+            <p class="text-gray-600 dark:text-gray-400 mt-2">
+                This will permanently remove this variant and all its stock records.
+            </p>
+
+            <div class="mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm text-left">
+                <dl class="space-y-2">
+                    <div class="flex justify-between">
+                        <dt class="text-gray-500">Variant:</dt>
+                        <dd class="text-gray-900 dark:text-white font-mono">{{ object.code }}</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-gray-500">Condition:</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ object.get_condition_display }}</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-gray-500">Source:</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ object.get_source_type_display }}</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-gray-500">Current Stock:</dt>
+                        <dd class="text-gray-900 dark:text-white font-mono">{{ object.total_stock }}</dd>
+                    </div>
+                </dl>
+            </div>
+
+            {% if object.total_stock > 0 %}
+            <div class="mt-4 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg text-sm text-amber-800 dark:text-amber-200">
+                <i data-lucide="alert-circle" class="w-4 h-4 inline mr-1"></i>
+                Warning: This variant has stock on hand. Deleting it will remove all stock records.
+            </div>
+            {% endif %}
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex justify-center space-x-3">
+                <a href="{% url 'inventory:item_detail' item.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                    Cancel
+                </a>
+                <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    Delete Variant
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

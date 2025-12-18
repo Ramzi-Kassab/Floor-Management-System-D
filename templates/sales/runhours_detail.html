@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Run Hours #{{ run_hour.pk }}</h1>
+            <p class="text-sm text-gray-500 mt-1">{{ run_hour.record_date|date:"M d, Y"|default:"N/A" }}</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:runhours_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:runhours_update' run_hour.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Run Information</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Drill String Run</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run_hour.drill_string_run.run_number|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Record Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run_hour.record_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Start Time</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run_hour.start_time|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">End Time</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run_hour.end_time|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Technician</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run_hour.technician.tech_id|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Hours Breakdown</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Total Hours</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run_hour.total_hours|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Drilling Hours</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run_hour.drilling_hours|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Rotating Hours</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run_hour.rotating_hours|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Standby Hours</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run_hour.standby_hours|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Maintenance Hours</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run_hour.maintenance_hours|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Verification</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Verified</dt><dd class="font-medium"><span class="px-2 py-1 text-xs rounded-full {% if run_hour.verified %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">{% if run_hour.verified %}Yes{% else %}No{% endif %}</span></dd></div>
+                <div><dt class="text-gray-500">Verified By</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run_hour.verified_by|default:"-" }}</dd></div>
+            </dl>
+            {% if run_hour.notes %}<div class="mt-4"><h4 class="text-sm font-medium text-gray-500 mb-1">Notes</h4><p class="text-gray-900 dark:text-white">{{ run_hour.notes }}</p></div>{% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

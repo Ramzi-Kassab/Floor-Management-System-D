@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center">
+    <a href="{% url 'workorders:location_list' %}" class="mr-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+    </a>
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">
+            {% if is_create %}Add a new physical location{% else %}Update the location information{% endif %}
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="max-w-xl">
+    {% csrf_token %}
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 space-y-4">
+        <div>
+            <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Code <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="code" id="id_code" value="{{ form.code.value|default:'' }}" required
+                   placeholder="e.g., WH-MAIN"
+                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono focus:ring-blue-500 focus:border-blue-500">
+            {% if form.code.errors %}<p class="text-red-500 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+            <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Name <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="name" id="id_name" value="{{ form.name.value|default:'' }}" required
+                   placeholder="e.g., Main Warehouse"
+                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+            {% if form.name.errors %}<p class="text-red-500 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+            <label for="id_location_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Location Type <span class="text-red-500">*</span>
+            </label>
+            {{ form.location_type }}
+            {% if form.location_type.errors %}<p class="text-red-500 text-sm mt-1">{{ form.location_type.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+            <label for="id_rig" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Associated Rig (optional)
+            </label>
+            {{ form.rig }}
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Only required if Location Type is "Rig Site"</p>
+            {% if form.rig.errors %}<p class="text-red-500 text-sm mt-1">{{ form.rig.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+            <label for="id_address" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Address (optional)
+            </label>
+            <textarea name="address" id="id_address" rows="3"
+                      placeholder="Physical address or location description..."
+                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">{{ form.address.value|default:'' }}</textarea>
+            {% if form.address.errors %}<p class="text-red-500 text-sm mt-1">{{ form.address.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div class="flex items-center pt-4">
+            <input type="checkbox" name="is_active" id="id_is_active"
+                   {% if form.is_active.value or is_create %}checked{% endif %}
+                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+            <label for="id_is_active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                Active (available for selection)
+            </label>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="flex justify-end gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <a href="{% url 'workorders:location_list' %}"
+               class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                <i data-lucide="save" class="w-4 h-4 inline mr-1"></i>
+                {% if is_create %}Create{% else %}Save{% endif %}
+            </button>
+        </div>
+    </div>
+</form>
+{% endblock %}

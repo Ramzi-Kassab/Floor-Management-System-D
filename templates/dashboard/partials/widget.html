@@ -1,0 +1,161 @@
+{% load static %}
+{# Widget partial template for saved dashboards #}
+
+{% with size_class=widget.size|default:"medium" %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden
+            {% if size_class == 'small' %}col-span-1
+            {% elif size_class == 'large' %}col-span-1 md:col-span-2 lg:col-span-3
+            {% else %}col-span-1 md:col-span-1{% endif %}">
+
+    <!-- Widget Header -->
+    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <i data-lucide="{{ widget.icon }}" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+            </div>
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ widget.name }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Widget Content -->
+    <div class="p-4">
+        {% if widget.id == 'work_orders_summary' %}
+            <!-- Work Orders Summary Widget -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ widget.data.total|default:0 }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Total</p>
+                </div>
+                <div class="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ widget.data.active|default:0 }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Active</p>
+                </div>
+                <div class="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                    <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ widget.data.completed_week|default:0 }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Completed (Week)</p>
+                </div>
+                <div class="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                    <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ widget.data.overdue|default:0 }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Overdue</p>
+                </div>
+            </div>
+
+        {% elif widget.id == 'drill_bits_status' %}
+            <!-- Drill Bits Status Widget -->
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">Total</span>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-white">{{ widget.data.total|default:0 }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">In Stock</span>
+                    <span class="text-lg font-semibold text-green-600 dark:text-green-400">{{ widget.data.in_stock|default:0 }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">In Production</span>
+                    <span class="text-lg font-semibold text-blue-600 dark:text-blue-400">{{ widget.data.in_production|default:0 }}</span>
+                </div>
+            </div>
+
+        {% elif widget.id == 'recent_work_orders' %}
+            <!-- Recent Work Orders Widget -->
+            {% if widget.data.work_orders %}
+            <div class="space-y-3">
+                {% for wo in widget.data.work_orders %}
+                <a href="{% url 'workorders:detail' wo.pk %}" class="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-2 h-2 rounded-full
+                            {% if wo.status == 'COMPLETED' %}bg-green-500
+                            {% elif wo.status == 'IN_PROGRESS' %}bg-blue-500
+                            {% elif wo.status == 'OVERDUE' %}bg-red-500
+                            {% else %}bg-gray-400{% endif %}"></div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ wo.work_order_number }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ wo.customer.name|default:"No customer" }}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded-full
+                        {% if wo.status == 'COMPLETED' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                        {% elif wo.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
+                        {% else %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                        {{ wo.get_status_display }}
+                    </span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No recent work orders</p>
+            {% endif %}
+
+        {% elif widget.id == 'maintenance_due' %}
+            <!-- Maintenance Due Widget -->
+            <div class="space-y-3">
+                <div class="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">Overdue</span>
+                    <span class="text-xl font-bold text-red-600 dark:text-red-400">{{ widget.data.overdue|default:0 }}</span>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">Due Soon (7 days)</span>
+                    <span class="text-xl font-bold text-yellow-600 dark:text-yellow-400">{{ widget.data.due_soon|default:0 }}</span>
+                </div>
+            </div>
+
+        {% elif widget.id == 'open_ncrs' %}
+            <!-- Open NCRs Widget -->
+            <div class="space-y-3">
+                <div class="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">Open NCRs</span>
+                    <span class="text-xl font-bold text-orange-600 dark:text-orange-400">{{ widget.data.open|default:0 }}</span>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">Critical</span>
+                    <span class="text-xl font-bold text-red-600 dark:text-red-400">{{ widget.data.critical|default:0 }}</span>
+                </div>
+            </div>
+
+        {% elif widget.id == 'low_stock_alerts' %}
+            <!-- Low Stock Alerts Widget -->
+            <div class="text-center p-4">
+                <div class="w-16 h-16 mx-auto mb-3 rounded-full
+                    {% if widget.data.count > 0 %}bg-yellow-100 dark:bg-yellow-900/30{% else %}bg-green-100 dark:bg-green-900/30{% endif %}
+                    flex items-center justify-center">
+                    <i data-lucide="package" class="w-8 h-8
+                        {% if widget.data.count > 0 %}text-yellow-600 dark:text-yellow-400{% else %}text-green-600 dark:text-green-400{% endif %}"></i>
+                </div>
+                <p class="text-3xl font-bold
+                    {% if widget.data.count > 0 %}text-yellow-600 dark:text-yellow-400{% else %}text-green-600 dark:text-green-400{% endif %}">
+                    {{ widget.data.count|default:0 }}
+                </p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Items below reorder point</p>
+            </div>
+
+        {% elif widget.id == 'pending_approvals' %}
+            <!-- Pending Approvals Widget -->
+            <div class="text-center p-4">
+                <p class="text-3xl font-bold text-blue-600 dark:text-blue-400">{{ widget.data.pr_count|default:0 }}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Purchase Requisitions</p>
+            </div>
+
+        {% elif widget.id == 'quick_links' %}
+            <!-- Quick Links Widget -->
+            <div class="grid grid-cols-2 gap-2">
+                {% for link in widget.data.links %}
+                <a href="{% url link.url %}" class="flex items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <i data-lucide="{{ link.icon }}" class="w-5 h-5 text-gray-500 dark:text-gray-400 mr-2"></i>
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ link.name }}</span>
+                </a>
+                {% endfor %}
+            </div>
+
+        {% else %}
+            <!-- Unknown Widget -->
+            <div class="text-center py-4">
+                <i data-lucide="help-circle" class="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-gray-600"></i>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Widget not configured</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endwith %}

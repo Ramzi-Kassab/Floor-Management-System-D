@@ -1,0 +1,29 @@
+{% comment %}
+Reusable Priority Badge Component
+Usage: {% include "components/priority_badge.html" with priority="HIGH" priority_display="High" %}
+Or: {% include "components/priority_badge.html" with priority=work_order.priority priority_display=work_order.get_priority_display %}
+{% endcomment %}
+
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+    {% if priority == 'LOW' %}
+        bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+    {% elif priority == 'NORMAL' %}
+        bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400
+    {% elif priority == 'HIGH' %}
+        bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400
+    {% elif priority == 'URGENT' %}
+        bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+    {% elif priority == 'CRITICAL' %}
+        bg-red-200 text-red-900 dark:bg-red-800/50 dark:text-red-300 animate-pulse
+    {% else %}
+        bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+    {% endif %}">
+    {% if priority == 'CRITICAL' or priority == 'URGENT' %}
+        <i data-lucide="alert-triangle" class="w-3 h-3 mr-1"></i>
+    {% elif priority == 'HIGH' %}
+        <i data-lucide="arrow-up" class="w-3 h-3 mr-1"></i>
+    {% elif priority == 'LOW' %}
+        <i data-lucide="arrow-down" class="w-3 h-3 mr-1"></i>
+    {% endif %}
+    {{ priority_display|default:priority }}
+</span>
