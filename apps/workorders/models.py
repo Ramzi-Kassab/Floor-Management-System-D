@@ -249,6 +249,415 @@ class Location(models.Model):
 
 
 # =============================================================================
+# PHASE 2: ADDITIONAL REFERENCE DATA
+# =============================================================================
+
+
+class IADCCode(models.Model):
+    """
+    IADC (International Association of Drilling Contractors) bit classification codes.
+
+    PDC/Fixed Cutter: 4 characters (Letter + 3 digits) e.g., M433, S322
+    Roller Cone: 3-4 characters (3 digits + optional letter) e.g., 517, 627Y
+
+    Based on IADC standards used by Halliburton/Security DBS.
+    """
+
+    class BitCategory(models.TextChoices):
+        PDC = "PDC", "PDC/Fixed Cutter"
+        ROLLER_CONE = "RC", "Roller Cone (Tricone)"
+        HYBRID = "HYB", "Hybrid"
+        DIAMOND = "DI", "Diamond Impregnated"
+
+    # PDC Body Types
+    class BodyType(models.TextChoices):
+        MATRIX = "M", "Matrix"
+        STEEL = "S", "Steel"
+        DIAMOND = "D", "Diamond"
+        NA = "", "N/A (Roller Cone)"
+
+    # Roller Cone Series (First Digit)
+    class RCSeries(models.TextChoices):
+        MT_SOFT = "1", "1 - Milled Tooth Soft"
+        MT_MEDIUM = "2", "2 - Milled Tooth Medium"
+        MT_HARD = "3", "3 - Milled Tooth Hard"
+        TCI_SOFT = "4", "4 - TCI Soft"
+        TCI_MEDIUM = "5", "5 - TCI Medium"
+        TCI_MEDIUM_HARD = "6", "6 - TCI Medium-Hard"
+        TCI_HARD = "7", "7 - TCI Hard"
+        TCI_EXTREME = "8", "8 - TCI Extremely Hard"
+
+    code = models.CharField(
+        max_length=10,
+        unique=True,
+        help_text="IADC code (e.g., M433, S322, 517X)"
+    )
+    category = models.CharField(
+        max_length=10,
+        choices=BitCategory.choices,
+        help_text="Bit category"
+    )
+
+    # PDC-specific fields
+    body_type = models.CharField(
+        max_length=1,
+        choices=BodyType.choices,
+        blank=True,
+        help_text="Body material (PDC only): M=Matrix, S=Steel, D=Diamond"
+    )
+    formation_hardness = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Formation hardness description"
+    )
+    cutter_size_class = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Cutter size classification (1=Large >25mm, 2=Medium-Large, 3=Medium 13mm, 4=Small)"
+    )
+    profile_class = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Profile (1=Fishtail, 2=Short, 3=Medium, 4=Long)"
+    )
+
+    # Roller Cone specific fields
+    rc_series = models.CharField(
+        max_length=1,
+        choices=RCSeries.choices,
+        blank=True,
+        help_text="RC Series (1-8): 1-3=Milled Tooth, 4-8=TCI"
+    )
+    rc_type = models.CharField(
+        max_length=1,
+        blank=True,
+        help_text="RC Type (subtype within series)"
+    )
+    rc_bearing_gauge = models.CharField(
+        max_length=1,
+        blank=True,
+        help_text="RC Bearing/Gauge design"
+    )
+    rc_feature = models.CharField(
+        max_length=5,
+        blank=True,
+        help_text="RC Optional feature code (A, C, D, E, G, J, L, R, S, X, Y, etc.)"
+    )
+
+    # Common fields
+    description = models.TextField(
+        blank=True,
+        help_text="Full description of this IADC code"
+    )
+    recommended_wob_min = models.IntegerField(
+        null=True, blank=True,
+        help_text="Min recommended WOB (klbs)"
+    )
+    recommended_wob_max = models.IntegerField(
+        null=True, blank=True,
+        help_text="Max recommended WOB (klbs)"
+    )
+    recommended_rpm_min = models.IntegerField(
+        null=True, blank=True,
+        help_text="Min recommended RPM"
+    )
+    recommended_rpm_max = models.IntegerField(
+        null=True, blank=True,
+        help_text="Max recommended RPM"
+    )
+
+    is_active = models.BooleanField(default=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "iadc_codes"
+        ordering = ["category", "code"]
+        verbose_name = "IADC Code"
+        verbose_name_plural = "IADC Codes"
+
+    def __str__(self):
+        return f"{self.code} - {self.get_category_display()}"
+
+    @classmethod
+    def parse_code(cls, code):
+        """
+        Parse an IADC code string and return its components.
+        Returns dict with parsed values.
+        """
+        code = code.strip().upper()
+        result = {
+            'code': code,
+            'category': None,
+            'body_type': '',
+            'formation': '',
+            'cutter_size': '',
+            'profile': '',
+            'rc_series': '',
+            'rc_type': '',
+            'rc_bearing': '',
+            'rc_feature': '',
+        }
+
+        if not code:
+            return result
+
+        # Check if PDC (starts with M, S, or D)
+        if code[0] in ('M', 'S', 'D') and len(code) >= 4:
+            result['category'] = 'PDC'
+            result['body_type'] = code[0]
+            if len(code) >= 2 and code[1].isdigit():
+                result['formation'] = code[1]
+            if len(code) >= 3 and code[2].isdigit():
+                result['cutter_size'] = code[2]
+            if len(code) >= 4 and code[3].isdigit():
+                result['profile'] = code[3]
+        # Check if Roller Cone (starts with digit 1-8)
+        elif code[0].isdigit() and code[0] in '12345678':
+            result['category'] = 'RC'
+            result['rc_series'] = code[0]
+            if len(code) >= 2 and code[1].isdigit():
+                result['rc_type'] = code[1]
+            if len(code) >= 3 and code[2].isdigit():
+                result['rc_bearing'] = code[2]
+            if len(code) >= 4:
+                result['rc_feature'] = code[3:]
+        else:
+            # Special codes like HYB, BCH, CD
+            result['category'] = 'OTHER'
+
+        return result
+
+
+class ConnectionType(models.Model):
+    """
+    Drill bit connection types (thread types).
+    Based on API and proprietary standards used by Halliburton.
+    """
+
+    code = models.CharField(max_length=20, unique=True, help_text="Connection code (e.g., REG, IF, NC)")
+    name = models.CharField(max_length=100, help_text="Full name (e.g., API Regular)")
+
+    # API standard info
+    api_spec = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="API specification (e.g., API Spec 7-2)"
+    )
+
+    # Thread specifications
+    threads_per_inch = models.DecimalField(
+        max_digits=5, decimal_places=2,
+        null=True, blank=True,
+        help_text="Threads per inch"
+    )
+    taper_per_foot = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Taper per foot (e.g., 2 in/ft)"
+    )
+
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    display_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "connection_types"
+        ordering = ["display_order", "code"]
+        verbose_name = "Connection Type"
+        verbose_name_plural = "Connection Types"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class ConnectionSize(models.Model):
+    """
+    Specific connection sizes combining type and dimension.
+    E.g., 4-1/2 IF, 6-5/8 REG, NC50, etc.
+    """
+
+    code = models.CharField(
+        max_length=30,
+        unique=True,
+        help_text="Connection size code (e.g., '4-1/2 IF', '6-5/8 REG')"
+    )
+    connection_type = models.ForeignKey(
+        ConnectionType,
+        on_delete=models.PROTECT,
+        related_name="sizes",
+        help_text="Connection type"
+    )
+
+    # Size specifications
+    size_inches = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Nominal size (e.g., '4-1/2', '6-5/8')"
+    )
+    size_decimal = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        null=True, blank=True,
+        help_text="Size in decimal inches"
+    )
+
+    # OD/ID specifications
+    pin_od = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        null=True, blank=True,
+        help_text="Pin OD (inches)"
+    )
+    box_od = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        null=True, blank=True,
+        help_text="Box OD (inches)"
+    )
+
+    # Makeup torque
+    makeup_torque_min = models.IntegerField(
+        null=True, blank=True,
+        help_text="Min makeup torque (ft-lbs)"
+    )
+    makeup_torque_max = models.IntegerField(
+        null=True, blank=True,
+        help_text="Max makeup torque (ft-lbs)"
+    )
+
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    display_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "connection_sizes"
+        ordering = ["connection_type", "size_decimal"]
+        verbose_name = "Connection Size"
+        verbose_name_plural = "Connection Sizes"
+
+    def __str__(self):
+        return self.code
+
+
+class FormationType(models.Model):
+    """
+    Geological formation types for bit selection.
+    Based on industry standards and Halliburton classifications.
+    """
+
+    class HardnessCategory(models.TextChoices):
+        VERY_SOFT = "VERY_SOFT", "Very Soft"
+        SOFT = "SOFT", "Soft"
+        SOFT_MEDIUM = "SOFT_MEDIUM", "Soft to Medium"
+        MEDIUM = "MEDIUM", "Medium"
+        MEDIUM_HARD = "MEDIUM_HARD", "Medium to Hard"
+        HARD = "HARD", "Hard"
+        VERY_HARD = "VERY_HARD", "Very Hard"
+        ABRASIVE = "ABRASIVE", "Abrasive"
+
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    hardness_category = models.CharField(
+        max_length=20,
+        choices=HardnessCategory.choices,
+        help_text="General hardness category"
+    )
+
+    # Compressive strength range (psi)
+    ucs_min = models.IntegerField(
+        null=True, blank=True,
+        help_text="Min unconfined compressive strength (psi)"
+    )
+    ucs_max = models.IntegerField(
+        null=True, blank=True,
+        help_text="Max unconfined compressive strength (psi)"
+    )
+
+    # Common rock types
+    typical_rocks = models.TextField(
+        blank=True,
+        help_text="Typical rock types (e.g., 'Clay, Marl, Gumbo, Unconsolidated Sand')"
+    )
+
+    # Recommended IADC codes
+    recommended_pdc_codes = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Recommended PDC IADC codes (e.g., 'M1xx, M2xx, S1xx, S2xx')"
+    )
+    recommended_rc_codes = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Recommended RC IADC codes (e.g., '1xx, 4xx')"
+    )
+
+    # Drilling parameters
+    typical_wob_range = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Typical WOB range (klbs per inch of bit diameter)"
+    )
+    typical_rpm_range = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Typical RPM range"
+    )
+
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    display_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "formation_types"
+        ordering = ["display_order", "hardness_category"]
+        verbose_name = "Formation Type"
+        verbose_name_plural = "Formation Types"
+
+    def __str__(self):
+        return f"{self.name} ({self.get_hardness_category_display()})"
+
+
+class Application(models.Model):
+    """
+    Drilling application types for bit selection.
+    Based on Halliburton/Security DBS product categorization.
+    """
+
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+
+    # Drilling type
+    is_vertical = models.BooleanField(default=False)
+    is_directional = models.BooleanField(default=False)
+    is_horizontal = models.BooleanField(default=False)
+
+    # Specific applications
+    is_curve = models.BooleanField(default=False, help_text="Curve/Build section")
+    is_lateral = models.BooleanField(default=False, help_text="Lateral/Horizontal section")
+    is_motor = models.BooleanField(default=False, help_text="Motor drilling")
+    is_rss = models.BooleanField(default=False, help_text="Rotary Steerable System")
+    is_turbine = models.BooleanField(default=False, help_text="Turbine drilling")
+
+    # Bit requirements
+    requires_high_steerability = models.BooleanField(default=False)
+    requires_high_rop = models.BooleanField(default=False)
+    requires_durability = models.BooleanField(default=False)
+
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    display_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "applications"
+        ordering = ["display_order", "name"]
+        verbose_name = "Application"
+        verbose_name_plural = "Applications"
+
+    def __str__(self):
+        return self.name
+
+
+# =============================================================================
 # ORIGINAL MODELS
 # =============================================================================
 

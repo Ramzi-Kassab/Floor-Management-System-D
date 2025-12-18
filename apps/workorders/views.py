@@ -20,7 +20,10 @@ from django.utils import timezone
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
 from .forms import DrillBitForm, WorkOrderForm
-from .models import BitSize, BitType, DrillBit, Location, WorkOrder
+from .models import (
+    BitSize, BitType, DrillBit, Location, WorkOrder,
+    BitEvent, IADCCode, ConnectionType, ConnectionSize, FormationType, Application
+)
 from .utils import generate_drill_bit_qr, generate_work_order_qr
 
 
@@ -1356,4 +1359,336 @@ class LocationUpdateView(LoginRequiredMixin, UpdateView):
         context = super().get_context_data(**kwargs)
         context['page_title'] = f'Edit: {self.object.name}'
         context['is_create'] = False
+        return context
+
+
+# ============================================================================
+# BitEvent Views - Lifecycle Event Tracking
+# ============================================================================
+
+class BitEventListView(LoginRequiredMixin, ListView):
+    """List all bit events with filtering."""
+    model = BitEvent
+    template_name = "workorders/bitevent_list.html"
+    context_object_name = "events"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = BitEvent.objects.select_related(
+            'bit', 'performed_by', 'location', 'work_order'
+        ).order_by('-event_date')
+
+        # Filter by bit
+        bit_id = self.request.GET.get('bit')
+        if bit_id:
+            queryset = queryset.filter(bit_id=bit_id)
+
+        # Filter by event type
+        event_type = self.request.GET.get('event_type')
+        if event_type:
+            queryset = queryset.filter(event_type=event_type)
+
+        # Filter by date range
+        date_from = self.request.GET.get('date_from')
+        if date_from:
+            queryset = queryset.filter(event_date__date__gte=date_from)
+
+        date_to = self.request.GET.get('date_to')
+        if date_to:
+            queryset = queryset.filter(event_date__date__lte=date_to)
+
+        # Search
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(
+                Q(bit__serial_number__icontains=search) |
+                Q(notes__icontains=search)
+            )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Bit Events'
+        context['event_types'] = BitEvent.EventType.choices
+        context['current_event_type'] = self.request.GET.get('event_type', '')
+        context['search_query'] = self.request.GET.get('q', '')
+        return context
+
+
+class BitEventDetailView(LoginRequiredMixin, DetailView):
+    """View bit event details."""
+    model = BitEvent
+    template_name = "workorders/bitevent_detail.html"
+    context_object_name = "event"
+
+    def get_queryset(self):
+        return BitEvent.objects.select_related(
+            'bit', 'performed_by', 'location', 'from_location', 'to_location',
+            'work_order', 'rig', 'well'
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = f'Event: {self.object.get_event_type_display()}'
+        # Get adjacent events for navigation
+        context['previous_event'] = BitEvent.objects.filter(
+            bit=self.object.bit,
+            event_date__lt=self.object.event_date
+        ).order_by('-event_date').first()
+        context['next_event'] = BitEvent.objects.filter(
+            bit=self.object.bit,
+            event_date__gt=self.object.event_date
+        ).order_by('event_date').first()
+        return context
+
+
+class BitEventCreateView(LoginRequiredMixin, CreateView):
+    """Create a new bit event."""
+    model = BitEvent
+    template_name = "workorders/bitevent_form.html"
+    fields = [
+        'bit', 'event_type', 'event_date', 'performed_by', 'location',
+        'work_order', 'from_location', 'to_location', 'rig', 'well',
+        'run_hours', 'run_meters', 'notes'
+    ]
+
+    def get_initial(self):
+        initial = super().get_initial()
+        initial['event_date'] = timezone.now()
+        initial['performed_by'] = self.request.user
+        # Pre-fill bit if passed in URL
+        bit_id = self.request.GET.get('bit')
+        if bit_id:
+            initial['bit'] = bit_id
+        # Pre-fill event type if passed
+        event_type = self.request.GET.get('event_type')
+        if event_type:
+            initial['event_type'] = event_type
+        return initial
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            f"Event '{form.instance.get_event_type_display()}' recorded for bit {form.instance.bit.serial_number}"
+        )
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        # If recording from bit detail, return there
+        next_url = self.request.GET.get('next')
+        if next_url:
+            return next_url
+        return reverse_lazy('workorders:bitevent_detail', kwargs={'pk': self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Record Bit Event'
+        context['is_create'] = True
+        context['event_types'] = BitEvent.EventType.choices
+        return context
+
+
+class DrillBitTimelineView(LoginRequiredMixin, DetailView):
+    """View a drill bit's complete lifecycle timeline."""
+    model = DrillBit
+    template_name = "workorders/drillbit_timeline.html"
+    context_object_name = "drill_bit"
+
+    def get_queryset(self):
+        return DrillBit.objects.select_related(
+            'product_type', 'bit_size_ref', 'bit_location', 'customer'
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = f'Timeline: {self.object.serial_number}'
+        # Get all events for this bit, ordered chronologically
+        context['events'] = BitEvent.objects.filter(
+            bit=self.object
+        ).select_related(
+            'performed_by', 'location', 'work_order', 'rig', 'well'
+        ).order_by('event_date')
+        # Calculate summary stats
+        events = context['events']
+        context['total_events'] = events.count()
+        context['total_run_hours'] = sum(e.run_hours or 0 for e in events)
+        context['total_run_meters'] = sum(e.run_meters or 0 for e in events)
+        # Get work orders associated
+        context['work_orders'] = WorkOrder.objects.filter(
+            drill_bit=self.object
+        ).order_by('-created_at')
+        return context
+
+
+# ============================================================================
+# IADC Code Views - Reference Data
+# ============================================================================
+
+class IADCCodeListView(LoginRequiredMixin, ListView):
+    """List all IADC codes with filtering."""
+    model = IADCCode
+    template_name = "workorders/iadccode_list.html"
+    context_object_name = "codes"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = IADCCode.objects.all()
+
+        # Filter by category
+        category = self.request.GET.get('category')
+        if category:
+            queryset = queryset.filter(category=category)
+
+        # Filter by body type (PDC only)
+        body_type = self.request.GET.get('body_type')
+        if body_type:
+            queryset = queryset.filter(body_type=body_type)
+
+        # Filter by formation hardness
+        formation = self.request.GET.get('formation')
+        if formation:
+            queryset = queryset.filter(formation_hardness__icontains=formation)
+
+        # Search
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(description__icontains=search)
+            )
+
+        return queryset.order_by('category', 'code')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'IADC Codes'
+        context['categories'] = IADCCode.BitCategory.choices
+        context['body_types'] = IADCCode.BodyType.choices
+        context['current_category'] = self.request.GET.get('category', '')
+        context['current_body_type'] = self.request.GET.get('body_type', '')
+        context['search_query'] = self.request.GET.get('q', '')
+        return context
+
+
+class IADCCodeDetailView(LoginRequiredMixin, DetailView):
+    """View IADC code details."""
+    model = IADCCode
+    template_name = "workorders/iadccode_detail.html"
+    context_object_name = "code"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = f'IADC Code: {self.object.code}'
+        return context
+
+
+class IADCCodeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new IADC code."""
+    model = IADCCode
+    template_name = "workorders/iadccode_form.html"
+    fields = [
+        'code', 'category', 'body_type', 'formation_hardness',
+        'cutter_size_class', 'profile_class',
+        'rc_series', 'rc_type', 'rc_bearing_gauge', 'rc_feature',
+        'description', 'recommended_wob_min', 'recommended_wob_max',
+        'recommended_rpm_min', 'recommended_rpm_max', 'is_active'
+    ]
+    success_url = reverse_lazy('workorders:iadccode_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Create IADC Code'
+        context['is_create'] = True
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"IADC code '{form.instance.code}' created successfully.")
+        return super().form_valid(form)
+
+
+class IADCCodeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing IADC code."""
+    model = IADCCode
+    template_name = "workorders/iadccode_form.html"
+    fields = [
+        'code', 'category', 'body_type', 'formation_hardness',
+        'cutter_size_class', 'profile_class',
+        'rc_series', 'rc_type', 'rc_bearing_gauge', 'rc_feature',
+        'description', 'recommended_wob_min', 'recommended_wob_max',
+        'recommended_rpm_min', 'recommended_rpm_max', 'is_active'
+    ]
+    success_url = reverse_lazy('workorders:iadccode_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = f'Edit: {self.object.code}'
+        context['is_create'] = False
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"IADC code '{form.instance.code}' updated successfully.")
+        return super().form_valid(form)
+
+
+# ============================================================================
+# Connection Type Views - Reference Data
+# ============================================================================
+
+class ConnectionTypeListView(LoginRequiredMixin, ListView):
+    """List all connection types."""
+    model = ConnectionType
+    template_name = "workorders/connectiontype_list.html"
+    context_object_name = "connection_types"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Connection Types'
+        return context
+
+
+class ConnectionSizeListView(LoginRequiredMixin, ListView):
+    """List all connection sizes."""
+    model = ConnectionSize
+    template_name = "workorders/connectionsize_list.html"
+    context_object_name = "connection_sizes"
+
+    def get_queryset(self):
+        return ConnectionSize.objects.select_related('connection_type').order_by('connection_type', 'size_decimal')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Connection Sizes'
+        return context
+
+
+# ============================================================================
+# Formation Type Views - Reference Data
+# ============================================================================
+
+class FormationTypeListView(LoginRequiredMixin, ListView):
+    """List all formation types."""
+    model = FormationType
+    template_name = "workorders/formationtype_list.html"
+    context_object_name = "formation_types"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Formation Types'
+        return context
+
+
+# ============================================================================
+# Application Views - Reference Data
+# ============================================================================
+
+class ApplicationListView(LoginRequiredMixin, ListView):
+    """List all drilling applications."""
+    model = Application
+    template_name = "workorders/application_list.html"
+    context_object_name = "applications"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Drilling Applications'
         return context

@@ -93,4 +93,29 @@ urlpatterns = [
     path("locations/create/", views.LocationCreateView.as_view(), name="location_create"),
     path("locations/<int:pk>/", views.LocationDetailView.as_view(), name="location_detail"),
     path("locations/<int:pk>/edit/", views.LocationUpdateView.as_view(), name="location_update"),
+    # ========================================================================
+    # BitEvent URLs - Lifecycle Event Tracking
+    # ========================================================================
+    path("events/", views.BitEventListView.as_view(), name="bitevent_list"),
+    path("events/<int:pk>/", views.BitEventDetailView.as_view(), name="bitevent_detail"),
+    path("events/create/", views.BitEventCreateView.as_view(), name="bitevent_create"),
+    # Drill Bit Timeline
+    path("drill-bits/<int:pk>/timeline/", views.DrillBitTimelineView.as_view(), name="drillbit_timeline"),
+    # ========================================================================
+    # IADC Code URLs - Reference Data
+    # ========================================================================
+    path("iadc-codes/", views.IADCCodeListView.as_view(), name="iadccode_list"),
+    path("iadc-codes/create/", views.IADCCodeCreateView.as_view(), name="iadccode_create"),
+    path("iadc-codes/<int:pk>/", views.IADCCodeDetailView.as_view(), name="iadccode_detail"),
+    path("iadc-codes/<int:pk>/edit/", views.IADCCodeUpdateView.as_view(), name="iadccode_update"),
+    # ========================================================================
+    # Connection Type/Size URLs - Reference Data
+    # ========================================================================
+    path("connection-types/", views.ConnectionTypeListView.as_view(), name="connectiontype_list"),
+    path("connection-sizes/", views.ConnectionSizeListView.as_view(), name="connectionsize_list"),
+    # ========================================================================
+    # Formation Type & Application URLs - Reference Data
+    # ========================================================================
+    path("formation-types/", views.FormationTypeListView.as_view(), name="formationtype_list"),
+    path("applications/", views.ApplicationListView.as_view(), name="application_list"),
 ]

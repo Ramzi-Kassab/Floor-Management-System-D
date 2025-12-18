@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">IADC (International Association of Drilling Contractors) bit classification codes</p>
+    </div>
+    <a href="{% url 'workorders:iadccode_create' %}"
+       class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+        Add IADC Code
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- IADC Code Legend -->
+<div class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl shadow-sm p-6 mb-6">
+    <h3 class="font-semibold text-gray-900 dark:text-white mb-4">IADC Code Format Guide</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+            <h4 class="font-medium text-blue-700 dark:text-blue-400 mb-2">PDC/Fixed Cutter Bits (4 chars)</h4>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Format: <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">M433</code> = Body + Formation + Cutter + Profile</p>
+            <ul class="text-sm space-y-1 text-gray-600 dark:text-gray-400">
+                <li><span class="font-mono font-bold text-green-600">M</span> = Matrix, <span class="font-mono font-bold text-blue-600">S</span> = Steel, <span class="font-mono font-bold text-purple-600">D</span> = Diamond</li>
+                <li>Formation: 1=Soft to 4=Hard (6-8 for Diamond)</li>
+                <li>Cutter: 1=Large(>25mm) to 4=Small(8-10mm)</li>
+                <li>Profile: 1=Fishtail, 2=Short, 3=Medium, 4=Long</li>
+            </ul>
+        </div>
+        <div>
+            <h4 class="font-medium text-orange-700 dark:text-orange-400 mb-2">Roller Cone/Tricone Bits (3-4 chars)</h4>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Format: <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">517X</code> = Series + Type + Bearing + Feature</p>
+            <ul class="text-sm space-y-1 text-gray-600 dark:text-gray-400">
+                <li>Series 1-3: Milled Tooth (1=Soft, 2=Medium, 3=Hard)</li>
+                <li>Series 4-8: TCI (4=Soft to 8=Extremely Hard)</li>
+                <li>Feature: X=Enhanced Gauge, Y=Conical Inserts, etc.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-wrap gap-4 items-end">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+            <select name="category" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                <option value="">All Categories</option>
+                {% for code, name in categories %}
+                <option value="{{ code }}" {% if current_category == code %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Body Type</label>
+            <select name="body_type" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                <option value="">All Types</option>
+                {% for code, name in body_types %}
+                {% if code %}
+                <option value="{{ code }}" {% if current_body_type == code %}selected{% endif %}>{{ name }}</option>
+                {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="flex-1 min-w-[200px]">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
+            <input type="text" name="q" placeholder="Search codes..."
+                   value="{{ search_query }}"
+                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                Filter
+            </button>
+            <a href="{% url 'workorders:iadccode_list' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                Clear
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- IADC Codes Table -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-700">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Code</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Category</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Body/Series</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Formation</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Description</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {% for code in codes %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="font-mono text-lg font-bold
+                        {% if code.body_type == 'M' %}text-green-600 dark:text-green-400
+                        {% elif code.body_type == 'S' %}text-blue-600 dark:text-blue-400
+                        {% elif code.body_type == 'D' %}text-purple-600 dark:text-purple-400
+                        {% else %}text-orange-600 dark:text-orange-400{% endif %}">
+                        {{ code.code }}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if code.category == 'PDC' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                        {% elif code.category == 'RC' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                        {% elif code.category == 'HYB' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200{% endif %}">
+                        {{ code.get_category_display }}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                    {% if code.body_type %}
+                        {{ code.get_body_type_display }}
+                    {% elif code.rc_series %}
+                        Series {{ code.rc_series }} ({{ code.get_rc_series_display|default:"-" }})
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                    {{ code.formation_hardness|default:"-" }}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                    {{ code.description|default:"-"|truncatewords:12 }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    <a href="{% url 'workorders:iadccode_update' code.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline">Edit</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="px-6 py-12 text-center">
+                    <i data-lucide="code" class="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600"></i>
+                    <p class="text-gray-500 dark:text-gray-400">No IADC codes found</p>
+                    <p class="text-sm text-gray-400 dark:text-gray-500 mt-2">Run <code class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">python manage.py seed_reference_data</code> to populate</p>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="mt-6 flex justify-center">
+    <nav class="inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+           class="px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-l-md hover:bg-gray-50 dark:hover:bg-gray-700">
+            Previous
+        </a>
+        {% endif %}
+        <span class="px-4 py-2 border-t border-b border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+           class="px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-r-md hover:bg-gray-50 dark:hover:bg-gray-700">
+            Next
+        </a>
+        {% endif %}
+    </nav>
+</div>
+{% endif %}
+{% endblock %}
