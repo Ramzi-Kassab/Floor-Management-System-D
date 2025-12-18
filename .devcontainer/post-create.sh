@@ -89,11 +89,11 @@ if not User.objects.filter(username='admin').exists():
     User.objects.create_superuser(
         username='admin',
         email='admin@ardt.local',
-        password='admin123',
+        password='Ra@mzi@123',
         first_name='Admin',
         last_name='User'
     )
-    print("  Created superuser: admin / admin123")
+    print("  Created superuser: admin")
 else:
     print("  Superuser 'admin' already exists")
 EOF
@@ -121,7 +121,6 @@ echo "Quick Start:"
 echo "  1. Run server:    python manage.py runserver 0.0.0.0:8000"
 echo "  2. Admin panel:   http://localhost:8000/admin"
 echo "                    Username: admin"
-echo "                    Password: admin123"
 echo "  3. Run tests:     python manage.py test"
 echo "  4. Django shell:  python manage.py shell"
 echo ""
