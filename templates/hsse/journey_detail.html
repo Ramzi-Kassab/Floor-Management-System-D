@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}{{ journey.journey_number }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'hsse:journey-list' %}" class="hover:text-blue-600">Journeys</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{{ journey.journey_number }}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ journey.journey_number }}</h1>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'hsse:journey-update' journey.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Journey Details</h2>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                    {% if journey.status == 'COMPLETED' %}bg-green-100 text-green-800
+                    {% elif journey.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800
+                    {% elif journey.status == 'APPROVED' %}bg-purple-100 text-purple-800
+                    {% elif journey.status == 'CANCELLED' %}bg-red-100 text-red-800
+                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                    {{ journey.get_status_display }}
+                </span>
+            </div>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Purpose</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ journey.purpose }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Driver</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ journey.driver.get_full_name|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Vehicle</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ journey.vehicle.code|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Approved By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ journey.approved_by.get_full_name|default:"-" }}</dd>
+                </div>
+            </dl>
+            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-4">Route</h3>
+                <div class="flex items-center gap-4">
+                    <div class="flex-1 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">From</p>
+                        <p class="text-gray-900 dark:text-white font-medium">{{ journey.departure_location }}</p>
+                    </div>
+                    <i data-lucide="arrow-right" class="w-6 h-6 text-gray-400"></i>
+                    <div class="flex-1 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">To</p>
+                        <p class="text-gray-900 dark:text-white font-medium">{{ journey.destination }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-4">Schedule</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Planned Departure</p>
+                        <p class="text-gray-900 dark:text-white">{{ journey.planned_departure|date:"M d, Y H:i" }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Planned Arrival</p>
+                        <p class="text-gray-900 dark:text-white">{{ journey.planned_arrival|date:"M d, Y H:i" }}</p>
+                    </div>
+                    {% if journey.actual_departure %}
+                    <div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Actual Departure</p>
+                        <p class="text-green-600 font-medium">{{ journey.actual_departure|date:"M d, Y H:i" }}</p>
+                    </div>
+                    {% endif %}
+                    {% if journey.actual_arrival %}
+                    <div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Actual Arrival</p>
+                        <p class="text-green-600 font-medium">{{ journey.actual_arrival|date:"M d, Y H:i" }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actions</h2>
+            <div class="space-y-2">
+                {% if journey.status == 'PLANNED' %}
+                <form method="post" action="{% url 'hsse:journey-approve' journey.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                        <i data-lucide="check" class="w-4 h-4 inline mr-2"></i>Approve Journey
+                    </button>
+                </form>
+                {% endif %}
+                {% if journey.status == 'APPROVED' %}
+                <form method="post" action="{% url 'hsse:journey-start' journey.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <i data-lucide="play" class="w-4 h-4 inline mr-2"></i>Start Journey
+                    </button>
+                </form>
+                {% endif %}
+                {% if journey.status == 'IN_PROGRESS' %}
+                <form method="post" action="{% url 'hsse:journey-complete' journey.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        <i data-lucide="check-circle" class="w-4 h-4 inline mr-2"></i>Complete Journey
+                    </button>
+                </form>
+                {% endif %}
+                <a href="{% url 'hsse:journey-list' %}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

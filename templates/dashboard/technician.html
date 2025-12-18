@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}My Dashboard - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+    <p class="text-gray-600 dark:text-gray-400">Your assigned work orders and tasks</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Current Work Order Banner -->
+{% if current_work_order %}
+<div class="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-sm p-6 mb-8 text-white">
+    <div class="flex items-center justify-between">
+        <div>
+            <p class="text-blue-200 text-sm mb-1">Currently Working On</p>
+            <h2 class="text-2xl font-bold mb-2">{{ current_work_order.work_order_number }}</h2>
+            <p class="text-blue-100">{{ current_work_order.customer.name|default:"No customer" }}</p>
+            {% if current_work_order.drill_bit %}
+            <p class="text-blue-200 text-sm mt-1">Drill Bit: {{ current_work_order.drill_bit.serial_number }}</p>
+            {% endif %}
+        </div>
+        <div class="text-right">
+            <a href="{% url 'workorders:detail' current_work_order.pk %}"
+               class="inline-flex items-center px-4 py-2 bg-white text-blue-700 rounded-lg font-medium hover:bg-blue-50 transition-colors">
+                <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
+                View Details
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- KPI Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <!-- Assigned -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Assigned to Me</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">{{ assigned_count }}</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="clipboard-list" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-gray-500 dark:text-gray-400">active work orders</span>
+        </div>
+    </div>
+
+    <!-- Completed Today -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Completed Today</p>
+                <p class="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{{ completed_today }}</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="check-circle" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-green-600 dark:text-green-400 flex items-center">
+                <i data-lucide="trending-up" class="w-4 h-4 mr-1"></i>
+                Great work!
+            </span>
+        </div>
+    </div>
+
+    <!-- Status -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Status</p>
+                <p class="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                    {% if current_work_order %}
+                    <span class="text-yellow-600 dark:text-yellow-400">Working</span>
+                    {% else %}
+                    <span class="text-green-600 dark:text-green-400">Available</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div class="w-12 h-12 {% if current_work_order %}bg-yellow-100 dark:bg-yellow-900{% else %}bg-green-100 dark:bg-green-900{% endif %} rounded-lg flex items-center justify-center">
+                {% if current_work_order %}
+                <i data-lucide="loader" class="w-6 h-6 text-yellow-600 dark:text-yellow-400 animate-spin"></i>
+                {% else %}
+                <i data-lucide="user-check" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- My Work Orders -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">My Work Orders</h2>
+        <span class="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs font-medium px-2.5 py-0.5 rounded-full">{{ assigned_count }}</span>
+    </div>
+
+    {% if my_work_orders %}
+    <div class="space-y-4">
+        {% for wo in my_work_orders %}
+        <div class="flex items-center justify-between p-4 {% if wo.status == 'IN_PROGRESS' %}bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500{% else %}bg-gray-50 dark:bg-gray-700{% endif %} rounded-lg hover:shadow-md transition-shadow">
+            <div class="flex items-center space-x-4">
+                <!-- Priority Indicator -->
+                <div class="flex-shrink-0">
+                    {% if wo.priority == 'CRITICAL' %}
+                    <div class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
+                    {% elif wo.priority == 'HIGH' %}
+                    <div class="w-3 h-3 rounded-full bg-orange-500"></div>
+                    {% elif wo.priority == 'MEDIUM' %}
+                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    {% else %}
+                    <div class="w-3 h-3 rounded-full bg-gray-400"></div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <a href="{% url 'workorders:detail' wo.pk %}" class="text-sm font-medium text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400">
+                        {{ wo.wo_number }}
+                    </a>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ wo.customer.name|default:"No customer" }}</p>
+                    {% if wo.drill_bit %}
+                    <p class="text-xs text-gray-400 dark:text-gray-500">{{ wo.drill_bit.serial_number }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <div class="text-right">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if wo.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                        {% elif wo.status == 'PLANNED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                        {% elif wo.status == 'RELEASED' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ wo.get_status_display }}
+                    </span>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Due: {{ wo.due_date|date:"M d"|default:"Not set" }}
+                    </p>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex space-x-2">
+                    {% if wo.status == 'RELEASED' %}
+                    <form method="post" action="{% url 'workorders:start' wo.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors">
+                            <i data-lucide="play" class="w-3 h-3 mr-1"></i>
+                            Start
+                        </button>
+                    </form>
+                    {% elif wo.status == 'IN_PROGRESS' %}
+                    <form method="post" action="{% url 'workorders:complete' wo.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                            <i data-lucide="check" class="w-3 h-3 mr-1"></i>
+                            Complete
+                        </button>
+                    </form>
+                    {% endif %}
+                    <a href="{% url 'workorders:detail' wo.pk %}" class="inline-flex items-center px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+                        <i data-lucide="eye" class="w-3 h-3 mr-1"></i>
+                        View
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+        <i data-lucide="inbox" class="w-16 h-16 mx-auto mb-4 opacity-50"></i>
+        <p class="text-lg">No work orders assigned to you</p>
+        <p class="text-sm mt-2">Check with your supervisor for new assignments</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Quick Actions -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="scan" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">Scan QR Code</span>
+        </a>
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="clock" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">Log Time</span>
+        </a>
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="alert-circle" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">Report Issue</span>
+        </a>
+        <a href="{% url 'accounts:profile' %}" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="user" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">My Profile</span>
+        </a>
+    </div>
+</div>
+{% endblock %}

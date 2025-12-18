@@ -1,0 +1,282 @@
+[
+  {
+    "model": "accounts.permission",
+    "pk": 1,
+    "fields": {
+      "code": "view",
+      "name": "View Work Orders",
+      "description": "Can view work orders list and details",
+      "module": "workorders"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 2,
+    "fields": {
+      "code": "create",
+      "name": "Create Work Orders",
+      "description": "Can create new work orders",
+      "module": "workorders"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 3,
+    "fields": {
+      "code": "edit",
+      "name": "Edit Work Orders",
+      "description": "Can edit work order details",
+      "module": "workorders"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 4,
+    "fields": {
+      "code": "delete",
+      "name": "Delete Work Orders",
+      "description": "Can delete work orders",
+      "module": "workorders"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 5,
+    "fields": {
+      "code": "approve",
+      "name": "Approve Work Orders",
+      "description": "Can approve/release work orders",
+      "module": "workorders"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 6,
+    "fields": {
+      "code": "view",
+      "name": "View Customers",
+      "description": "Can view customer list and details",
+      "module": "sales"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 7,
+    "fields": {
+      "code": "create",
+      "name": "Create Customers",
+      "description": "Can create new customers",
+      "module": "sales"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 8,
+    "fields": {
+      "code": "edit",
+      "name": "Edit Customers",
+      "description": "Can edit customer information",
+      "module": "sales"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 9,
+    "fields": {
+      "code": "delete",
+      "name": "Delete Customers",
+      "description": "Can delete customers",
+      "module": "sales"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 10,
+    "fields": {
+      "code": "view",
+      "name": "View Vendors",
+      "description": "Can view vendor list and details",
+      "module": "supplychain"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 11,
+    "fields": {
+      "code": "create",
+      "name": "Create Vendors",
+      "description": "Can create new vendors",
+      "module": "supplychain"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 12,
+    "fields": {
+      "code": "edit",
+      "name": "Edit Vendors",
+      "description": "Can edit vendor information",
+      "module": "supplychain"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 13,
+    "fields": {
+      "code": "approve_po",
+      "name": "Approve Purchase Orders",
+      "description": "Can approve purchase orders",
+      "module": "supplychain"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 14,
+    "fields": {
+      "code": "view",
+      "name": "View Quality Records",
+      "description": "Can view QC and NCR records",
+      "module": "compliance"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 15,
+    "fields": {
+      "code": "create",
+      "name": "Create QC Records",
+      "description": "Can create QC inspections",
+      "module": "compliance"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 16,
+    "fields": {
+      "code": "create_ncr",
+      "name": "Create NCRs",
+      "description": "Can create non-conformance reports",
+      "module": "compliance"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 17,
+    "fields": {
+      "code": "close_ncr",
+      "name": "Close NCRs",
+      "description": "Can close non-conformance reports",
+      "module": "compliance"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 18,
+    "fields": {
+      "code": "view",
+      "name": "View Employees",
+      "description": "Can view employee list and details",
+      "module": "hr"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 19,
+    "fields": {
+      "code": "manage",
+      "name": "Manage Employees",
+      "description": "Can create and edit employee records",
+      "module": "hr"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 20,
+    "fields": {
+      "code": "approve_leave",
+      "name": "Approve Leave",
+      "description": "Can approve leave requests",
+      "module": "hr"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 21,
+    "fields": {
+      "code": "view",
+      "name": "View Inventory",
+      "description": "Can view inventory items",
+      "module": "inventory"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 22,
+    "fields": {
+      "code": "adjust",
+      "name": "Adjust Inventory",
+      "description": "Can adjust inventory quantities",
+      "module": "inventory"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 23,
+    "fields": {
+      "code": "view",
+      "name": "View Reports",
+      "description": "Can view reports",
+      "module": "reports"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 24,
+    "fields": {
+      "code": "export",
+      "name": "Export Reports",
+      "description": "Can export reports to files",
+      "module": "reports"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 25,
+    "fields": {
+      "code": "manage_users",
+      "name": "Manage Users",
+      "description": "Can create and edit users",
+      "module": "admin"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 26,
+    "fields": {
+      "code": "manage_roles",
+      "name": "Manage Roles",
+      "description": "Can create and edit roles",
+      "module": "admin"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 27,
+    "fields": {
+      "code": "system_settings",
+      "name": "System Settings",
+      "description": "Can modify system settings",
+      "module": "admin"
+    }
+  },
+  {
+    "model": "accounts.permission",
+    "pk": 28,
+    "fields": {
+      "code": "view_audit_log",
+      "name": "View Audit Log",
+      "description": "Can view audit logs",
+      "module": "admin"
+    }
+  }
+]

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Delete Sequence - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="mb-6">
+    <nav class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+        <a href="{% url 'dashboard:index' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Dashboard</a>
+        <span class="mx-2">/</span>
+        <a href="{% url 'organization:sequence-list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Number Sequences</a>
+        <span class="mx-2">/</span>
+        <span>Delete</span>
+    </nav>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-lg">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center mb-6">
+            <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mr-4">
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
+            </div>
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Delete Number Sequence</h2>
+                <p class="text-gray-600 dark:text-gray-400">This action cannot be undone.</p>
+            </div>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 mb-6">
+            <dl class="space-y-2">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Code:</dt>
+                    <dd class="font-mono font-medium text-gray-900 dark:text-white">{{ object.code }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Name:</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ object.name }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Current Value:</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ object.current_value }}</dd>
+                </div>
+            </dl>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex items-center justify-end gap-4">
+                <a href="{% url 'organization:sequence-list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancel</a>
+                <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    <i data-lucide="trash-2" class="w-4 h-4 inline mr-2"></i>Delete Sequence
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

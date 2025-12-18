@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ maintenance_request.request_number }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if maintenance_request.status == 'COMPLETED' %}bg-green-100 text-green-800
+                {% elif maintenance_request.status == 'APPROVED' %}bg-blue-100 text-blue-800
+                {% elif maintenance_request.status == 'PENDING' %}bg-yellow-100 text-yellow-800
+                {% elif maintenance_request.status == 'REJECTED' %}bg-red-100 text-red-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ maintenance_request.get_status_display }}
+            </span>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if maintenance_request.priority == 'CRITICAL' %}bg-red-100 text-red-800
+                {% elif maintenance_request.priority == 'HIGH' %}bg-orange-100 text-orange-800
+                {% elif maintenance_request.priority == 'MEDIUM' %}bg-yellow-100 text-yellow-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ maintenance_request.get_priority_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ maintenance_request.title }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        {% if maintenance_request.status == 'PENDING' %}
+        <a href="{% url 'maintenance:request_approve' maintenance_request.pk %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i data-lucide="check" class="w-4 h-4 mr-2"></i>Approve/Reject
+        </a>
+        {% endif %}
+        {% if maintenance_request.status == 'APPROVED' %}
+        <a href="{% url 'maintenance:mwo_create' %}?request={{ maintenance_request.pk }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="wrench" class="w-4 h-4 mr-2"></i>Create Work Order
+        </a>
+        {% endif %}
+        <a href="{% url 'maintenance:request_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Request Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Request Details</h2>
+            <div class="prose dark:prose-invert max-w-none">
+                <p>{{ maintenance_request.description|linebreaks }}</p>
+            </div>
+        </div>
+
+        <!-- Equipment Info -->
+        {% if maintenance_request.equipment %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Equipment</h2>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <dt class="text-gray-500">Code</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">
+                        <a href="{% url 'maintenance:equipment_detail' maintenance_request.equipment.pk %}" class="text-blue-600 hover:underline">
+                            {{ maintenance_request.equipment.code }}
+                        </a>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Name</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ maintenance_request.equipment.name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Location</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ maintenance_request.equipment.location|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Status</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if maintenance_request.equipment.status == 'OPERATIONAL' %}bg-green-100 text-green-800
+                            {% elif maintenance_request.equipment.status == 'BREAKDOWN' %}bg-red-100 text-red-800
+                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {{ maintenance_request.equipment.get_status_display }}
+                        </span>
+                    </dd>
+                </div>
+            </dl>
+        </div>
+        {% endif %}
+
+        <!-- Related Work Orders -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Work Orders</h2>
+            </div>
+            {% if work_orders %}
+            <table class="w-full text-sm">
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for mwo in work_orders %}
+                    <tr>
+                        <td class="px-6 py-4">
+                            <a href="{% url 'maintenance:mwo_detail' mwo.pk %}" class="text-blue-600 hover:underline font-mono">{{ mwo.mwo_number }}</a>
+                        </td>
+                        <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ mwo.title }}</td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                {% if mwo.status == 'COMPLETED' %}bg-green-100 text-green-800
+                                {% elif mwo.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ mwo.get_status_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">No work orders created yet</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        <!-- Request Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Information</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Requested By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ maintenance_request.requested_by.get_full_name|default:maintenance_request.requested_by.username }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Request Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ maintenance_request.get_request_type_display }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ maintenance_request.created_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% if maintenance_request.approved_by %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Approved By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ maintenance_request.approved_by.get_full_name|default:maintenance_request.approved_by.username }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Approved At</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ maintenance_request.approved_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <!-- Rejection Reason -->
+        {% if maintenance_request.status == 'REJECTED' and maintenance_request.rejection_reason %}
+        <div class="bg-red-50 dark:bg-red-900/20 rounded-xl p-6">
+            <h2 class="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">Rejection Reason</h2>
+            <p class="text-red-700 dark:text-red-300 text-sm">{{ maintenance_request.rejection_reason }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

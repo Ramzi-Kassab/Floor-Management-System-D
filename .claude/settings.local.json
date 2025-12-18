@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Get-ChildItem -Path .\\ardt_fms -Exclude ardt_fms | ForEach-Object { Move-Item -Path $_FullName -Destination . -Force }\")",
+      "Bash(powershell -Command \"Move-Item -Path .\\ardt_fms\\ardt_fms -Destination .\\ardt_fms_temp -Force; Remove-Item -Path .\\ardt_fms -Force; Move-Item -Path .\\ardt_fms_temp -Destination .\\ardt_fms -Force\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git mv:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git remote:*)",
+      "Bash(dir /s /b \"D:\\PycharmProjects\\floor_management_system-D\\templates\\*pocket*\")",
+      "Bash(git log:*)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(git clone:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

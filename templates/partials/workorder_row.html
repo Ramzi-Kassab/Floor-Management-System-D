@@ -1,0 +1,72 @@
+{% comment %}
+HTMX Partial - Work Order Table Row
+Used for dynamic updates of individual work order rows.
+{% endcomment %}
+{% load role_tags %}
+
+<tr id="workorder-row-{{ work_order.pk }}" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+    <td class="px-6 py-4">
+        <a href="{% url 'workorders:workorder_detail' work_order.pk %}"
+           class="font-medium text-ardt-blue hover:text-blue-700 dark:text-blue-400">
+            {{ work_order.wo_number }}
+        </a>
+    </td>
+    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
+        {{ work_order.get_wo_type_display }}
+    </td>
+    <td class="px-6 py-4">
+        {% if work_order.customer %}
+            {{ work_order.customer.name }}
+        {% else %}
+            <span class="text-gray-400">--</span>
+        {% endif %}
+    </td>
+    <td class="px-6 py-4">
+        {% if work_order.drill_bit %}
+            <a href="{% url 'workorders:drillbit_detail' work_order.drill_bit.pk %}"
+               class="text-ardt-blue hover:text-blue-700 font-mono text-sm">
+                {{ work_order.drill_bit.serial_number }}
+            </a>
+        {% else %}
+            <span class="text-gray-400">--</span>
+        {% endif %}
+    </td>
+    <td class="px-6 py-4">
+        {% include "components/status_badge.html" with status=work_order.status status_display=work_order.get_status_display %}
+    </td>
+    <td class="px-6 py-4">
+        {% include "components/priority_badge.html" with priority=work_order.priority priority_display=work_order.get_priority_display %}
+    </td>
+    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
+        {% if work_order.due_date %}
+            <span class="{% if work_order.is_overdue %}text-red-600 dark:text-red-400 font-medium{% endif %}">
+                {{ work_order.due_date|date:"M d, Y" }}
+            </span>
+        {% else %}
+            <span class="text-gray-400">--</span>
+        {% endif %}
+    </td>
+    <td class="px-6 py-4">
+        {% if work_order.assigned_to %}
+            {% include "components/user_avatar.html" with user=work_order.assigned_to size="sm" %}
+        {% else %}
+            <span class="text-gray-400 text-sm">Unassigned</span>
+        {% endif %}
+    </td>
+    <td class="px-6 py-4 text-right">
+        <div class="flex items-center justify-end gap-2">
+            <a href="{% url 'workorders:workorder_detail' work_order.pk %}"
+               class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+               title="View">
+                <i data-lucide="eye" class="w-4 h-4"></i>
+            </a>
+            {% if user|can_edit_workorder %}
+            <a href="{% url 'workorders:workorder_edit' work_order.pk %}"
+               class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+               title="Edit">
+                <i data-lucide="edit" class="w-4 h-4"></i>
+            </a>
+            {% endif %}
+        </div>
+    </td>
+</tr>

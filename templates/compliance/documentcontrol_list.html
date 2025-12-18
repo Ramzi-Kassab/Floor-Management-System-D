@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Document Control - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Document Control</h1>
+            <p class="text-gray-600 dark:text-gray-400">Manage controlled documents and revisions</p>
+        </div>
+        <a href="{% url 'compliance:documentcontrol_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Document
+        </a>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+        <form method="get" class="flex flex-col sm:flex-row gap-4">
+            <input type="text" name="search" value="{{ request.GET.search }}" placeholder="Search documents..." class="flex-1 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
+            <select name="status" class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                <option value="">All Statuses</option>
+                <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>Draft</option>
+                <option value="review" {% if request.GET.status == 'review' %}selected{% endif %}>Under Review</option>
+                <option value="approved" {% if request.GET.status == 'approved' %}selected{% endif %}>Approved</option>
+                <option value="obsolete" {% if request.GET.status == 'obsolete' %}selected{% endif %}>Obsolete</option>
+            </select>
+            <select name="doc_type" class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                <option value="">All Types</option>
+                <option value="procedure" {% if request.GET.doc_type == 'procedure' %}selected{% endif %}>Procedure</option>
+                <option value="policy" {% if request.GET.doc_type == 'policy' %}selected{% endif %}>Policy</option>
+                <option value="form" {% if request.GET.doc_type == 'form' %}selected{% endif %}>Form</option>
+                <option value="work_instruction" {% if request.GET.doc_type == 'work_instruction' %}selected{% endif %}>Work Instruction</option>
+            </select>
+            <button type="submit" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">Filter</button>
+        </form>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Document Number</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Title</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Revision</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Review Date</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {% for document in documents %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="font-mono text-sm text-blue-600 dark:text-blue-400">{{ document.document_number }}</span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <a href="{% url 'compliance:documentcontrol_detail' document.pk %}" class="text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 font-medium">{{ document.title }}</a>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{{ document.get_document_type_display }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="font-mono text-sm">Rev {{ document.revision }}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full
+                            {% if document.status == 'approved' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                            {% elif document.status == 'draft' %}bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300
+                            {% elif document.status == 'review' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+                            {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400{% endif %}">
+                            {{ document.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        {% if document.next_review_date %}
+                            {% if document.is_review_due %}
+                            <span class="text-red-600 dark:text-red-400 font-medium">{{ document.next_review_date|date:"M d, Y" }}</span>
+                            {% else %}
+                            <span class="text-gray-600 dark:text-gray-400">{{ document.next_review_date|date:"M d, Y" }}</span>
+                            {% endif %}
+                        {% else %}
+                        <span class="text-gray-400">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                        <a href="{% url 'compliance:documentcontrol_update' document.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline mr-3">Edit</a>
+                        <a href="{% url 'compliance:documentcontrol_delete' document.pk %}" class="text-red-600 dark:text-red-400 hover:underline">Delete</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <p class="mt-2">No controlled documents found</p>
+                        <a href="{% url 'compliance:documentcontrol_create' %}" class="mt-2 inline-block text-blue-600 dark:text-blue-400 hover:underline">Add your first document</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if page_obj.has_other_pages %}
+    <div class="flex justify-center">
+        <nav class="flex items-center gap-2">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Previous</a>
+            {% endif %}
+            <span class="px-4 py-2 text-gray-700 dark:text-gray-300">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Next</a>
+            {% endif %}
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

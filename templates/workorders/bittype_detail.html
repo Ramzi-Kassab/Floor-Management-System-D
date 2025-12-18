@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div class="flex items-center">
+        <a href="{% url 'workorders:bittype_list' %}" class="mr-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ bit_type.display_name }}</h1>
+            <p class="text-gray-600 dark:text-gray-400 mt-1">
+                {{ bit_type.get_category_display }} - {{ bit_type.series }} Series
+            </p>
+        </div>
+    </div>
+    <a href="{% url 'workorders:bittype_update' bit_type.pk %}"
+       class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+        <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
+        Edit
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Info -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Identity Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="tag" class="w-5 h-5 mr-2 text-blue-500"></i>
+                Identity
+            </h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Category</p>
+                    <p class="font-medium text-gray-900 dark:text-white">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if bit_type.category == 'FC' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                            {% elif bit_type.category == 'MT' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                            {% else %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200{% endif %}">
+                            {{ bit_type.get_category_display }}
+                        </span>
+                    </p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Size</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ bit_type.size.size_display|default:"-" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">SMI Name (Client)</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ bit_type.smi_name|default:"-" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">HDBS Name (Internal)</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ bit_type.hdbs_name|default:"-" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Series</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ bit_type.series|default:"-" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Legacy Code</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ bit_type.code }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Material Numbers Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="hash" class="w-5 h-5 mr-2 text-green-500"></i>
+                Material Numbers
+            </h2>
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">HDBS MN</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono text-lg">{{ bit_type.hdbs_mn|default:"-" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Reference HDBS MN</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ bit_type.ref_hdbs_mn|default:"-" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">ARDT Item Number</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ bit_type.ardt_item_number|default:"-" }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical Specs Card (FC only) -->
+        {% if bit_type.category == 'FC' %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="settings" class="w-5 h-5 mr-2 text-orange-500"></i>
+                Technical Specifications
+            </h2>
+            <div class="grid grid-cols-4 gap-4">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Body Material</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ bit_type.get_body_material_display|default:"-" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Number of Blades</p>
+                    <p class="font-medium text-gray-900 dark:text-white text-2xl">{{ bit_type.no_of_blades|default:"-" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Cutter Size (mm)</p>
+                    <p class="font-medium text-gray-900 dark:text-white text-2xl">{{ bit_type.cutter_size|default:"-" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Gage Length (in)</p>
+                    <p class="font-medium text-gray-900 dark:text-white text-2xl">{{ bit_type.gage_length|default:"-" }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Drill Bits of This Type -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="disc" class="w-5 h-5 mr-2 text-purple-500"></i>
+                Drill Bits ({{ drill_bit_count }})
+            </h2>
+            {% if drill_bits %}
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Serial Number</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Location</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Customer</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for bit in drill_bits %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td class="px-3 py-2">
+                                <a href="{% url 'workorders:drillbit_detail' bit.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">
+                                    {{ bit.serial_number }}
+                                </a>
+                            </td>
+                            <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">{{ bit.get_lifecycle_status_display|default:bit.get_status_display }}</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">{{ bit.bit_location.name|default:"-" }}</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">{{ bit.customer.name|default:"-" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if drill_bit_count > 20 %}
+            <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                Showing 20 of {{ drill_bit_count }} drill bits.
+                <a href="{% url 'workorders:drillbit_list' %}?product_type={{ bit_type.pk }}" class="text-blue-600 dark:text-blue-400 hover:underline">View all</a>
+            </p>
+            {% endif %}
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-center py-8">
+                <i data-lucide="disc" class="w-12 h-12 mx-auto mb-2 opacity-30"></i><br>
+                No drill bits of this type registered yet.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="space-y-6">
+        <!-- Production Level Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="layers" class="w-5 h-5 mr-2 text-indigo-500"></i>
+                Production Level
+            </h2>
+            {% if bit_type.order_level %}
+            <div class="text-center">
+                <span class="text-4xl font-bold text-indigo-600 dark:text-indigo-400">{{ bit_type.order_level }}</span>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">{{ bit_type.get_order_level_display }}</p>
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-center">Not specified</p>
+            {% endif %}
+        </div>
+
+        <!-- Status Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Status</h2>
+            <div class="flex items-center">
+                {% if bit_type.is_active %}
+                <span class="flex items-center text-green-600 dark:text-green-400">
+                    <i data-lucide="check-circle" class="w-5 h-5 mr-2"></i>
+                    Active
+                </span>
+                {% else %}
+                <span class="flex items-center text-red-600 dark:text-red-400">
+                    <i data-lucide="x-circle" class="w-5 h-5 mr-2"></i>
+                    Inactive
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Description Card -->
+        {% if bit_type.description %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description</h2>
+            <p class="text-gray-600 dark:text-gray-400">{{ bit_type.description }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+            <div class="space-y-2">
+                <a href="{% url 'workorders:bittype_update' bit_type.pk %}"
+                   class="block w-full px-4 py-2 text-center bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+                    <i data-lucide="edit" class="w-4 h-4 inline mr-1"></i>
+                    Edit Bit Type
+                </a>
+                <a href="{% url 'workorders:drillbit_create' %}?product_type={{ bit_type.pk }}"
+                   class="block w-full px-4 py-2 text-center bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors">
+                    <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>
+                    Register New Bit
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

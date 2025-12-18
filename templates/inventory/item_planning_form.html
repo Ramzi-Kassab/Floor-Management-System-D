@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Item: {{ item.code }} - {{ item.name }}</p>
+    </div>
+    <a href="{% url 'inventory:item_detail' item.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Item
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-xl">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <form method="post">
+            {% csrf_token %}
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Warehouse *</label>
+                    {{ form.warehouse }}
+                    {% if form.warehouse.errors %}<p class="text-red-600 text-sm mt-1">{{ form.warehouse.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Min Stock</label>
+                        {{ form.min_stock }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Stock</label>
+                        {{ form.max_stock }}
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Reorder Point</label>
+                        {{ form.reorder_point }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Reorder Quantity</label>
+                        {{ form.reorder_quantity }}
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    {{ form.is_active }}
+                    <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'inventory:item_detail' item.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

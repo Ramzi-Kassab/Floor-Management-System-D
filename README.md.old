@@ -1,0 +1,206 @@
+# ARDT FMS v5.4 - Django Project Skeleton
+
+**Aramco Rig Drilling Tools - Factory Management System**  
+**Phase 0: Complete Django Project Setup**  
+**Version: 5.4**  
+**Date: December 2024**
+
+---
+
+## 📋 Overview
+
+This is the **complete Django 5.1 project skeleton** for ARDT FMS v5.4, a comprehensive factory management system for drill bit manufacturing and service operations.
+
+### What's Included
+
+- ✅ **Django 5.1** project with PostgreSQL 16
+- ✅ **21 Django apps** with 114 database models
+- ✅ **Complete data models** for all business entities
+- ✅ **Admin interfaces** for all models
+- ✅ **Role-based access control** (RBAC) system
+- ✅ **Procedure execution engine** with branching logic
+- ✅ **Dynamic forms engine** with 16 field types
+- ✅ **Quality management** (Inspections, NCRs)
+- ✅ **Inventory & warehouse** management
+- ✅ **Work order lifecycle** management
+- ✅ **DRSS integration** for ARAMCO workflows
+- ✅ **Planning module** (Kanban boards, Wiki)
+- ✅ **Base fixtures** for roles, step types, field types
+
+---
+
+## 🚀 Quick Start
+
+### 1. Prerequisites
+
+- Python 3.12+
+- PostgreSQL 16
+- pip and virtualenv
+
+### 2. Installation
+
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Copy environment template
+cp .env.example .env
+# Edit .env with your database credentials
+```
+
+### 3. Create Database
+
+```bash
+psql -U postgres
+CREATE DATABASE ardt_fms;
+\q
+```
+
+### 4. Run Migrations & Load Data
+
+```bash
+# Create and apply migrations
+python manage.py makemigrations
+python manage.py migrate
+
+# Load initial data
+python manage.py loaddata fixtures/roles.json
+python manage.py loaddata fixtures/step_types.json
+python manage.py loaddata fixtures/field_types.json
+python manage.py loaddata fixtures/checkpoint_types.json
+
+# Create admin user
+python manage.py createsuperuser
+```
+
+### 5. Run Server
+
+```bash
+python manage.py runserver
+```
+
+Visit http://localhost:8000/admin/
+
+---
+
+## 🏗️ Project Structure
+
+```
+ardt_fms/
+├── apps/                   # 21 Django apps
+│   ├── organization/       # Departments, Themes, Settings
+│   ├── accounts/          # Users, Roles, Permissions
+│   ├── procedures/        # Procedure engine (9 models)
+│   ├── forms_engine/      # Dynamic forms (5 models)
+│   ├── execution/         # Execution tracking
+│   ├── drss/             # ARAMCO DRSS
+│   ├── sales/            # Customers, Orders
+│   ├── workorders/       # Work Orders, Drill Bits
+│   ├── technology/       # Designs, BOMs
+│   ├── quality/          # Inspections, NCRs
+│   ├── inventory/        # Inventory management
+│   ├── scancodes/        # QR codes
+│   ├── notifications/    # Notifications, Tasks, Audit
+│   ├── maintenance/      # Equipment, MWOs
+│   ├── documents/        # Document management
+│   ├── planning/         # Kanban, Wiki (13 models)
+│   ├── supplychain/      # PRs, POs, Suppliers
+│   ├── dispatch/         # Vehicles, Dispatch
+│   ├── hr/               # Attendance, Leave
+│   ├── hsse/             # HOC, Incidents
+│   └── erp_integration/  # ERP sync
+├── fixtures/              # Initial data
+├── requirements.txt       # Dependencies
+└── manage.py
+```
+
+---
+
+## 📊 Database Summary
+
+| Phase | Models | Status |
+|-------|--------|--------|
+| **P1 Core** | 61 | ✅ Complete |
+| **P2 Extended** | 8 | ✅ Complete |
+| **P3 Full Ops** | 4 | ✅ Complete |
+| **P4 Advanced** | 7 | ✅ Complete |
+| **FUTURE** | 2 | ✅ Complete |
+| **TOTAL** | **82** | **✅ All Done** |
+
+---
+
+## 🔐 Built-in Roles (12)
+
+1. **ADMIN** - Full system access
+2. **MANAGER** - Department oversight
+3. **PLANNER** - Work order scheduling
+4. **ENGINEER** - Technical designs
+5. **TECHNICIAN** - Shop floor execution
+6. **QC** - Quality control
+7. **SALES** - Customer management
+8. **LOGISTICS** - DRSS and dispatch
+9. **WAREHOUSE** - Inventory
+10. **MAINTENANCE** - Equipment
+11. **PROCUREMENT** - Purchasing
+12. **VIEWER** - Read-only
+
+---
+
+## 📝 Key Features
+
+### Procedure Engine
+- 10 step types (Operation, Inspection, Approval, etc.)
+- 10 checkpoint types with tolerances
+- Branching logic for conditional routing
+- Version control
+
+### Forms Engine
+- 16 field types
+- Dynamic form builder
+- Conditional display
+- Section grouping
+
+### Work Orders
+- Drill bit tracking (FC/RC types)
+- Material allocation
+- Time logging
+- Photo documentation
+- IADC bit evaluations
+
+### Quality System
+- 5 inspection types
+- NCR management with disposition
+- Root cause analysis
+- CAPA system (P2)
+
+### Planning Module (NEW v5.4)
+- Sprint management
+- Kanban boards
+- Planning items (Epics, Stories, Tasks)
+- Wiki pages with versioning
+
+---
+
+## 🎯 Next Steps
+
+**Phase 0**: ✅ COMPLETE  
+**Sprint 1**: Authentication & Dashboard  
+**Sprint 2**: Work Orders  
+**Sprint 3**: Procedures  
+**Sprint 4**: Execution  
+**Sprint 5**: Quality  
+**Sprint 6**: DRSS & Sales
+
+---
+
+## 📄 License
+
+Copyright © 2024 ARDT - All rights reserved
+
+---
+
+**Built for manufacturing excellence** 🏭

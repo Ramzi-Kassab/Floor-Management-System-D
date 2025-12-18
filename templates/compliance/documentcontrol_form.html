@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Manage document information and revision control</p>
+    </div>
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Document Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.document_number.label }}</label>
+                    {{ form.document_number }}
+                    {% if form.document_number.errors %}<p class="mt-1 text-sm text-red-600">{{ form.document_number.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.document_type.label }}</label>
+                    {{ form.document_type }}
+                    {% if form.document_type.errors %}<p class="mt-1 text-sm text-red-600">{{ form.document_type.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.title.label }}</label>
+                    {{ form.title }}
+                    {% if form.title.errors %}<p class="mt-1 text-sm text-red-600">{{ form.title.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.description.label }}</label>
+                    {{ form.description }}
+                    {% if form.description.errors %}<p class="mt-1 text-sm text-red-600">{{ form.description.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.revision.label }}</label>
+                    {{ form.revision }}
+                    {% if form.revision.errors %}<p class="mt-1 text-sm text-red-600">{{ form.revision.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.status.label }}</label>
+                    {{ form.status }}
+                    {% if form.status.errors %}<p class="mt-1 text-sm text-red-600">{{ form.status.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Approval & Review</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.author.label }}</label>
+                    {{ form.author }}
+                    {% if form.author.errors %}<p class="mt-1 text-sm text-red-600">{{ form.author.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.approved_by.label }}</label>
+                    {{ form.approved_by }}
+                    {% if form.approved_by.errors %}<p class="mt-1 text-sm text-red-600">{{ form.approved_by.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.effective_date.label }}</label>
+                    {{ form.effective_date }}
+                    {% if form.effective_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.effective_date.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.next_review_date.label }}</label>
+                    {{ form.next_review_date }}
+                    {% if form.next_review_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.next_review_date.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Document File & History</h2>
+            <div class="grid grid-cols-1 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.file.label }}</label>
+                    {{ form.file }}
+                    {% if form.file.errors %}<p class="mt-1 text-sm text-red-600">{{ form.file.errors.0 }}</p>{% endif %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Upload PDF, Word, or Excel files</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.revision_history.label }}</label>
+                    {{ form.revision_history }}
+                    {% if form.revision_history.errors %}<p class="mt-1 text-sm text-red-600">{{ form.revision_history.errors.0 }}</p>{% endif %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Document the changes made in each revision</p>
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-4">
+            <a href="{% url 'compliance:documentcontrol_list' %}" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">{{ submit_text }}</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

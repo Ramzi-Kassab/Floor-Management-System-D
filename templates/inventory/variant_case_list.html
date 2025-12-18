@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Master data for item variant cases (condition + acquisition)</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'inventory:variant_case_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Variant Case
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+    <!-- Filters -->
+    <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+        <form method="get" class="flex flex-wrap gap-4 items-end">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Condition</label>
+                <select name="condition" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All Conditions</option>
+                    <option value="NEW" {% if request.GET.condition == 'NEW' %}selected{% endif %}>New</option>
+                    <option value="USED" {% if request.GET.condition == 'USED' %}selected{% endif %}>Used</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ownership</label>
+                <select name="ownership" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All</option>
+                    <option value="ARDT" {% if request.GET.ownership == 'ARDT' %}selected{% endif %}>ARDT</option>
+                    <option value="CLIENT" {% if request.GET.ownership == 'CLIENT' %}selected{% endif %}>Client</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
+                <select name="status" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All</option>
+                    <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>Filter
+            </button>
+            {% if request.GET %}
+            <a href="{% url 'inventory:variant_case_list' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">Clear</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Table -->
+    {% if cases %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                    <th class="px-4 py-3 font-medium">Code</th>
+                    <th class="px-4 py-3 font-medium">Name</th>
+                    <th class="px-4 py-3 font-medium">Condition</th>
+                    <th class="px-4 py-3 font-medium">Acquisition</th>
+                    <th class="px-4 py-3 font-medium">Reclaim Category</th>
+                    <th class="px-4 py-3 font-medium">Ownership</th>
+                    <th class="px-4 py-3 font-medium text-center">Status</th>
+                    <th class="px-4 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                {% for case in cases %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-4 py-3 font-mono font-medium">{{ case.code }}</td>
+                    <td class="px-4 py-3">{{ case.name }}</td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if case.condition == 'NEW' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                            {% else %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200{% endif %}">
+                            {{ case.get_condition_display }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if case.acquisition == 'PURCHASED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                            {% elif case.acquisition == 'RECLAIMED' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                            {% elif case.acquisition == 'MANUFACTURED' %}bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200
+                            {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                            {{ case.get_acquisition_display }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
+                        {% if case.reclaim_category %}{{ case.get_reclaim_category_display }}{% else %}-{% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if case.ownership == 'ARDT' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200
+                            {% else %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200{% endif %}">
+                            {{ case.get_ownership_display }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        {% if case.is_active %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right space-x-2">
+                        <a href="{% url 'inventory:variant_case_update' case.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                        <a href="{% url 'inventory:variant_case_delete' case.pk %}" class="text-red-600 hover:text-red-800 text-xs">Delete</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="layers" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No variant cases defined</h3>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Define standard variant cases like NEW-PUR (New Purchased), USED-RET (Retrofit), etc.</p>
+        <a href="{% url 'inventory:variant_case_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create First Variant Case
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

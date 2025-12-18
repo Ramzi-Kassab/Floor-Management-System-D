@@ -1,0 +1,52 @@
+{% comment %}
+Reusable Empty State Component
+Usage: {% include "components/empty_state.html" with icon="inbox" title="No items" message="Get started by creating your first item." action_url="/items/new/" action_text="Create Item" %}
+{% endcomment %}
+
+<div class="text-center py-12">
+    <div class="mx-auto h-16 w-16 text-gray-400 dark:text-gray-500 mb-4">
+        {% if icon == 'inbox' %}
+            <i data-lucide="inbox" class="w-16 h-16"></i>
+        {% elif icon == 'file' %}
+            <i data-lucide="file-text" class="w-16 h-16"></i>
+        {% elif icon == 'search' %}
+            <i data-lucide="search" class="w-16 h-16"></i>
+        {% elif icon == 'folder' %}
+            <i data-lucide="folder-open" class="w-16 h-16"></i>
+        {% elif icon == 'users' %}
+            <i data-lucide="users" class="w-16 h-16"></i>
+        {% elif icon == 'wrench' %}
+            <i data-lucide="wrench" class="w-16 h-16"></i>
+        {% elif icon == 'clipboard' %}
+            <i data-lucide="clipboard-list" class="w-16 h-16"></i>
+        {% elif icon == 'package' %}
+            <i data-lucide="package" class="w-16 h-16"></i>
+        {% elif icon == 'drill' %}
+            <i data-lucide="disc-3" class="w-16 h-16"></i>
+        {% else %}
+            <i data-lucide="circle-slash" class="w-16 h-16"></i>
+        {% endif %}
+    </div>
+
+    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">
+        {{ title|default:"No items found" }}
+    </h3>
+
+    {% if message %}
+    <p class="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
+        {{ message }}
+    </p>
+    {% endif %}
+
+    {% if action_url %}
+    <a href="{{ action_url }}"
+       class="inline-flex items-center px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+        {% if action_icon %}
+            <i data-lucide="{{ action_icon }}" class="w-4 h-4 mr-2"></i>
+        {% else %}
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+        {% endif %}
+        {{ action_text|default:"Create New" }}
+    </a>
+    {% endif %}
+</div>

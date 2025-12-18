@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">All item variants across inventory items (condition/source tracking)</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+    <!-- Filters -->
+    <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+        <form method="get" class="flex flex-wrap gap-4 items-end">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
+                <input type="text" name="search" value="{{ request.GET.search }}"
+                       class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                       placeholder="Code, name, item...">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Condition</label>
+                <select name="condition" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All Conditions</option>
+                    {% for value, label in conditions %}
+                    <option value="{{ value }}" {% if request.GET.condition == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Source Type</label>
+                <select name="source_type" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All Sources</option>
+                    {% for value, label in source_types %}
+                    <option value="{{ value }}" {% if request.GET.source_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
+                <select name="status" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All</option>
+                    <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>Filter
+            </button>
+            {% if request.GET %}
+            <a href="{% url 'inventory:variant_list' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">Clear</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Table -->
+    {% if variants %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                    <th class="px-4 py-3 font-medium">Variant Code</th>
+                    <th class="px-4 py-3 font-medium">Base Item</th>
+                    <th class="px-4 py-3 font-medium">Condition</th>
+                    <th class="px-4 py-3 font-medium">Source Type</th>
+                    <th class="px-4 py-3 font-medium">Customer</th>
+                    <th class="px-4 py-3 font-medium text-right">Valuation %</th>
+                    <th class="px-4 py-3 font-medium text-center">Status</th>
+                    <th class="px-4 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                {% for variant in variants %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-4 py-3 font-mono text-blue-600 dark:text-blue-400">{{ variant.code }}</td>
+                    <td class="px-4 py-3">
+                        <a href="{% url 'inventory:item_detail' variant.base_item.pk %}" class="text-blue-600 hover:text-blue-800">
+                            {{ variant.base_item.code }}
+                        </a>
+                        <span class="text-gray-500 dark:text-gray-400 text-xs block">{{ variant.base_item.name|truncatewords:5 }}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if variant.condition == 'NEW' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                            {% elif variant.condition == 'RECLAIMED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                            {% elif variant.condition == 'USED' %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
+                            {% else %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200{% endif %}">
+                            {{ variant.get_condition_display }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{{ variant.get_source_type_display }}</td>
+                    <td class="px-4 py-3">
+                        {% if variant.customer %}
+                        {{ variant.customer.name|truncatewords:3 }}
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right">{{ variant.valuation_percentage }}%</td>
+                    <td class="px-4 py-3 text-center">
+                        {% if variant.is_active %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="{% url 'inventory:item_variant_update' variant.base_item.pk variant.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <div class="text-sm text-gray-500 dark:text-gray-400">
+            Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+        </div>
+        <div class="flex gap-2">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% for k,v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}" class="px-3 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200">Previous</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% for k,v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}" class="px-3 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200">Next</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="layers" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No variants found</h3>
+        <p class="text-gray-500 dark:text-gray-400">Variants are created from individual item pages.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

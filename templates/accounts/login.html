@@ -1,0 +1,82 @@
+{% extends 'base_auth.html' %}
+
+{% block title %}Login - ARDT FMS{% endblock %}
+
+{% block auth_content %}
+<!-- Messages -->
+{% if messages %}
+    {% for message in messages %}
+    <div class="mb-4 p-4 rounded-lg {% if message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200{% elif message.tags == 'success' %}bg-green-50 text-green-800 border border-green-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endif %}
+
+<!-- Login Form -->
+<form method="post" action="{% url 'accounts:login' %}" class="space-y-6">
+    {% csrf_token %}
+
+    <h2 class="text-2xl font-bold text-center text-gray-900 mb-6">Sign In</h2>
+
+    <!-- Username Field -->
+    <div>
+        <label for="id_username" class="block mb-2 text-sm font-medium text-gray-900">
+            {{ form.username.label }}
+        </label>
+        {{ form.username }}
+        {% if form.username.errors %}
+            <p class="mt-2 text-sm text-red-600">{{ form.username.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Password Field -->
+    <div>
+        <label for="id_password" class="block mb-2 text-sm font-medium text-gray-900">
+            {{ form.password.label }}
+        </label>
+        {{ form.password }}
+        {% if form.password.errors %}
+            <p class="mt-2 text-sm text-red-600">{{ form.password.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Remember Me & Forgot Password -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center">
+            {{ form.remember_me }}
+            <label for="id_remember_me" class="ml-2 text-sm text-gray-900">
+                Remember me
+            </label>
+        </div>
+
+        <a href="{% url 'accounts:password_reset' %}"
+           class="text-sm text-blue-600 hover:underline">
+            Forgot password?
+        </a>
+    </div>
+
+    <!-- Non-field Errors -->
+    {% if form.non_field_errors %}
+        <div class="p-4 text-sm text-red-800 bg-red-50 rounded-lg border border-red-200">
+            {{ form.non_field_errors.0 }}
+        </div>
+    {% endif %}
+
+    <!-- Submit Button -->
+    <button type="submit"
+            class="w-full text-white bg-ardt-blue hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-3 text-center transition-colors">
+        <i data-lucide="log-in" class="w-4 h-4 inline mr-2"></i>
+        Sign In
+    </button>
+</form>
+
+<!-- Help Text -->
+<div class="text-center mt-6">
+    <p class="text-sm text-gray-600">
+        Need help? Contact IT support at
+        <a href="mailto:support@ardt.com" class="text-blue-600 hover:underline">
+            support@ardt.com
+        </a>
+    </p>
+</div>
+{% endblock %}

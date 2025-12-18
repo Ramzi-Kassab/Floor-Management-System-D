@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div><h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1></div>
+    <a href="{% url 'supplychain:capa_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 hover:text-gray-800"><i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h2>
+            <div class="space-y-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Title *</label>{{ form.title }}{% if form.title.errors %}<p class="text-red-600 text-sm mt-1">{{ form.title.errors.0 }}</p>{% endif %}</div>
+                <div class="grid grid-cols-2 gap-6">
+                    <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>{{ form.status }}</div>
+                    <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Related NCR</label>{{ form.ncr }}</div>
+                </div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description *</label>{{ form.description }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Analysis & Actions</h2>
+            <div class="space-y-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Root Cause Analysis</label>{{ form.root_cause }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Corrective Action</label>{{ form.corrective_action }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preventive Action</label>{{ form.preventive_action }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Assignment</h2>
+            <div class="grid grid-cols-2 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned To</label>{{ form.assigned_to }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Due Date</label>{{ form.due_date }}</div>
+            </div>
+        </div>
+        <div class="flex justify-end space-x-3 pt-6">
+            <a href="{% url 'supplychain:capa_list' %}" class="px-4 py-2 text-gray-700 hover:text-gray-900">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">{% if object %}Update{% else %}Create{% endif %} CAPA</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

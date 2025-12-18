@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}{{ design.code }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white font-mono">{{ design.code }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {% if design.bit_type == 'FC' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200{% else %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200{% endif %}">
+                {{ design.get_bit_type_display }}
+            </span>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800{% elif design.status == 'DRAFT' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ design.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ design.name }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'technology:design_update' design.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'technology:design_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Specifications -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Specifications</h2>
+            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Size</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ design.size }}"</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">IADC Code</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ design.iadc_code|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Revision</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.revision }}</dd>
+                </div>
+                {% if design.bit_type == 'FC' %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Blade Count</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.blade_count|default:"--" }}</dd>
+                </div>
+                {% else %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Cone Count</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.cone_count|default:"--" }}</dd>
+                </div>
+                {% endif %}
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Connection</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.connection_type|default:"--" }} {{ design.connection_size }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">TFA</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.tfa|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Formation</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.formation_type|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Application</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.application|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Nozzle Config</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.nozzle_config|default:"--" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- BOMs -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Bills of Materials</h2>
+                <a href="{% url 'technology:bom_create' %}?design={{ design.pk }}" class="text-sm text-blue-600 hover:underline">
+                    <i data-lucide="plus" class="w-4 h-4 inline"></i> Add BOM
+                </a>
+            </div>
+            {% if boms %}
+            <div class="space-y-3">
+                {% for bom in boms %}
+                <a href="{% url 'technology:bom_detail' bom.pk %}" class="block p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ bom.code }}</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">{{ bom.name }}</p>
+                        </div>
+                        <span class="text-xs px-2 py-1 rounded {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ bom.get_status_display }}
+                        </span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">No BOMs defined for this design</p>
+            {% endif %}
+        </div>
+
+        <!-- Cutter Layouts (for FC bits) -->
+        {% if design.bit_type == 'FC' %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Cutter Layout</h2>
+            </div>
+            {% if cutter_layouts %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                            <th class="px-4 py-2">Blade</th>
+                            <th class="px-4 py-2">Pos</th>
+                            <th class="px-4 py-2">Type</th>
+                            <th class="px-4 py-2">Size (mm)</th>
+                            <th class="px-4 py-2">Radial (mm)</th>
+                            <th class="px-4 py-2">Backrake</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for layout in cutter_layouts %}
+                        <tr>
+                            <td class="px-4 py-2">{{ layout.blade_number }}</td>
+                            <td class="px-4 py-2">{{ layout.position_number }}</td>
+                            <td class="px-4 py-2">{{ layout.cutter_type }}</td>
+                            <td class="px-4 py-2">{{ layout.cutter_size }}</td>
+                            <td class="px-4 py-2">{{ layout.radial_position }}</td>
+                            <td class="px-4 py-2">{{ layout.backrake|default:"--" }}°</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">No cutter layout defined</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="space-y-6">
+        <!-- Stats -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Usage</h2>
+            <div class="text-center">
+                <p class="text-3xl font-bold text-blue-600 dark:text-blue-400">{{ work_orders_count }}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Work Orders</p>
+            </div>
+        </div>
+
+        <!-- Description -->
+        {% if design.description %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description</h2>
+            <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ design.description }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Audit -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Audit</h2>
+            <dl class="space-y-3 text-sm">
+                {% if design.designed_by %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Designed By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.designed_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.created_at|date:"M d, Y" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Updated</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ design.updated_at|date:"M d, Y" }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

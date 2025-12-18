@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} | ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center space-x-2">
+        <a href="{% url 'maintenance:pm_schedule' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+    </div>
+
+    {% if count > 0 %}
+    <!-- Confirmation Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div class="flex items-start space-x-4">
+            <div class="flex-shrink-0">
+                <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <i data-lucide="calendar-plus" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                </div>
+            </div>
+            <div class="flex-1">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    Generate Preventive Maintenance Requests
+                </h2>
+                <p class="text-gray-600 dark:text-gray-400 mb-4">
+                    The following {{ count }} equipment item(s) are due or overdue for preventive maintenance and don't have active maintenance requests:
+                </p>
+
+                <!-- Equipment List -->
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-6 max-h-64 overflow-y-auto">
+                    <ul class="space-y-2">
+                        {% for equipment in equipment_list %}
+                        <li class="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600 last:border-0">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                                    <i data-lucide="cog" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
+                                </div>
+                                <div>
+                                    <p class="font-medium text-gray-900 dark:text-white">{{ equipment.code }}</p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ equipment.name }}</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm text-red-600 dark:text-red-400 font-medium">
+                                    Due: {{ equipment.next_maintenance|date:"M d, Y" }}
+                                </p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                    Last: {{ equipment.last_maintenance|date:"M d, Y"|default:"Never" }}
+                                </p>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-6">
+                    <div class="flex items-center">
+                        <i data-lucide="info" class="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-2"></i>
+                        <p class="text-sm text-yellow-700 dark:text-yellow-300">
+                            This will create {{ count }} preventive maintenance request(s) with "Pending" status.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center space-x-3">
+                    <form method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                            <i data-lucide="calendar-plus" class="w-4 h-4 mr-2"></i>
+                            Generate {{ count }} Request(s)
+                        </button>
+                    </form>
+                    <a href="{% url 'maintenance:pm_schedule' %}"
+                       class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors">
+                        Cancel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- No Equipment Due -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
+        <div class="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4">
+            <i data-lucide="check-circle" class="w-8 h-8 text-green-600 dark:text-green-400"></i>
+        </div>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">All Caught Up!</h2>
+        <p class="text-gray-600 dark:text-gray-400 mb-6">
+            No equipment is currently due for preventive maintenance, or all due equipment already has active maintenance requests.
+        </p>
+        <a href="{% url 'maintenance:pm_schedule' %}"
+           class="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back to Schedule
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

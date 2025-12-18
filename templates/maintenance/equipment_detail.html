@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ equipment.code }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if equipment.status == 'OPERATIONAL' %}bg-green-100 text-green-800
+                {% elif equipment.status == 'MAINTENANCE' %}bg-yellow-100 text-yellow-800
+                {% elif equipment.status == 'BREAKDOWN' %}bg-red-100 text-red-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ equipment.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ equipment.name }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'maintenance:request_create' %}?equipment={{ equipment.pk }}" class="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+            <i data-lucide="alert-triangle" class="w-4 h-4 mr-2"></i>Report Issue
+        </a>
+        <a href="{% url 'maintenance:equipment_update' equipment.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'maintenance:equipment_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Equipment Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Equipment Details</h2>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <dt class="text-gray-500">Category</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ equipment.category.name|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Manufacturer</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ equipment.manufacturer|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Model</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ equipment.model|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Serial Number</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ equipment.serial_number|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Year of Manufacture</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ equipment.year_of_manufacture|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Department</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ equipment.department.name|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Location</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ equipment.location|default:"--" }}</dd>
+                </div>
+            </dl>
+            {% if equipment.notes %}
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <dt class="text-gray-500 text-sm">Notes</dt>
+                <dd class="text-gray-900 dark:text-white mt-1">{{ equipment.notes }}</dd>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Recent Requests -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Maintenance Requests</h2>
+                <a href="{% url 'maintenance:request_create' %}?equipment={{ equipment.pk }}" class="text-sm text-blue-600 hover:underline">New Request</a>
+            </div>
+            {% if recent_requests %}
+            <table class="w-full text-sm">
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for req in recent_requests %}
+                    <tr>
+                        <td class="px-6 py-4">
+                            <a href="{% url 'maintenance:request_detail' req.pk %}" class="text-blue-600 hover:underline">{{ req.request_number }}</a>
+                        </td>
+                        <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ req.title }}</td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                {% if req.status == 'COMPLETED' %}bg-green-100 text-green-800
+                                {% elif req.status == 'PENDING' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ req.get_status_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">No maintenance requests</div>
+            {% endif %}
+        </div>
+
+        <!-- Recent Work Orders -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Work Orders</h2>
+            </div>
+            {% if recent_work_orders %}
+            <table class="w-full text-sm">
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for mwo in recent_work_orders %}
+                    <tr>
+                        <td class="px-6 py-4">
+                            <a href="{% url 'maintenance:mwo_detail' mwo.pk %}" class="text-blue-600 hover:underline">{{ mwo.mwo_number }}</a>
+                        </td>
+                        <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ mwo.title }}</td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                {% if mwo.status == 'COMPLETED' %}bg-green-100 text-green-800
+                                {% elif mwo.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ mwo.get_status_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">No work orders</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        <!-- Maintenance Schedule -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Maintenance Schedule</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Interval</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ equipment.maintenance_interval_days|default:"-" }} days</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Last Maintenance</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ equipment.last_maintenance|date:"M d, Y"|default:"-" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Next Maintenance</dt>
+                    <dd class="{% if equipment.next_maintenance and equipment.next_maintenance < today %}text-red-600 font-medium{% else %}text-gray-900 dark:text-white{% endif %}">
+                        {{ equipment.next_maintenance|date:"M d, Y"|default:"-" }}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+
+        {% if equipment.requires_calibration %}
+        <!-- Calibration -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Calibration</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Last Calibration</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ equipment.last_calibration|date:"M d, Y"|default:"-" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Next Calibration</dt>
+                    <dd class="{% if equipment.next_calibration and equipment.next_calibration < today %}text-red-600 font-medium{% else %}text-gray-900 dark:text-white{% endif %}">
+                        {{ equipment.next_calibration|date:"M d, Y"|default:"-" }}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+        {% endif %}
+
+        <!-- Documents -->
+        {% if equipment.manual_file or equipment.image %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Documents</h2>
+            <div class="space-y-2">
+                {% if equipment.manual_file %}
+                <a href="{{ equipment.manual_file.url }}" class="flex items-center text-blue-600 hover:underline" target="_blank">
+                    <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>Manual
+                </a>
+                {% endif %}
+                {% if equipment.image %}
+                <a href="{{ equipment.image.url }}" class="flex items-center text-blue-600 hover:underline" target="_blank">
+                    <i data-lucide="image" class="w-4 h-4 mr-2"></i>Image
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

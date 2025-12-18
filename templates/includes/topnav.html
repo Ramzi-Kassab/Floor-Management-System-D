@@ -1,0 +1,109 @@
+<!-- Top Navigation Bar -->
+<nav class="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 shadow-sm z-40 flex items-center justify-between px-4">
+    <!-- Left: Toggle & Logo -->
+    <div class="flex items-center space-x-4">
+        <button @click="sidebarOpen = !sidebarOpen" 
+                class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+            <i data-lucide="menu" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
+        </button>
+        
+        <a href="{% url 'dashboard:index' %}" class="flex items-center space-x-2">
+            <span class="text-xl font-bold text-ardt-blue dark:text-white">ARDT</span>
+            <span class="text-sm text-gray-500 dark:text-gray-400">FMS v5.4</span>
+        </a>
+    </div>
+    
+    <!-- Center: Global Search -->
+    <div class="flex-1 max-w-xl mx-4">
+        <div class="relative" x-data="{ focused: false }">
+            <input type="text" 
+                   placeholder="Search work orders, bits, procedures... (Ctrl+K)"
+                   class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 
+                          bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white
+                          focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                   @focus="focused = true"
+                   @blur="focused = false"
+                   @keydown.ctrl.k.window.prevent="$el.focus()">
+            <i data-lucide="search" class="w-5 h-5 absolute left-3 top-2.5 text-gray-400"></i>
+        </div>
+    </div>
+    
+    <!-- Right: Actions & Profile -->
+    <div class="flex items-center space-x-3">
+        <!-- Dark Mode Toggle -->
+        <button @click="darkMode = !darkMode" 
+                class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+            <i x-show="!darkMode" data-lucide="moon" class="w-5 h-5 text-gray-600"></i>
+            <i x-show="darkMode" data-lucide="sun" class="w-5 h-5 text-yellow-400"></i>
+        </button>
+        
+        <!-- Notifications -->
+        <div x-data="{ open: false }" class="relative">
+            <button @click="open = !open" 
+                    class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 relative">
+                <i data-lucide="bell" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
+                <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+            
+            <div x-show="open" 
+                 x-transition
+                 @click.outside="open = false"
+                 class="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700">
+                <div class="p-4 border-b dark:border-gray-700">
+                    <h3 class="font-semibold text-gray-900 dark:text-white">Notifications</h3>
+                </div>
+                <div class="max-h-96 overflow-y-auto">
+                    <div class="p-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        No new notifications
+                    </div>
+                </div>
+                <div class="p-2 border-t dark:border-gray-700">
+                    <a href="#" class="block text-center text-sm text-blue-600 hover:underline">View All Notifications</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tasks -->
+        <a href="#" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+            <i data-lucide="check-square" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
+        </a>
+        
+        <!-- User Menu -->
+        <div x-data="{ open: false }" class="relative">
+            <button @click="open = !open" 
+                    class="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <div class="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white font-medium">
+                    {% if user.first_name %}{{ user.first_name.0 }}{% else %}U{% endif %}
+                </div>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-200 hidden md:block">
+                    {{ user.get_full_name|default:user.username }}
+                </span>
+                <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
+            </button>
+            
+            <div x-show="open" 
+                 x-transition
+                 @click.outside="open = false"
+                 class="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700">
+                <div class="p-4 border-b dark:border-gray-700">
+                    <p class="font-medium text-gray-900 dark:text-white">{{ user.get_full_name|default:user.username }}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ user.email }}</p>
+                </div>
+                <div class="py-2">
+                    <a href="#" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <i data-lucide="user" class="w-4 h-4 mr-3"></i> Profile
+                    </a>
+                    <a href="#" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <i data-lucide="settings" class="w-4 h-4 mr-3"></i> Settings
+                    </a>
+                </div>
+                <div class="border-t dark:border-gray-700 py-2">
+                    <a href="{% url 'accounts:logout' %}" 
+                       class="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <i data-lucide="log-out" class="w-4 h-4 mr-3"></i> Sign Out
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>

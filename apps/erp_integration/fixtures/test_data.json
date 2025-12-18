@@ -1,0 +1,275 @@
+[
+    {
+        "model": "erp_integration.erpmapping",
+        "pk": 1,
+        "fields": {
+            "entity_type": "CUSTOMER",
+            "ardt_id": 1,
+            "erp_system": "SAP",
+            "erp_id": "SAP-CUST-100001",
+            "is_active": true,
+            "last_synced": "2024-12-01T10:30:00Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpmapping",
+        "pk": 2,
+        "fields": {
+            "entity_type": "CUSTOMER",
+            "ardt_id": 2,
+            "erp_system": "SAP",
+            "erp_id": "SAP-CUST-100002",
+            "is_active": true,
+            "last_synced": "2024-12-01T10:31:00Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpmapping",
+        "pk": 3,
+        "fields": {
+            "entity_type": "WORK_ORDER",
+            "ardt_id": 1,
+            "erp_system": "SAP",
+            "erp_id": "SAP-WO-500001",
+            "is_active": true,
+            "last_synced": "2024-12-02T08:15:00Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpmapping",
+        "pk": 4,
+        "fields": {
+            "entity_type": "SALES_ORDER",
+            "ardt_id": 1,
+            "erp_system": "SAP",
+            "erp_id": "SAP-SO-600001",
+            "is_active": true,
+            "last_synced": "2024-12-02T09:00:00Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpmapping",
+        "pk": 5,
+        "fields": {
+            "entity_type": "ITEM",
+            "ardt_id": 1001,
+            "erp_system": "Oracle",
+            "erp_id": "ORA-ITEM-200001",
+            "is_active": true,
+            "last_synced": "2024-12-01T14:00:00Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpmapping",
+        "pk": 6,
+        "fields": {
+            "entity_type": "CUSTOMER",
+            "ardt_id": 3,
+            "erp_system": "Oracle",
+            "erp_id": "ORA-CUST-300001",
+            "is_active": true,
+            "last_synced": "2024-12-01T15:30:00Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpmapping",
+        "pk": 7,
+        "fields": {
+            "entity_type": "PURCHASE_ORDER",
+            "ardt_id": 501,
+            "erp_system": "SAP",
+            "erp_id": "SAP-PO-700001",
+            "is_active": false,
+            "last_synced": "2024-11-15T10:00:00Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpmapping",
+        "pk": 8,
+        "fields": {
+            "entity_type": "WORK_ORDER",
+            "ardt_id": 2,
+            "erp_system": "SAP",
+            "erp_id": "SAP-WO-500002",
+            "is_active": true,
+            "last_synced": "2024-12-03T11:45:00Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpmapping",
+        "pk": 9,
+        "fields": {
+            "entity_type": "ITEM",
+            "ardt_id": 1002,
+            "erp_system": "SAP",
+            "erp_id": "SAP-ITEM-400001",
+            "is_active": true,
+            "last_synced": "2024-12-02T16:20:00Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpmapping",
+        "pk": 10,
+        "fields": {
+            "entity_type": "SALES_ORDER",
+            "ardt_id": 2,
+            "erp_system": "SAP",
+            "erp_id": "SAP-SO-600002",
+            "is_active": true,
+            "last_synced": "2024-12-03T14:00:00Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpsynclog",
+        "pk": 1,
+        "fields": {
+            "erp_system": "SAP",
+            "direction": "OUTBOUND",
+            "entity_type": "CUSTOMER",
+            "entity_id": 1,
+            "status": "SUCCESS",
+            "request_payload": {"customer_code": "CUST-001", "name": "Shell Exploration", "action": "CREATE"},
+            "response_payload": {"erp_id": "SAP-CUST-100001", "status": "created"},
+            "error_message": "",
+            "started_at": "2024-12-01T10:30:00Z",
+            "completed_at": "2024-12-01T10:30:05Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpsynclog",
+        "pk": 2,
+        "fields": {
+            "erp_system": "SAP",
+            "direction": "OUTBOUND",
+            "entity_type": "WORK_ORDER",
+            "entity_id": 1,
+            "status": "SUCCESS",
+            "request_payload": {"work_order_number": "WO-2024-001", "customer_id": "SAP-CUST-100001", "action": "CREATE"},
+            "response_payload": {"erp_id": "SAP-WO-500001", "status": "created"},
+            "started_at": "2024-12-02T08:15:00Z",
+            "completed_at": "2024-12-02T08:15:03Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpsynclog",
+        "pk": 3,
+        "fields": {
+            "erp_system": "SAP",
+            "direction": "INBOUND",
+            "entity_type": "SALES_ORDER",
+            "entity_id": null,
+            "status": "SUCCESS",
+            "request_payload": {"sync_type": "FULL", "entity": "SALES_ORDER"},
+            "response_payload": {"records_synced": 5, "status": "complete"},
+            "started_at": "2024-12-02T09:00:00Z",
+            "completed_at": "2024-12-02T09:02:30Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpsynclog",
+        "pk": 4,
+        "fields": {
+            "erp_system": "Oracle",
+            "direction": "OUTBOUND",
+            "entity_type": "ITEM",
+            "entity_id": 1001,
+            "status": "FAILED",
+            "request_payload": {"item_code": "BIT-001", "action": "UPDATE"},
+            "response_payload": null,
+            "error_message": "Connection timeout after 30 seconds",
+            "started_at": "2024-12-01T13:55:00Z",
+            "completed_at": "2024-12-01T13:55:30Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpsynclog",
+        "pk": 5,
+        "fields": {
+            "erp_system": "Oracle",
+            "direction": "OUTBOUND",
+            "entity_type": "ITEM",
+            "entity_id": 1001,
+            "status": "SUCCESS",
+            "request_payload": {"item_code": "BIT-001", "action": "UPDATE"},
+            "response_payload": {"erp_id": "ORA-ITEM-200001", "status": "updated"},
+            "started_at": "2024-12-01T14:00:00Z",
+            "completed_at": "2024-12-01T14:00:02Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpsynclog",
+        "pk": 6,
+        "fields": {
+            "erp_system": "SAP",
+            "direction": "OUTBOUND",
+            "entity_type": "CUSTOMER",
+            "entity_id": 2,
+            "status": "SUCCESS",
+            "request_payload": {"customer_code": "CUST-002", "name": "Precision Drilling", "action": "CREATE"},
+            "response_payload": {"erp_id": "SAP-CUST-100002", "status": "created"},
+            "started_at": "2024-12-01T10:31:00Z",
+            "completed_at": "2024-12-01T10:31:04Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpsynclog",
+        "pk": 7,
+        "fields": {
+            "erp_system": "SAP",
+            "direction": "INBOUND",
+            "entity_type": "PURCHASE_ORDER",
+            "entity_id": null,
+            "status": "PARTIAL",
+            "request_payload": {"sync_type": "INCREMENTAL", "since": "2024-12-01"},
+            "response_payload": {"records_synced": 3, "records_failed": 1, "status": "partial"},
+            "error_message": "1 record failed validation",
+            "started_at": "2024-12-03T06:00:00Z",
+            "completed_at": "2024-12-03T06:01:15Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpsynclog",
+        "pk": 8,
+        "fields": {
+            "erp_system": "SAP",
+            "direction": "OUTBOUND",
+            "entity_type": "WORK_ORDER",
+            "entity_id": 1,
+            "status": "SUCCESS",
+            "request_payload": {"work_order_number": "WO-2024-001", "status": "IN_PROGRESS", "action": "UPDATE"},
+            "response_payload": {"erp_id": "SAP-WO-500001", "status": "updated"},
+            "started_at": "2024-12-03T10:00:00Z",
+            "completed_at": "2024-12-03T10:00:02Z"
+        }
+    },
+    {
+        "model": "erp_integration.erpsynclog",
+        "pk": 9,
+        "fields": {
+            "erp_system": "SAP",
+            "direction": "OUTBOUND",
+            "entity_type": "SALES_ORDER",
+            "entity_id": 2,
+            "status": "PENDING",
+            "request_payload": {"sales_order_number": "SO-2024-002", "action": "CREATE"},
+            "response_payload": null,
+            "started_at": "2024-12-03T14:00:00Z",
+            "completed_at": null
+        }
+    },
+    {
+        "model": "erp_integration.erpsynclog",
+        "pk": 10,
+        "fields": {
+            "erp_system": "Oracle",
+            "direction": "OUTBOUND",
+            "entity_type": "CUSTOMER",
+            "entity_id": 3,
+            "status": "SUCCESS",
+            "request_payload": {"customer_code": "CUST-003", "name": "ConocoPhillips", "action": "CREATE"},
+            "response_payload": {"erp_id": "ORA-CUST-300001", "status": "created"},
+            "started_at": "2024-12-01T15:30:00Z",
+            "completed_at": "2024-12-01T15:30:03Z"
+        }
+    }
+]

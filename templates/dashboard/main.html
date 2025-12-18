@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Welcome back, {{ user.first_name|default:user.username }}!</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'dashboard:customize' %}"
+           class="inline-flex items-center px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors">
+            <i data-lucide="layout-dashboard" class="w-4 h-4 mr-2"></i>
+            Customize Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Work Orders Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Active Work Orders</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">--</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="clipboard-list" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <a href="{% url 'workorders:list' %}" class="text-primary-600 dark:text-primary-400 hover:underline">View all</a>
+        </div>
+    </div>
+
+    <!-- DRSS Requests Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Pending DRSS</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">--</p>
+            </div>
+            <div class="w-12 h-12 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="file-text" class="w-6 h-6 text-amber-600 dark:text-amber-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-gray-500 dark:text-gray-400">-- new today</span>
+        </div>
+    </div>
+
+    <!-- Quality Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Open NCRs</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">--</p>
+            </div>
+            <div class="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-gray-500 dark:text-gray-400">-- critical</span>
+        </div>
+    </div>
+
+    <!-- Production Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Completed Today</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">--</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
+                <i data-lucide="check-circle" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm">
+            <span class="text-gray-500 dark:text-gray-400">--% of target</span>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <a href="{% url 'workorders:create' %}" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="plus-circle" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">New Work Order</span>
+        </a>
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="scan" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">Scan QR Code</span>
+        </a>
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="file-plus" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">New DRSS</span>
+        </a>
+        <a href="#" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+            <i data-lucide="clipboard-check" class="w-8 h-8 text-gray-400 mb-2"></i>
+            <span class="text-sm text-gray-600 dark:text-gray-400">Start Inspection</span>
+        </a>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Recent Work Orders -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Work Orders</h2>
+            <a href="{% url 'workorders:list' %}" class="text-sm text-primary-600 dark:text-primary-400 hover:underline">View all</a>
+        </div>
+        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+            <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+            <p>No recent work orders</p>
+        </div>
+    </div>
+
+    <!-- My Tasks -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">My Tasks</h2>
+            <a href="#" class="text-sm text-primary-600 dark:text-primary-400 hover:underline">View all</a>
+        </div>
+        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+            <i data-lucide="check-square" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+            <p>No pending tasks</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

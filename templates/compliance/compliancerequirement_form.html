@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">
+                <i data-lucide="home" class="w-4 h-4"></i>
+            </a>
+        </li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'compliance:compliancerequirement_list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">Requirements</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">{{ form_title }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {% if object %}Edit the compliance requirement details below.{% else %}Fill in the details to create a new compliance requirement.{% endif %}
+        </p>
+    </div>
+
+    <!-- Form -->
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-6">
+            <!-- Basic Information -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                    Basic Information
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="id_requirement_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Requirement Code <span class="text-red-500">*</span>
+                        </label>
+                        {{ form.requirement_code }}
+                        {% if form.requirement_code.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.requirement_code.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="id_requirement_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Requirement Type <span class="text-red-500">*</span>
+                        </label>
+                        {{ form.requirement_type }}
+                        {% if form.requirement_type.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.requirement_type.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="id_title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Title <span class="text-red-500">*</span>
+                        </label>
+                        {{ form.title }}
+                        {% if form.title.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.title.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="id_source_document" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Source Document <span class="text-red-500">*</span>
+                        </label>
+                        {{ form.source_document }}
+                    </div>
+                    <div>
+                        <label for="id_clause_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Clause Number
+                        </label>
+                        {{ form.clause_number }}
+                    </div>
+                    <div>
+                        <label for="id_version" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Version
+                        </label>
+                        {{ form.version }}
+                    </div>
+                    <div>
+                        <label for="id_issuing_authority" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Issuing Authority
+                        </label>
+                        {{ form.issuing_authority }}
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Description <span class="text-red-500">*</span>
+                        </label>
+                        {{ form.description }}
+                        {% if form.description.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.description.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Information -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                    Status & Compliance
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label for="id_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Status
+                        </label>
+                        {{ form.status }}
+                    </div>
+                    <div>
+                        <label for="id_compliance_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Compliance Status
+                        </label>
+                        {{ form.compliance_status }}
+                    </div>
+                    <div>
+                        <label for="id_risk_level" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Risk Level
+                        </label>
+                        {{ form.risk_level }}
+                    </div>
+                    <div>
+                        <label for="id_effective_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Effective Date <span class="text-red-500">*</span>
+                        </label>
+                        {{ form.effective_date }}
+                        {% if form.effective_date.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.effective_date.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="id_review_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Review Date
+                        </label>
+                        {{ form.review_date }}
+                    </div>
+                    <div>
+                        <label for="id_superseded_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Superseded Date
+                        </label>
+                        {{ form.superseded_date }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Responsibility -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                    Responsibility & Assessment
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="id_responsible_person" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Responsible Person
+                        </label>
+                        {{ form.responsible_person }}
+                    </div>
+                    <div>
+                        <label for="id_responsible_department" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Responsible Department
+                        </label>
+                        {{ form.responsible_department }}
+                    </div>
+                    <div>
+                        <label for="id_assessment_frequency" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Assessment Frequency
+                        </label>
+                        {{ form.assessment_frequency }}
+                    </div>
+                    <div>
+                        <label for="id_last_assessment_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Last Assessment Date
+                        </label>
+                        {{ form.last_assessment_date }}
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="id_applicable_scope" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Applicable Scope
+                        </label>
+                        {{ form.applicable_scope }}
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="id_compliance_criteria" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Compliance Criteria
+                        </label>
+                        {{ form.compliance_criteria }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Details -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                    Additional Details
+                </h3>
+                <div class="grid grid-cols-1 gap-6">
+                    <div>
+                        <label for="id_implementation_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Implementation Notes
+                        </label>
+                        {{ form.implementation_notes }}
+                    </div>
+                    <div>
+                        <label for="id_verification_method" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Verification Method
+                        </label>
+                        {{ form.verification_method }}
+                    </div>
+                    <div>
+                        <label for="id_consequences_of_non_compliance" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Consequences of Non-Compliance
+                        </label>
+                        {{ form.consequences_of_non_compliance }}
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="id_reference_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Reference URL
+                            </label>
+                            {{ form.reference_url }}
+                        </div>
+                        <div>
+                            <label for="id_internal_procedure" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Internal Procedure
+                            </label>
+                            {{ form.internal_procedure }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="flex justify-end gap-4">
+            <a href="{% url 'compliance:compliancerequirement_list' %}"
+               class="px-6 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-medium rounded-lg transition">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition shadow-sm">
+                <i data-lucide="save" class="w-4 h-4 inline mr-2"></i>
+                {{ submit_text }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

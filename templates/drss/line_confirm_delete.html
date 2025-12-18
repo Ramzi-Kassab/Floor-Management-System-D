@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'drss:drss_detail' drss.pk %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
+            </div>
+
+            <h3 class="text-lg font-medium text-center text-gray-900 dark:text-white mb-2">Delete Line {{ line.line_number }}?</h3>
+            <p class="text-sm text-center text-gray-500 dark:text-gray-400 mb-6">
+                This action cannot be undone. The line will be permanently removed from this DRSS request.
+            </p>
+
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
+                <div class="text-sm space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">DRSS Request:</span>
+                        <span class="font-medium text-gray-900 dark:text-white">{{ drss.drss_number }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Bit Type:</span>
+                        <span class="font-medium text-gray-900 dark:text-white">{{ line.bit_type }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Bit Size:</span>
+                        <span class="font-medium text-gray-900 dark:text-white">{{ line.bit_size }}"</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Quantity:</span>
+                        <span class="font-medium text-gray-900 dark:text-white">{{ line.quantity }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Status:</span>
+                        <span class="font-medium text-gray-900 dark:text-white">{{ line.get_status_display }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" class="flex gap-3">
+                {% csrf_token %}
+                <a href="{% url 'drss:drss_detail' drss.pk %}" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 text-center">
+                    Cancel
+                </a>
+                <button type="submit" class="flex-1 px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700">
+                    Delete Line
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

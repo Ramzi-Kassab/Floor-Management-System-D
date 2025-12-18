@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ category.name }}</h1>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="text-sm text-gray-500 dark:text-gray-400">{{ category.code }}</span>
+                {% if category.is_active %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                {% else %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'documents:category_list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
+            </a>
+            <a href="{% url 'documents:category_update' category.pk %}" class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit Category
+            </a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Content -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Documents in Category -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Documents ({{ document_count }})</h3>
+                    <a href="{% url 'documents:document_create' %}" class="text-sm text-ardt-blue hover:underline">
+                        <i data-lucide="plus" class="w-4 h-4 inline"></i> Add Document
+                    </a>
+                </div>
+                <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for doc in documents %}
+                    <div class="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                {% if doc.is_confidential %}
+                                <i data-lucide="lock" class="w-5 h-5 text-red-500 mr-3"></i>
+                                {% else %}
+                                <i data-lucide="file-text" class="w-5 h-5 text-gray-400 mr-3"></i>
+                                {% endif %}
+                                <div>
+                                    <a href="{% url 'documents:document_detail' doc.pk %}" class="text-sm font-medium text-ardt-blue hover:underline">
+                                        {{ doc.name }}
+                                    </a>
+                                    <div class="text-xs text-gray-500">{{ doc.code }} | v{{ doc.version }}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                {% if doc.status == 'ACTIVE' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">{{ doc.get_status_display }}</span>
+                                {% elif doc.status == 'DRAFT' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">{{ doc.get_status_display }}</span>
+                                {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">{{ doc.get_status_display }}</span>
+                                {% endif %}
+                                <a href="{% url 'documents:document_download' doc.pk %}" class="text-gray-400 hover:text-gray-600" title="Download">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="px-6 py-12 text-center">
+                        <i data-lucide="file-x" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
+                        <p class="text-sm text-gray-500">No documents in this category</p>
+                        <a href="{% url 'documents:document_create' %}" class="mt-2 inline-flex items-center text-sm text-ardt-blue hover:underline">
+                            <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Upload first document
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if documents.count > 0 %}
+                <div class="px-6 py-3 border-t border-gray-200 dark:border-gray-700">
+                    <a href="{% url 'documents:document_list' %}?category={{ category.pk }}" class="text-sm text-ardt-blue hover:underline">
+                        View all documents in this category &rarr;
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Sub-categories -->
+            {% if children %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Sub-categories</h3>
+                </div>
+                <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for child in children %}
+                    <div class="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i data-lucide="folder" class="w-5 h-5 text-amber-500 mr-3"></i>
+                                <div>
+                                    <a href="{% url 'documents:category_detail' child.pk %}" class="text-sm font-medium text-ardt-blue hover:underline">
+                                        {{ child.name }}
+                                    </a>
+                                    <div class="text-xs text-gray-500">{{ child.code }}</div>
+                                </div>
+                            </div>
+                            <a href="{% url 'documents:category_update' child.pk %}" class="text-gray-400 hover:text-gray-600">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="space-y-6">
+            <!-- Category Info -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Category Information</h3>
+                </div>
+                <div class="px-6 py-4 space-y-4">
+                    {% if category.parent %}
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Parent Category</p>
+                        <p class="mt-1">
+                            <a href="{% url 'documents:category_detail' category.parent.pk %}" class="text-sm text-ardt-blue hover:underline">
+                                {{ category.parent.name }}
+                            </a>
+                        </p>
+                    </div>
+                    {% endif %}
+                    {% if category.description %}
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Description</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ category.description }}</p>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Documents</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ document_count }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

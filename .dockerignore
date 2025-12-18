@@ -1,0 +1,79 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info
+dist
+build
+eggs
+parts
+bin
+var
+sdist
+wheels
+*.manifest
+*.spec
+
+# Virtual environment
+venv
+.venv
+ENV
+env
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Testing
+.tox
+.coverage
+.coverage.*
+htmlcov
+.pytest_cache
+.mypy_cache
+
+# Documentation (keep in container for reference)
+# docs/archive
+
+# Local development
+.env
+*.log
+*.pid
+*.seed
+*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp
+temp
+*.tmp
+*.bak
+
+# Docker
+Dockerfile*
+docker-compose*
+.docker
+
+# Node (if using for frontend build)
+node_modules
+npm-debug.log
+
+# Static/Media (handled by volumes)
+staticfiles
+media
+
+# Fixtures (keep for initial data loading)
+# fixtures/

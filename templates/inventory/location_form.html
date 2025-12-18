@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+    </div>
+    <a href="{% url 'inventory:location_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-xl">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Warehouse *</label>
+                    {{ form.warehouse }}
+                    {% if form.warehouse.errors %}<p class="text-red-600 text-sm mt-1">{{ form.warehouse.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Code *</label>
+                        {{ form.code }}
+                        {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name *</label>
+                        {{ form.name }}
+                        {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <p class="text-sm text-gray-500 mb-4">Location Path (optional)</p>
+                    <div class="grid grid-cols-4 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Aisle</label>
+                            {{ form.aisle }}
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Rack</label>
+                            {{ form.rack }}
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Shelf</label>
+                            {{ form.shelf }}
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Bin</label>
+                            {{ form.bin }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center">
+                    {{ form.is_active }}
+                    <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'inventory:location_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    {% if object %}Update{% else %}Create{% endif %} Location
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Organize items with labels</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'planning:label_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Label
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if labels %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">Label</th>
+                    <th class="px-6 py-3 font-medium">Description</th>
+                    <th class="px-6 py-3 font-medium text-right">Items</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for label in labels %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm" style="background-color: {{ label.color }}20; color: {{ label.color }}">
+                            <span class="w-2 h-2 rounded-full mr-2" style="background-color: {{ label.color }}"></span>
+                            {{ label.name }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ label.description|default:"-"|truncatewords:10 }}</td>
+                    <td class="px-6 py-4 text-right font-mono">{{ label.item_count }}</td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{% url 'planning:label_update' label.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
+                            <i data-lucide="edit" class="w-4 h-4"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="tag" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No labels yet</h3>
+        <a href="{% url 'planning:label_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Label
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

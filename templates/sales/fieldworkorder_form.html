@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Create or update work order</p>
+    </div>
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Work Order Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.work_order_number.label }}</label>{{ form.work_order_number }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.work_order_type.label }}</label>{{ form.work_order_type }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.status.label }}</label>{{ form.status }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.priority.label }}</label>{{ form.priority }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.service_request.label }}</label>{{ form.service_request }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.service_site.label }}</label>{{ form.service_site }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Schedule</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.assigned_technician.label }}</label>{{ form.assigned_technician }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.scheduled_date.label }}</label>{{ form.scheduled_date }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.scheduled_start_time.label }}</label>{{ form.scheduled_start_time }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.scheduled_end_time.label }}</label>{{ form.scheduled_end_time }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description</h2>
+            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.description.label }}</label>{{ form.description }}</div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actual Times</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.actual_start_time.label }}</label>{{ form.actual_start_time }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.actual_end_time.label }}</label>{{ form.actual_end_time }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Work & Materials</h2>
+            <div class="grid grid-cols-1 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.work_performed.label }}</label>{{ form.work_performed }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.materials_used.label }}</label>{{ form.materials_used }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Costs</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.labor_hours.label }}</label>{{ form.labor_hours }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.labor_cost.label }}</label>{{ form.labor_cost }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.material_cost.label }}</label>{{ form.material_cost }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.total_cost.label }}</label>{{ form.total_cost }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Completion</h2>
+            <div class="grid grid-cols-1 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.customer_signature.label }}</label>{{ form.customer_signature }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.completion_notes.label }}</label>{{ form.completion_notes }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.notes.label }}</label>{{ form.notes }}</div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-4">
+            <a href="{% url 'sales:fieldworkorder_list' %}" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">{{ submit_text|default:"Save" }}</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

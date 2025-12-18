@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}Plan{% endif %} Journey - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="mb-6">
+    <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+        <a href="{% url 'hsse:journey-list' %}" class="hover:text-blue-600">Journeys</a>
+        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        <span>{% if form.instance.pk %}Edit{% else %}Plan{% endif %}</span>
+    </div>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if form.instance.pk %}Edit Journey{% else %}Plan Journey{% endif %}</h1>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-2xl">
+    <form method="post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        {% csrf_token %}
+        <div class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Journey Number *</label>
+                    <input type="text" name="journey_number" value="{{ form.journey_number.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                    <select name="status" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        {% for value, label in form.fields.status.choices %}
+                        <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Purpose *</label>
+                <input type="text" name="purpose" value="{{ form.purpose.value|default:'' }}" required
+                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Driver</label>
+                    <select name="driver" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option value="">-- Select Driver --</option>
+                        {% for user in form.driver.field.queryset %}
+                        <option value="{{ user.pk }}" {% if form.driver.value|stringformat:"s" == user.pk|stringformat:"s" %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vehicle</label>
+                    <select name="vehicle" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option value="">-- Select Vehicle --</option>
+                        {% for vehicle in form.vehicle.field.queryset %}
+                        <option value="{{ vehicle.pk }}" {% if form.vehicle.value|stringformat:"s" == vehicle.pk|stringformat:"s" %}selected{% endif %}>{{ vehicle.code }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Departure Location *</label>
+                    <input type="text" name="departure_location" value="{{ form.departure_location.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Destination *</label>
+                    <input type="text" name="destination" value="{{ form.destination.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Planned Departure *</label>
+                    <input type="datetime-local" name="planned_departure" value="{{ form.planned_departure.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Planned Arrival *</label>
+                    <input type="datetime-local" name="planned_arrival" value="{{ form.planned_arrival.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <a href="{% url 'hsse:journey-list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">Cancel</a>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                {% if form.instance.pk %}Update{% else %}Create{% endif %} Journey
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

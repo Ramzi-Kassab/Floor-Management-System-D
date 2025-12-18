@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'sales:warehouse_list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Warehouse Information</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Warehouse Code <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.code }}</div>
+                        {% if form.code.errors %}<p class="mt-1 text-sm text-red-600">{{ form.code.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Warehouse Name <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.name }}</div>
+                        {% if form.name.errors %}<p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_warehouse_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Warehouse Type <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.warehouse_type }}</div>
+                        {% if form.warehouse_type.errors %}<p class="mt-1 text-sm text-red-600">{{ form.warehouse_type.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_customer" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Customer (if applicable)</label>
+                        <div class="mt-1">{{ form.customer }}</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="id_address" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label>
+                    <div class="mt-1">{{ form.address }}</div>
+                </div>
+
+                <div>
+                    <label for="id_city" class="block text-sm font-medium text-gray-700 dark:text-gray-300">City</label>
+                    <div class="mt-1">{{ form.city }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Contact Information</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_contact_person" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Contact Person</label>
+                        <div class="mt-1">{{ form.contact_person }}</div>
+                    </div>
+                    <div>
+                        <label for="id_contact_phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Contact Phone</label>
+                        <div class="mt-1">{{ form.contact_phone }}</div>
+                    </div>
+                </div>
+
+                <div class="flex items-center">
+                    {{ form.is_active }}
+                    <label for="id_is_active" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Active Warehouse</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'sales:warehouse_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</a>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                {{ submit_text|default:"Save" }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

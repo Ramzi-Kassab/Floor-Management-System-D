@@ -1,0 +1,112 @@
+[
+  {
+    "model": "procedures.steptype",
+    "pk": 1,
+    "fields": {
+      "code": "OPERATION",
+      "name": "Operation",
+      "description": "Standard work operation - machining, assembly, etc.",
+      "icon": "wrench",
+      "color": "#3b82f6"
+    }
+  },
+  {
+    "model": "procedures.steptype",
+    "pk": 2,
+    "fields": {
+      "code": "INSPECTION",
+      "name": "Inspection",
+      "description": "Quality inspection checkpoint with measurements",
+      "icon": "search",
+      "color": "#10b981"
+    }
+  },
+  {
+    "model": "procedures.steptype",
+    "pk": 3,
+    "fields": {
+      "code": "APPROVAL",
+      "name": "Approval",
+      "description": "Requires approval from authorized personnel",
+      "icon": "check-circle",
+      "color": "#8b5cf6"
+    }
+  },
+  {
+    "model": "procedures.steptype",
+    "pk": 4,
+    "fields": {
+      "code": "DECISION",
+      "name": "Decision",
+      "description": "Decision point with branching logic",
+      "icon": "git-branch",
+      "color": "#f59e0b"
+    }
+  },
+  {
+    "model": "procedures.steptype",
+    "pk": 5,
+    "fields": {
+      "code": "DOCUMENT",
+      "name": "Document",
+      "description": "Document review or creation step",
+      "icon": "file-text",
+      "color": "#6366f1"
+    }
+  },
+  {
+    "model": "procedures.steptype",
+    "pk": 6,
+    "fields": {
+      "code": "PHOTO",
+      "name": "Photo Capture",
+      "description": "Requires photo documentation",
+      "icon": "camera",
+      "color": "#ec4899"
+    }
+  },
+  {
+    "model": "procedures.steptype",
+    "pk": 7,
+    "fields": {
+      "code": "TRANSFER",
+      "name": "Transfer",
+      "description": "Physical transfer between locations/departments",
+      "icon": "arrow-right",
+      "color": "#14b8a6"
+    }
+  },
+  {
+    "model": "procedures.steptype",
+    "pk": 8,
+    "fields": {
+      "code": "WAIT",
+      "name": "Wait",
+      "description": "Waiting period (curing, cooling, etc.)",
+      "icon": "clock",
+      "color": "#64748b"
+    }
+  },
+  {
+    "model": "procedures.steptype",
+    "pk": 9,
+    "fields": {
+      "code": "NOTIFY",
+      "name": "Notify",
+      "description": "Send notification to user/role",
+      "icon": "bell",
+      "color": "#f97316"
+    }
+  },
+  {
+    "model": "procedures.steptype",
+    "pk": 10,
+    "fields": {
+      "code": "FORM",
+      "name": "Form Entry",
+      "description": "Complete a dynamic form",
+      "icon": "clipboard",
+      "color": "#06b6d4"
+    }
+  }
+]

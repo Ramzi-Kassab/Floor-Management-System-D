@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Time Entry - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="mb-6">
+    <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+        <a href="{% url 'hr:timeentry-list' %}" class="hover:text-blue-600">Time Entries</a>
+        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        <span>{% if form.instance.pk %}Edit{% else %}Add{% endif %}</span>
+    </div>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if form.instance.pk %}Edit Time Entry{% else %}Add Time Entry{% endif %}</h1>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-xl">
+    <form method="post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        {% csrf_token %}
+        <div class="space-y-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Employee *</label>
+                {{ form.employee }}
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Entry Type</label>
+                    {{ form.entry_type }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                    {{ form.status }}
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Entry Date *</label>
+                {{ form.entry_date }}
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Clock In</label>
+                    {{ form.clock_in_time }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Clock Out</label>
+                    {{ form.clock_out_time }}
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Hours</label>
+                    {{ form.total_hours }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Break Hours</label>
+                    {{ form.break_hours }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Overtime Hours</label>
+                    {{ form.overtime_hours }}
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
+                {{ form.location }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Work Description</label>
+                {{ form.work_description }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
+                {{ form.notes }}
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <a href="{% url 'hr:timeentry-list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">Cancel</a>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Entry</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

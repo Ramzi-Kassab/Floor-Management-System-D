@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ run.run_number }}</h1>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="px-2 py-1 text-xs font-medium rounded-full {% if run.status == 'COMPLETED' %}bg-green-100 text-green-800{% else %}bg-blue-100 text-blue-800{% endif %}">{{ run.get_status_display|default:run.status }}</span>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:fielddrillstringrun_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:fielddrillstringrun_update' run.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Run Information</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Run Number</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run.run_number }}</dd></div>
+                <div><dt class="text-gray-500">Drill Bit</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run.drill_bit.serial_number|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Service Site</dt><dd class="font-medium text-gray-900 dark:text-white">{% if run.service_site %}<a href="{% url 'sales:servicesite_detail' run.service_site.pk %}" class="text-ardt-blue hover:underline">{{ run.service_site.site_name }}</a>{% else %}-{% endif %}</dd></div>
+                <div><dt class="text-gray-500">Site Visit</dt><dd class="font-medium text-gray-900 dark:text-white">{% if run.site_visit %}<a href="{% url 'sales:sitevisit_detail' run.site_visit.pk %}" class="text-ardt-blue hover:underline">{{ run.site_visit.visit_number }}</a>{% else %}-{% endif %}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Timing</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Start Time</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run.start_time|date:"M d, Y H:i"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">End Time</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run.end_time|date:"M d, Y H:i"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Start Depth</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run.start_depth|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">End Depth</dt><dd class="font-medium text-gray-900 dark:text-white">{{ run.end_depth|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Run Data Records</h3>
+        {% if run.field_run_data.all %}
+        <p class="text-gray-500">{{ run.field_run_data.count }} data record(s) recorded for this run.</p>
+        {% else %}
+        <p class="text-gray-500">No run data recorded yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

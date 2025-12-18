@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}{{ bom.code }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ bom.code }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ bom.name }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'technology:bom_update' bom.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'technology:bom_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- BOM Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">BOM Information</h2>
+            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500">Design</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">
+                        <a href="{% url 'technology:design_detail' bom.design.pk %}" class="text-blue-600 hover:underline">{{ bom.design.code }}</a>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500">Revision</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bom.revision }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500">Status</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ bom.get_status_display }}
+                        </span>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500">Effective Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bom.effective_date|date:"M d, Y"|default:"--" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Line Items -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Line Items</h2>
+                <span class="text-lg font-bold text-green-600">Total: {{ total_cost|floatformat:2 }} SAR</span>
+            </div>
+            {% if lines %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                            <th class="px-4 py-2">Line</th>
+                            <th class="px-4 py-2">Item</th>
+                            <th class="px-4 py-2">Qty</th>
+                            <th class="px-4 py-2">Unit Cost</th>
+                            <th class="px-4 py-2">Line Cost</th>
+                            <th class="px-4 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for line in lines %}
+                        <tr>
+                            <td class="px-4 py-2">{{ line.line_number }}</td>
+                            <td class="px-4 py-2">{{ line.inventory_item }}</td>
+                            <td class="px-4 py-2">{{ line.quantity }} {{ line.unit }}</td>
+                            <td class="px-4 py-2">{{ line.unit_cost }}</td>
+                            <td class="px-4 py-2 font-medium">{{ line.line_cost|floatformat:2 }}</td>
+                            <td class="px-4 py-2">
+                                <form method="post" action="{% url 'technology:bom_line_delete' bom.pk line.pk %}" class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-red-600 hover:text-red-800" onclick="return confirm('Delete this line?')">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">No line items added yet</p>
+            {% endif %}
+
+            <!-- Add Line Form -->
+            <form method="post" action="{% url 'technology:bom_line_create' bom.pk %}" class="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                {% csrf_token %}
+                <div class="grid grid-cols-6 gap-2">
+                    <div>{{ line_form.line_number }}</div>
+                    <div class="col-span-2">{{ line_form.inventory_item }}</div>
+                    <div>{{ line_form.quantity }}</div>
+                    <div>{{ line_form.unit_cost }}</div>
+                    <div>
+                        <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Add</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        {% if bom.notes %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notes</h2>
+            <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ bom.notes }}</p>
+        </div>
+        {% endif %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Audit</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bom.created_at|date:"M d, Y" }}</dd>
+                </div>
+                {% if bom.created_by %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ bom.created_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

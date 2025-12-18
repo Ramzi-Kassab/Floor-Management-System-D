@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} - Inventory{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="mb-6">
+        <a href="{% url 'inventory:attribute_list' %}" class="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>
+            Back to Attributes
+        </a>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ form_title }}</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Attributes are just names. Type, unit, and validation are set when linking to a category.
+            </p>
+        </div>
+
+        <form method="post" class="p-6 space-y-6">
+            {% csrf_token %}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Code -->
+                <div>
+                    <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Code <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="code" id="id_code" value="{{ form.code.value|default:'' }}" required
+                           placeholder="size"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono">
+                    <p class="mt-1 text-xs text-gray-500">Unique identifier (lowercase, no spaces)</p>
+                </div>
+
+                <!-- Name -->
+                <div>
+                    <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="name" id="id_name" value="{{ form.name.value|default:'' }}" required
+                           placeholder="Size"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <p class="mt-1 text-xs text-gray-500">Display name (e.g., Size, Color, Material)</p>
+                </div>
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <textarea name="description" id="id_description" rows="2"
+                          placeholder="Optional description of this attribute"
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">{{ form.description.value|default:'' }}</textarea>
+            </div>
+
+            <!-- Is Active -->
+            <div class="flex items-center">
+                <input type="checkbox" name="is_active" id="id_is_active"
+                       {% if form.is_active.value == None or form.is_active.value %}checked{% endif %}
+                       class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:focus:ring-primary-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+                <label for="id_is_active" class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Active</label>
+            </div>
+
+            {% if form.errors %}
+            <div class="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+                <p class="text-red-700 dark:text-red-400 font-medium">Please fix the following errors:</p>
+                <ul class="mt-2 text-sm text-red-600 dark:text-red-300 list-disc list-inside">
+                    {% for field, errors in form.errors.items %}
+                    {% for error in errors %}
+                    <li>{{ field }}: {{ error }}</li>
+                    {% endfor %}
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'inventory:attribute_list' %}"
+                   class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </a>
+                <button type="submit"
+                        class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                    {% if object %}Update{% else %}Create{% endif %} Attribute
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

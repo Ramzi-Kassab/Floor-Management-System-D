@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}{{ procedure.code }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white font-mono">{{ procedure.code }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if procedure.status == 'ACTIVE' %}bg-green-100 text-green-800{% elif procedure.status == 'DRAFT' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ procedure.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ procedure.name }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'procedures:procedure_update' procedure.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'procedures:procedure_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Procedure Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Procedure Information</h2>
+            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500">Category</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ procedure.get_category_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500">Applies To</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ procedure.get_applies_to_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500">Revision</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ procedure.revision|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500">Steps</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ procedure.step_count }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500">Est. Duration</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ procedure.estimated_duration }} min</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500">Effective Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ procedure.effective_date|date:"M d, Y"|default:"--" }}</dd>
+                </div>
+            </dl>
+            {% if procedure.purpose %}
+            <div class="mt-4">
+                <h3 class="text-sm font-medium text-gray-500 mb-1">Purpose</h3>
+                <p class="text-gray-900 dark:text-white whitespace-pre-wrap">{{ procedure.purpose }}</p>
+            </div>
+            {% endif %}
+            {% if procedure.safety_notes %}
+            <div class="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 rounded-r">
+                <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-1">Safety Notes</h3>
+                <p class="text-yellow-700 dark:text-yellow-300 text-sm">{{ procedure.safety_notes }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Steps -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Steps</h2>
+            </div>
+            {% if steps %}
+            <div class="space-y-4">
+                {% for step in steps %}
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-start">
+                            <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mr-3 flex-shrink-0">
+                                <span class="text-sm font-medium text-blue-600 dark:text-blue-400">{{ step.step_number }}</span>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-gray-900 dark:text-white">{{ step.name }}</h3>
+                                {% if step.description %}
+                                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ step.description|truncatewords:20 }}</p>
+                                {% endif %}
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    {% if step.step_type %}
+                                    <span class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                                        {{ step.step_type.name }}
+                                    </span>
+                                    {% endif %}
+                                    {% if step.estimated_duration_minutes %}
+                                    <span class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                                        {{ step.estimated_duration_minutes }} min
+                                    </span>
+                                    {% endif %}
+                                    {% if step.is_mandatory %}
+                                    <span class="text-xs px-2 py-1 rounded bg-red-100 text-red-800">Mandatory</span>
+                                    {% endif %}
+                                    {% if step.requires_photo %}
+                                    <span class="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800">Photo</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <a href="{% url 'procedures:step_update' procedure.pk step.pk %}" class="p-1 text-gray-400 hover:text-yellow-600">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            </a>
+                            <form method="post" action="{% url 'procedures:step_delete' procedure.pk step.pk %}" class="inline">
+                                {% csrf_token %}
+                                <button type="submit" class="p-1 text-gray-400 hover:text-red-600" onclick="return confirm('Delete this step?')">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% if step.checkpoints.all %}
+                    <div class="mt-3 pl-11">
+                        <p class="text-xs text-gray-500 mb-2">Checkpoints:</p>
+                        <div class="space-y-1">
+                            {% for cp in step.checkpoints.all %}
+                            <div class="flex items-center text-sm">
+                                <i data-lucide="check-circle" class="w-3 h-3 mr-2 text-gray-400"></i>
+                                <span class="text-gray-600 dark:text-gray-400">{{ cp.name }}</span>
+                                {% if cp.is_critical %}
+                                <span class="ml-2 text-xs text-red-600">Critical</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">No steps defined yet</p>
+            {% endif %}
+
+            <!-- Add Step Form -->
+            <form method="post" action="{% url 'procedures:step_create' procedure.pk %}" class="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                {% csrf_token %}
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Add Step</h3>
+                <div class="grid grid-cols-6 gap-2">
+                    <div>{{ step_form.step_number }}</div>
+                    <div class="col-span-3">{{ step_form.name }}</div>
+                    <div>{{ step_form.estimated_duration_minutes }}</div>
+                    <div>
+                        <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Add</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        {% if procedure.responsible_role %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Responsible</h2>
+            <p class="text-gray-900 dark:text-white">{{ procedure.responsible_role.name }}</p>
+        </div>
+        {% endif %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Audit</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ procedure.created_at|date:"M d, Y" }}</dd>
+                </div>
+                {% if procedure.created_by %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ procedure.created_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+                {% if procedure.reviewed_by %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Reviewed By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ procedure.reviewed_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+                {% if procedure.approved_by %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Approved By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ procedure.approved_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

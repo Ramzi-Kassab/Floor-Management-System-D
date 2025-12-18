@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Log Detail - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Audit Log Detail</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ log.created_at|date:"M d, Y H:i:s" }}</p>
+    </div>
+    <a href="{% url 'notifications:audit_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Changes -->
+        {% if log.diff or log.old_values or log.new_values %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Changes</h2>
+
+            {% if log.diff %}
+            <div class="space-y-3">
+                {% for key, value in log.diff.items %}
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">{{ key }}</h4>
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="text-gray-500">Old:</span>
+                            <span class="ml-2 text-red-600 font-mono">{{ value.old|default:"(empty)" }}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">New:</span>
+                            <span class="ml-2 text-green-600 font-mono">{{ value.new|default:"(empty)" }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="grid grid-cols-2 gap-6">
+                {% if log.old_values %}
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">Old Values</h3>
+                    <pre class="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg text-xs overflow-x-auto">{{ log.old_values|pprint }}</pre>
+                </div>
+                {% endif %}
+                {% if log.new_values %}
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">New Values</h3>
+                    <pre class="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg text-xs overflow-x-auto">{{ log.new_values|pprint }}</pre>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Entity Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Entity Information</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Entity Type</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ log.entity_type }}</dd>
+                </div>
+                {% if log.entity_id %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Entity ID</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ log.entity_id }}</dd>
+                </div>
+                {% endif %}
+                {% if log.entity_repr %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Description</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ log.entity_repr }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        <!-- Log Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Log Info</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Action</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if log.action == 'CREATE' %}bg-green-100 text-green-800
+                            {% elif log.action == 'UPDATE' %}bg-blue-100 text-blue-800
+                            {% elif log.action == 'DELETE' %}bg-red-100 text-red-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ log.get_action_display }}
+                        </span>
+                    </dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">User</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ log.user.get_full_name|default:log.user.username|default:"System" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Timestamp</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ log.created_at|date:"M d, Y H:i:s" }}</dd>
+                </div>
+                {% if log.ip_address %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">IP Address</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono text-xs">{{ log.ip_address }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        {% if log.user_agent %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">User Agent</h2>
+            <p class="text-xs text-gray-600 dark:text-gray-400 break-words">{{ log.user_agent }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

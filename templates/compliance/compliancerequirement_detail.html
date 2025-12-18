@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ requirement.requirement_code }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">
+                <i data-lucide="home" class="w-4 h-4"></i>
+            </a>
+        </li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'compliance:compliancerequirement_list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">Requirements</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">{{ requirement.requirement_code }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ requirement.requirement_code }}</h1>
+                <span class="px-2 py-1 text-xs font-medium rounded-full
+                    {% if requirement.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                    {% elif requirement.status == 'PENDING' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                    {{ requirement.get_status_display }}
+                </span>
+            </div>
+            <p class="mt-1 text-gray-600 dark:text-gray-400">{{ requirement.title }}</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'compliance:compliancerequirement_update' requirement.pk %}"
+               class="inline-flex items-center px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg transition">
+                <i data-lucide="edit" class="w-4 h-4 mr-2"></i> Edit
+            </a>
+            <a href="{% url 'compliance:compliancerequirement_delete' requirement.pk %}"
+               class="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition">
+                <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i> Delete
+            </a>
+        </div>
+    </div>
+
+    <!-- Status Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <div class="text-sm text-gray-500 dark:text-gray-400">Compliance Status</div>
+            <div class="mt-1">
+                <span class="px-2 py-1 text-sm font-medium rounded-full
+                    {% if requirement.compliance_status == 'COMPLIANT' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                    {% elif requirement.compliance_status == 'PARTIAL' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                    {% elif requirement.compliance_status == 'NON_COMPLIANT' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                    {{ requirement.get_compliance_status_display }}
+                </span>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <div class="text-sm text-gray-500 dark:text-gray-400">Risk Level</div>
+            <div class="mt-1">
+                <span class="px-2 py-1 text-sm font-medium rounded-full
+                    {% if requirement.risk_level == 'CRITICAL' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                    {% elif requirement.risk_level == 'HIGH' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                    {% elif requirement.risk_level == 'MEDIUM' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                    {% else %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% endif %}">
+                    {{ requirement.risk_level }}
+                </span>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <div class="text-sm text-gray-500 dark:text-gray-400">Effective Date</div>
+            <div class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                {{ requirement.effective_date|date:"M d, Y" }}
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <div class="text-sm text-gray-500 dark:text-gray-400">Review Date</div>
+            <div class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                {% if requirement.review_date %}
+                    {{ requirement.review_date|date:"M d, Y" }}
+                    {% if review_is_overdue %}
+                    <span class="text-xs text-red-600 dark:text-red-400 ml-1">(Overdue)</span>
+                    {% endif %}
+                {% else %}
+                    <span class="text-gray-400">Not set</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column - Details -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Description -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Description</h3>
+                <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ requirement.description }}</p>
+            </div>
+
+            <!-- Compliance Criteria -->
+            {% if requirement.compliance_criteria %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Compliance Criteria</h3>
+                <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ requirement.compliance_criteria }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Implementation Notes -->
+            {% if requirement.implementation_notes %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Implementation Notes</h3>
+                <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ requirement.implementation_notes }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Consequences -->
+            {% if requirement.consequences_of_non_compliance %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border-l-4 border-red-500">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Consequences of Non-Compliance</h3>
+                <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ requirement.consequences_of_non_compliance }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right Column - Metadata -->
+        <div class="space-y-6">
+            <!-- Source Information -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Source Information</h3>
+                <dl class="space-y-3">
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Type</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ requirement.get_requirement_type_display }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Source Document</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ requirement.source_document }}</dd>
+                    </div>
+                    {% if requirement.clause_number %}
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Clause Number</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ requirement.clause_number }}</dd>
+                    </div>
+                    {% endif %}
+                    {% if requirement.version %}
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Version</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ requirement.version }}</dd>
+                    </div>
+                    {% endif %}
+                    {% if requirement.issuing_authority %}
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Issuing Authority</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ requirement.issuing_authority }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </div>
+
+            <!-- Responsibility -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Responsibility</h3>
+                <dl class="space-y-3">
+                    {% if requirement.responsible_person %}
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Responsible Person</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ requirement.responsible_person.get_full_name|default:requirement.responsible_person.username }}</dd>
+                    </div>
+                    {% endif %}
+                    {% if requirement.responsible_department %}
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Department</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ requirement.responsible_department }}</dd>
+                    </div>
+                    {% endif %}
+                    {% if requirement.assessment_frequency %}
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Assessment Frequency</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ requirement.assessment_frequency }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </div>
+
+            <!-- Audit Info -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Audit Information</h3>
+                <dl class="space-y-3">
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Created</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ requirement.created_at|date:"M d, Y H:i" }}</dd>
+                    </div>
+                    {% if requirement.created_by %}
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Created By</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ requirement.created_by.get_full_name|default:requirement.created_by.username }}</dd>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <dt class="text-sm text-gray-500 dark:text-gray-400">Last Updated</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ requirement.updated_at|date:"M d, Y H:i" }}</dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <!-- Back Button -->
+    <div class="flex justify-start">
+        <a href="{% url 'compliance:compliancerequirement_list' %}"
+           class="inline-flex items-center px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-medium rounded-lg transition">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Back to List
+        </a>
+    </div>
+</div>
+{% endblock %}

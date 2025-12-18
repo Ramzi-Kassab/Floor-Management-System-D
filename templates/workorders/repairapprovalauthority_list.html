@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Repair Approval Authorities - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage repair approval levels and thresholds</p>
+        </div>
+        <a href="{% url 'workorders:repairapprovalauthority_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition shadow-sm">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            New Authority
+        </a>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+        <form method="get" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search authorities..." class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+            <select name="is_active" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                <option value="">All Status</option>
+                <option value="true" {% if request.GET.is_active == 'true' %}selected{% endif %}>Active</option>
+                <option value="false" {% if request.GET.is_active == 'false' %}selected{% endif %}>Inactive</option>
+            </select>
+            <button type="submit" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md">Filter</button>
+        </form>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        {% if authorities %}
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Min Amount</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Max Amount</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for authority in authorities %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-6 py-4"><a href="{% url 'workorders:repairapprovalauthority_detail' authority.pk %}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400">{{ authority.name }}</a></td>
+                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">${{ authority.min_amount|default:"0" }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{% if authority.max_amount %}${{ authority.max_amount }}{% else %}Unlimited{% endif %}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full {% if authority.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">{% if authority.is_active %}Active{% else %}Inactive{% endif %}</span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{% url 'workorders:repairapprovalauthority_detail' authority.pk %}" class="text-blue-600 hover:text-blue-800 mr-2">View</a>
+                        <a href="{% url 'workorders:repairapprovalauthority_update' authority.pk %}" class="text-yellow-600 hover:text-yellow-800 mr-2">Edit</a>
+                        <a href="{% url 'workorders:repairapprovalauthority_delete' authority.pk %}" class="text-red-600 hover:text-red-800">Delete</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if is_paginated %}{% include "components/pagination.html" %}{% endif %}
+        {% else %}
+        <div class="text-center py-12">
+            <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No approval authorities found</h3>
+            <a href="{% url 'workorders:repairapprovalauthority_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg mt-4">New Authority</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

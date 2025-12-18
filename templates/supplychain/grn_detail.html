@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ grn.grn_number }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Goods Receipt for {{ grn.po.po_number }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex gap-2">
+        <a href="{% url 'supplychain:grn_add_line' grn.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Line
+        </a>
+        <a href="{% url 'supplychain:grn_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Receipt Lines</h2>
+            </div>
+            {% if lines %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Item</th>
+                        <th class="px-6 py-3 font-medium text-right">Qty Received</th>
+                        <th class="px-6 py-3 font-medium">Lot #</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for line in lines %}
+                    <tr>
+                        <td class="px-6 py-4">{{ line.po_line.inventory_item.name }} <span class="text-gray-500 font-mono text-xs">{{ line.po_line.inventory_item.code }}</span></td>
+                        <td class="px-6 py-4 text-right font-mono">{{ line.quantity_received }}</td>
+                        <td class="px-6 py-4 text-gray-600">{{ line.lot_number|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">No lines added yet</div>
+            {% endif %}
+        </div>
+    </div>
+    <div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Details</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between"><dt class="text-gray-500">PO</dt><dd><a href="{% url 'supplychain:po_detail' grn.po.pk %}" class="text-blue-600 hover:underline">{{ grn.po.po_number }}</a></dd></div>
+                <div class="flex justify-between"><dt class="text-gray-500">Supplier</dt><dd class="text-gray-900 dark:text-white">{{ grn.po.supplier.name }}</dd></div>
+                <div class="flex justify-between"><dt class="text-gray-500">Receipt Date</dt><dd class="text-gray-900 dark:text-white">{{ grn.receipt_date|date:"M d, Y" }}</dd></div>
+                <div class="flex justify-between"><dt class="text-gray-500">Received By</dt><dd class="text-gray-900 dark:text-white">{{ grn.received_by.username|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}
