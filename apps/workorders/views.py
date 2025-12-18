@@ -20,10 +20,8 @@ from django.utils import timezone
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
 from .forms import DrillBitForm, WorkOrderForm
-from .models import (
-    BitSize, BitType, DrillBit, Location, WorkOrder,
-    BitEvent, IADCCode, ConnectionType, ConnectionSize, FormationType, Application
-)
+from .models import BitSize, BitType, DrillBit, Location, WorkOrder, BitEvent
+from apps.technology.models import IADCCode, ConnectionType, ConnectionSize, FormationType, Application
 from .utils import generate_drill_bit_qr, generate_work_order_qr
 
 
