@@ -51,7 +51,7 @@ def drill_bit(db):
     from decimal import Decimal
     return DrillBit.objects.create(
         serial_number='DB-QC-001',
-        bit_type=DrillBit.BitType.FC,
+        bit_type=DrillBit.BitCategory.FC,
         size=Decimal('8.500'),
         status=DrillBit.Status.IN_PRODUCTION
     )

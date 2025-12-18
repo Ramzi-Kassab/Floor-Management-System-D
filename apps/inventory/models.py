@@ -1,29 +1,123 @@
 """
 ARDT FMS - Inventory Models
-Version: 5.4
+Version: 5.6
 
 Tables:
-- inventory_categories (P1)
+- units_of_measure (NEW) - Master data for units
+- inventory_categories (P1) - Enhanced with item_type link, code_prefix, name_template
 - inventory_locations (P1)
-- inventory_items (P1)
+- inventory_items (P1) - Enhanced with legacy refs, auto-code
 - inventory_stock (P1)
 - inventory_transactions (P1)
+- category_attributes (NEW) - Smart attributes per category
+- item_attribute_values (NEW) - Attribute values for items
+- item_variants (NEW) - Variant tracking for condition/source
+- material_lots - Lot/batch tracking
 """
 
 from django.conf import settings
 from django.db import models
 
 
+# =============================================================================
+# MASTER DATA: UNITS OF MEASURE
+# =============================================================================
+
+
+class UnitOfMeasure(models.Model):
+    """
+    Master data for units of measure.
+    Provides standardized units for inventory items.
+    """
+
+    class UnitType(models.TextChoices):
+        QUANTITY = "QUANTITY", "Quantity (Count)"
+        LENGTH = "LENGTH", "Length"
+        WEIGHT = "WEIGHT", "Weight/Mass"
+        VOLUME = "VOLUME", "Volume"
+        AREA = "AREA", "Area"
+        TIME = "TIME", "Time"
+        OTHER = "OTHER", "Other"
+
+    code = models.CharField(max_length=10, unique=True, help_text="Short code (EA, KG, M, etc.)")
+    name = models.CharField(max_length=50, help_text="Full name (Each, Kilogram, Meter)")
+    unit_type = models.CharField(max_length=20, choices=UnitType.choices, default=UnitType.QUANTITY)
+    symbol = models.CharField(max_length=10, blank=True, help_text="Symbol for display (kg, m, L)")
+
+    # Conversion to base unit (optional)
+    base_unit = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="derived_units",
+        help_text="Base unit for conversion"
+    )
+    conversion_factor = models.DecimalField(
+        max_digits=15,
+        decimal_places=6,
+        default=1,
+        help_text="Multiply by this to convert to base unit"
+    )
+
+    is_active = models.BooleanField(default=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "units_of_measure"
+        ordering = ["unit_type", "code"]
+        verbose_name = "Unit of Measure"
+        verbose_name_plural = "Units of Measure"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
 class InventoryCategory(models.Model):
     """
     🟢 P1: Categories for inventory items.
+    Enhanced with item_type mapping, code generation, and name templates.
     """
+
+    class ItemType(models.TextChoices):
+        RAW_MATERIAL = "RAW_MATERIAL", "Raw Material"
+        COMPONENT = "COMPONENT", "Component"
+        CONSUMABLE = "CONSUMABLE", "Consumable"
+        TOOL = "TOOL", "Tool"
+        SPARE_PART = "SPARE_PART", "Spare Part"
+        FINISHED_GOOD = "FINISHED_GOOD", "Finished Good"
 
     code = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=100)
     parent = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="children")
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+
+    # NEW: Item type mapping - selecting category auto-sets item type
+    item_type = models.CharField(
+        max_length=20,
+        choices=ItemType.choices,
+        default=ItemType.COMPONENT,
+        help_text="Default item type for items in this category"
+    )
+
+    # NEW: Code generation settings
+    code_prefix = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="Prefix for auto-generated item codes (e.g., CUT, MAT, NOZ)"
+    )
+    next_sequence = models.IntegerField(
+        default=1,
+        help_text="Next sequence number for code generation"
+    )
+
+    # NEW: Name template for auto-generating item names from attributes
+    name_template = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Template for auto-name: {size}mm {material} {grade} (uses attribute codes)"
+    )
 
     class Meta:
         db_table = "inventory_categories"
@@ -33,6 +127,519 @@ class InventoryCategory(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    def generate_next_code(self):
+        """Generate the next item code for this category."""
+        prefix = self.code_prefix or self.code[:3].upper()
+        code = f"{prefix}-{str(self.next_sequence).zfill(4)}"
+        self.next_sequence += 1
+        self.save(update_fields=["next_sequence"])
+        return code
+
+
+# =============================================================================
+# MASTER DATA: ATTRIBUTES (Simple Global List)
+# =============================================================================
+
+
+class Attribute(models.Model):
+    """
+    Master data for attributes - simple global list of attribute names.
+    Examples: Size, Color, Material, Grade, Finish, etc.
+
+    The actual type, unit, validation, and options are defined when
+    connecting an attribute to a category via CategoryAttribute.
+    """
+
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Unique code (e.g., size, color, material)"
+    )
+    name = models.CharField(max_length=100, help_text="Display name (e.g., Size, Color, Material)")
+    description = models.TextField(blank=True, help_text="Optional description of this attribute")
+    is_active = models.BooleanField(default=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "attributes"
+        ordering = ["name"]
+        verbose_name = "Attribute"
+        verbose_name_plural = "Attributes"
+
+    def __str__(self):
+        return self.name
+
+
+class CategoryAttribute(models.Model):
+    """
+    Links an Attribute to a Category with specific configuration.
+    This is where type, unit, validation, and options are defined.
+
+    The same Attribute (e.g., "Size") can have different configurations
+    per category:
+    - For Clothing: Size is SELECT type with options [S, M, L, XL]
+    - For Tools: Size is NUMBER type with unit "mm"
+    - For Pipes: Size is NUMBER type with unit "inch"
+    """
+
+    class AttributeType(models.TextChoices):
+        TEXT = "TEXT", "Text"
+        NUMBER = "NUMBER", "Number"
+        SELECT = "SELECT", "Select (Dropdown)"
+        BOOLEAN = "BOOLEAN", "Yes/No"
+        DATE = "DATE", "Date"
+
+    category = models.ForeignKey(
+        InventoryCategory,
+        on_delete=models.CASCADE,
+        related_name="category_attributes"
+    )
+    attribute = models.ForeignKey(
+        Attribute,
+        on_delete=models.CASCADE,
+        null=True,  # Temporary for migration
+        related_name="category_usages",
+        help_text="The attribute being configured for this category"
+    )
+
+    # Configuration for this category
+    attribute_type = models.CharField(
+        max_length=20,
+        choices=AttributeType.choices,
+        default=AttributeType.TEXT,
+        help_text="How this attribute is used in this category"
+    )
+
+    # For NUMBER type
+    unit = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="category_attributes",
+        help_text="Unit of measure for NUMBER type"
+    )
+    min_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+    max_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+
+    # For SELECT type - JSON array of options
+    options = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='Options for SELECT type: ["Option1", "Option2"] or [{"value": "opt1", "label": "Option 1"}]'
+    )
+
+    # Validation
+    is_required = models.BooleanField(default=False)
+    is_used_in_name = models.BooleanField(default=False, help_text="Include in auto-generated item name")
+
+    # Display order
+    display_order = models.IntegerField(default=0)
+
+    # For inherited attributes from parent category
+    is_inherited = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "category_attributes"
+        ordering = ["category", "display_order"]
+        unique_together = ["category", "attribute"]
+        verbose_name = "Category Attribute"
+        verbose_name_plural = "Category Attributes"
+
+    def __str__(self):
+        return f"{self.category.code} - {self.attribute.name}"
+
+    @property
+    def code(self):
+        """Return the attribute code for backward compatibility."""
+        return self.attribute.code
+
+    @property
+    def name(self):
+        """Return the attribute name for backward compatibility."""
+        return self.attribute.name
+
+
+class InventoryItem(models.Model):
+    """
+    🟢 P1: Inventory item master.
+    Clean architecture: Only universal fields here.
+    Category-specific specs go to Attributes.
+    Planning params go to ItemPlanning (per warehouse).
+    Supplier info goes to ItemSupplier (many-to-many).
+    """
+
+    class ItemType(models.TextChoices):
+        STOCK_ITEM = "STOCK_ITEM", "Stock Item"
+        NON_STOCK = "NON_STOCK", "Non-Stock Item"
+        SERVICE = "SERVICE", "Service"
+        ASSET_TEMPLATE = "ASSET_TEMPLATE", "Asset Template"
+        # Legacy types for backward compatibility
+        RAW_MATERIAL = "RAW_MATERIAL", "Raw Material"
+        COMPONENT = "COMPONENT", "Component"
+        CONSUMABLE = "CONSUMABLE", "Consumable"
+        TOOL = "TOOL", "Tool"
+        SPARE_PART = "SPARE_PART", "Spare Part"
+        FINISHED_GOOD = "FINISHED_GOOD", "Finished Good"
+
+    class LifecycleState(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        ACTIVE = "ACTIVE", "Active"
+        OBSOLETE = "OBSOLETE", "Obsolete"
+
+    class Criticality(models.TextChoices):
+        LOW = "LOW", "Low"
+        MEDIUM = "MEDIUM", "Medium"
+        HIGH = "HIGH", "High"
+        CRITICAL = "CRITICAL", "Critical"
+
+    class ABCClass(models.TextChoices):
+        A = "A", "A - High Value"
+        B = "B", "B - Medium Value"
+        C = "C", "C - Low Value"
+
+    # Core identification
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    name_manually_set = models.BooleanField(default=False)
+
+    # Classification
+    item_type = models.CharField(max_length=20, choices=ItemType.choices, default=ItemType.STOCK_ITEM)
+    category = models.ForeignKey(InventoryCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="items")
+    lifecycle_state = models.CharField(max_length=20, choices=LifecycleState.choices, default=LifecycleState.ACTIVE)
+    criticality = models.CharField(max_length=20, choices=Criticality.choices, default=Criticality.MEDIUM, blank=True)
+    abc_class = models.CharField(max_length=1, choices=ABCClass.choices, blank=True)
+
+    # Legacy system references
+    mat_number = models.CharField(max_length=50, blank=True, help_text="SAP Legacy MAT No.")
+    item_number = models.CharField(max_length=50, blank=True, help_text="Parallel ERP Item No.")
+
+    # Unit of measure
+    unit = models.CharField(max_length=20, default="EA", help_text="EA, KG, M, etc.")
+    uom = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="items",
+        help_text="Preferred: Use UOM FK instead of unit char field"
+    )
+
+    # Manufacturer / Brand (NEW)
+    manufacturer = models.ForeignKey(
+        "supplychain.Supplier",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="manufactured_items",
+        help_text="Manufacturer (can be different from supplier)"
+    )
+    mpn = models.CharField(max_length=100, blank=True, help_text="Manufacturer Part Number")
+    brand = models.CharField(max_length=100, blank=True, help_text="Brand name")
+
+    # Cost (kept on item for default/standard cost)
+    standard_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    last_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    currency = models.CharField(max_length=3, default="SAR")
+
+    # DEPRECATED: Planning fields - Use ItemPlanning (per warehouse) instead
+    min_stock = models.DecimalField(max_digits=10, decimal_places=3, default=0, help_text="DEPRECATED: Use ItemPlanning")
+    max_stock = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, help_text="DEPRECATED: Use ItemPlanning")
+    reorder_point = models.DecimalField(max_digits=10, decimal_places=3, default=0, help_text="DEPRECATED: Use ItemPlanning")
+    reorder_quantity = models.DecimalField(max_digits=10, decimal_places=3, default=0, help_text="DEPRECATED: Use ItemPlanning")
+    lead_time_days = models.IntegerField(default=0, help_text="DEPRECATED: Use ItemSupplier")
+
+    # DEPRECATED: Use ItemAttributeValue instead
+    specifications = models.JSONField(null=True, blank=True, help_text="DEPRECATED: Use ItemAttributeValue")
+
+    # DEPRECATED: Supplier fields - Use ItemSupplier (many-to-many) instead
+    primary_supplier = models.ForeignKey(
+        "supplychain.Supplier", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="primary_items", help_text="DEPRECATED: Use ItemSupplier with is_preferred=True"
+    )
+    supplier_part_number = models.CharField(max_length=100, blank=True, help_text="DEPRECATED: Use ItemSupplier")
+
+    # Traceability flags (CORE - keep here)
+    is_active = models.BooleanField(default=True)
+    is_serialized = models.BooleanField(default=False, help_text="Track by serial number (is_serial_tracked)")
+    is_lot_controlled = models.BooleanField(default=False, help_text="Track by lot/batch (is_lot_tracked)")
+    requires_expiry_tracking = models.BooleanField(default=False, help_text="Track expiry dates (is_expiry_tracked)")
+    has_variants = models.BooleanField(default=False, help_text="Item has condition/source variants")
+
+    # Shelf life (CORE - for expiry tracking)
+    shelf_life_days = models.IntegerField(null=True, blank=True, help_text="Shelf life in days")
+
+    # Image
+    image = models.ImageField(upload_to="inventory/", null=True, blank=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_items"
+    )
+
+    class Meta:
+        db_table = "inventory_items"
+        ordering = ["code"]
+        verbose_name = "Inventory Item"
+        verbose_name_plural = "Inventory Items"
+        indexes = [
+            models.Index(fields=["mat_number"]),
+            models.Index(fields=["item_number"]),
+        ]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+    @property
+    def total_stock(self):
+        """Total stock across all locations (base item only)."""
+        return self.stock_records.aggregate(total=models.Sum("quantity_on_hand"))["total"] or 0
+
+    @property
+    def total_stock_with_variants(self):
+        """Total stock including all variants."""
+        base_stock = self.total_stock
+        variant_stock = sum(v.total_stock for v in self.variants.all())
+        return base_stock + variant_stock
+
+    def generate_name_from_attributes(self):
+        """Generate item name from category template and attribute values."""
+        if not self.category or not self.category.name_template:
+            return self.name
+
+        template = self.category.name_template
+        for attr_value in self.attribute_values.select_related("attribute"):
+            placeholder = "{" + attr_value.attribute.code + "}"
+            if placeholder in template:
+                display_value = attr_value.display_value
+                if attr_value.attribute.unit:
+                    display_value = f"{display_value}{attr_value.attribute.unit}"
+                template = template.replace(placeholder, str(display_value))
+
+        # Clean up any unreplaced placeholders
+        import re
+        template = re.sub(r'\{[^}]+\}', '', template)
+        template = ' '.join(template.split())  # Clean extra spaces
+
+        return template.strip() or self.name
+
+
+class ItemAttributeValue(models.Model):
+    """
+    NEW: Stores attribute values for inventory items.
+    Links items to their category-specific attribute values.
+    """
+
+    item = models.ForeignKey(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="attribute_values"
+    )
+    attribute = models.ForeignKey(
+        CategoryAttribute,
+        on_delete=models.CASCADE,
+        related_name="values"
+    )
+
+    # Value storage (flexible)
+    text_value = models.CharField(max_length=500, blank=True)
+    number_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+    boolean_value = models.BooleanField(null=True, blank=True)
+    date_value = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "item_attribute_values"
+        unique_together = ["item", "attribute"]
+        verbose_name = "Item Attribute Value"
+        verbose_name_plural = "Item Attribute Values"
+
+    def __str__(self):
+        return f"{self.item.code} - {self.attribute.name}: {self.display_value}"
+
+    @property
+    def display_value(self):
+        """Return the appropriate value based on attribute type."""
+        attr_type = self.attribute.attribute_type
+        if attr_type == CategoryAttribute.AttributeType.NUMBER:
+            return self.number_value
+        elif attr_type == CategoryAttribute.AttributeType.BOOLEAN:
+            return "Yes" if self.boolean_value else "No"
+        elif attr_type == CategoryAttribute.AttributeType.DATE:
+            return self.date_value
+        else:
+            return self.text_value
+
+    @display_value.setter
+    def display_value(self, value):
+        """Set the appropriate value based on attribute type."""
+        attr_type = self.attribute.attribute_type
+        if attr_type == CategoryAttribute.AttributeType.NUMBER:
+            self.number_value = value
+        elif attr_type == CategoryAttribute.AttributeType.BOOLEAN:
+            self.boolean_value = bool(value)
+        elif attr_type == CategoryAttribute.AttributeType.DATE:
+            self.date_value = value
+        else:
+            self.text_value = str(value) if value else ""
+
+
+# =============================================================================
+# VARIANT CASE (Master Data)
+# =============================================================================
+
+
+class VariantCase(models.Model):
+    """
+    Master data table for variant cases.
+    Defines standard combinations of Condition + Acquisition + ReclaimCategory + Ownership.
+    Examples: NEW-PURCHASED, USED-RECLAIMED-RETROFIT, USED-RECLAIMED-E&O, etc.
+
+    When creating items, users select which variant cases apply to that item.
+    """
+
+    class Condition(models.TextChoices):
+        NEW = "NEW", "New"
+        USED = "USED", "Used"
+
+    class Acquisition(models.TextChoices):
+        PURCHASED = "PURCHASED", "Purchased"
+        RECLAIMED = "RECLAIMED", "Reclaimed"
+        MANUFACTURED = "MANUFACTURED", "Manufactured"
+        CLIENT_PROVIDED = "CLIENT_PROVIDED", "Client Provided"
+
+    class ReclaimCategory(models.TextChoices):
+        RETROFIT = "RETROFIT", "Retrofit (as New)"
+        E_AND_O = "E_AND_O", "E&O (Excessive & Obsolete)"
+        GROUND = "GROUND", "Ground (Surface Damage)"
+        STANDARD = "STANDARD", "Standard Reclaim"
+
+    class Ownership(models.TextChoices):
+        ARDT = "ARDT", "ARDT"
+        CLIENT = "CLIENT", "Client"
+
+    code = models.CharField(max_length=30, unique=True, help_text="Unique case code (e.g., NEW-PUR, USED-RET)")
+    name = models.CharField(max_length=100, help_text="Display name for this variant case")
+
+    condition = models.CharField(max_length=20, choices=Condition.choices, default=Condition.NEW)
+    acquisition = models.CharField(max_length=20, choices=Acquisition.choices, default=Acquisition.PURCHASED)
+    reclaim_category = models.CharField(max_length=20, choices=ReclaimCategory.choices, blank=True)
+    ownership = models.CharField(max_length=20, choices=Ownership.choices, default=Ownership.ARDT)
+
+    # For CLIENT ownership - which client this case is for
+    client_code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Client code for CLIENT ownership cases (e.g., LSTK, Halliburton)"
+    )
+
+    description = models.TextField(blank=True, help_text="Description of when this case applies")
+    is_active = models.BooleanField(default=True)
+    display_order = models.IntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "variant_cases"
+        ordering = ["display_order", "code"]
+        verbose_name = "Variant Case"
+        verbose_name_plural = "Variant Cases"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+# =============================================================================
+# ITEM VARIANT (Links Item to VariantCase for stock tracking)
+# =============================================================================
+
+
+class ItemVariant(models.Model):
+    """
+    Links an InventoryItem to a VariantCase.
+    Each ItemVariant is a separate SKU with its own stock tracking.
+    """
+
+    base_item = models.ForeignKey(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="variants"
+    )
+    variant_case = models.ForeignKey(
+        VariantCase,
+        on_delete=models.PROTECT,
+        related_name="item_variants",
+        null=True,  # Temporary for migration - will be made required after data migration
+        blank=True
+    )
+
+    # Auto-generated code: ITEM-CODE-CASE-CODE
+    code = models.CharField(max_length=100, unique=True)
+
+    # Optional: Customer for CLIENT ownership variants
+    customer = models.ForeignKey(
+        "sales.Customer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="item_variants"
+    )
+
+    # Cost for this specific variant
+    standard_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    last_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+
+    # Legacy references
+    legacy_mat_no = models.CharField(max_length=50, blank=True, help_text="Legacy MAT number")
+    erp_item_no = models.CharField(max_length=50, blank=True, help_text="ERP Item number")
+
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "item_variants"
+        ordering = ["base_item", "variant_case"]
+        unique_together = ["base_item", "variant_case", "customer"]
+        verbose_name = "Item Variant"
+        verbose_name_plural = "Item Variants"
+
+    def __str__(self):
+        return f"{self.code} ({self.variant_case.name})"
+
+    @property
+    def name(self):
+        """Generate variant name from base item and case."""
+        return f"{self.base_item.name} - {self.variant_case.name}"
+
+    @property
+    def total_stock(self):
+        """Total stock for this variant across all locations."""
+        return self.stock_records.aggregate(total=models.Sum("quantity_on_hand"))["total"] or 0
+
+    def save(self, *args, **kwargs):
+        # Auto-generate code if not set
+        if not self.code:
+            parts = [self.base_item.code, self.variant_case.code]
+            if self.customer:
+                parts.append(self.customer.code[:6] if hasattr(self.customer, 'code') else "CLI")
+            self.code = "-".join(parts)
+
+        # Set has_variants on base item
+        if not self.base_item.has_variants:
+            self.base_item.has_variants = True
+            self.base_item.save(update_fields=["has_variants"])
+
+        super().save(*args, **kwargs)
 
 
 class InventoryLocation(models.Model):
@@ -63,91 +670,22 @@ class InventoryLocation(models.Model):
         return f"{self.warehouse.code}/{self.code}"
 
 
-class InventoryItem(models.Model):
-    """
-    🟢 P1: Inventory item master.
-    """
-
-    class ItemType(models.TextChoices):
-        RAW_MATERIAL = "RAW_MATERIAL", "Raw Material"
-        COMPONENT = "COMPONENT", "Component"
-        CONSUMABLE = "CONSUMABLE", "Consumable"
-        TOOL = "TOOL", "Tool"
-        SPARE_PART = "SPARE_PART", "Spare Part"
-        FINISHED_GOOD = "FINISHED_GOOD", "Finished Good"
-
-    code = models.CharField(max_length=50, unique=True)
-    name = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-
-    item_type = models.CharField(max_length=20, choices=ItemType.choices)
-    category = models.ForeignKey(InventoryCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="items")
-
-    # Units
-    unit = models.CharField(max_length=20, default="EA", help_text="EA, KG, M, etc.")
-
-    # Cost
-    standard_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
-    last_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
-    currency = models.CharField(max_length=3, default="SAR")
-
-    # Stock levels
-    min_stock = models.DecimalField(max_digits=10, decimal_places=3, default=0)
-    max_stock = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
-    reorder_point = models.DecimalField(max_digits=10, decimal_places=3, default=0)
-    reorder_quantity = models.DecimalField(max_digits=10, decimal_places=3, default=0)
-
-    # Lead time
-    lead_time_days = models.IntegerField(default=0)
-
-    # Specifications
-    specifications = models.JSONField(null=True, blank=True)
-
-    # Supplier
-    primary_supplier = models.ForeignKey(
-        "supplychain.Supplier", on_delete=models.SET_NULL, null=True, blank=True, related_name="primary_items"
-    )
-    supplier_part_number = models.CharField(max_length=100, blank=True)
-
-    # Status
-    is_active = models.BooleanField(default=True)
-    is_serialized = models.BooleanField(default=False, help_text="Track by serial number")
-    is_lot_controlled = models.BooleanField(default=False, help_text="Track by lot/batch")
-
-    # Image
-    image = models.ImageField(upload_to="inventory/", null=True, blank=True)
-
-    # Audit
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_items"
-    )
-
-    class Meta:
-        db_table = "inventory_items"
-        ordering = ["code"]
-        verbose_name = "Inventory Item"
-        verbose_name_plural = "Inventory Items"
-
-    def __str__(self):
-        return f"{self.code} - {self.name}"
-
-    @property
-    def total_stock(self):
-        """Total stock across all locations."""
-        return self.stock_records.aggregate(total=models.Sum("quantity_on_hand"))["total"] or 0
-
-
 class InventoryStock(models.Model):
     """
-    🟢 P1: Stock levels by location.
+    Stock levels by location.
+
+    LEDGER-BASED ARCHITECTURE:
+    - quantity_on_hand is a CACHED value for performance
+    - The source of truth is InventoryTransaction ledger
+    - Use recalculate_from_ledger() to sync with transactions
+    - All stock changes should go through InventoryTransaction
     """
 
     item = models.ForeignKey(InventoryItem, on_delete=models.CASCADE, related_name="stock_records")
     location = models.ForeignKey(InventoryLocation, on_delete=models.CASCADE, related_name="stock_records")
 
-    quantity_on_hand = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    # Cached quantities (source of truth is transaction ledger)
+    quantity_on_hand = models.DecimalField(max_digits=15, decimal_places=3, default=0, help_text="Cached - recalculate from ledger")
     quantity_reserved = models.DecimalField(max_digits=15, decimal_places=3, default=0)
     quantity_available = models.DecimalField(max_digits=15, decimal_places=3, default=0)
 
@@ -167,6 +705,70 @@ class InventoryStock(models.Model):
 
     def __str__(self):
         return f"{self.item.code} @ {self.location}: {self.quantity_on_hand}"
+
+    def save(self, *args, **kwargs):
+        self.quantity_available = float(self.quantity_on_hand) - float(self.quantity_reserved)
+        super().save(*args, **kwargs)
+
+    def recalculate_from_ledger(self):
+        """
+        Recalculate quantity_on_hand from transaction ledger.
+        This is the source of truth for inventory.
+        """
+        from django.db.models import Sum, Case, When, F, DecimalField
+
+        # Get all transactions for this item/location
+        transactions = InventoryTransaction.objects.filter(item=self.item)
+
+        # Inbound: to_location matches
+        inbound = transactions.filter(to_location=self.location).aggregate(
+            total=Sum('quantity')
+        )['total'] or 0
+
+        # Outbound: from_location matches
+        outbound = transactions.filter(from_location=self.location).aggregate(
+            total=Sum('quantity')
+        )['total'] or 0
+
+        self.quantity_on_hand = inbound - outbound
+        self.quantity_available = float(self.quantity_on_hand) - float(self.quantity_reserved)
+        self.save(update_fields=['quantity_on_hand', 'quantity_available'])
+        return self.quantity_on_hand
+
+    @classmethod
+    def recalculate_all(cls):
+        """Recalculate all stock records from ledger."""
+        for stock in cls.objects.all():
+            stock.recalculate_from_ledger()
+
+
+class VariantStock(models.Model):
+    """
+    Stock tracking for item variants.
+    Similar to InventoryStock but for variants.
+    """
+
+    variant = models.ForeignKey(ItemVariant, on_delete=models.CASCADE, related_name="stock_records")
+    location = models.ForeignKey(InventoryLocation, on_delete=models.CASCADE, related_name="variant_stock_records")
+
+    quantity_on_hand = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    quantity_reserved = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    quantity_available = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+
+    # Lot/Serial tracking
+    lot_number = models.CharField(max_length=50, blank=True)
+    serial_number = models.CharField(max_length=50, blank=True)
+
+    last_movement_date = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "variant_stock"
+        unique_together = ["variant", "location", "lot_number", "serial_number"]
+        verbose_name = "Variant Stock"
+        verbose_name_plural = "Variant Stock"
+
+    def __str__(self):
+        return f"{self.variant.code} @ {self.location}: {self.quantity_on_hand}"
 
     def save(self, *args, **kwargs):
         self.quantity_available = float(self.quantity_on_hand) - float(self.quantity_reserved)
@@ -381,3 +983,335 @@ class MaterialConsumption(models.Model):
 
     def __str__(self):
         return f"{self.lot.lot_number} - {self.quantity_consumed} for {self.work_order.wo_number}"
+
+
+# =============================================================================
+# NEW ARCHITECTURE: Item Planning (Per Warehouse)
+# =============================================================================
+
+
+class ItemPlanning(models.Model):
+    """
+    Planning parameters per item per warehouse/site.
+    Min/max/reorder levels vary by location.
+    """
+
+    item = models.ForeignKey(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="planning_records"
+    )
+    warehouse = models.ForeignKey(
+        "sales.Warehouse",
+        on_delete=models.CASCADE,
+        related_name="item_planning_records"
+    )
+
+    # Planning parameters
+    min_stock = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    max_stock = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+    reorder_point = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    reorder_quantity = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    safety_stock = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+
+    # Default storage location in this warehouse
+    default_bin = models.ForeignKey(
+        InventoryLocation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="default_items"
+    )
+
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "item_planning"
+        unique_together = ["item", "warehouse"]
+        ordering = ["item", "warehouse"]
+        verbose_name = "Item Planning"
+        verbose_name_plural = "Item Planning Records"
+
+    def __str__(self):
+        return f"{self.item.code} @ {self.warehouse.code}"
+
+
+# =============================================================================
+# NEW ARCHITECTURE: Item Supplier (Many-to-Many)
+# =============================================================================
+
+
+class ItemSupplier(models.Model):
+    """
+    Many-to-many relationship between items and suppliers.
+    Stores supplier-specific pricing, lead times, and part numbers.
+    """
+
+    item = models.ForeignKey(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="supplier_records"
+    )
+    supplier = models.ForeignKey(
+        "supplychain.Supplier",
+        on_delete=models.CASCADE,
+        related_name="item_records"
+    )
+
+    # Supplier's part number for this item
+    supplier_part_number = models.CharField(max_length=100, blank=True)
+
+    # Pricing
+    unit_price = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    currency = models.CharField(max_length=3, default="SAR")
+    price_valid_from = models.DateField(null=True, blank=True)
+    price_valid_to = models.DateField(null=True, blank=True)
+
+    # Ordering
+    lead_time_days = models.IntegerField(default=0)
+    min_order_qty = models.DecimalField(max_digits=10, decimal_places=3, default=1)
+    order_multiple = models.DecimalField(max_digits=10, decimal_places=3, default=1)
+
+    # Priority (1 = preferred supplier)
+    priority_rank = models.IntegerField(default=1)
+    is_preferred = models.BooleanField(default=False)
+
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "item_suppliers"
+        unique_together = ["item", "supplier"]
+        ordering = ["item", "priority_rank"]
+        verbose_name = "Item Supplier"
+        verbose_name_plural = "Item Suppliers"
+
+    def __str__(self):
+        return f"{self.item.code} - {self.supplier.name}"
+
+
+# =============================================================================
+# NEW ARCHITECTURE: Item Identifier (Multiple Barcodes)
+# =============================================================================
+
+
+class ItemIdentifier(models.Model):
+    """
+    Multiple identifiers/barcodes per item.
+    Supports different barcode types at different packaging levels.
+    """
+
+    class IdentifierType(models.TextChoices):
+        EAN13 = "EAN13", "EAN-13 (Unit)"
+        EAN14 = "EAN14", "EAN-14 (Case)"
+        UPC = "UPC", "UPC-A"
+        ITF14 = "ITF14", "ITF-14 (Carton)"
+        QR = "QR", "QR Code"
+        DATAMATRIX = "DATAMATRIX", "Data Matrix"
+        CODE128 = "CODE128", "Code 128"
+        CODE39 = "CODE39", "Code 39"
+        GS1 = "GS1", "GS1-128"
+        INTERNAL = "INTERNAL", "Internal Code"
+        SSCC = "SSCC", "SSCC-18 (Pallet)"
+
+    class PackLevel(models.TextChoices):
+        UNIT = "UNIT", "Unit/Each"
+        INNER = "INNER", "Inner Pack"
+        CASE = "CASE", "Case/Box"
+        CARTON = "CARTON", "Carton"
+        PALLET = "PALLET", "Pallet"
+
+    item = models.ForeignKey(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="identifiers"
+    )
+
+    identifier_type = models.CharField(
+        max_length=20,
+        choices=IdentifierType.choices,
+        default=IdentifierType.INTERNAL
+    )
+    value = models.CharField(max_length=100, help_text="The barcode/identifier value")
+    pack_level = models.CharField(
+        max_length=20,
+        choices=PackLevel.choices,
+        default=PackLevel.UNIT
+    )
+
+    # Quantity at this pack level
+    qty_per_pack = models.IntegerField(default=1, help_text="Units per pack at this level")
+
+    is_primary = models.BooleanField(default=False, help_text="Primary identifier for scanning")
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "item_identifiers"
+        unique_together = ["item", "identifier_type", "pack_level"]
+        ordering = ["item", "pack_level", "identifier_type"]
+        verbose_name = "Item Identifier"
+        verbose_name_plural = "Item Identifiers"
+        indexes = [
+            models.Index(fields=["value"]),
+        ]
+
+    def __str__(self):
+        return f"{self.item.code} - {self.identifier_type} ({self.pack_level})"
+
+
+# =============================================================================
+# SPECIALIZED SPEC TABLES (For Heavy/Critical Domains)
+# =============================================================================
+
+
+class ItemCutterSpec(models.Model):
+    """
+    Specialized specification table for PDC Cutters.
+    Strong validation and better reporting for this critical domain.
+    Use Attributes for most categories, but cutters need dedicated specs.
+    """
+
+    class Grade(models.TextChoices):
+        PREMIUM = "PREMIUM", "Premium"
+        STANDARD = "STANDARD", "Standard"
+        ECONOMY = "ECONOMY", "Economy"
+
+    class ChamferType(models.TextChoices):
+        NONE = "NONE", "No Chamfer"
+        SINGLE = "SINGLE", "Single Chamfer"
+        DOUBLE = "DOUBLE", "Double Chamfer"
+        MULTI = "MULTI", "Multi-Chamfer"
+
+    item = models.OneToOneField(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="cutter_spec",
+        primary_key=True
+    )
+
+    # Size specs
+    cutter_size = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        help_text="Cutter diameter in mm"
+    )
+    thickness = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        null=True, blank=True,
+        help_text="Cutter thickness in mm"
+    )
+    diamond_table_thickness = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        null=True, blank=True,
+        help_text="Diamond table thickness in mm"
+    )
+
+    # Material/Grade
+    grade = models.CharField(max_length=20, choices=Grade.choices, default=Grade.STANDARD)
+    substrate_material = models.CharField(max_length=50, blank=True, help_text="e.g., Tungsten Carbide")
+
+    # Chamfer specs
+    chamfer_type = models.CharField(max_length=20, choices=ChamferType.choices, default=ChamferType.NONE)
+    chamfer_angle = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    chamfer_size = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+
+    # Braze specs
+    braze_temp_min = models.IntegerField(null=True, blank=True, help_text="Min braze temp °C")
+    braze_temp_max = models.IntegerField(null=True, blank=True, help_text="Max braze temp °C")
+
+    # Performance
+    impact_resistance = models.CharField(max_length=20, blank=True)
+    abrasion_resistance = models.CharField(max_length=20, blank=True)
+    thermal_stability_temp = models.IntegerField(null=True, blank=True, help_text="Max thermal stability °C")
+
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "item_cutter_specs"
+        verbose_name = "Cutter Specification"
+        verbose_name_plural = "Cutter Specifications"
+
+    def __str__(self):
+        return f"{self.item.code} - {self.cutter_size}mm {self.grade}"
+
+
+class ItemBitSpec(models.Model):
+    """
+    Specialized specification table for Drill Bit designs/SKUs.
+    Links inventory items that are bit designs to their technical specs.
+    Use this for the SKU/design level, not individual serial numbers.
+    """
+
+    class BitType(models.TextChoices):
+        PDC = "PDC", "PDC (Fixed Cutter)"
+        ROLLER_CONE = "RC", "Roller Cone"
+        HYBRID = "HYBRID", "Hybrid"
+        DIAMOND = "DIAMOND", "Diamond Impregnated"
+
+    item = models.OneToOneField(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="bit_spec",
+        primary_key=True
+    )
+
+    # Bit identification
+    bit_type = models.CharField(max_length=20, choices=BitType.choices, default=BitType.PDC)
+    iadc_code = models.CharField(max_length=10, blank=True, help_text="IADC classification code")
+
+    # Size
+    bit_size = models.DecimalField(
+        max_digits=6, decimal_places=3,
+        help_text="Bit diameter in inches"
+    )
+
+    # Connection
+    connection_type = models.CharField(max_length=50, blank=True, help_text="e.g., API REG, IF")
+    connection_size = models.CharField(max_length=20, blank=True, help_text="e.g., 4-1/2 IF")
+
+    # PDC specific
+    blade_count = models.IntegerField(null=True, blank=True)
+    cutter_count = models.IntegerField(null=True, blank=True)
+    cutter_size = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True, help_text="Primary cutter size mm")
+
+    # Nozzle configuration
+    nozzle_count = models.IntegerField(null=True, blank=True)
+    tfa_range_min = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True, help_text="Min TFA sq.in")
+    tfa_range_max = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True, help_text="Max TFA sq.in")
+
+    # Operating parameters
+    weight_on_bit_min = models.IntegerField(null=True, blank=True, help_text="Min WOB (klbs)")
+    weight_on_bit_max = models.IntegerField(null=True, blank=True, help_text="Max WOB (klbs)")
+    rpm_min = models.IntegerField(null=True, blank=True)
+    rpm_max = models.IntegerField(null=True, blank=True)
+
+    # Application
+    formation_hardness = models.CharField(max_length=50, blank=True, help_text="Soft/Medium/Hard/Very Hard")
+    application = models.CharField(max_length=100, blank=True, help_text="e.g., Curve Drilling, Vertical")
+
+    # Design details
+    gauge_protection = models.CharField(max_length=50, blank=True)
+    body_material = models.CharField(max_length=50, blank=True, help_text="Steel/Matrix")
+
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "item_bit_specs"
+        verbose_name = "Bit Specification"
+        verbose_name_plural = "Bit Specifications"
+
+    def __str__(self):
+        return f"{self.item.code} - {self.bit_size}\" {self.bit_type}"
