@@ -24,7 +24,7 @@
         {
             "label": "ARDT: Fresh Setup (reset DB + seeds)",
             "type": "shell",
-            "command": "rm -f db.sqlite3 && python manage.py migrate && python manage.py seed_bit_sizes && python manage.py seed_connection_types && python manage.py seed_connection_sizes && python manage.py seed_formation_types && python manage.py seed_applications && python manage.py seed_special_technologies && python manage.py seed_upper_section_types && python manage.py seed_iadc_codes && python manage.py seed_pocket_sizes && python manage.py seed_pocket_shapes && python manage.py seed_connections && python manage.py seed_breaker_slots && python manage.py seed_test_designs && python manage.py create_default_admin && echo '✅ Fresh setup complete! Admin: admin / admin123'",
+            "command": "rm -f db.sqlite3 && python manage.py migrate && python manage.py seed_bit_sizes && python manage.py seed_connection_types && python manage.py seed_connection_sizes && python manage.py seed_formation_types && python manage.py seed_applications && python manage.py seed_special_technologies && python manage.py seed_upper_section_types && python manage.py seed_iadc_codes && python manage.py seed_pocket_sizes && python manage.py seed_pocket_shapes && python manage.py seed_connections && python manage.py seed_breaker_slots && python manage.py seed_test_designs && python manage.py create_default_admin && echo '✅ Fresh setup complete! Admin: admin / ra@mzi@123'",
             "presentation": {
                 "reveal": "always",
                 "panel": "shared"

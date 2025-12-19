@@ -8,7 +8,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = 'Creates default admin user (admin/admin123) for development'
+    help = 'Creates default admin user (admin/ra@mzi@123) for development'
 
     def handle(self, *args, **options):
         if User.objects.filter(username='admin').exists():
@@ -17,9 +17,9 @@ class Command(BaseCommand):
 
         User.objects.create_superuser(
             username='admin',
-            email='admin@ardt.local',
-            password='admin123',
-            first_name='Admin',
-            last_name='User'
+            email='ramzikassab1982@gmail.com',
+            password='ra@mzi@123',
+            first_name='Ramzi',
+            last_name='Kassab'
         )
-        self.stdout.write(self.style.SUCCESS('✅ Created admin user: admin / admin123'))
+        self.stdout.write(self.style.SUCCESS('✅ Created admin user: admin / ra@mzi@123'))
