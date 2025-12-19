@@ -8,6 +8,11 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Pockets Layout</h1>
         <p class="text-gray-600 dark:text-gray-400 mt-1">Manage pocket configurations for all designs</p>
     </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'technology:design_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Design
+        </a>
+    </div>
 </div>
 {% endblock %}
 
