@@ -1,0 +1,259 @@
+[
+{
+  "model": "sessions.session",
+  "pk": "5dppn7p0v0vxdcsjvrr32j8u4k2ueo51",
+  "fields": {
+    "session_data": ".eJxVjMsKwjAQRf8lawl5kCbt0r3fEKaTGRuVRJoWFPHftdBNt_eccz8iNmot1xLp9czzWwzqJCKsyxTXRnPMSQxCi8M2At6pbCDdoFyrxFqWOY9yU-ROm7zURI_z7h4OJmjTv8bRcEBtNOsuGW2VDawc-QQYPHY-9eisYbBAiinYnh2jN04pnzqyRnx_E8w_PA:1vWQeU:sOo8KZ_KfPeZLyxZfWsNg8zbhf6h9PMdTCUBAS4z4M8",
+    "expire_date": "2026-01-02T02:55:34.753Z"
+  }
+},
+{
+  "model": "accounts.user",
+  "pk": 1,
+  "fields": {
+    "password": "pbkdf2_sha256$870000$EQwX8bPVRdhMZ6oWL07ynW$omuN6KHVWPxlEYRA8yydOQL9LFlJSm1Mbnmx43w8RSg=",
+    "last_login": "2025-12-19T02:55:34.749Z",
+    "is_superuser": true,
+    "username": "admin",
+    "first_name": "",
+    "last_name": "",
+    "is_staff": true,
+    "date_joined": "2025-12-19T02:55:15.638Z",
+    "email": "ramzikassab1982@gmail.com",
+    "employee_id": null,
+    "department": null,
+    "position": null,
+    "phone": "",
+    "phone_extension": "",
+    "mobile": "",
+    "profile_photo": "",
+    "signature": "",
+    "language": "en",
+    "timezone": "Asia/Riyadh",
+    "theme": null,
+    "is_active": true,
+    "last_activity": null,
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "accounts.userpreference",
+  "pk": 1,
+  "fields": {
+    "user": 1,
+    "default_dashboard": "main",
+    "dashboard_widgets": {
+      "manager": [
+        {
+          "id": "manager_total_wo_kpi",
+          "size": "small",
+          "order": 1,
+          "visible": true,
+          "color": "lime",
+          "color_intensity": "medium",
+          "bg_style": "glass",
+          "border_style": "none",
+          "border_size": "medium",
+          "text_size": "normal",
+          "border_radius": "rounded",
+          "show_header": true
+        },
+        {
+          "id": "manager_active_wo_kpi",
+          "size": "small",
+          "order": 2,
+          "visible": true,
+          "color": "lime",
+          "color_intensity": "medium",
+          "bg_style": "glass",
+          "border_style": "none",
+          "border_size": "medium",
+          "text_size": "normal",
+          "border_radius": "rounded",
+          "show_header": true
+        },
+        {
+          "id": "manager_completed_week_kpi",
+          "size": "small",
+          "order": 3,
+          "visible": true,
+          "color": "lime",
+          "color_intensity": "medium",
+          "bg_style": "glass",
+          "border_style": "none",
+          "border_size": "medium",
+          "text_size": "normal",
+          "border_radius": "rounded",
+          "show_header": true
+        },
+        {
+          "id": "manager_overdue_kpi",
+          "size": "small",
+          "order": 4,
+          "visible": true,
+          "color": "lime",
+          "color_intensity": "medium",
+          "bg_style": "glass",
+          "border_style": "none",
+          "border_size": "medium",
+          "text_size": "normal",
+          "border_radius": "rounded",
+          "show_header": true
+        },
+        {
+          "id": "manager_drill_bits_kpi",
+          "size": "medium",
+          "order": 5,
+          "visible": true,
+          "color": "lime",
+          "color_intensity": "medium",
+          "bg_style": "glass",
+          "border_style": "none",
+          "border_size": "medium",
+          "text_size": "normal",
+          "border_radius": "rounded",
+          "show_header": true
+        },
+        {
+          "id": "work_orders_status_chart",
+          "size": "large",
+          "order": 6,
+          "visible": true,
+          "color": "lime",
+          "color_intensity": "medium",
+          "bg_style": "glass",
+          "border_style": "none",
+          "border_size": "medium",
+          "text_size": "normal",
+          "border_radius": "rounded",
+          "show_header": true
+        },
+        {
+          "id": "recent_work_orders",
+          "size": "large",
+          "order": 7,
+          "visible": true,
+          "color": "lime",
+          "color_intensity": "medium",
+          "bg_style": "glass",
+          "border_style": "none",
+          "border_size": "medium",
+          "text_size": "normal",
+          "border_radius": "rounded",
+          "show_header": true
+        }
+      ],
+      "saved_1": [
+        {
+          "id": "work_orders_summary",
+          "size": "medium",
+          "order": 1,
+          "visible": true,
+          "color": "teal",
+          "color_intensity": "medium",
+          "bg_style": "filled",
+          "border_style": "left",
+          "border_size": "medium",
+          "text_size": "normal",
+          "border_radius": "rounded",
+          "show_header": true
+        },
+        {
+          "id": "drill_bits_status",
+          "size": "small",
+          "order": 2,
+          "visible": true,
+          "color": "teal",
+          "color_intensity": "medium",
+          "bg_style": "filled",
+          "border_style": "left",
+          "border_size": "medium",
+          "text_size": "normal",
+          "border_radius": "rounded",
+          "show_header": true
+        },
+        {
+          "id": "recent_work_orders",
+          "size": "large",
+          "order": 3,
+          "visible": true,
+          "color": "teal",
+          "color_intensity": "medium",
+          "bg_style": "filled",
+          "border_style": "left",
+          "border_size": "medium",
+          "text_size": "normal",
+          "border_radius": "rounded",
+          "show_header": true
+        },
+        {
+          "id": "quick_links",
+          "size": "small",
+          "order": 4,
+          "visible": true,
+          "color": "teal",
+          "color_intensity": "medium",
+          "bg_style": "filled",
+          "border_style": "left",
+          "border_size": "medium",
+          "text_size": "normal",
+          "border_radius": "rounded",
+          "show_header": true
+        }
+      ]
+    },
+    "email_notifications": true,
+    "push_notifications": true,
+    "notification_sound": true,
+    "items_per_page": 25,
+    "date_format": "DD/MM/YYYY",
+    "time_format": "HH:mm",
+    "sidebar_collapsed": false,
+    "favorite_modules": [],
+    "updated_at": "2025-12-19T03:21:09.632Z"
+  }
+},
+{
+  "model": "dashboard.saveddashboard",
+  "pk": 1,
+  "fields": {
+    "name": "Ramzi",
+    "description": "",
+    "icon": "shield-check",
+    "created_by": 1,
+    "widget_config": [
+      {
+        "id": "work_orders_summary",
+        "size": "medium",
+        "order": 1,
+        "visible": true
+      },
+      {
+        "id": "drill_bits_status",
+        "size": "small",
+        "order": 2,
+        "visible": true
+      },
+      {
+        "id": "recent_work_orders",
+        "size": "large",
+        "order": 3,
+        "visible": true
+      },
+      {
+        "id": "quick_links",
+        "size": "small",
+        "order": 4,
+        "visible": true
+      }
+    ],
+    "visibility": "PRIVATE",
+    "is_default": false,
+    "show_in_sidebar": true,
+    "is_active": true,
+    "created_at": "2025-12-19T02:56:18.359Z",
+    "updated_at": "2025-12-19T02:56:18.359Z",
+    "shared_with_roles": []
+  }
+}
