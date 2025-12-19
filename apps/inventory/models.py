@@ -3480,3 +3480,898 @@ class AssetMovement(models.Model):
 
     def __str__(self):
         return f"{self.movement_number}: {self.asset.serial_number} - {self.get_movement_type_display()}"
+
+
+# =============================================================================
+# PHASE 5: QC GATES (Quality Status Transitions)
+# =============================================================================
+
+class QualityStatusChange(models.Model):
+    """
+    Tracks all quality status transitions for audit and workflow control.
+
+    Every change from one QualityStatus to another is recorded here,
+    providing complete traceability for QC gate compliance.
+
+    Common workflows:
+    - QUARANTINE → RELEASED (passed inspection)
+    - QUARANTINE → BLOCKED (failed inspection)
+    - BLOCKED → QUARANTINE (re-inspection requested)
+    - RELEASED → BLOCKED (quality issue discovered)
+    """
+
+    class ChangeType(models.TextChoices):
+        RECEIPT = "RECEIPT", "Initial Receipt"
+        INSPECTION = "INSPECTION", "Inspection Result"
+        REWORK = "REWORK", "After Rework"
+        RETEST = "RETEST", "Re-test/Re-inspection"
+        RELEASE = "RELEASE", "Manual Release"
+        BLOCK = "BLOCK", "Manual Block"
+        EXPIRY = "EXPIRY", "Expired/Time-based"
+        CORRECTION = "CORRECTION", "Data Correction"
+
+    # What changed
+    change_number = models.CharField(max_length=50, unique=True)
+    change_date = models.DateTimeField(auto_now_add=True)
+    change_type = models.CharField(
+        max_length=20, choices=ChangeType.choices
+    )
+
+    # Transition
+    from_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT,
+        related_name="changes_from",
+        help_text="Previous quality status"
+    )
+    to_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT,
+        related_name="changes_to",
+        help_text="New quality status"
+    )
+
+    # What was affected (one of these should be set)
+    stock_balance = models.ForeignKey(
+        StockBalance, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="qc_changes"
+    )
+    lot = models.ForeignKey(
+        MaterialLot, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="qc_changes"
+    )
+    asset = models.ForeignKey(
+        Asset, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="qc_changes"
+    )
+
+    # Quantity affected (for partial releases/blocks)
+    qty_affected = models.DecimalField(
+        max_digits=15, decimal_places=3, null=True, blank=True,
+        help_text="Quantity affected (if partial change)"
+    )
+
+    # Inspection details
+    inspector = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="inspections_performed"
+    )
+    inspection_date = models.DateTimeField(null=True, blank=True)
+    inspection_notes = models.TextField(blank=True)
+
+    # Approval (for releases)
+    requires_approval = models.BooleanField(default=False)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="qc_approvals"
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    # Reference documents
+    grn = models.ForeignKey(
+        GoodsReceiptNote, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="qc_changes"
+    )
+    work_order = models.ForeignKey(
+        "workorders.WorkOrder", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="qc_changes"
+    )
+
+    # Ledger linkage (QC changes post to ledger with qty=0 but status dimension change)
+    ledger_entry = models.ForeignKey(
+        StockLedger, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="qc_changes"
+    )
+
+    # Audit
+    reason = models.TextField(help_text="Reason for status change")
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="qc_changes_created"
+    )
+
+    class Meta:
+        db_table = "quality_status_changes"
+        verbose_name = "Quality Status Change"
+        verbose_name_plural = "Quality Status Changes"
+        ordering = ["-change_date"]
+        indexes = [
+            models.Index(fields=["from_status", "to_status"]),
+            models.Index(fields=["change_date"]),
+            models.Index(fields=["lot"]),
+            models.Index(fields=["asset"]),
+        ]
+
+    def __str__(self):
+        return f"{self.change_number}: {self.from_status.code} → {self.to_status.code}"
+
+    def save(self, *args, **kwargs):
+        if not self.change_number:
+            from django.utils import timezone
+            year = timezone.now().year
+            last = QualityStatusChange.objects.filter(
+                change_number__startswith=f"QC-{year}-"
+            ).order_by("-change_number").first()
+
+            if last:
+                last_num = int(last.change_number.split("-")[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+
+            self.change_number = f"QC-{year}-{new_num:05d}"
+
+        super().save(*args, **kwargs)
+
+
+# =============================================================================
+# PHASE 6: STOCK RESERVATIONS
+# =============================================================================
+
+class StockReservation(models.Model):
+    """
+    Stock Reservation - Allocates stock to a demand source.
+
+    Reservations reduce qty_available without reducing qty_on_hand.
+    They are consumed when the actual issue happens.
+
+    Use cases:
+    - Work Order material reservation
+    - Sales Order allocation
+    - Transfer requests
+    - Customer holds
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        CONFIRMED = "CONFIRMED", "Confirmed"
+        PARTIALLY_ISSUED = "PARTIAL", "Partially Issued"
+        ISSUED = "ISSUED", "Fully Issued"
+        CANCELLED = "CANCELLED", "Cancelled"
+        EXPIRED = "EXPIRED", "Expired"
+
+    class ReservationType(models.TextChoices):
+        WORK_ORDER = "WO", "Work Order"
+        SALES_ORDER = "SO", "Sales Order"
+        TRANSFER = "TRANSFER", "Transfer Request"
+        CUSTOMER_HOLD = "HOLD", "Customer Hold"
+        PROJECT = "PROJECT", "Project Allocation"
+        OTHER = "OTHER", "Other"
+
+    # Identification
+    reservation_number = models.CharField(max_length=50, unique=True)
+    reservation_type = models.CharField(
+        max_length=20, choices=ReservationType.choices
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING
+    )
+
+    # What's reserved
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT,
+        related_name="reservations"
+    )
+    qty_reserved = models.DecimalField(
+        max_digits=15, decimal_places=3,
+        help_text="Quantity reserved"
+    )
+    qty_issued = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text="Quantity already issued against this reservation"
+    )
+    uom = models.ForeignKey(
+        UnitOfMeasure, on_delete=models.PROTECT,
+        related_name="reservations"
+    )
+
+    # From where (optional - can be general or specific)
+    location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="reservations",
+        help_text="Specific location (if location-specific reservation)"
+    )
+    lot = models.ForeignKey(
+        MaterialLot, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="reservations",
+        help_text="Specific lot (if lot-specific reservation)"
+    )
+    stock_balance = models.ForeignKey(
+        StockBalance, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="reservations",
+        help_text="Specific stock balance (fully dimensioned reservation)"
+    )
+
+    # For whom
+    reserved_for_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="reservations_for"
+    )
+
+    # Demand source (one of these should be set based on type)
+    work_order = models.ForeignKey(
+        "workorders.WorkOrder", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="reservations"
+    )
+    sales_order = models.ForeignKey(
+        "sales.SalesOrder", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="reservations"
+    )
+    transfer_request = models.ForeignKey(
+        StockTransfer, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="reservations"
+    )
+
+    # Dates
+    reservation_date = models.DateTimeField(auto_now_add=True)
+    required_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField(
+        null=True, blank=True,
+        help_text="Reservation expires if not fulfilled by this date"
+    )
+
+    # Priority
+    priority = models.IntegerField(
+        default=5,
+        help_text="1=Highest, 10=Lowest"
+    )
+
+    # Audit
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="reservations_created"
+    )
+
+    class Meta:
+        db_table = "stock_reservations"
+        verbose_name = "Stock Reservation"
+        verbose_name_plural = "Stock Reservations"
+        ordering = ["priority", "required_date", "-reservation_date"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["item"]),
+            models.Index(fields=["work_order"]),
+            models.Index(fields=["required_date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.reservation_number}: {self.item.code} x {self.qty_reserved}"
+
+    @property
+    def qty_remaining(self):
+        """Quantity still to be issued."""
+        return self.qty_reserved - self.qty_issued
+
+    def save(self, *args, **kwargs):
+        if not self.reservation_number:
+            from django.utils import timezone
+            year = timezone.now().year
+            last = StockReservation.objects.filter(
+                reservation_number__startswith=f"RES-{year}-"
+            ).order_by("-reservation_number").first()
+
+            if last:
+                last_num = int(last.reservation_number.split("-")[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+
+            self.reservation_number = f"RES-{year}-{new_num:05d}"
+
+        super().save(*args, **kwargs)
+
+
+# =============================================================================
+# PHASE 7: BILL OF MATERIALS (BOM)
+# =============================================================================
+
+class BillOfMaterial(models.Model):
+    """
+    Bill of Materials (BOM) - Defines components required for an assembly/service.
+
+    BOMs are used for:
+    - Kit/Assembly definitions
+    - Work Order material requirements
+    - Service job material templates
+    - Cost roll-up calculations
+    """
+
+    class BOMType(models.TextChoices):
+        STANDARD = "STD", "Standard BOM"
+        PHANTOM = "PHANTOM", "Phantom/Sub-assembly"
+        TEMPLATE = "TEMPLATE", "Template (for estimation)"
+        REPAIR = "REPAIR", "Repair BOM"
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        ACTIVE = "ACTIVE", "Active"
+        INACTIVE = "INACTIVE", "Inactive"
+        OBSOLETE = "OBSOLETE", "Obsolete"
+
+    # Parent item (what's being built/assembled)
+    parent_item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT,
+        related_name="boms_as_parent",
+        help_text="The item being assembled/built"
+    )
+
+    # BOM identification
+    bom_code = models.CharField(
+        max_length=50, unique=True,
+        help_text="Unique BOM identifier"
+    )
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    version = models.CharField(
+        max_length=20, default="1.0",
+        help_text="BOM version"
+    )
+
+    bom_type = models.CharField(
+        max_length=20, choices=BOMType.choices, default=BOMType.STANDARD
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
+
+    # Quantity produced
+    base_quantity = models.DecimalField(
+        max_digits=15, decimal_places=3, default=1,
+        help_text="Quantity produced by this BOM"
+    )
+    uom = models.ForeignKey(
+        UnitOfMeasure, on_delete=models.PROTECT,
+        related_name="boms"
+    )
+
+    # Effectivity dates
+    effective_from = models.DateField(null=True, blank=True)
+    effective_to = models.DateField(null=True, blank=True)
+
+    # Cost roll-up
+    material_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0,
+        help_text="Total material cost (sum of components)"
+    )
+    labor_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0
+    )
+    overhead_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0
+    )
+    total_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0
+    )
+
+    # Work order template linkage
+    default_for_wo_type = models.CharField(
+        max_length=50, blank=True,
+        help_text="Default BOM for this work order type"
+    )
+
+    # Audit
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="boms_created"
+    )
+
+    class Meta:
+        db_table = "bill_of_materials"
+        verbose_name = "Bill of Material"
+        verbose_name_plural = "Bills of Material"
+        ordering = ["parent_item", "version"]
+        indexes = [
+            models.Index(fields=["parent_item"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["bom_code"]),
+        ]
+
+    def __str__(self):
+        return f"{self.bom_code}: {self.parent_item.code} v{self.version}"
+
+    def recalculate_costs(self):
+        """Recalculate total material cost from components."""
+        total = sum(line.extended_cost for line in self.lines.all())
+        self.material_cost = total
+        self.total_cost = self.material_cost + self.labor_cost + self.overhead_cost
+        self.save(update_fields=["material_cost", "total_cost", "updated_at"])
+
+
+class BOMLine(models.Model):
+    """
+    BOM Line - Individual component in a Bill of Materials.
+    """
+
+    class ComponentType(models.TextChoices):
+        MATERIAL = "MATERIAL", "Material"
+        CONSUMABLE = "CONSUMABLE", "Consumable"
+        TOOL = "TOOL", "Tool (non-consumed)"
+        SUBASSEMBLY = "SUBASM", "Sub-assembly"
+
+    bom = models.ForeignKey(
+        BillOfMaterial, on_delete=models.CASCADE,
+        related_name="lines"
+    )
+    line_number = models.IntegerField()
+
+    # Component item
+    component_item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT,
+        related_name="bom_usages",
+        help_text="Component/material required"
+    )
+    component_type = models.CharField(
+        max_length=20, choices=ComponentType.choices, default=ComponentType.MATERIAL
+    )
+
+    # Quantity
+    quantity_per = models.DecimalField(
+        max_digits=15, decimal_places=6,
+        help_text="Quantity per base_quantity of parent"
+    )
+    uom = models.ForeignKey(
+        UnitOfMeasure, on_delete=models.PROTECT,
+        related_name="bom_lines"
+    )
+
+    # Scrap/Waste allowance
+    scrap_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        help_text="Expected scrap percentage"
+    )
+
+    # Cost
+    unit_cost = models.DecimalField(
+        max_digits=15, decimal_places=4, default=0
+    )
+    extended_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0,
+        help_text="quantity_per * unit_cost * (1 + scrap_percent)"
+    )
+
+    # Optional: Substitute items
+    is_optional = models.BooleanField(
+        default=False,
+        help_text="Optional component"
+    )
+    substitute_group = models.CharField(
+        max_length=20, blank=True,
+        help_text="Group code for substitute items"
+    )
+
+    # Reference designator (for electronics/assemblies)
+    reference_designator = models.CharField(
+        max_length=50, blank=True,
+        help_text="Position/reference on assembly"
+    )
+
+    # Operation linkage (for routing integration)
+    operation_sequence = models.IntegerField(
+        null=True, blank=True,
+        help_text="Operation where component is consumed"
+    )
+
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "bom_lines"
+        verbose_name = "BOM Line"
+        verbose_name_plural = "BOM Lines"
+        ordering = ["bom", "line_number"]
+        unique_together = [["bom", "line_number"]]
+        indexes = [
+            models.Index(fields=["component_item"]),
+        ]
+
+    def __str__(self):
+        return f"{self.bom.bom_code} L{self.line_number}: {self.component_item.code}"
+
+    def save(self, *args, **kwargs):
+        # Calculate extended cost with scrap allowance
+        scrap_factor = 1 + (self.scrap_percent / 100)
+        self.extended_cost = self.quantity_per * self.unit_cost * scrap_factor
+        super().save(*args, **kwargs)
+
+
+# =============================================================================
+# PHASE 8: CYCLE COUNT & PHYSICAL INVENTORY
+# =============================================================================
+
+class CycleCountPlan(models.Model):
+    """
+    Cycle Count Plan - Defines counting strategy and schedule.
+
+    Cycle counting is an ongoing process of counting inventory
+    on a rotating basis, rather than doing full physical inventories.
+
+    Strategies:
+    - ABC Classification: Count A items more frequently
+    - Location-based: Count by zone/aisle
+    - Random: Random selection each period
+    """
+
+    class PlanType(models.TextChoices):
+        ABC = "ABC", "ABC Classification"
+        LOCATION = "LOCATION", "Location Based"
+        RANDOM = "RANDOM", "Random Selection"
+        FULL = "FULL", "Full Physical Inventory"
+        CUSTOM = "CUSTOM", "Custom Selection"
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        ACTIVE = "ACTIVE", "Active"
+        PAUSED = "PAUSED", "Paused"
+        COMPLETED = "COMPLETED", "Completed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    # Plan identification
+    plan_code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+
+    plan_type = models.CharField(
+        max_length=20, choices=PlanType.choices, default=PlanType.ABC
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
+
+    # Scope
+    warehouse = models.ForeignKey(
+        "sales.Warehouse", on_delete=models.PROTECT,
+        related_name="cycle_count_plans"
+    )
+    include_locations = models.ManyToManyField(
+        InventoryLocation, blank=True,
+        related_name="cycle_count_plans"
+    )
+
+    # Schedule
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+
+    # ABC frequency (days between counts)
+    count_frequency_a = models.IntegerField(
+        default=30, help_text="Days between counts for A items"
+    )
+    count_frequency_b = models.IntegerField(
+        default=60, help_text="Days between counts for B items"
+    )
+    count_frequency_c = models.IntegerField(
+        default=90, help_text="Days between counts for C items"
+    )
+
+    # Tolerance thresholds
+    tolerance_qty_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=2.0,
+        help_text="Acceptable variance percent"
+    )
+    tolerance_value = models.DecimalField(
+        max_digits=15, decimal_places=2, default=100,
+        help_text="Acceptable variance value"
+    )
+
+    # Auto-adjustment settings
+    auto_adjust_within_tolerance = models.BooleanField(
+        default=False,
+        help_text="Automatically create adjustments within tolerance"
+    )
+    require_approval_outside_tolerance = models.BooleanField(
+        default=True
+    )
+
+    # Audit
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="cycle_count_plans_created"
+    )
+
+    class Meta:
+        db_table = "cycle_count_plans"
+        verbose_name = "Cycle Count Plan"
+        verbose_name_plural = "Cycle Count Plans"
+        ordering = ["-start_date"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["warehouse"]),
+        ]
+
+    def __str__(self):
+        return f"{self.plan_code}: {self.name}"
+
+
+class CycleCountSession(models.Model):
+    """
+    Cycle Count Session - A single counting session/batch.
+
+    Each session is a group of items to be counted together,
+    generated from a plan or created ad-hoc.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        COUNTING = "COUNTING", "Counting"
+        REVIEW = "REVIEW", "Under Review"
+        APPROVED = "APPROVED", "Approved"
+        POSTED = "POSTED", "Posted to Adjustments"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    # Session identification
+    session_number = models.CharField(max_length=50, unique=True)
+    session_date = models.DateField()
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING
+    )
+
+    # Source
+    plan = models.ForeignKey(
+        CycleCountPlan, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="sessions"
+    )
+
+    # Scope
+    warehouse = models.ForeignKey(
+        "sales.Warehouse", on_delete=models.PROTECT,
+        related_name="cycle_count_sessions"
+    )
+    location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="cycle_count_sessions"
+    )
+
+    # Count details
+    count_started_at = models.DateTimeField(null=True, blank=True)
+    count_completed_at = models.DateTimeField(null=True, blank=True)
+    counter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="cycle_counts_performed"
+    )
+
+    # Results summary
+    total_items = models.IntegerField(default=0)
+    items_counted = models.IntegerField(default=0)
+    items_matched = models.IntegerField(default=0)
+    items_variance = models.IntegerField(default=0)
+    total_variance_value = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0
+    )
+
+    # Approval
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="cycle_counts_reviewed"
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="cycle_counts_approved"
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    # Posted adjustment
+    adjustment = models.OneToOneField(
+        StockAdjustment, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="cycle_count_session"
+    )
+
+    # Audit
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="cycle_count_sessions_created"
+    )
+
+    class Meta:
+        db_table = "cycle_count_sessions"
+        verbose_name = "Cycle Count Session"
+        verbose_name_plural = "Cycle Count Sessions"
+        ordering = ["-session_date", "-session_number"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["session_date"]),
+            models.Index(fields=["warehouse"]),
+        ]
+
+    def __str__(self):
+        return f"{self.session_number} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        if not self.session_number:
+            from django.utils import timezone
+            year = timezone.now().year
+            last = CycleCountSession.objects.filter(
+                session_number__startswith=f"CC-{year}-"
+            ).order_by("-session_number").first()
+
+            if last:
+                last_num = int(last.session_number.split("-")[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+
+            self.session_number = f"CC-{year}-{new_num:05d}"
+
+        super().save(*args, **kwargs)
+
+
+class CycleCountLine(models.Model):
+    """
+    Cycle Count Line - Individual item to count in a session.
+    """
+
+    class CountStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending Count"
+        COUNTED = "COUNTED", "Counted"
+        RECOUNTED = "RECOUNTED", "Recounted"
+        VERIFIED = "VERIFIED", "Verified"
+        VARIANCE = "VARIANCE", "Variance Found"
+        MATCHED = "MATCHED", "Matched"
+
+    session = models.ForeignKey(
+        CycleCountSession, on_delete=models.CASCADE,
+        related_name="lines"
+    )
+    line_number = models.IntegerField()
+
+    # What to count
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT,
+        related_name="cycle_count_lines"
+    )
+    location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        related_name="cycle_count_lines"
+    )
+    lot = models.ForeignKey(
+        MaterialLot, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="cycle_count_lines"
+    )
+
+    # Stock dimensions
+    owner_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        related_name="cycle_count_lines"
+    )
+    ownership_type = models.ForeignKey(
+        OwnershipType, on_delete=models.PROTECT,
+        related_name="cycle_count_lines"
+    )
+    condition = models.ForeignKey(
+        ConditionType, on_delete=models.PROTECT,
+        related_name="cycle_count_lines"
+    )
+    quality_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT,
+        related_name="cycle_count_lines"
+    )
+
+    # Quantities
+    uom = models.ForeignKey(
+        UnitOfMeasure, on_delete=models.PROTECT,
+        related_name="cycle_count_lines"
+    )
+    qty_system = models.DecimalField(
+        max_digits=15, decimal_places=3,
+        help_text="System quantity at time of count"
+    )
+    qty_counted = models.DecimalField(
+        max_digits=15, decimal_places=3, null=True, blank=True,
+        help_text="First count quantity"
+    )
+    qty_recounted = models.DecimalField(
+        max_digits=15, decimal_places=3, null=True, blank=True,
+        help_text="Recount quantity (if variance)"
+    )
+    qty_final = models.DecimalField(
+        max_digits=15, decimal_places=3, null=True, blank=True,
+        help_text="Final accepted quantity"
+    )
+    qty_variance = models.DecimalField(
+        max_digits=15, decimal_places=3, null=True, blank=True,
+        help_text="Variance (final - system)"
+    )
+
+    # Variance value
+    unit_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    variance_value = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True
+    )
+
+    # Status
+    count_status = models.CharField(
+        max_length=20, choices=CountStatus.choices, default=CountStatus.PENDING
+    )
+    counted_at = models.DateTimeField(null=True, blank=True)
+    counted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="items_counted"
+    )
+
+    # Flags
+    requires_recount = models.BooleanField(default=False)
+    requires_approval = models.BooleanField(default=False)
+    is_approved = models.BooleanField(default=False)
+
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "cycle_count_lines"
+        verbose_name = "Cycle Count Line"
+        verbose_name_plural = "Cycle Count Lines"
+        ordering = ["session", "line_number"]
+        unique_together = [["session", "line_number"]]
+        indexes = [
+            models.Index(fields=["item"]),
+            models.Index(fields=["count_status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.session.session_number} L{self.line_number}: {self.item.code}"
+
+    def save(self, *args, **kwargs):
+        # Calculate variance if final qty is set
+        if self.qty_final is not None:
+            self.qty_variance = self.qty_final - self.qty_system
+            self.variance_value = self.qty_variance * self.unit_cost
+
+            # Update status based on variance
+            if self.qty_variance == 0:
+                self.count_status = self.CountStatus.MATCHED
+            else:
+                self.count_status = self.CountStatus.VARIANCE
+
+        super().save(*args, **kwargs)
