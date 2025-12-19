@@ -81,6 +81,11 @@ class SavedDashboard(models.Model):
             return len([w for w in self.widget_config if w.get("visible", True)])
         return 0
 
+    @property
+    def dashboard_type_key(self):
+        """Return a unique key for this saved dashboard for user preferences."""
+        return f"saved_{self.pk}"
+
     def can_view(self, user):
         """Check if a user can view this dashboard."""
         # Owner can always view
