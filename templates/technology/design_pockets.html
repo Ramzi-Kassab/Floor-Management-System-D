@@ -519,14 +519,23 @@
                             <template x-for="col in 20" :key="col">
                                 <div class="flex">
                                     <!-- Location cell -->
-                                    <div class="w-10 h-10 border rounded flex items-center justify-center text-xs font-bold cursor-pointer transition-all relative"
+                                    <div class="w-10 h-10 border rounded flex flex-col items-center justify-center cursor-pointer transition-all relative"
                                          :style="getLocationCellStyle({{ blade_num }}, col)"
                                          :class="getLocationCellClass({{ blade_num }}, col)"
                                          @click="assignLocation({{ blade_num }}, col)"
                                          :title="getLocationTooltip({{ blade_num }}, col)">
-                                        <span x-text="getLocationCode({{ blade_num }}, col)"></span>
-                                        <!-- Config number indicator -->
-                                        <span class="absolute bottom-0 right-0.5 text-[8px] text-gray-400"
+                                        <!-- Pocket size (top) - like engagement tab -->
+                                        <span class="text-[9px] font-bold drop-shadow-sm"
+                                              :class="locationData[`{{ blade_num }}_${col}`] ? 'text-white' : 'text-gray-600'"
+                                              x-show="gridData[`{{ blade_num }}_${col}`]"
+                                              x-text="getPocketSizeCode({{ blade_num }}, col)"></span>
+                                        <!-- Location code (center) -->
+                                        <span class="text-sm font-bold drop-shadow-sm"
+                                              :class="locationData[`{{ blade_num }}_${col}`] ? 'text-white' : 'text-gray-500'"
+                                              x-text="getLocationCode({{ blade_num }}, col)"></span>
+                                        <!-- Config number indicator (bottom right) -->
+                                        <span class="absolute bottom-0 right-0.5 text-[9px] font-semibold drop-shadow-sm"
+                                              :class="locationData[`{{ blade_num }}_${col}`] ? 'text-white/80' : 'text-gray-500'"
                                               x-show="gridData[`{{ blade_num }}_${col}`]"
                                               x-text="getCellNumber({{ blade_num }}, col)"></span>
                                     </div>
@@ -701,7 +710,7 @@
                             <template x-for="col in 20" :key="col">
                                 <div class="flex">
                                     <!-- Engagement cell -->
-                                    <div class="w-9 h-9 border rounded flex flex-col items-center justify-center cursor-pointer transition-all relative"
+                                    <div class="w-10 h-10 border rounded flex flex-col items-center justify-center cursor-pointer transition-all relative"
                                          :style="getEngagementCellStyle({{ blade_num }}, col)"
                                          :class="[getEngagementCellClass({{ blade_num }}, col), draggingEngagement && draggingEngagement.key !== `{{ blade_num }}_${col}` ? 'ring-2 ring-dashed ring-blue-400' : '']"
                                          :draggable="!!engagementData[`{{ blade_num }}_${col}`]"
@@ -722,8 +731,8 @@
                                               x-text="engagementData[`{{ blade_num }}_${col}`] || ''"></span>
                                     </div>
                                     <!-- Row separator between cells -->
-                                    <div class="w-1 flex items-center justify-center" x-show="col < 20">
-                                        <div class="w-0.5 h-9"
+                                    <div class="w-4 flex items-center justify-center" x-show="col < 20">
+                                        <div class="w-1 h-10"
                                              :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'">
                                         </div>
                                     </div>
@@ -814,7 +823,7 @@ function pocketsLayout() {
     // Config data for counting
     const configData = {
         {% for config in pocket_configs %}
-        {{ config.pk }}: { count: {{ config.count }}, order: {{ config.order }}, color: '{{ config.display_color }}', name: '{{ config.pocket_size.display_name }}' },
+        {{ config.pk }}: { count: {{ config.count }}, order: {{ config.order }}, color: '{{ config.display_color }}', name: '{{ config.pocket_size.display_name }}', sizeCode: '{{ config.pocket_size.code }}' },
         {% endfor %}
     };
 
@@ -1497,6 +1506,16 @@ function pocketsLayout() {
             return '';
         },
 
+        // Get pocket size code for display in cell
+        getPocketSizeCode(blade, col) {
+            const key = `${blade}_${col}`;
+            const configId = this.gridData[key];
+            if (configId && this.configData[configId]) {
+                return this.configData[configId].sizeCode || '';
+            }
+            return '';
+        },
+
         assignPocket(blade, col) {
             // Legacy method - now handled by handleCellClick
             this.handleCellClick(blade, col, { shiftKey: false, ctrlKey: false, metaKey: false, preventDefault: () => {} });
@@ -2156,14 +2175,29 @@ function pocketsLayout() {
             const key = `${blade}_${col}`;
             const hasConfig = this.gridData[key];
             const location = this.locationData[key];
+            const configId = this.gridData[key];
+            const configColors = {
+                {% for config in pocket_configs %}
+                {{ config.pk }}: '{{ config.display_color }}',
+                {% endfor %}
+            };
+            let styles = [];
             if (!hasConfig) {
                 return 'background-color: transparent; border-color: #e5e7eb;';
             }
+            // Add config background color
+            if (configId && configColors[configId]) {
+                styles.push(`background-color: ${configColors[configId]}`);
+            } else {
+                styles.push('background-color: #f9fafb');
+            }
+            // Add thick location outline like first tab
             if (location) {
                 const color = this.getLocationColor(location);
-                return `background-color: ${color}20; border-color: ${color};`;
+                styles.push(`outline: 5px solid ${color}`);
+                styles.push(`outline-offset: -5px`);
             }
-            return 'background-color: #f9fafb; border-color: #d1d5db;';
+            return styles.join('; ');
         },
 
         getEngagementCellClass(blade, col) {
