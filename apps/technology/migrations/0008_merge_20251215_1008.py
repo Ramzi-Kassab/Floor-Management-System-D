@@ -7,6 +7,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("technology", "0007_breaker_slot_model"),
+        ("technology", "0007_breakerslot_design_breaker_slot"),
     ]
 
     operations = []
