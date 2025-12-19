@@ -6,6 +6,7 @@ Forms for Design, BOM, and Cutter Layout management.
 """
 
 from django import forms
+from django.apps import apps
 
 from .models import BOM, BOMLine, BreakerSlot, Connection, Design, DesignCutterLayout
 
@@ -20,6 +21,13 @@ class DesignForm(forms.ModelForm):
     Form for creating and editing designs.
     Updated for Phase 2 with FK relations to reference tables.
     """
+
+    # Lazy-loaded field to avoid app loading order issues with workorders.BitSize
+    size = forms.ModelChoiceField(
+        queryset=None,  # Set in __init__
+        required=False,
+        widget=forms.Select(attrs={"class": TAILWIND_SELECT})
+    )
 
     class Meta:
         model = Design
@@ -75,7 +83,7 @@ class DesignForm(forms.ModelForm):
             # Category & Classification
             "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "body_material": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_body_material"}),
-            "size": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            # Note: 'size' widget is defined at class level due to lazy loading
             # Identity
             "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 800012345"}),
             "hdbs_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHS", "id": "id_hdbs_type"}),
@@ -146,6 +154,10 @@ class DesignForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Lazy load BitSize queryset to avoid app loading order issues
+        BitSize = apps.get_model('workorders', 'BitSize')
+        self.fields['size'].queryset = BitSize.objects.all()
+
         # Make most fields optional
         required_fields = ["mat_no", "hdbs_type", "category", "status"]
         for field_name, field in self.fields.items():
