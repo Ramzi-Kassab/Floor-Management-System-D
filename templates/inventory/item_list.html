@@ -263,16 +263,22 @@
 <!-- Quick Links -->
 <div class="mt-6 flex flex-wrap gap-3">
     <a href="{% url 'inventory:category_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="folder" class="w-4 h-4 mr-2"></i>Manage Categories
+        <i data-lucide="folder" class="w-4 h-4 mr-2"></i>Categories
+    </a>
+    <a href="{% url 'inventory:attribute_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
+        <i data-lucide="sliders" class="w-4 h-4 mr-2"></i>Attributes
+    </a>
+    <a href="{% url 'inventory:variant_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
+        <i data-lucide="git-branch" class="w-4 h-4 mr-2"></i>Variants
     </a>
     <a href="{% url 'inventory:location_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="map-pin" class="w-4 h-4 mr-2"></i>Storage Locations
+        <i data-lucide="map-pin" class="w-4 h-4 mr-2"></i>Locations
     </a>
     <a href="{% url 'inventory:stock_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
         <i data-lucide="layers" class="w-4 h-4 mr-2"></i>Stock Levels
     </a>
     <a href="{% url 'inventory:transaction_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="history" class="w-4 h-4 mr-2"></i>Transaction History
+        <i data-lucide="history" class="w-4 h-4 mr-2"></i>Transactions
     </a>
 </div>
 {% endblock %}
