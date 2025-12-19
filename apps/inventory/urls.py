@@ -193,4 +193,27 @@ urlpatterns = [
     path("ownership-types/", views.OwnershipTypeListView.as_view(), name="ownership_type_list"),
     path("ownership-types/create/", views.OwnershipTypeCreateView.as_view(), name="ownership_type_create"),
     path("ownership-types/<int:pk>/edit/", views.OwnershipTypeUpdateView.as_view(), name="ownership_type_update"),
+
+    # =========================================================================
+    # PRINT VIEWS
+    # =========================================================================
+    path("grn/<int:pk>/print/", views.GRNPrintView.as_view(), name="grn_print"),
+    path("issues/<int:pk>/print/", views.IssuePrintView.as_view(), name="issue_print"),
+    path("transfers/<int:pk>/print/", views.TransferPrintView.as_view(), name="transfer_print"),
+    path("adjustments/<int:pk>/print/", views.AdjustmentPrintView.as_view(), name="adjustment_print"),
+
+    # =========================================================================
+    # REPORTS
+    # =========================================================================
+    path("reports/stock-valuation/", views.StockValuationReportView.as_view(), name="report_stock_valuation"),
+    path("reports/movement-history/", views.MovementHistoryReportView.as_view(), name="report_movement_history"),
+    path("reports/low-stock/", views.LowStockReportView.as_view(), name="report_low_stock"),
+
+    # =========================================================================
+    # API ENDPOINTS
+    # =========================================================================
+    path("api/stock-balances/", views.StockBalanceAPIView.as_view(), name="api_stock_balances"),
+    path("api/items/lookup/", views.ItemLookupAPIView.as_view(), name="api_item_lookup"),
+    path("api/ledger/entries/", views.LedgerEntriesAPIView.as_view(), name="api_ledger_entries"),
+    path("api/low-stock/", views.LowStockAPIView.as_view(), name="api_low_stock"),
 ]

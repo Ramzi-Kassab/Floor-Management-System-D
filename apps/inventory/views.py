@@ -3380,3 +3380,395 @@ class OwnershipTypeUpdateView(LoginRequiredMixin, UpdateView):
         context["page_title"] = "Edit Ownership Type"
         context["form_title"] = f"Edit {self.object.name}"
         return context
+
+
+# =============================================================================
+# PRINT VIEWS
+# =============================================================================
+
+
+class GRNPrintView(LoginRequiredMixin, DetailView):
+    """Print-friendly view for GRN documents."""
+
+    template_name = "inventory/print/grn_print.html"
+    context_object_name = "grn"
+
+    def get_queryset(self):
+        from .models import GoodsReceiptNote
+        return GoodsReceiptNote.objects.select_related(
+            "warehouse", "supplier_party", "owner_party", "ownership_type"
+        )
+
+    def get_context_data(self, **kwargs):
+        from .models import GRNLine
+        context = super().get_context_data(**kwargs)
+        context["lines"] = GRNLine.objects.filter(grn=self.object).select_related(
+            "item", "location", "lot"
+        ).order_by("id")
+        return context
+
+
+class IssuePrintView(LoginRequiredMixin, DetailView):
+    """Print-friendly view for Stock Issue documents."""
+
+    template_name = "inventory/print/issue_print.html"
+    context_object_name = "issue"
+
+    def get_queryset(self):
+        from .models import StockIssue
+        return StockIssue.objects.select_related("warehouse", "recipient_party")
+
+    def get_context_data(self, **kwargs):
+        from .models import StockIssueLine
+        context = super().get_context_data(**kwargs)
+        context["lines"] = StockIssueLine.objects.filter(issue=self.object).select_related(
+            "item", "location", "lot"
+        ).order_by("id")
+        return context
+
+
+class TransferPrintView(LoginRequiredMixin, DetailView):
+    """Print-friendly view for Stock Transfer documents."""
+
+    template_name = "inventory/print/transfer_print.html"
+    context_object_name = "transfer"
+
+    def get_queryset(self):
+        from .models import StockTransfer
+        return StockTransfer.objects.select_related("from_warehouse", "to_warehouse")
+
+    def get_context_data(self, **kwargs):
+        from .models import StockTransferLine
+        context = super().get_context_data(**kwargs)
+        context["lines"] = StockTransferLine.objects.filter(transfer=self.object).select_related(
+            "item", "from_location", "to_location"
+        ).order_by("id")
+        return context
+
+
+class AdjustmentPrintView(LoginRequiredMixin, DetailView):
+    """Print-friendly view for Stock Adjustment documents."""
+
+    template_name = "inventory/print/adjustment_print.html"
+    context_object_name = "adjustment"
+
+    def get_queryset(self):
+        from .models import StockAdjustment as StockAdjustmentDoc
+        return StockAdjustmentDoc.objects.select_related("warehouse", "reason")
+
+    def get_context_data(self, **kwargs):
+        from .models import StockAdjustmentLine
+        context = super().get_context_data(**kwargs)
+        context["lines"] = StockAdjustmentLine.objects.filter(adjustment=self.object).select_related(
+            "item", "location"
+        ).order_by("id")
+        return context
+
+
+# =============================================================================
+# REPORTS
+# =============================================================================
+
+
+class StockValuationReportView(LoginRequiredMixin, View):
+    """Stock valuation report showing current inventory value."""
+
+    template_name = "inventory/reports/stock_valuation.html"
+
+    def get(self, request):
+        from django.shortcuts import render
+        from django.db.models import Sum, F, Value, DecimalField
+        from django.db.models.functions import Coalesce
+        from .models import StockLedger, Warehouse
+
+        # Get filters
+        warehouse_id = request.GET.get("warehouse")
+        category_id = request.GET.get("category")
+
+        # Build queryset - aggregate by item, location
+        queryset = StockLedger.objects.values(
+            "item__id", "item__code", "item__name", "item__category__name",
+            "location__id", "location__code", "location__warehouse__name"
+        ).annotate(
+            qty_balance=Sum("qty_delta"),
+            total_value=Sum(F("qty_delta") * F("unit_cost"), output_field=DecimalField(max_digits=18, decimal_places=4))
+        ).filter(qty_balance__gt=0).order_by("item__code", "location__code")
+
+        if warehouse_id:
+            queryset = queryset.filter(location__warehouse_id=warehouse_id)
+        if category_id:
+            queryset = queryset.filter(item__category_id=category_id)
+
+        # Calculate totals
+        totals = queryset.aggregate(
+            total_qty=Sum("qty_balance"),
+            grand_total=Sum("total_value")
+        )
+
+        context = {
+            "page_title": "Stock Valuation Report",
+            "items": list(queryset),
+            "totals": totals,
+            "warehouses": Warehouse.objects.filter(is_active=True).order_by("name"),
+            "categories": InventoryCategory.objects.filter(is_active=True).order_by("name"),
+            "selected_warehouse": warehouse_id,
+            "selected_category": category_id,
+        }
+        return render(request, self.template_name, context)
+
+
+class MovementHistoryReportView(LoginRequiredMixin, View):
+    """Movement history report showing all stock movements."""
+
+    template_name = "inventory/reports/movement_history.html"
+
+    def get(self, request):
+        from django.shortcuts import render
+        from .models import StockLedger, Warehouse
+        from datetime import datetime, timedelta
+
+        # Get filters
+        warehouse_id = request.GET.get("warehouse")
+        item_id = request.GET.get("item")
+        date_from = request.GET.get("date_from")
+        date_to = request.GET.get("date_to")
+
+        # Default to last 30 days if no dates specified
+        if not date_to:
+            date_to = timezone.now().date()
+        else:
+            date_to = datetime.strptime(date_to, "%Y-%m-%d").date()
+
+        if not date_from:
+            date_from = date_to - timedelta(days=30)
+        else:
+            date_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+
+        # Build queryset
+        queryset = StockLedger.objects.select_related(
+            "item", "location", "location__warehouse", "lot", "created_by"
+        ).filter(
+            transaction_date__date__gte=date_from,
+            transaction_date__date__lte=date_to
+        ).order_by("-transaction_date")
+
+        if warehouse_id:
+            queryset = queryset.filter(location__warehouse_id=warehouse_id)
+        if item_id:
+            queryset = queryset.filter(item_id=item_id)
+
+        # Calculate totals
+        totals = queryset.aggregate(
+            total_in=Sum("qty_delta", filter=Q(qty_delta__gt=0)),
+            total_out=Sum("qty_delta", filter=Q(qty_delta__lt=0))
+        )
+
+        context = {
+            "page_title": "Movement History Report",
+            "movements": queryset[:500],  # Limit to 500 records
+            "totals": totals,
+            "warehouses": Warehouse.objects.filter(is_active=True).order_by("name"),
+            "items": InventoryItem.objects.filter(is_active=True).order_by("code")[:100],
+            "selected_warehouse": warehouse_id,
+            "selected_item": item_id,
+            "date_from": date_from.strftime("%Y-%m-%d"),
+            "date_to": date_to.strftime("%Y-%m-%d"),
+        }
+        return render(request, self.template_name, context)
+
+
+class LowStockReportView(LoginRequiredMixin, View):
+    """Report showing items below reorder point."""
+
+    template_name = "inventory/reports/low_stock.html"
+
+    def get(self, request):
+        from django.shortcuts import render
+        from .models import Warehouse
+
+        # Get filters
+        warehouse_id = request.GET.get("warehouse")
+
+        # Build queryset - items below reorder point
+        queryset = InventoryStock.objects.select_related(
+            "item", "location", "location__warehouse"
+        ).filter(
+            quantity__lt=F("reorder_point"),
+            item__is_active=True
+        ).order_by("item__code")
+
+        if warehouse_id:
+            queryset = queryset.filter(location__warehouse_id=warehouse_id)
+
+        context = {
+            "page_title": "Low Stock Report",
+            "items": queryset,
+            "warehouses": Warehouse.objects.filter(is_active=True).order_by("name"),
+            "selected_warehouse": warehouse_id,
+        }
+        return render(request, self.template_name, context)
+
+
+# =============================================================================
+# API ENDPOINTS
+# =============================================================================
+
+
+class StockBalanceAPIView(LoginRequiredMixin, View):
+    """API to get stock balances aggregated from ledger."""
+
+    def get(self, request):
+        from django.http import JsonResponse
+        from .models import StockLedger
+
+        # Get filters
+        warehouse_id = request.GET.get("warehouse")
+        item_id = request.GET.get("item")
+        location_id = request.GET.get("location")
+
+        # Build queryset - aggregate by item, location
+        queryset = StockLedger.objects.values(
+            "item__id", "item__code", "item__name",
+            "location__id", "location__code", "location__warehouse__name"
+        ).annotate(
+            qty_balance=Sum("qty_delta")
+        ).filter(qty_balance__gt=0).order_by("item__code")
+
+        if warehouse_id:
+            queryset = queryset.filter(location__warehouse_id=warehouse_id)
+        if item_id:
+            queryset = queryset.filter(item_id=item_id)
+        if location_id:
+            queryset = queryset.filter(location_id=location_id)
+
+        data = []
+        for row in queryset[:500]:  # Limit results
+            data.append({
+                "item_id": row["item__id"],
+                "item_code": row["item__code"],
+                "item_name": row["item__name"],
+                "location_id": row["location__id"],
+                "location_code": row["location__code"],
+                "warehouse": row["location__warehouse__name"],
+                "qty_balance": float(row["qty_balance"]),
+            })
+
+        return JsonResponse({"balances": data, "count": len(data)})
+
+
+class ItemLookupAPIView(LoginRequiredMixin, View):
+    """API to lookup items by code or name."""
+
+    def get(self, request):
+        from django.http import JsonResponse
+
+        query = request.GET.get("q", "")
+        category_id = request.GET.get("category")
+        limit = min(int(request.GET.get("limit", 20)), 100)
+
+        queryset = InventoryItem.objects.filter(is_active=True)
+
+        if query:
+            queryset = queryset.filter(
+                Q(code__icontains=query) | Q(name__icontains=query)
+            )
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+
+        queryset = queryset.select_related("category", "primary_uom")[:limit]
+
+        data = []
+        for item in queryset:
+            data.append({
+                "id": item.id,
+                "code": item.code,
+                "name": item.name,
+                "category": item.category.name if item.category else None,
+                "uom": item.primary_uom.symbol if item.primary_uom else None,
+                "description": item.description or "",
+            })
+
+        return JsonResponse({"items": data, "count": len(data)})
+
+
+class LedgerEntriesAPIView(LoginRequiredMixin, View):
+    """API to get ledger entries with filters."""
+
+    def get(self, request):
+        from django.http import JsonResponse
+        from .models import StockLedger
+        from datetime import datetime, timedelta
+
+        # Get filters
+        item_id = request.GET.get("item")
+        location_id = request.GET.get("location")
+        date_from = request.GET.get("date_from")
+        date_to = request.GET.get("date_to")
+        limit = min(int(request.GET.get("limit", 100)), 500)
+
+        queryset = StockLedger.objects.select_related(
+            "item", "location", "lot"
+        ).order_by("-transaction_date")
+
+        if item_id:
+            queryset = queryset.filter(item_id=item_id)
+        if location_id:
+            queryset = queryset.filter(location_id=location_id)
+        if date_from:
+            queryset = queryset.filter(transaction_date__date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(transaction_date__date__lte=date_to)
+
+        queryset = queryset[:limit]
+
+        data = []
+        for entry in queryset:
+            data.append({
+                "id": entry.id,
+                "transaction_date": entry.transaction_date.isoformat(),
+                "document_type": entry.document_type,
+                "document_number": entry.document_number,
+                "item_code": entry.item.code,
+                "item_name": entry.item.name,
+                "location_code": entry.location.code,
+                "lot_number": entry.lot.lot_number if entry.lot else None,
+                "qty_delta": float(entry.qty_delta),
+                "unit_cost": float(entry.unit_cost),
+                "running_balance": float(entry.running_balance) if entry.running_balance else None,
+            })
+
+        return JsonResponse({"entries": data, "count": len(data)})
+
+
+class LowStockAPIView(LoginRequiredMixin, View):
+    """API to get items below reorder point."""
+
+    def get(self, request):
+        from django.http import JsonResponse
+
+        warehouse_id = request.GET.get("warehouse")
+
+        queryset = InventoryStock.objects.select_related(
+            "item", "location", "location__warehouse"
+        ).filter(
+            quantity__lt=F("reorder_point"),
+            item__is_active=True
+        ).order_by("item__code")
+
+        if warehouse_id:
+            queryset = queryset.filter(location__warehouse_id=warehouse_id)
+
+        data = []
+        for stock in queryset[:200]:
+            data.append({
+                "item_id": stock.item.id,
+                "item_code": stock.item.code,
+                "item_name": stock.item.name,
+                "location_code": stock.location.code,
+                "warehouse": stock.location.warehouse.name,
+                "current_qty": float(stock.quantity),
+                "reorder_point": float(stock.reorder_point),
+                "shortage": float(stock.reorder_point - stock.quantity),
+            })
+
+        return JsonResponse({"low_stock_items": data, "count": len(data)})
