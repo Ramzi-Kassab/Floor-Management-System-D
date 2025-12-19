@@ -31,7 +31,7 @@ class DesignForm(forms.ModelForm):
             "mat_no",
             "ref_mat_no",
             # Row 2: Size, HDBS Type, SMI Type, IADC Code
-            "size",
+            # Note: 'size' is excluded here and added in __init__ to avoid app loading order issues
             "hdbs_type",
             "smi_type",
             "iadc_code_ref",
@@ -75,7 +75,6 @@ class DesignForm(forms.ModelForm):
             # Category & Classification
             "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "body_material": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_body_material"}),
-            # Note: 'size' widget is set in __init__ to avoid app loading order issues
             # Identity
             "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 800012345"}),
             "hdbs_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHS", "id": "id_hdbs_type"}),
@@ -146,9 +145,24 @@ class DesignForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Set size widget here to avoid app loading order issues with workorders.BitSize
-        if 'size' in self.fields:
-            self.fields['size'].widget = forms.Select(attrs={"class": TAILWIND_SELECT})
+        # Add 'size' field dynamically to avoid app loading order issues with workorders.BitSize
+        # This must be done in __init__ because Django's ModelForm metaclass tries to resolve
+        # FK relationships at class definition time, before all apps are loaded
+        from django.apps import apps
+        BitSize = apps.get_model('workorders', 'BitSize')
+        self.fields['size'] = forms.ModelChoiceField(
+            queryset=BitSize.objects.filter(is_active=True).order_by('size_decimal'),
+            required=False,
+            widget=forms.Select(attrs={"class": TAILWIND_SELECT}),
+            label="Size"
+        )
+        # Reorder fields to put 'size' in the right position (after ref_mat_no)
+        field_order = list(self.fields.keys())
+        if 'size' in field_order and 'ref_mat_no' in field_order:
+            field_order.remove('size')
+            idx = field_order.index('ref_mat_no') + 1
+            field_order.insert(idx, 'size')
+            self.order_fields(field_order)
         # Make most fields optional
         required_fields = ["mat_no", "hdbs_type", "category", "status"]
         for field_name, field in self.fields.items():
