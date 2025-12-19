@@ -6,7 +6,6 @@ Forms for Design, BOM, and Cutter Layout management.
 """
 
 from django import forms
-from django.apps import apps
 
 from .models import BOM, BOMLine, BreakerSlot, Connection, Design, DesignCutterLayout
 
@@ -22,13 +21,6 @@ class DesignForm(forms.ModelForm):
     Updated for Phase 2 with FK relations to reference tables.
     """
 
-    # Lazy-loaded field to avoid app loading order issues with workorders.BitSize
-    size = forms.ModelChoiceField(
-        queryset=None,  # Set in __init__
-        required=False,
-        widget=forms.Select(attrs={"class": TAILWIND_SELECT})
-    )
-
     class Meta:
         model = Design
         fields = [
@@ -39,7 +31,7 @@ class DesignForm(forms.ModelForm):
             "mat_no",
             "ref_mat_no",
             # Row 2: Size, HDBS Type, SMI Type, IADC Code
-            "size",
+            # Note: 'size' is excluded here and added in __init__ to avoid app loading order issues
             "hdbs_type",
             "smi_type",
             "iadc_code_ref",
@@ -83,7 +75,6 @@ class DesignForm(forms.ModelForm):
             # Category & Classification
             "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "body_material": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_body_material"}),
-            # Note: 'size' widget is defined at class level due to lazy loading
             # Identity
             "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 800012345"}),
             "hdbs_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHS", "id": "id_hdbs_type"}),
@@ -154,10 +145,24 @@ class DesignForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Lazy load BitSize queryset to avoid app loading order issues
+        # Add 'size' field dynamically to avoid app loading order issues with workorders.BitSize
+        # This must be done in __init__ because Django's ModelForm metaclass tries to resolve
+        # FK relationships at class definition time, before all apps are loaded
+        from django.apps import apps
         BitSize = apps.get_model('workorders', 'BitSize')
-        self.fields['size'].queryset = BitSize.objects.all()
-
+        self.fields['size'] = forms.ModelChoiceField(
+            queryset=BitSize.objects.filter(is_active=True).order_by('size_decimal'),
+            required=False,
+            widget=forms.Select(attrs={"class": TAILWIND_SELECT}),
+            label="Size"
+        )
+        # Reorder fields to put 'size' in the right position (after ref_mat_no)
+        field_order = list(self.fields.keys())
+        if 'size' in field_order and 'ref_mat_no' in field_order:
+            field_order.remove('size')
+            idx = field_order.index('ref_mat_no') + 1
+            field_order.insert(idx, 'size')
+            self.order_fields(field_order)
         # Make most fields optional
         required_fields = ["mat_no", "hdbs_type", "category", "status"]
         for field_name, field in self.fields.items():
@@ -304,7 +309,7 @@ class BreakerSlotForm(forms.ModelForm):
             "slot_length",
             "material",
             "hardness",
-            "compatible_sizes",
+            # Note: 'compatible_sizes' excluded - added in __init__ to avoid app loading order issues
             "remarks",
             "is_active",
         ]
@@ -315,7 +320,6 @@ class BreakerSlotForm(forms.ModelForm):
             "slot_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "inches (optional)"}),
             "material": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "hardness": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 28-32 HRC"}),
-            "compatible_sizes": forms.CheckboxSelectMultiple(attrs={"class": "space-y-2"}),
             "remarks": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
             "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
         }
@@ -333,7 +337,40 @@ class BreakerSlotForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Add 'compatible_sizes' field dynamically to avoid app loading order issues with workorders.BitSize
+        from django.apps import apps
+        BitSize = apps.get_model('workorders', 'BitSize')
+        self.fields['compatible_sizes'] = forms.ModelMultipleChoiceField(
+            queryset=BitSize.objects.filter(is_active=True).order_by('size_decimal'),
+            required=False,
+            widget=forms.CheckboxSelectMultiple(attrs={"class": "space-y-2"}),
+            label="Compatible Bit Sizes"
+        )
+        # Set initial value if editing existing instance
+        if self.instance and self.instance.pk:
+            self.fields['compatible_sizes'].initial = self.instance.compatible_sizes.all()
+        # Reorder fields to put 'compatible_sizes' after 'hardness'
+        field_order = list(self.fields.keys())
+        if 'compatible_sizes' in field_order and 'hardness' in field_order:
+            field_order.remove('compatible_sizes')
+            idx = field_order.index('hardness') + 1
+            field_order.insert(idx, 'compatible_sizes')
+            self.order_fields(field_order)
+        # Set optional fields
         self.fields["slot_length"].required = False
         self.fields["hardness"].required = False
-        self.fields["compatible_sizes"].required = False
         self.fields["remarks"].required = False
+
+    def save(self, commit=True):
+        instance = super().save(commit=commit)
+        # Handle the dynamically added ManyToMany field
+        if commit:
+            instance.compatible_sizes.set(self.cleaned_data.get('compatible_sizes', []))
+        else:
+            # If not committing, save M2M after the instance is saved
+            old_save_m2m = self.save_m2m
+            def new_save_m2m():
+                old_save_m2m()
+                instance.compatible_sizes.set(self.cleaned_data.get('compatible_sizes', []))
+            self.save_m2m = new_save_m2m
+        return instance
