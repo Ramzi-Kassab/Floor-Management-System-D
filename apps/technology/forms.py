@@ -309,7 +309,7 @@ class BreakerSlotForm(forms.ModelForm):
             "slot_length",
             "material",
             "hardness",
-            "compatible_sizes",
+            # Note: 'compatible_sizes' excluded - added in __init__ to avoid app loading order issues
             "remarks",
             "is_active",
         ]
@@ -320,7 +320,6 @@ class BreakerSlotForm(forms.ModelForm):
             "slot_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "inches (optional)"}),
             "material": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "hardness": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 28-32 HRC"}),
-            "compatible_sizes": forms.CheckboxSelectMultiple(attrs={"class": "space-y-2"}),
             "remarks": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
             "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
         }
@@ -338,7 +337,40 @@ class BreakerSlotForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Add 'compatible_sizes' field dynamically to avoid app loading order issues with workorders.BitSize
+        from django.apps import apps
+        BitSize = apps.get_model('workorders', 'BitSize')
+        self.fields['compatible_sizes'] = forms.ModelMultipleChoiceField(
+            queryset=BitSize.objects.filter(is_active=True).order_by('size_decimal'),
+            required=False,
+            widget=forms.CheckboxSelectMultiple(attrs={"class": "space-y-2"}),
+            label="Compatible Bit Sizes"
+        )
+        # Set initial value if editing existing instance
+        if self.instance and self.instance.pk:
+            self.fields['compatible_sizes'].initial = self.instance.compatible_sizes.all()
+        # Reorder fields to put 'compatible_sizes' after 'hardness'
+        field_order = list(self.fields.keys())
+        if 'compatible_sizes' in field_order and 'hardness' in field_order:
+            field_order.remove('compatible_sizes')
+            idx = field_order.index('hardness') + 1
+            field_order.insert(idx, 'compatible_sizes')
+            self.order_fields(field_order)
+        # Set optional fields
         self.fields["slot_length"].required = False
         self.fields["hardness"].required = False
-        self.fields["compatible_sizes"].required = False
         self.fields["remarks"].required = False
+
+    def save(self, commit=True):
+        instance = super().save(commit=commit)
+        # Handle the dynamically added ManyToMany field
+        if commit:
+            instance.compatible_sizes.set(self.cleaned_data.get('compatible_sizes', []))
+        else:
+            # If not committing, save M2M after the instance is saved
+            old_save_m2m = self.save_m2m
+            def new_save_m2m():
+                old_save_m2m()
+                instance.compatible_sizes.set(self.cleaned_data.get('compatible_sizes', []))
+            self.save_m2m = new_save_m2m
+        return instance
