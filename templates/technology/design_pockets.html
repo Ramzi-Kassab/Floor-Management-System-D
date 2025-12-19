@@ -41,20 +41,27 @@
             <nav class="flex -mb-px">
                 <button @click="activeTab = 'config'"
                         :class="activeTab === 'config' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
-                        class="px-6 py-3 border-b-2 font-medium text-sm">
-                    <i data-lucide="settings" class="w-4 h-4 inline mr-2"></i>Configuration & Grid
+                        class="px-6 py-3 border-b-2 font-medium text-sm flex items-center gap-1">
+                    <i data-lucide="settings" class="w-4 h-4"></i>Configuration & Grid
+                    <span class="ml-1 px-1.5 py-0.5 text-xs rounded"
+                          :class="gridComplete ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-400'"
+                          x-text="gridComplete ? '✓' : getGridProgress()"></span>
                 </button>
                 <button @click="activeTab = 'locations'"
                         :class="activeTab === 'locations' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
-                        class="px-6 py-3 border-b-2 font-medium text-sm">
-                    <i data-lucide="map-pin" class="w-4 h-4 inline mr-2"></i>Pockets Locations
-                    <span class="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-600 rounded">Soon</span>
+                        class="px-6 py-3 border-b-2 font-medium text-sm flex items-center gap-1">
+                    <i data-lucide="map-pin" class="w-4 h-4"></i>Pockets Locations
+                    <span class="ml-1 px-1.5 py-0.5 text-xs rounded"
+                          :class="locationsComplete ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-400'"
+                          x-text="locationsComplete ? '✓' : getLocationsProgress()"></span>
                 </button>
                 <button @click="activeTab = 'engagements'"
                         :class="activeTab === 'engagements' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
-                        class="px-6 py-3 border-b-2 font-medium text-sm">
-                    <i data-lucide="layers" class="w-4 h-4 inline mr-2"></i>Engagements
-                    <span class="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-600 rounded">Soon</span>
+                        class="px-6 py-3 border-b-2 font-medium text-sm flex items-center gap-1">
+                    <i data-lucide="layers" class="w-4 h-4"></i>Engagements
+                    <span class="ml-1 px-1.5 py-0.5 text-xs rounded"
+                          :class="engagementsComplete ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-400'"
+                          x-text="engagementsComplete ? '✓' : getEngagementsProgress()"></span>
                 </button>
             </nav>
         </div>
@@ -1570,6 +1577,43 @@ function pocketsLayout() {
 
         getLocationCount(locationCode) {
             return Object.values(this.locationData).filter(loc => loc === locationCode).length;
+        },
+
+        // Tab completion status methods
+        get gridComplete() {
+            const configTotal = Object.values(this.configData).reduce((sum, c) => sum + (c.count || 0), 0);
+            const assigned = this.getTotalPockets();
+            return configTotal > 0 && assigned === configTotal;
+        },
+
+        get locationsComplete() {
+            const total = this.getTotalPockets();
+            const assigned = Object.keys(this.locationData).filter(k => this.locationData[k]).length;
+            return total > 0 && assigned === total;
+        },
+
+        get engagementsComplete() {
+            const total = this.getTotalPockets();
+            const assigned = this.getEngagementProgress();
+            return total > 0 && assigned === total;
+        },
+
+        getGridProgress() {
+            const configTotal = Object.values(this.configData).reduce((sum, c) => sum + (c.count || 0), 0);
+            const assigned = this.getTotalPockets();
+            return `${assigned}/${configTotal}`;
+        },
+
+        getLocationsProgress() {
+            const total = this.getTotalPockets();
+            const assigned = Object.keys(this.locationData).filter(k => this.locationData[k]).length;
+            return `${assigned}/${total}`;
+        },
+
+        getEngagementsProgress() {
+            const total = this.getTotalPockets();
+            const assigned = Object.keys(this.engagementData).filter(k => this.engagementData[k]).length;
+            return `${assigned}/${total}`;
         },
 
         getLocationCellStyle(blade, col) {
