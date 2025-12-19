@@ -26,6 +26,12 @@ from .forms import (
     ItemPlanningForm,
     ItemSupplierForm,
     StockAdjustmentForm,
+    # Reference Data Forms
+    PartyForm,
+    ConditionTypeForm,
+    QualityStatusForm,
+    AdjustmentReasonForm,
+    OwnershipTypeForm,
 )
 from .models import (
     Attribute,
@@ -44,7 +50,63 @@ from .models import (
     ItemVariant,
     UnitOfMeasure,
     VariantCase,
+    # Reference Data
+    Party,
+    ConditionType,
+    QualityStatus,
+    AdjustmentReason,
+    OwnershipType,
 )
+
+
+# =============================================================================
+# Dashboard View
+# =============================================================================
+
+
+class InventoryDashboardView(LoginRequiredMixin, View):
+    """Inventory dashboard with stats and quick actions."""
+
+    template_name = "inventory/dashboard.html"
+
+    def get(self, request):
+        from django.shortcuts import render
+        from .models import (
+            GoodsReceiptNote, StockIssue, StockTransfer,
+            StockAdjustment as StockAdjustmentDoc, StockLedger,
+            Asset, BillOfMaterial, StockReservation,
+        )
+
+        # Calculate stats
+        stats = {
+            "total_items": InventoryItem.objects.filter(is_active=True).count(),
+            "total_stock_value": StockLedger.objects.aggregate(
+                total=Sum(F("qty_delta") * F("unit_cost"))
+            )["total"] or 0,
+            "low_stock_count": InventoryStock.objects.filter(
+                quantity__lt=F("reorder_point")
+            ).count(),
+            "active_reservations": StockReservation.objects.filter(
+                status="ACTIVE"
+            ).count(),
+            "draft_grns": GoodsReceiptNote.objects.filter(status="DRAFT").count(),
+            "draft_issues": StockIssue.objects.filter(status="DRAFT").count(),
+            "draft_transfers": StockTransfer.objects.filter(status="DRAFT").count(),
+            "draft_adjustments": StockAdjustmentDoc.objects.filter(status="DRAFT").count(),
+            "total_assets": Asset.objects.count(),
+            "active_boms": BillOfMaterial.objects.filter(is_active=True).count(),
+        }
+
+        # Recent ledger entries
+        recent_ledger = StockLedger.objects.select_related(
+            "item", "location"
+        ).order_by("-transaction_date")[:10]
+
+        return render(request, self.template_name, {
+            "stats": stats,
+            "recent_ledger": recent_ledger,
+            "page_title": "Inventory Dashboard",
+        })
 
 
 # =============================================================================
@@ -3093,3 +3155,228 @@ class CycleCountSessionFinalizeView(LoginRequiredMixin, View):
 
         messages.success(request, f"Session {session.session_number} finalized.")
         return redirect("inventory:cyclecount_session_detail", pk=pk)
+
+
+# =============================================================================
+# Reference Data Views
+# =============================================================================
+
+
+class PartyListView(LoginRequiredMixin, ListView):
+    """List all parties (customers, suppliers, owners)."""
+
+    model = Party
+    template_name = "inventory/refdata/party_list.html"
+    context_object_name = "parties"
+    paginate_by = 25
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Parties"
+        return context
+
+
+class PartyCreateView(LoginRequiredMixin, CreateView):
+    """Create a new party."""
+
+    model = Party
+    form_class = PartyForm
+    template_name = "inventory/refdata/party_form.html"
+    success_url = reverse_lazy("inventory:party_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Party"
+        context["form_title"] = "Create Party"
+        return context
+
+
+class PartyUpdateView(LoginRequiredMixin, UpdateView):
+    """Update a party."""
+
+    model = Party
+    form_class = PartyForm
+    template_name = "inventory/refdata/party_form.html"
+    success_url = reverse_lazy("inventory:party_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Edit Party"
+        context["form_title"] = f"Edit {self.object.name}"
+        return context
+
+
+class ConditionTypeListView(LoginRequiredMixin, ListView):
+    """List all condition types."""
+
+    model = ConditionType
+    template_name = "inventory/refdata/condition_list.html"
+    context_object_name = "conditions"
+    paginate_by = 25
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Condition Types"
+        return context
+
+
+class ConditionTypeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new condition type."""
+
+    model = ConditionType
+    form_class = ConditionTypeForm
+    template_name = "inventory/refdata/condition_form.html"
+    success_url = reverse_lazy("inventory:condition_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Condition Type"
+        context["form_title"] = "Create Condition Type"
+        return context
+
+
+class ConditionTypeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update a condition type."""
+
+    model = ConditionType
+    form_class = ConditionTypeForm
+    template_name = "inventory/refdata/condition_form.html"
+    success_url = reverse_lazy("inventory:condition_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Edit Condition Type"
+        context["form_title"] = f"Edit {self.object.name}"
+        return context
+
+
+class QualityStatusListView(LoginRequiredMixin, ListView):
+    """List all quality statuses."""
+
+    model = QualityStatus
+    template_name = "inventory/refdata/quality_status_list.html"
+    context_object_name = "statuses"
+    paginate_by = 25
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Quality Statuses"
+        return context
+
+
+class QualityStatusCreateView(LoginRequiredMixin, CreateView):
+    """Create a new quality status."""
+
+    model = QualityStatus
+    form_class = QualityStatusForm
+    template_name = "inventory/refdata/quality_status_form.html"
+    success_url = reverse_lazy("inventory:quality_status_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Quality Status"
+        context["form_title"] = "Create Quality Status"
+        return context
+
+
+class QualityStatusUpdateView(LoginRequiredMixin, UpdateView):
+    """Update a quality status."""
+
+    model = QualityStatus
+    form_class = QualityStatusForm
+    template_name = "inventory/refdata/quality_status_form.html"
+    success_url = reverse_lazy("inventory:quality_status_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Edit Quality Status"
+        context["form_title"] = f"Edit {self.object.name}"
+        return context
+
+
+class AdjustmentReasonListView(LoginRequiredMixin, ListView):
+    """List all adjustment reasons."""
+
+    model = AdjustmentReason
+    template_name = "inventory/refdata/adjustment_reason_list.html"
+    context_object_name = "reasons"
+    paginate_by = 25
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Adjustment Reasons"
+        return context
+
+
+class AdjustmentReasonCreateView(LoginRequiredMixin, CreateView):
+    """Create a new adjustment reason."""
+
+    model = AdjustmentReason
+    form_class = AdjustmentReasonForm
+    template_name = "inventory/refdata/adjustment_reason_form.html"
+    success_url = reverse_lazy("inventory:adjustment_reason_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Adjustment Reason"
+        context["form_title"] = "Create Adjustment Reason"
+        return context
+
+
+class AdjustmentReasonUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an adjustment reason."""
+
+    model = AdjustmentReason
+    form_class = AdjustmentReasonForm
+    template_name = "inventory/refdata/adjustment_reason_form.html"
+    success_url = reverse_lazy("inventory:adjustment_reason_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Edit Adjustment Reason"
+        context["form_title"] = f"Edit {self.object.name}"
+        return context
+
+
+class OwnershipTypeListView(LoginRequiredMixin, ListView):
+    """List all ownership types."""
+
+    model = OwnershipType
+    template_name = "inventory/refdata/ownership_type_list.html"
+    context_object_name = "types"
+    paginate_by = 25
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Ownership Types"
+        return context
+
+
+class OwnershipTypeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new ownership type."""
+
+    model = OwnershipType
+    form_class = OwnershipTypeForm
+    template_name = "inventory/refdata/ownership_type_form.html"
+    success_url = reverse_lazy("inventory:ownership_type_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Ownership Type"
+        context["form_title"] = "Create Ownership Type"
+        return context
+
+
+class OwnershipTypeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an ownership type."""
+
+    model = OwnershipType
+    form_class = OwnershipTypeForm
+    template_name = "inventory/refdata/ownership_type_form.html"
+    success_url = reverse_lazy("inventory:ownership_type_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Edit Ownership Type"
+        context["form_title"] = f"Edit {self.object.name}"
+        return context

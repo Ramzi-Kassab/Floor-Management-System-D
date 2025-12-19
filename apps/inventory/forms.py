@@ -1010,3 +1010,125 @@ CycleCountLineFormSet = inlineformset_factory(
     extra=5,
     can_delete=True,
 )
+
+
+# =============================================================================
+# Reference Data Forms
+# =============================================================================
+
+
+class PartyForm(forms.ModelForm):
+    """Form for Party (customers, suppliers, owners)."""
+
+    class Meta:
+        model = Party
+        fields = [
+            "code",
+            "name",
+            "party_type",
+            "can_own_stock",
+            "can_receive_stock",
+            "can_supply_stock",
+            "is_active",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "party_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "can_own_stock": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "can_receive_stock": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "can_supply_stock": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+        }
+
+
+class ConditionTypeForm(forms.ModelForm):
+    """Form for Condition Type (NEW, USED, REFURB, etc.)."""
+
+    class Meta:
+        model = ConditionType
+        fields = [
+            "code",
+            "name",
+            "description",
+            "is_serviceable",
+            "display_order",
+            "is_active",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_INPUT, "rows": 2}),
+            "is_serviceable": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+        }
+
+
+class QualityStatusForm(forms.ModelForm):
+    """Form for Quality Status (AVAILABLE, HOLD, QUARANTINE, etc.)."""
+
+    class Meta:
+        model = QualityStatus
+        fields = [
+            "code",
+            "name",
+            "description",
+            "is_available",
+            "requires_inspection",
+            "display_order",
+            "is_active",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_INPUT, "rows": 2}),
+            "is_available": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "requires_inspection": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+        }
+
+
+class AdjustmentReasonForm(forms.ModelForm):
+    """Form for Adjustment Reason codes."""
+
+    class Meta:
+        model = AdjustmentReason
+        fields = [
+            "code",
+            "name",
+            "description",
+            "affects_valuation",
+            "requires_approval",
+            "is_active",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_INPUT, "rows": 2}),
+            "affects_valuation": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "requires_approval": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+        }
+
+
+class OwnershipTypeForm(forms.ModelForm):
+    """Form for Ownership Type (OWNED, CONSIGNMENT, CUSTOMER, etc.)."""
+
+    class Meta:
+        model = OwnershipType
+        fields = [
+            "code",
+            "name",
+            "description",
+            "is_company_owned",
+            "is_active",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_INPUT, "rows": 2}),
+            "is_company_owned": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+        }

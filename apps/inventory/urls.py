@@ -5,6 +5,9 @@ from . import views
 app_name = "inventory"
 
 urlpatterns = [
+    # Dashboard
+    path("dashboard/", views.InventoryDashboardView.as_view(), name="dashboard"),
+
     # Categories
     path("categories/", views.CategoryListView.as_view(), name="category_list"),
     path("categories/create/", views.CategoryCreateView.as_view(), name="category_create"),
@@ -162,4 +165,32 @@ urlpatterns = [
     path("cyclecount/sessions/create/", views.CycleCountSessionCreateView.as_view(), name="cyclecount_session_create"),
     path("cyclecount/sessions/<int:pk>/", views.CycleCountSessionDetailView.as_view(), name="cyclecount_session_detail"),
     path("cyclecount/sessions/<int:pk>/finalize/", views.CycleCountSessionFinalizeView.as_view(), name="cyclecount_session_finalize"),
+
+    # =========================================================================
+    # REFERENCE DATA
+    # =========================================================================
+    # Parties
+    path("parties/", views.PartyListView.as_view(), name="party_list"),
+    path("parties/create/", views.PartyCreateView.as_view(), name="party_create"),
+    path("parties/<int:pk>/edit/", views.PartyUpdateView.as_view(), name="party_update"),
+
+    # Condition Types
+    path("conditions/", views.ConditionTypeListView.as_view(), name="condition_list"),
+    path("conditions/create/", views.ConditionTypeCreateView.as_view(), name="condition_create"),
+    path("conditions/<int:pk>/edit/", views.ConditionTypeUpdateView.as_view(), name="condition_update"),
+
+    # Quality Statuses
+    path("quality-statuses/", views.QualityStatusListView.as_view(), name="quality_status_list"),
+    path("quality-statuses/create/", views.QualityStatusCreateView.as_view(), name="quality_status_create"),
+    path("quality-statuses/<int:pk>/edit/", views.QualityStatusUpdateView.as_view(), name="quality_status_update"),
+
+    # Adjustment Reasons
+    path("adjustment-reasons/", views.AdjustmentReasonListView.as_view(), name="adjustment_reason_list"),
+    path("adjustment-reasons/create/", views.AdjustmentReasonCreateView.as_view(), name="adjustment_reason_create"),
+    path("adjustment-reasons/<int:pk>/edit/", views.AdjustmentReasonUpdateView.as_view(), name="adjustment_reason_update"),
+
+    # Ownership Types
+    path("ownership-types/", views.OwnershipTypeListView.as_view(), name="ownership_type_list"),
+    path("ownership-types/create/", views.OwnershipTypeCreateView.as_view(), name="ownership_type_create"),
+    path("ownership-types/<int:pk>/edit/", views.OwnershipTypeUpdateView.as_view(), name="ownership_type_update"),
 ]
