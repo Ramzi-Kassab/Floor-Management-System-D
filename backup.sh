@@ -28,14 +28,12 @@ fi
 mkdir -p ${BACKUP_DIR}
 
 if [ "$BACKUP_TYPE" = "2" ]; then
-    # Full project backup
+    # Full project backup - backs up current directory
     echo ""
-    echo "📦 Creating full project backup..."
+    echo "📦 Creating full project backup from: $(pwd)"
     zip -rq ${BACKUP_DIR}/${BACKUP_NAME}.zip \
-        apps templates static staticfiles \
-        ardt_fms manage.py requirements.txt \
-        db.sqlite3 \
-        -x "*.pyc" -x "*__pycache__*" -x "*.git*" 2>/dev/null
+        . \
+        -x "*.pyc" -x "*__pycache__*" -x ".git/*" -x "backups/*" -x "*.zip" -x "node_modules/*" -x "venv/*" -x ".venv/*" 2>/dev/null
 else
     # Database only backup
     echo ""
