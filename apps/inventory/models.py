@@ -1,22 +1,420 @@
 """
 ARDT FMS - Inventory Models
-Version: 5.6
+Version: 6.0 (Ledger-Based Architecture)
 
-Tables:
-- units_of_measure (NEW) - Master data for units
+PHASE 0: FOUNDATION (Master Data)
+- Party - Unified owner polymorphism (Customer, Vendor, Internal, Rig)
+- ConditionType - Item conditions (NEW, USED-RETROFIT, USED-GROUND, etc.)
+- QualityStatus - Quality gate states (QUARANTINE, RELEASED, BLOCKED)
+- AdjustmentReason - Reasons for stock adjustments
+- OwnershipType - Ownership types (ARDT, CLIENT, VENDOR, etc.)
+
+EXISTING TABLES:
+- units_of_measure - Master data for units
 - inventory_categories (P1) - Enhanced with item_type link, code_prefix, name_template
-- inventory_locations (P1)
+- inventory_locations (P1) - Enhanced with location_type and party_fk
 - inventory_items (P1) - Enhanced with legacy refs, auto-code
 - inventory_stock (P1)
 - inventory_transactions (P1)
-- category_attributes (NEW) - Smart attributes per category
-- item_attribute_values (NEW) - Attribute values for items
-- item_variants (NEW) - Variant tracking for condition/source
+- category_attributes - Smart attributes per category
+- item_attribute_values - Attribute values for items
+- item_variants - Variant tracking for condition/source
 - material_lots - Lot/batch tracking
 """
 
 from django.conf import settings
 from django.db import models
+
+
+# =============================================================================
+# PHASE 0: FOUNDATION - MASTER DATA TABLES
+# =============================================================================
+
+
+class Party(models.Model):
+    """
+    Unified owner polymorphism table.
+
+    All ownership references (stock owner, location owner, movement counterparty)
+    point to Party. This provides a single, consistent way to track ownership
+    across the system without complex polymorphic joins.
+
+    Party types:
+    - CUSTOMER: Links to sales.Customer
+    - VENDOR: Links to supplychain.Supplier
+    - INTERNAL: Internal departments (e.g., ARDT)
+    - RIG: Links to sales.Rig
+
+    Examples:
+    - ARDT main warehouse stock: party_type=INTERNAL, code='ARDT'
+    - Client-owned stock at ARDT: party_type=CUSTOMER, customer_fk=<customer>
+    - Stock at rig: party_type=RIG, rig_fk=<rig>
+    """
+
+    class PartyType(models.TextChoices):
+        CUSTOMER = "CUSTOMER", "Customer"
+        VENDOR = "VENDOR", "Vendor/Supplier"
+        INTERNAL = "INTERNAL", "Internal (ARDT)"
+        RIG = "RIG", "Rig Site"
+
+    code = models.CharField(max_length=50, unique=True, help_text="Unique party code")
+    name = models.CharField(max_length=200, help_text="Party display name")
+    party_type = models.CharField(max_length=20, choices=PartyType.choices)
+
+    # Optional foreign keys to source entities
+    customer = models.OneToOneField(
+        "sales.Customer",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="party",
+        help_text="Link to Customer for CUSTOMER type"
+    )
+    vendor = models.OneToOneField(
+        "supplychain.Supplier",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="party",
+        help_text="Link to Vendor/Supplier for VENDOR type"
+    )
+    rig = models.OneToOneField(
+        "sales.Rig",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="party",
+        help_text="Link to Rig for RIG type"
+    )
+
+    # Additional info
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "parties"
+        ordering = ["party_type", "name"]
+        verbose_name = "Party"
+        verbose_name_plural = "Parties"
+        indexes = [
+            models.Index(fields=["party_type"]),
+            models.Index(fields=["code"]),
+        ]
+
+    def __str__(self):
+        return f"{self.code} - {self.name} ({self.get_party_type_display()})"
+
+    def save(self, *args, **kwargs):
+        # Auto-generate code from linked entity if not set
+        if not self.code:
+            if self.customer:
+                self.code = f"C-{self.customer.code}"
+            elif self.vendor:
+                self.code = f"V-{self.vendor.code}"
+            elif self.rig:
+                self.code = f"R-{self.rig.code}"
+            else:
+                self.code = f"INT-{self.name[:10].upper()}"
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_or_create_for_customer(cls, customer):
+        """Get or create a Party for a Customer."""
+        party, created = cls.objects.get_or_create(
+            customer=customer,
+            defaults={
+                'code': f"C-{customer.code}",
+                'name': customer.name,
+                'party_type': cls.PartyType.CUSTOMER,
+            }
+        )
+        return party
+
+    @classmethod
+    def get_or_create_for_vendor(cls, vendor):
+        """Get or create a Party for a Vendor/Supplier."""
+        party, created = cls.objects.get_or_create(
+            vendor=vendor,
+            defaults={
+                'code': f"V-{vendor.code}",
+                'name': vendor.name,
+                'party_type': cls.PartyType.VENDOR,
+            }
+        )
+        return party
+
+    @classmethod
+    def get_or_create_for_rig(cls, rig):
+        """Get or create a Party for a Rig."""
+        party, created = cls.objects.get_or_create(
+            rig=rig,
+            defaults={
+                'code': f"R-{rig.code}",
+                'name': rig.name,
+                'party_type': cls.PartyType.RIG,
+            }
+        )
+        return party
+
+
+class ConditionType(models.Model):
+    """
+    Master data for item conditions.
+
+    Condition represents the commercial identity of inventory:
+    - NEW: Brand new, never used
+    - USED-RETROFIT: Used, reconditioned to "as-new" standard
+    - USED-GROUND: Used, surface damage repaired
+    - USED-E&O: Used, excess and obsolete
+    - REFURBISHED: Factory refurbished
+    - SCRAP: Damaged beyond repair
+
+    Condition affects pricing, accounting, and which stocks are interchangeable.
+    """
+
+    code = models.CharField(max_length=20, unique=True, help_text="Condition code (e.g., NEW, USED-RET)")
+    name = models.CharField(max_length=100, help_text="Display name")
+    description = models.TextField(blank=True)
+
+    # Categorization
+    is_new = models.BooleanField(default=False, help_text="Is this a 'new' condition?")
+    is_saleable = models.BooleanField(default=True, help_text="Can items in this condition be sold?")
+
+    # Cost multiplier (1.0 = full price, 0.7 = 70% of new price)
+    cost_multiplier = models.DecimalField(
+        max_digits=4, decimal_places=2, default=1.00,
+        help_text="Price multiplier relative to NEW (e.g., 0.70 for 70%)"
+    )
+
+    # Display
+    display_order = models.IntegerField(default=0)
+    color_code = models.CharField(max_length=20, blank=True, help_text="CSS color for UI (e.g., #22c55e)")
+    icon = models.CharField(max_length=50, blank=True, help_text="Icon class (e.g., fa-star)")
+
+    is_active = models.BooleanField(default=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "condition_types"
+        ordering = ["display_order", "code"]
+        verbose_name = "Condition Type"
+        verbose_name_plural = "Condition Types"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class QualityStatus(models.Model):
+    """
+    Master data for quality gate states.
+
+    Quality status tracks the QC workflow state:
+    - QUARANTINE: Awaiting inspection (default for receipts)
+    - RELEASED: Passed QC, available for use
+    - BLOCKED: Failed QC, not available for use
+    - UNDER_INSPECTION: Currently being inspected
+    - PENDING_DISPOSITION: Failed, awaiting decision
+
+    Status transitions are controlled by the QC workflow.
+    """
+
+    code = models.CharField(max_length=20, unique=True, help_text="Status code (e.g., QRN, REL, BLK)")
+    name = models.CharField(max_length=100, help_text="Display name")
+    description = models.TextField(blank=True)
+
+    # Availability flags
+    is_available = models.BooleanField(default=False, help_text="Can stock in this status be used/issued?")
+    is_initial = models.BooleanField(default=False, help_text="Default status for new receipts?")
+    is_terminal = models.BooleanField(default=False, help_text="Is this a final state (no further transitions)?")
+
+    # Allowed transitions (JSON list of status codes)
+    allowed_transitions = models.JSONField(
+        default=list,
+        help_text='List of status codes this can transition to: ["REL", "BLK"]'
+    )
+
+    # Display
+    display_order = models.IntegerField(default=0)
+    color_code = models.CharField(max_length=20, blank=True, help_text="CSS color for UI")
+    icon = models.CharField(max_length=50, blank=True, help_text="Icon class")
+
+    is_active = models.BooleanField(default=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "quality_statuses"
+        ordering = ["display_order", "code"]
+        verbose_name = "Quality Status"
+        verbose_name_plural = "Quality Statuses"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+    def can_transition_to(self, target_status_code):
+        """Check if transition to target status is allowed."""
+        return target_status_code in self.allowed_transitions
+
+
+class AdjustmentReason(models.Model):
+    """
+    Master data for stock adjustment reasons.
+
+    Used when quantity changes occur outside normal document flow:
+    - DAMAGE: Item damaged
+    - LOSS: Item lost/missing
+    - FOUND: Previously missing item found
+    - SCRAP: Item scrapped
+    - OBSOLETE: Item obsoleted
+    - CYCLE_COUNT: Cycle count adjustment
+    - INITIAL: Initial stock entry
+    - PRODUCTION_VARIANCE: Production over/under run
+    - RETURN_TO_VENDOR: Returned to vendor
+
+    Each reason has a default direction (positive/negative adjustment).
+    """
+
+    code = models.CharField(max_length=20, unique=True, help_text="Reason code")
+    name = models.CharField(max_length=100, help_text="Display name")
+    description = models.TextField(blank=True)
+
+    # Adjustment direction
+    default_direction = models.CharField(
+        max_length=10,
+        choices=[("POSITIVE", "Increase Stock"), ("NEGATIVE", "Decrease Stock"), ("BOTH", "Either")],
+        default="NEGATIVE"
+    )
+
+    # Accounting impact
+    requires_approval = models.BooleanField(default=False, help_text="Requires manager approval?")
+    affects_valuation = models.BooleanField(default=True, help_text="Affects inventory valuation?")
+    gl_account = models.CharField(max_length=20, blank=True, help_text="Default GL account for posting")
+
+    # Display
+    display_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "adjustment_reasons"
+        ordering = ["display_order", "code"]
+        verbose_name = "Adjustment Reason"
+        verbose_name_plural = "Adjustment Reasons"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class OwnershipType(models.Model):
+    """
+    Master data for ownership types.
+
+    Defines the nature of ownership/consignment relationship:
+    - OWNED: ARDT-owned stock
+    - CLIENT: Client-owned stock (held by ARDT)
+    - CONSIGNMENT_IN: Vendor-owned stock at ARDT
+    - CONSIGNMENT_OUT: ARDT-owned stock at customer site
+    - THIRD_PARTY: Third-party stock being processed
+    - LOAN: Loaned equipment
+
+    Used in combination with Party to fully describe ownership.
+    """
+
+    code = models.CharField(max_length=20, unique=True, help_text="Ownership code")
+    name = models.CharField(max_length=100, help_text="Display name")
+    description = models.TextField(blank=True)
+
+    # Ownership characteristics
+    is_ardt_owned = models.BooleanField(default=False, help_text="Is stock owned by ARDT?")
+    requires_party = models.BooleanField(default=False, help_text="Requires party reference?")
+
+    # Accounting
+    include_in_valuation = models.BooleanField(default=True, help_text="Include in inventory valuation?")
+
+    # Display
+    display_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ownership_types"
+        ordering = ["display_order", "code"]
+        verbose_name = "Ownership Type"
+        verbose_name_plural = "Ownership Types"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class LocationType(models.Model):
+    """
+    Master data for location types.
+
+    Categorizes inventory locations by function:
+    - WAREHOUSE: Standard storage location
+    - QUARANTINE: QC inspection area
+    - PRODUCTION: Production/shop floor
+    - TRANSIT: In-transit location
+    - RIG: Rig site location
+    - SCRAP: Scrap/disposal area
+    - RECEIVING: Goods receiving area
+    - SHIPPING: Goods shipping area
+
+    Location type affects default behaviors (e.g., QUARANTINE locations
+    default to quarantine quality status).
+    """
+
+    code = models.CharField(max_length=20, unique=True, help_text="Location type code")
+    name = models.CharField(max_length=100, help_text="Display name")
+    description = models.TextField(blank=True)
+
+    # Behavior flags
+    is_stockable = models.BooleanField(default=True, help_text="Can stock be stored here?")
+    is_internal = models.BooleanField(default=True, help_text="Is this an internal location?")
+    default_quality_status = models.ForeignKey(
+        QualityStatus,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="default_for_location_types",
+        help_text="Default quality status for stock received here"
+    )
+
+    # Counting/physical inventory
+    include_in_cycle_count = models.BooleanField(default=True)
+
+    # Display
+    display_order = models.IntegerField(default=0)
+    color_code = models.CharField(max_length=20, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "location_types"
+        ordering = ["display_order", "code"]
+        verbose_name = "Location Type"
+        verbose_name_plural = "Location Types"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
 
 
 # =============================================================================
@@ -645,11 +1043,35 @@ class ItemVariant(models.Model):
 class InventoryLocation(models.Model):
     """
     🟢 P1: Storage locations within warehouses.
+
+    Enhanced with location_type and party for Phase 0 architecture:
+    - location_type: Categorizes location function (WAREHOUSE, QUARANTINE, RIG, etc.)
+    - party: Owner/responsible party for this location (for external locations)
     """
 
     warehouse = models.ForeignKey("sales.Warehouse", on_delete=models.CASCADE, related_name="locations")
     code = models.CharField(max_length=30)
     name = models.CharField(max_length=100)
+
+    # Phase 0: Location categorization
+    location_type = models.ForeignKey(
+        LocationType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="locations",
+        help_text="Location type (WAREHOUSE, QUARANTINE, RIG, etc.)"
+    )
+
+    # Phase 0: Owner/responsible party (for external or client locations)
+    party = models.ForeignKey(
+        Party,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="locations",
+        help_text="Owner/responsible party for this location"
+    )
 
     # Location path (e.g., Aisle-Rack-Shelf-Bin)
     aisle = models.CharField(max_length=20, blank=True)
@@ -657,7 +1079,14 @@ class InventoryLocation(models.Model):
     shelf = models.CharField(max_length=20, blank=True)
     bin = models.CharField(max_length=20, blank=True)
 
+    # Location flags
     is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False, help_text="Default receiving location for warehouse")
+    allows_negative = models.BooleanField(default=False, help_text="Allow negative stock (for transit locations)")
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         db_table = "inventory_locations"
@@ -665,9 +1094,34 @@ class InventoryLocation(models.Model):
         unique_together = ["warehouse", "code"]
         verbose_name = "Inventory Location"
         verbose_name_plural = "Inventory Locations"
+        indexes = [
+            models.Index(fields=["location_type"]),
+            models.Index(fields=["party"]),
+        ]
 
     def __str__(self):
         return f"{self.warehouse.code}/{self.code}"
+
+    @property
+    def full_path(self):
+        """Return the full location path."""
+        parts = [self.warehouse.code, self.code]
+        if self.aisle:
+            parts.append(self.aisle)
+        if self.rack:
+            parts.append(self.rack)
+        if self.shelf:
+            parts.append(self.shelf)
+        if self.bin:
+            parts.append(self.bin)
+        return "/".join(parts)
+
+    @property
+    def default_quality_status(self):
+        """Get default quality status from location type."""
+        if self.location_type and self.location_type.default_quality_status:
+            return self.location_type.default_quality_status
+        return None
 
 
 class InventoryStock(models.Model):
