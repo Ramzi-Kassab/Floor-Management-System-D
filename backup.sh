@@ -4,9 +4,21 @@
 
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_DIR="backups"
-BACKUP_NAME="ardt_backup_${TIMESTAMP}"
 
 echo "🔄 Starting ARDT FMS Backup..."
+echo ""
+read -p "📝 Enter description (optional, press Enter to skip): " DESCRIPTION
+
+# Clean description: replace spaces with underscores, remove special chars
+if [ -n "$DESCRIPTION" ]; then
+    CLEAN_DESC=$(echo "$DESCRIPTION" | tr ' ' '_' | tr -cd '[:alnum:]_-')
+    BACKUP_NAME="ardt_backup_${TIMESTAMP}_${CLEAN_DESC}"
+else
+    BACKUP_NAME="ardt_backup_${TIMESTAMP}"
+fi
+
+echo ""
+echo "📁 Backup name: ${BACKUP_NAME}"
 
 # Create backup directory if not exists
 mkdir -p ${BACKUP_DIR}
