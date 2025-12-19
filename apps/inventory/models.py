@@ -1866,3 +1866,1617 @@ class ItemBitSpec(models.Model):
 
     def __str__(self):
         return f"{self.item.code} - {self.bit_size}\" {self.bit_type}"
+
+
+# =============================================================================
+# PHASE 2: STOCK LEDGER & BALANCE (Ledger-Based Inventory)
+# =============================================================================
+
+class StockLedger(models.Model):
+    """
+    Immutable stock ledger - the source of truth for all inventory quantities.
+
+    Design Principles:
+    - IMMUTABLE: Ledger entries are never updated or deleted (only reversed)
+    - SINGLE-LOCATION: Each entry affects one location with signed qty_delta
+    - IDEMPOTENT: reference_type + reference_id ensures no duplicate postings
+    - COMPLETE: Captures WHO owns, WHAT relationship, WHERE, and quality state
+
+    Stock balance is calculated by summing qty_delta grouped by dimensions.
+    This is the foundation of double-entry inventory accounting.
+    """
+
+    class TransactionType(models.TextChoices):
+        # Inbound
+        RECEIPT = "RECEIPT", "Goods Receipt"
+        RETURN_IN = "RETURN_IN", "Customer Return (Inbound)"
+        TRANSFER_IN = "TRANSFER_IN", "Transfer In"
+        ADJUSTMENT_IN = "ADJ_IN", "Adjustment (Increase)"
+
+        # Outbound
+        ISSUE = "ISSUE", "Goods Issue"
+        RETURN_OUT = "RETURN_OUT", "Return to Vendor (Outbound)"
+        TRANSFER_OUT = "TRANSFER_OUT", "Transfer Out"
+        ADJUSTMENT_OUT = "ADJ_OUT", "Adjustment (Decrease)"
+        SCRAP = "SCRAP", "Scrap/Disposal"
+        CONSUMPTION = "CONSUMPTION", "WO Material Consumption"
+
+        # Quality/Status changes (qty=0, but state changes)
+        QC_RELEASE = "QC_RELEASE", "QC Release"
+        QC_BLOCK = "QC_BLOCK", "QC Block"
+        QC_QUARANTINE = "QC_QUARANTINE", "QC Quarantine"
+
+        # Ownership changes (qty=0, ownership dimension changes)
+        OWNERSHIP_CHANGE = "OWNER_CHG", "Ownership Change"
+
+    # Unique entry identifier
+    entry_number = models.CharField(
+        max_length=50, unique=True,
+        help_text="Auto-generated unique entry number (e.g., SL-2024-000001)"
+    )
+    entry_date = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this ledger entry was created (immutable)"
+    )
+    transaction_date = models.DateField(
+        help_text="Business date of the transaction"
+    )
+    transaction_type = models.CharField(
+        max_length=20, choices=TransactionType.choices
+    )
+
+    # What item and how much (signed delta)
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT,
+        related_name="ledger_entries",
+        help_text="The inventory item affected"
+    )
+    qty_delta = models.DecimalField(
+        max_digits=15, decimal_places=3,
+        help_text="Signed quantity change (+ve = increase, -ve = decrease)"
+    )
+    uom = models.ForeignKey(
+        UnitOfMeasure, on_delete=models.PROTECT,
+        related_name="ledger_entries",
+        help_text="Unit of measure (should match item.base_uom)"
+    )
+
+    # Where (single location per entry)
+    location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        related_name="ledger_entries",
+        help_text="Location affected by this entry"
+    )
+
+    # Lot tracking (optional - for LOT/SERIAL/ASSET tracking)
+    lot = models.ForeignKey(
+        MaterialLot, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="ledger_entries",
+        help_text="Lot reference (required if item.tracking_type in [LOT, SERIAL, ASSET])"
+    )
+
+    # Ownership dimensions
+    owner_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        related_name="ledger_entries",
+        help_text="Who owns this stock"
+    )
+    ownership_type = models.ForeignKey(
+        OwnershipType, on_delete=models.PROTECT,
+        related_name="ledger_entries",
+        help_text="Type of ownership (OWNED, CLIENT, CONSIGNMENT, etc.)"
+    )
+
+    # Quality & Condition dimensions
+    quality_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT,
+        related_name="ledger_entries",
+        help_text="Quality status at time of transaction"
+    )
+    condition = models.ForeignKey(
+        ConditionType, on_delete=models.PROTECT,
+        related_name="ledger_entries",
+        help_text="Physical condition at time of transaction"
+    )
+
+    # Cost tracking
+    unit_cost = models.DecimalField(
+        max_digits=15, decimal_places=4, default=0,
+        help_text="Unit cost at time of transaction"
+    )
+    total_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0,
+        help_text="Total cost (qty_delta * unit_cost)"
+    )
+    currency = models.CharField(max_length=3, default="SAR")
+
+    # Idempotent posting - ensures no duplicate entries
+    reference_type = models.CharField(
+        max_length=50,
+        help_text="Source document type (e.g., 'GRN', 'ISSUE', 'TRANSFER', 'ADJUSTMENT')"
+    )
+    reference_id = models.CharField(
+        max_length=100,
+        help_text="Source document ID (e.g., 'GRN-2024-0001-LINE-1')"
+    )
+
+    # Optional source document FKs (for direct queries)
+    # These are set based on reference_type
+    grn_line = models.ForeignKey(
+        "inventory.GRNLine", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="ledger_entries"
+    )
+    issue_line = models.ForeignKey(
+        "inventory.StockIssueLine", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="ledger_entries"
+    )
+    transfer_line = models.ForeignKey(
+        "inventory.StockTransferLine", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="ledger_entries"
+    )
+    adjustment_line = models.ForeignKey(
+        "inventory.StockAdjustmentLine", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="ledger_entries"
+    )
+
+    # Reversal support
+    is_reversal = models.BooleanField(
+        default=False,
+        help_text="Is this entry a reversal of another entry?"
+    )
+    reverses_entry = models.ForeignKey(
+        "self", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="reversed_by",
+        help_text="The entry this reverses (if is_reversal=True)"
+    )
+    reversed_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When this entry was reversed (if reversed)"
+    )
+
+    # Audit
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="ledger_entries_created"
+    )
+
+    class Meta:
+        db_table = "stock_ledger"
+        verbose_name = "Stock Ledger Entry"
+        verbose_name_plural = "Stock Ledger Entries"
+        ordering = ["-entry_date", "-id"]
+
+        # Idempotent posting constraint
+        constraints = [
+            models.UniqueConstraint(
+                fields=["reference_type", "reference_id"],
+                name="unique_ledger_reference"
+            )
+        ]
+
+        indexes = [
+            models.Index(fields=["item", "location"]),
+            models.Index(fields=["item", "owner_party"]),
+            models.Index(fields=["transaction_date"]),
+            models.Index(fields=["transaction_type"]),
+            models.Index(fields=["reference_type", "reference_id"]),
+            models.Index(fields=["lot"]),
+            models.Index(fields=["entry_number"]),
+        ]
+
+    def __str__(self):
+        return f"{self.entry_number}: {self.item.code} {self.qty_delta:+} @ {self.location.code}"
+
+    def save(self, *args, **kwargs):
+        # Auto-generate entry number if not set
+        if not self.entry_number:
+            from django.utils import timezone
+            year = timezone.now().year
+            last_entry = StockLedger.objects.filter(
+                entry_number__startswith=f"SL-{year}-"
+            ).order_by("-entry_number").first()
+
+            if last_entry:
+                last_num = int(last_entry.entry_number.split("-")[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+
+            self.entry_number = f"SL-{year}-{new_num:06d}"
+
+        # Calculate total cost
+        self.total_cost = self.qty_delta * self.unit_cost
+
+        super().save(*args, **kwargs)
+
+
+class StockBalance(models.Model):
+    """
+    Materialized stock balance - aggregated view of current stock levels.
+
+    This table is a denormalized view calculated from StockLedger.
+    It provides fast queries for current stock levels without aggregating
+    the entire ledger each time.
+
+    Key: item + location + lot + owner_party + ownership_type + quality_status + condition
+
+    Balance Calculation:
+    - qty_on_hand = SUM(ledger.qty_delta) for matching dimensions
+    - Recalculated periodically or on-demand
+    - Can be rebuilt entirely from ledger (ledger is source of truth)
+    """
+
+    # Unique combination of dimensions
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT,
+        related_name="stock_balances"
+    )
+    location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        related_name="stock_balances"
+    )
+    lot = models.ForeignKey(
+        MaterialLot, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="stock_balances",
+        help_text="Null for non-lot-tracked items"
+    )
+
+    # Ownership dimensions
+    owner_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        related_name="stock_balances"
+    )
+    ownership_type = models.ForeignKey(
+        OwnershipType, on_delete=models.PROTECT,
+        related_name="stock_balances"
+    )
+
+    # Quality & Condition dimensions
+    quality_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT,
+        related_name="stock_balances"
+    )
+    condition = models.ForeignKey(
+        ConditionType, on_delete=models.PROTECT,
+        related_name="stock_balances"
+    )
+
+    # Quantities
+    qty_on_hand = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text="Current quantity on hand"
+    )
+    qty_reserved = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text="Quantity reserved/allocated"
+    )
+    qty_available = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text="Available = on_hand - reserved (denormalized for speed)"
+    )
+
+    # Valuation
+    total_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0,
+        help_text="Total value of stock at this balance"
+    )
+    avg_unit_cost = models.DecimalField(
+        max_digits=15, decimal_places=4, default=0,
+        help_text="Average unit cost (total_cost / qty_on_hand)"
+    )
+
+    # Tracking
+    last_movement_date = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Last ledger entry date affecting this balance"
+    )
+    last_recalc_date = models.DateTimeField(
+        auto_now=True,
+        help_text="When balance was last recalculated"
+    )
+
+    class Meta:
+        db_table = "stock_balances"
+        verbose_name = "Stock Balance"
+        verbose_name_plural = "Stock Balances"
+
+        # Unique constraint on all dimension columns
+        # Note: lot can be null, so we need conditional unique constraints
+        constraints = [
+            # For lot-tracked items (lot is NOT NULL)
+            models.UniqueConstraint(
+                fields=["item", "location", "lot", "owner_party",
+                        "ownership_type", "quality_status", "condition"],
+                condition=models.Q(lot__isnull=False),
+                name="unique_stock_balance_with_lot"
+            ),
+            # For non-lot-tracked items (lot IS NULL)
+            models.UniqueConstraint(
+                fields=["item", "location", "owner_party",
+                        "ownership_type", "quality_status", "condition"],
+                condition=models.Q(lot__isnull=True),
+                name="unique_stock_balance_without_lot"
+            ),
+        ]
+
+        indexes = [
+            models.Index(fields=["item"]),
+            models.Index(fields=["location"]),
+            models.Index(fields=["item", "location"]),
+            models.Index(fields=["owner_party"]),
+            models.Index(fields=["quality_status"]),
+            models.Index(fields=["qty_on_hand"]),
+        ]
+
+    def __str__(self):
+        lot_str = f" Lot:{self.lot.lot_number}" if self.lot else ""
+        return f"{self.item.code}@{self.location.code}{lot_str}: {self.qty_on_hand}"
+
+    def save(self, *args, **kwargs):
+        # Recalculate available quantity
+        self.qty_available = self.qty_on_hand - self.qty_reserved
+
+        # Recalculate average unit cost
+        if self.qty_on_hand > 0:
+            self.avg_unit_cost = self.total_cost / self.qty_on_hand
+        else:
+            self.avg_unit_cost = 0
+
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def recalculate_from_ledger(cls, item=None, location=None):
+        """
+        Recalculate stock balances from ledger entries.
+
+        Can filter by item and/or location for targeted recalculation.
+        This is the authoritative way to ensure balances match the ledger.
+        """
+        from django.db.models import Sum, Max
+        from django.db.models.functions import Coalesce
+
+        # Build filter
+        ledger_filter = {}
+        if item:
+            ledger_filter["item"] = item
+        if location:
+            ledger_filter["location"] = location
+
+        # Get all unique dimension combinations from ledger
+        dimension_groups = StockLedger.objects.filter(
+            **ledger_filter
+        ).values(
+            "item", "location", "lot", "owner_party",
+            "ownership_type", "quality_status", "condition"
+        ).annotate(
+            total_qty=Coalesce(Sum("qty_delta"), 0),
+            total_cost=Coalesce(Sum("total_cost"), 0),
+            last_date=Max("entry_date")
+        )
+
+        updated_count = 0
+        for group in dimension_groups:
+            balance, created = cls.objects.update_or_create(
+                item_id=group["item"],
+                location_id=group["location"],
+                lot_id=group["lot"],
+                owner_party_id=group["owner_party"],
+                ownership_type_id=group["ownership_type"],
+                quality_status_id=group["quality_status"],
+                condition_id=group["condition"],
+                defaults={
+                    "qty_on_hand": group["total_qty"],
+                    "total_cost": group["total_cost"],
+                    "last_movement_date": group["last_date"],
+                }
+            )
+            updated_count += 1
+
+        return updated_count
+
+
+# =============================================================================
+# PHASE 3: INVENTORY DOCUMENTS (Source Documents for Ledger)
+# =============================================================================
+
+class GoodsReceiptNote(models.Model):
+    """
+    Goods Receipt Note (GRN) - Inbound receiving document.
+
+    Documents the receipt of goods into inventory, whether from:
+    - Purchase Orders (vendor receipts)
+    - Customer Returns
+    - Internal Transfers
+    - Opening Balance
+
+    Each GRN line posts to the StockLedger when the GRN is confirmed.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        PENDING_QC = "PENDING_QC", "Pending QC"
+        CONFIRMED = "CONFIRMED", "Confirmed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    class ReceiptType(models.TextChoices):
+        PURCHASE = "PURCHASE", "Purchase Order Receipt"
+        RETURN = "RETURN", "Customer Return"
+        TRANSFER = "TRANSFER", "Transfer Receipt"
+        OPENING = "OPENING", "Opening Balance"
+        OTHER = "OTHER", "Other Receipt"
+
+    # Document identification
+    grn_number = models.CharField(
+        max_length=50, unique=True,
+        help_text="Auto-generated GRN number (e.g., GRN-2024-0001)"
+    )
+    receipt_type = models.CharField(
+        max_length=20, choices=ReceiptType.choices, default=ReceiptType.PURCHASE
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
+
+    # Source reference
+    purchase_order = models.ForeignKey(
+        "supplychain.PurchaseOrder", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="grns",
+        help_text="Source PO for purchase receipts"
+    )
+    source_reference = models.CharField(
+        max_length=100, blank=True,
+        help_text="External reference (e.g., vendor delivery note number)"
+    )
+
+    # Supplier/Source party
+    supplier = models.ForeignKey(
+        "supplychain.Supplier", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="grns"
+    )
+
+    # Receiving details
+    warehouse = models.ForeignKey(
+        "sales.Warehouse", on_delete=models.PROTECT,
+        related_name="grns",
+        help_text="Receiving warehouse"
+    )
+    receiving_location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        related_name="grns_received",
+        help_text="Default receiving location (can be overridden per line)"
+    )
+
+    # Dates
+    receipt_date = models.DateField(help_text="Date goods received")
+    expected_date = models.DateField(null=True, blank=True)
+    posted_date = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When GRN was posted to ledger"
+    )
+
+    # Ownership at receipt
+    owner_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        related_name="grns_received",
+        help_text="Who will own the received goods"
+    )
+    ownership_type = models.ForeignKey(
+        OwnershipType, on_delete=models.PROTECT,
+        related_name="grns",
+        help_text="Ownership type (OWNED, CONSIGNMENT, CLIENT, etc.)"
+    )
+
+    # Quality control
+    requires_qc = models.BooleanField(
+        default=True,
+        help_text="Does this receipt require QC inspection?"
+    )
+    qc_completed = models.BooleanField(default=False)
+    qc_notes = models.TextField(blank=True)
+
+    # Audit
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="grns_created"
+    )
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True, related_name="grns_confirmed"
+    )
+
+    class Meta:
+        db_table = "goods_receipt_notes"
+        verbose_name = "Goods Receipt Note"
+        verbose_name_plural = "Goods Receipt Notes"
+        ordering = ["-receipt_date", "-grn_number"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["receipt_date"]),
+            models.Index(fields=["supplier"]),
+            models.Index(fields=["grn_number"]),
+        ]
+
+    def __str__(self):
+        return f"{self.grn_number} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        if not self.grn_number:
+            from django.utils import timezone
+            year = timezone.now().year
+            last_grn = GoodsReceiptNote.objects.filter(
+                grn_number__startswith=f"GRN-{year}-"
+            ).order_by("-grn_number").first()
+
+            if last_grn:
+                last_num = int(last_grn.grn_number.split("-")[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+
+            self.grn_number = f"GRN-{year}-{new_num:04d}"
+
+        super().save(*args, **kwargs)
+
+
+class GRNLine(models.Model):
+    """
+    Line item on a GRN - individual item being received.
+    Each line posts one or more ledger entries when the GRN is confirmed.
+    """
+
+    grn = models.ForeignKey(
+        GoodsReceiptNote, on_delete=models.CASCADE,
+        related_name="lines"
+    )
+    line_number = models.IntegerField()
+
+    # What's being received
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT,
+        related_name="grn_lines"
+    )
+    qty_expected = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text="Expected quantity from PO"
+    )
+    qty_received = models.DecimalField(
+        max_digits=15, decimal_places=3,
+        help_text="Actual quantity received"
+    )
+    uom = models.ForeignKey(
+        UnitOfMeasure, on_delete=models.PROTECT,
+        related_name="grn_lines"
+    )
+
+    # Location override
+    location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="grn_lines",
+        help_text="Override receiving location (if different from GRN header)"
+    )
+
+    # Lot tracking
+    lot = models.ForeignKey(
+        MaterialLot, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="grn_lines",
+        help_text="Lot for lot-tracked items"
+    )
+    lot_number_received = models.CharField(
+        max_length=50, blank=True,
+        help_text="Lot number from supplier (if creating new lot)"
+    )
+
+    # Condition at receipt
+    condition = models.ForeignKey(
+        ConditionType, on_delete=models.PROTECT,
+        related_name="grn_lines",
+        help_text="Condition of goods at receipt"
+    )
+    quality_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT,
+        related_name="grn_lines",
+        help_text="Initial quality status (typically QUARANTINE)"
+    )
+
+    # Cost
+    unit_cost = models.DecimalField(
+        max_digits=15, decimal_places=4, default=0
+    )
+    total_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0
+    )
+
+    # PO line reference
+    po_line = models.ForeignKey(
+        "supplychain.PurchaseOrderLine", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="grn_lines"
+    )
+
+    # Status tracking
+    is_posted = models.BooleanField(
+        default=False,
+        help_text="Has this line been posted to ledger?"
+    )
+    posted_at = models.DateTimeField(null=True, blank=True)
+
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "grn_lines"
+        verbose_name = "GRN Line"
+        verbose_name_plural = "GRN Lines"
+        ordering = ["grn", "line_number"]
+        unique_together = [["grn", "line_number"]]
+
+    def __str__(self):
+        return f"{self.grn.grn_number} Line {self.line_number}: {self.item.code}"
+
+    def save(self, *args, **kwargs):
+        self.total_cost = self.qty_received * self.unit_cost
+        super().save(*args, **kwargs)
+
+
+class StockIssue(models.Model):
+    """
+    Stock Issue document - Outbound goods issue.
+
+    Documents the issue of goods from inventory for:
+    - Work Orders (material consumption)
+    - Sales Orders
+    - Internal consumption
+    - Scrap/disposal
+
+    Each line posts negative qty_delta to the StockLedger.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        PENDING = "PENDING", "Pending Approval"
+        APPROVED = "APPROVED", "Approved"
+        PICKED = "PICKED", "Picked"
+        ISSUED = "ISSUED", "Issued"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    class IssueType(models.TextChoices):
+        WORK_ORDER = "WO", "Work Order Issue"
+        SALES = "SALES", "Sales Issue"
+        INTERNAL = "INTERNAL", "Internal Consumption"
+        SCRAP = "SCRAP", "Scrap/Disposal"
+        SAMPLE = "SAMPLE", "Sample Issue"
+        OTHER = "OTHER", "Other Issue"
+
+    # Document identification
+    issue_number = models.CharField(
+        max_length=50, unique=True,
+        help_text="Auto-generated issue number (e.g., ISS-2024-0001)"
+    )
+    issue_type = models.CharField(
+        max_length=20, choices=IssueType.choices, default=IssueType.WORK_ORDER
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
+
+    # Source reference
+    work_order = models.ForeignKey(
+        "workorders.WorkOrder", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="stock_issues"
+    )
+    sales_order = models.ForeignKey(
+        "sales.SalesOrder", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="stock_issues"
+    )
+    reference = models.CharField(
+        max_length=100, blank=True,
+        help_text="External reference"
+    )
+
+    # Issue from
+    warehouse = models.ForeignKey(
+        "sales.Warehouse", on_delete=models.PROTECT,
+        related_name="stock_issues"
+    )
+    default_location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        related_name="stock_issues",
+        help_text="Default issue location"
+    )
+
+    # Issue to (destination party)
+    issue_to_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="stock_issues_received",
+        help_text="Party receiving the goods (e.g., rig)"
+    )
+
+    # Dates
+    issue_date = models.DateField()
+    required_date = models.DateField(null=True, blank=True)
+    posted_date = models.DateTimeField(null=True, blank=True)
+
+    # Audit
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="stock_issues_created"
+    )
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True, related_name="stock_issues_issued"
+    )
+
+    class Meta:
+        db_table = "stock_issues"
+        verbose_name = "Stock Issue"
+        verbose_name_plural = "Stock Issues"
+        ordering = ["-issue_date", "-issue_number"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["issue_date"]),
+            models.Index(fields=["issue_number"]),
+        ]
+
+    def __str__(self):
+        return f"{self.issue_number} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        if not self.issue_number:
+            from django.utils import timezone
+            year = timezone.now().year
+            last_issue = StockIssue.objects.filter(
+                issue_number__startswith=f"ISS-{year}-"
+            ).order_by("-issue_number").first()
+
+            if last_issue:
+                last_num = int(last_issue.issue_number.split("-")[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+
+            self.issue_number = f"ISS-{year}-{new_num:04d}"
+
+        super().save(*args, **kwargs)
+
+
+class StockIssueLine(models.Model):
+    """Line item on a Stock Issue."""
+
+    issue = models.ForeignKey(
+        StockIssue, on_delete=models.CASCADE,
+        related_name="lines"
+    )
+    line_number = models.IntegerField()
+
+    # What's being issued
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT,
+        related_name="issue_lines"
+    )
+    qty_requested = models.DecimalField(
+        max_digits=15, decimal_places=3,
+        help_text="Quantity requested"
+    )
+    qty_issued = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text="Actual quantity issued"
+    )
+    uom = models.ForeignKey(
+        UnitOfMeasure, on_delete=models.PROTECT,
+        related_name="issue_lines"
+    )
+
+    # From where
+    location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        related_name="issue_lines"
+    )
+
+    # Lot tracking
+    lot = models.ForeignKey(
+        MaterialLot, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="issue_lines"
+    )
+
+    # Stock dimensions at issue
+    owner_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        related_name="issue_lines"
+    )
+    ownership_type = models.ForeignKey(
+        OwnershipType, on_delete=models.PROTECT,
+        related_name="issue_lines"
+    )
+    condition = models.ForeignKey(
+        ConditionType, on_delete=models.PROTECT,
+        related_name="issue_lines"
+    )
+    quality_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT,
+        related_name="issue_lines"
+    )
+
+    # Cost
+    unit_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    total_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+
+    # Posting
+    is_posted = models.BooleanField(default=False)
+    posted_at = models.DateTimeField(null=True, blank=True)
+
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "stock_issue_lines"
+        verbose_name = "Stock Issue Line"
+        verbose_name_plural = "Stock Issue Lines"
+        ordering = ["issue", "line_number"]
+        unique_together = [["issue", "line_number"]]
+
+    def __str__(self):
+        return f"{self.issue.issue_number} Line {self.line_number}: {self.item.code}"
+
+
+class StockTransfer(models.Model):
+    """
+    Stock Transfer document - Movement between locations.
+
+    Transfers stock between locations (same or different warehouses).
+    Creates two ledger entries: negative from source, positive to destination.
+    Can also handle ownership transfers and quality status changes.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        PENDING = "PENDING", "Pending Approval"
+        IN_TRANSIT = "IN_TRANSIT", "In Transit"
+        RECEIVED = "RECEIVED", "Received"
+        COMPLETED = "COMPLETED", "Completed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    class TransferType(models.TextChoices):
+        LOCATION = "LOCATION", "Location Transfer"
+        WAREHOUSE = "WAREHOUSE", "Warehouse Transfer"
+        OWNERSHIP = "OWNERSHIP", "Ownership Transfer"
+        QC_STATUS = "QC_STATUS", "Quality Status Change"
+
+    # Document identification
+    transfer_number = models.CharField(
+        max_length=50, unique=True,
+        help_text="Auto-generated transfer number"
+    )
+    transfer_type = models.CharField(
+        max_length=20, choices=TransferType.choices, default=TransferType.LOCATION
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
+
+    # From
+    from_warehouse = models.ForeignKey(
+        "sales.Warehouse", on_delete=models.PROTECT,
+        related_name="transfers_out"
+    )
+    from_location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        related_name="transfers_out"
+    )
+
+    # To
+    to_warehouse = models.ForeignKey(
+        "sales.Warehouse", on_delete=models.PROTECT,
+        related_name="transfers_in"
+    )
+    to_location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        related_name="transfers_in"
+    )
+
+    # Ownership change (optional)
+    from_owner = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        related_name="transfers_from",
+        help_text="Original owner"
+    )
+    to_owner = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="transfers_to",
+        help_text="New owner (if ownership transfer)"
+    )
+
+    # Dates
+    transfer_date = models.DateField()
+    shipped_date = models.DateTimeField(null=True, blank=True)
+    received_date = models.DateTimeField(null=True, blank=True)
+    posted_date = models.DateTimeField(null=True, blank=True)
+
+    # Audit
+    reason = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="transfers_created"
+    )
+
+    class Meta:
+        db_table = "stock_transfers"
+        verbose_name = "Stock Transfer"
+        verbose_name_plural = "Stock Transfers"
+        ordering = ["-transfer_date", "-transfer_number"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["transfer_date"]),
+            models.Index(fields=["transfer_number"]),
+        ]
+
+    def __str__(self):
+        return f"{self.transfer_number} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        if not self.transfer_number:
+            from django.utils import timezone
+            year = timezone.now().year
+            last_transfer = StockTransfer.objects.filter(
+                transfer_number__startswith=f"TRF-{year}-"
+            ).order_by("-transfer_number").first()
+
+            if last_transfer:
+                last_num = int(last_transfer.transfer_number.split("-")[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+
+            self.transfer_number = f"TRF-{year}-{new_num:04d}"
+
+        super().save(*args, **kwargs)
+
+
+class StockTransferLine(models.Model):
+    """Line item on a Stock Transfer."""
+
+    transfer = models.ForeignKey(
+        StockTransfer, on_delete=models.CASCADE,
+        related_name="lines"
+    )
+    line_number = models.IntegerField()
+
+    # What's being transferred
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT,
+        related_name="transfer_lines"
+    )
+    qty_requested = models.DecimalField(
+        max_digits=15, decimal_places=3
+    )
+    qty_shipped = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0
+    )
+    qty_received = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0
+    )
+    uom = models.ForeignKey(
+        UnitOfMeasure, on_delete=models.PROTECT,
+        related_name="transfer_lines"
+    )
+
+    # Lot
+    lot = models.ForeignKey(
+        MaterialLot, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="transfer_lines"
+    )
+
+    # Stock dimensions
+    ownership_type = models.ForeignKey(
+        OwnershipType, on_delete=models.PROTECT,
+        related_name="transfer_lines"
+    )
+    condition = models.ForeignKey(
+        ConditionType, on_delete=models.PROTECT,
+        related_name="transfer_lines"
+    )
+    from_quality_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT,
+        related_name="transfer_lines_from"
+    )
+    to_quality_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="transfer_lines_to",
+        help_text="New quality status (if changing)"
+    )
+
+    # Cost
+    unit_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+
+    # Posting
+    is_posted = models.BooleanField(default=False)
+    posted_at = models.DateTimeField(null=True, blank=True)
+
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "stock_transfer_lines"
+        verbose_name = "Stock Transfer Line"
+        verbose_name_plural = "Stock Transfer Lines"
+        ordering = ["transfer", "line_number"]
+        unique_together = [["transfer", "line_number"]]
+
+    def __str__(self):
+        return f"{self.transfer.transfer_number} Line {self.line_number}: {self.item.code}"
+
+
+class StockAdjustment(models.Model):
+    """
+    Stock Adjustment document - Quantity corrections and adjustments.
+
+    Used for:
+    - Cycle count corrections
+    - Physical inventory adjustments
+    - Write-offs
+    - Opening balance initialization
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        PENDING = "PENDING", "Pending Approval"
+        APPROVED = "APPROVED", "Approved"
+        POSTED = "POSTED", "Posted"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    class AdjustmentType(models.TextChoices):
+        CYCLE_COUNT = "CYCLE", "Cycle Count"
+        PHYSICAL = "PHYSICAL", "Physical Inventory"
+        WRITE_OFF = "WRITEOFF", "Write Off"
+        OPENING = "OPENING", "Opening Balance"
+        CORRECTION = "CORRECT", "Correction"
+        OTHER = "OTHER", "Other"
+
+    # Document identification
+    adjustment_number = models.CharField(
+        max_length=50, unique=True
+    )
+    adjustment_type = models.CharField(
+        max_length=20, choices=AdjustmentType.choices, default=AdjustmentType.CORRECTION
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
+
+    # Location
+    warehouse = models.ForeignKey(
+        "sales.Warehouse", on_delete=models.PROTECT,
+        related_name="stock_adjustments"
+    )
+    location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        related_name="stock_adjustments"
+    )
+
+    # Reason
+    reason = models.ForeignKey(
+        AdjustmentReason, on_delete=models.PROTECT,
+        related_name="adjustments"
+    )
+
+    # Dates
+    adjustment_date = models.DateField()
+    posted_date = models.DateTimeField(null=True, blank=True)
+
+    # Approval
+    requires_approval = models.BooleanField(default=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        null=True, blank=True, related_name="adjustments_approved"
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    # Audit
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="adjustments_created"
+    )
+
+    class Meta:
+        db_table = "stock_adjustments"
+        verbose_name = "Stock Adjustment"
+        verbose_name_plural = "Stock Adjustments"
+        ordering = ["-adjustment_date", "-adjustment_number"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["adjustment_date"]),
+            models.Index(fields=["adjustment_number"]),
+        ]
+
+    def __str__(self):
+        return f"{self.adjustment_number} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        if not self.adjustment_number:
+            from django.utils import timezone
+            year = timezone.now().year
+            last_adj = StockAdjustment.objects.filter(
+                adjustment_number__startswith=f"ADJ-{year}-"
+            ).order_by("-adjustment_number").first()
+
+            if last_adj:
+                last_num = int(last_adj.adjustment_number.split("-")[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+
+            self.adjustment_number = f"ADJ-{year}-{new_num:04d}"
+
+        super().save(*args, **kwargs)
+
+
+class StockAdjustmentLine(models.Model):
+    """Line item on a Stock Adjustment."""
+
+    adjustment = models.ForeignKey(
+        StockAdjustment, on_delete=models.CASCADE,
+        related_name="lines"
+    )
+    line_number = models.IntegerField()
+
+    # What's being adjusted
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT,
+        related_name="adjustment_lines"
+    )
+    qty_system = models.DecimalField(
+        max_digits=15, decimal_places=3,
+        help_text="System quantity before adjustment"
+    )
+    qty_counted = models.DecimalField(
+        max_digits=15, decimal_places=3,
+        help_text="Actual counted quantity"
+    )
+    qty_adjustment = models.DecimalField(
+        max_digits=15, decimal_places=3,
+        help_text="Difference (counted - system)"
+    )
+    uom = models.ForeignKey(
+        UnitOfMeasure, on_delete=models.PROTECT,
+        related_name="adjustment_lines"
+    )
+
+    # Lot
+    lot = models.ForeignKey(
+        MaterialLot, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="adjustment_lines"
+    )
+
+    # Stock dimensions
+    owner_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        related_name="adjustment_lines"
+    )
+    ownership_type = models.ForeignKey(
+        OwnershipType, on_delete=models.PROTECT,
+        related_name="adjustment_lines"
+    )
+    condition = models.ForeignKey(
+        ConditionType, on_delete=models.PROTECT,
+        related_name="adjustment_lines"
+    )
+    quality_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT,
+        related_name="adjustment_lines"
+    )
+
+    # Cost
+    unit_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    total_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+
+    # Posting
+    is_posted = models.BooleanField(default=False)
+    posted_at = models.DateTimeField(null=True, blank=True)
+
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "stock_adjustment_lines"
+        verbose_name = "Stock Adjustment Line"
+        verbose_name_plural = "Stock Adjustment Lines"
+        ordering = ["adjustment", "line_number"]
+        unique_together = [["adjustment", "line_number"]]
+
+    def __str__(self):
+        return f"{self.adjustment.adjustment_number} Line {self.line_number}: {self.item.code}"
+
+    def save(self, *args, **kwargs):
+        self.qty_adjustment = self.qty_counted - self.qty_system
+        self.total_cost = self.qty_adjustment * self.unit_cost
+        super().save(*args, **kwargs)
+
+
+# =============================================================================
+# PHASE 4: ASSET TRACKING (Serialized Lifecycle Management)
+# =============================================================================
+
+class Asset(models.Model):
+    """
+    Serialized Asset with full lifecycle tracking.
+
+    Assets are unique, serialized items that require individual tracking
+    throughout their lifecycle. Unlike lot-tracked items (which track batches),
+    each asset is a unique entity with its own history, location, and status.
+
+    Key capabilities:
+    - Unique serial number tracking
+    - Full lifecycle management (procurement → operation → disposal)
+    - Location and custody tracking
+    - Maintenance history linkage
+    - Depreciation tracking (optional)
+    - Parent-child relationships (assemblies)
+
+    Examples: Drill bits, BHA components, tools, equipment
+    """
+
+    class Status(models.TextChoices):
+        # Procurement/Receipt
+        ON_ORDER = "ON_ORDER", "On Order"
+        IN_TRANSIT = "IN_TRANSIT", "In Transit"
+        RECEIVED = "RECEIVED", "Received"
+
+        # Inspection/Quality
+        QUARANTINE = "QUARANTINE", "In Quarantine"
+        INSPECTION = "INSPECTION", "Under Inspection"
+        READY = "READY", "Ready for Use"
+
+        # Operations
+        AVAILABLE = "AVAILABLE", "Available"
+        RESERVED = "RESERVED", "Reserved"
+        IN_USE = "IN_USE", "In Use"
+        DEPLOYED = "DEPLOYED", "Deployed to Field"
+
+        # Maintenance
+        MAINTENANCE = "MAINTENANCE", "Under Maintenance"
+        REPAIR = "REPAIR", "Under Repair"
+        REFURBISHMENT = "REFURBISHMENT", "In Refurbishment"
+
+        # End of Life
+        DAMAGED = "DAMAGED", "Damaged"
+        SCRAP = "SCRAP", "Scrapped"
+        SOLD = "SOLD", "Sold"
+        LOST = "LOST", "Lost"
+        RETIRED = "RETIRED", "Retired"
+
+    # Identification
+    serial_number = models.CharField(
+        max_length=100, unique=True,
+        help_text="Unique serial number"
+    )
+    asset_tag = models.CharField(
+        max_length=50, unique=True, blank=True, null=True,
+        help_text="Internal asset tag (optional)"
+    )
+
+    # Item template (what type of asset this is)
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.PROTECT,
+        related_name="assets",
+        help_text="Item template defining this asset type"
+    )
+
+    # Status and condition
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.RECEIVED
+    )
+    condition = models.ForeignKey(
+        ConditionType, on_delete=models.PROTECT,
+        related_name="assets"
+    )
+    quality_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT,
+        related_name="assets"
+    )
+
+    # Current location
+    current_location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        related_name="assets",
+        help_text="Current physical location"
+    )
+    warehouse = models.ForeignKey(
+        "sales.Warehouse", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="assets"
+    )
+
+    # Ownership
+    owner_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        related_name="owned_assets",
+        help_text="Who owns this asset"
+    )
+    ownership_type = models.ForeignKey(
+        OwnershipType, on_delete=models.PROTECT,
+        related_name="assets"
+    )
+
+    # Custody (who currently has it - may differ from owner)
+    custodian_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="custody_assets",
+        help_text="Who currently has custody (if different from owner)"
+    )
+
+    # Lot reference (if received as part of a lot)
+    lot = models.ForeignKey(
+        MaterialLot, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="assets",
+        help_text="Source lot (if applicable)"
+    )
+
+    # Source/Procurement
+    grn = models.ForeignKey(
+        GoodsReceiptNote, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="assets_received"
+    )
+    purchase_order = models.ForeignKey(
+        "supplychain.PurchaseOrder", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="assets"
+    )
+    supplier = models.ForeignKey(
+        "supplychain.Supplier", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="assets_supplied"
+    )
+
+    # Financial
+    acquisition_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0
+    )
+    current_value = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0
+    )
+    salvage_value = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0
+    )
+    depreciation_method = models.CharField(
+        max_length=20, blank=True,
+        help_text="SL=Straight Line, DD=Declining Balance"
+    )
+    useful_life_months = models.IntegerField(null=True, blank=True)
+
+    # Dates
+    acquisition_date = models.DateField(null=True, blank=True)
+    in_service_date = models.DateField(null=True, blank=True)
+    warranty_expiry = models.DateField(null=True, blank=True)
+    next_service_date = models.DateField(null=True, blank=True)
+    disposal_date = models.DateField(null=True, blank=True)
+
+    # Manufacturer info
+    manufacturer_serial = models.CharField(
+        max_length=100, blank=True,
+        help_text="Manufacturer's serial number (if different)"
+    )
+    manufacture_date = models.DateField(null=True, blank=True)
+
+    # Parent asset (for assemblies/components)
+    parent_asset = models.ForeignKey(
+        "self", on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="child_assets",
+        help_text="Parent asset if this is a component"
+    )
+
+    # Work order reference (if currently deployed)
+    current_work_order = models.ForeignKey(
+        "workorders.WorkOrder", on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="deployed_assets"
+    )
+
+    # Certification/Compliance
+    last_inspection_date = models.DateField(null=True, blank=True)
+    next_inspection_date = models.DateField(null=True, blank=True)
+    certification_number = models.CharField(max_length=100, blank=True)
+    certification_expiry = models.DateField(null=True, blank=True)
+
+    # Usage metrics
+    total_run_hours = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Total operational hours"
+    )
+    total_cycles = models.IntegerField(
+        default=0,
+        help_text="Total operational cycles"
+    )
+    total_footage = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Total footage drilled (for bits)"
+    )
+
+    # Notes
+    notes = models.TextField(blank=True)
+    specifications = models.JSONField(
+        null=True, blank=True,
+        help_text="Asset-specific specifications"
+    )
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="assets_created"
+    )
+
+    class Meta:
+        db_table = "assets"
+        verbose_name = "Asset"
+        verbose_name_plural = "Assets"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["serial_number"]),
+            models.Index(fields=["asset_tag"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["item"]),
+            models.Index(fields=["current_location"]),
+            models.Index(fields=["owner_party"]),
+            models.Index(fields=["condition"]),
+        ]
+
+    def __str__(self):
+        return f"{self.serial_number} ({self.item.code})"
+
+    @property
+    def is_available(self):
+        """Check if asset is available for use."""
+        return self.status in [self.Status.AVAILABLE, self.Status.READY]
+
+    @property
+    def is_operational(self):
+        """Check if asset is in operational state."""
+        return self.status in [
+            self.Status.AVAILABLE,
+            self.Status.RESERVED,
+            self.Status.IN_USE,
+            self.Status.DEPLOYED
+        ]
+
+
+class AssetMovement(models.Model):
+    """
+    Tracks all movements/status changes of an asset.
+
+    Every significant change to an asset creates a movement record,
+    providing complete audit trail and lifecycle history.
+    """
+
+    class MovementType(models.TextChoices):
+        RECEIPT = "RECEIPT", "Initial Receipt"
+        TRANSFER = "TRANSFER", "Location Transfer"
+        DEPLOY = "DEPLOY", "Deploy to Job"
+        RETURN = "RETURN", "Return from Job"
+        STATUS_CHANGE = "STATUS", "Status Change"
+        MAINTENANCE_IN = "MAINT_IN", "Sent to Maintenance"
+        MAINTENANCE_OUT = "MAINT_OUT", "Returned from Maintenance"
+        CONDITION_CHANGE = "CONDITION", "Condition Change"
+        OWNERSHIP_CHANGE = "OWNER", "Ownership Transfer"
+        DISPOSAL = "DISPOSAL", "Disposed/Scrapped"
+        ADJUSTMENT = "ADJUST", "Adjustment/Correction"
+
+    asset = models.ForeignKey(
+        Asset, on_delete=models.PROTECT,
+        related_name="movements"
+    )
+    movement_number = models.CharField(max_length=50)
+    movement_date = models.DateTimeField()
+    movement_type = models.CharField(
+        max_length=20, choices=MovementType.choices
+    )
+
+    # From state
+    from_location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="asset_movements_from"
+    )
+    from_status = models.CharField(max_length=20, blank=True)
+    from_condition = models.ForeignKey(
+        ConditionType, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="asset_movements_from"
+    )
+    from_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="asset_movements_from"
+    )
+
+    # To state
+    to_location = models.ForeignKey(
+        InventoryLocation, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="asset_movements_to"
+    )
+    to_status = models.CharField(max_length=20, blank=True)
+    to_condition = models.ForeignKey(
+        ConditionType, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="asset_movements_to"
+    )
+    to_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="asset_movements_to"
+    )
+
+    # Reference documents
+    work_order = models.ForeignKey(
+        "workorders.WorkOrder", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="asset_movements"
+    )
+    stock_transfer = models.ForeignKey(
+        StockTransfer, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="asset_movements"
+    )
+
+    # Usage at time of movement (for returns)
+    run_hours = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Run hours at this movement"
+    )
+    cycles = models.IntegerField(default=0)
+    footage = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0
+    )
+
+    # Audit
+    reason = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="asset_movements_created"
+    )
+
+    # Ledger linkage (for movements that affect stock)
+    ledger_entry = models.ForeignKey(
+        StockLedger, on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="asset_movements"
+    )
+
+    class Meta:
+        db_table = "asset_movements"
+        verbose_name = "Asset Movement"
+        verbose_name_plural = "Asset Movements"
+        ordering = ["-movement_date"]
+        indexes = [
+            models.Index(fields=["asset", "movement_date"]),
+            models.Index(fields=["movement_type"]),
+            models.Index(fields=["movement_number"]),
+        ]
+
+    def __str__(self):
+        return f"{self.movement_number}: {self.asset.serial_number} - {self.get_movement_type_display()}"
