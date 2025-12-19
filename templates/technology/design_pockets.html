@@ -2,6 +2,18 @@
 
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
+{% block extra_css %}
+<style>
+    @keyframes pulse-fast {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.2); opacity: 0.7; }
+    }
+    .animate-pulse-fast {
+        animation: pulse-fast 0.3s ease-in-out infinite;
+    }
+</style>
+{% endblock %}
+
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
     <div class="flex items-center gap-4">
@@ -10,7 +22,7 @@
         </a>
         <div>
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-            <p class="text-gray-600 dark:text-gray-400">Configure pocket layout and features for {{ design.mat_no }}</p>
+            <p class="text-gray-600 dark:text-gray-400">{{ design.description|default:"Configure pocket layout and features" }}</p>
         </div>
     </div>
     <div class="mt-4 md:mt-0 flex gap-2">
@@ -22,92 +34,2189 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto">
-    <!-- Design Info Card -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm mb-6">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <i data-lucide="cpu" class="w-5 h-5"></i>
-                Design Information
-            </h2>
-        </div>
-        <div class="px-6 py-4">
-            <dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">MAT No.</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white font-mono">{{ design.mat_no }}</dd>
-                </div>
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">HDBS Type</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white">{{ design.hdbs_type }}</dd>
-                </div>
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">Size</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white">{% if design.size %}{{ design.size.size_display }}{% else %}--{% endif %}</dd>
-                </div>
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">No. of Blades</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white">{{ design.no_of_blades|default:"--" }}</dd>
-                </div>
-            </dl>
+<div x-data="pocketsLayout()" class="space-y-6">
+    <!-- Tab Navigation -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+        <div class="border-b border-gray-200 dark:border-gray-700">
+            <nav class="flex -mb-px">
+                <button @click="activeTab = 'config'"
+                        :class="activeTab === 'config' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+                        class="px-6 py-3 border-b-2 font-medium text-sm">
+                    <i data-lucide="settings" class="w-4 h-4 inline mr-2"></i>Configuration & Grid
+                </button>
+                <button @click="activeTab = 'locations'"
+                        :class="activeTab === 'locations' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+                        class="px-6 py-3 border-b-2 font-medium text-sm">
+                    <i data-lucide="map-pin" class="w-4 h-4 inline mr-2"></i>Pockets Locations
+                    <span class="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-600 rounded">Soon</span>
+                </button>
+                <button @click="activeTab = 'engagements'"
+                        :class="activeTab === 'engagements' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+                        class="px-6 py-3 border-b-2 font-medium text-sm">
+                    <i data-lucide="layers" class="w-4 h-4 inline mr-2"></i>Engagements
+                    <span class="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-600 rounded">Soon</span>
+                </button>
+            </nav>
         </div>
     </div>
 
-    <!-- Placeholder Content -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <i data-lucide="grid-3x3" class="w-5 h-5"></i>
-                Pockets Layout and Features
-            </h2>
+    <!-- Tab 1: Configuration & Grid -->
+    <div x-show="activeTab === 'config'" class="space-y-6">
+        <!-- Section 1: Design Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="info" class="w-5 h-5"></i>
+                    Design Information
+                </h2>
+            </div>
+            <div class="px-6 py-4">
+                <dl class="grid grid-cols-2 md:grid-cols-5 gap-6">
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</dt>
+                        <dd class="mt-1 text-lg font-mono font-medium text-gray-900 dark:text-white">{{ design.mat_no }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Blades Count</dt>
+                        <dd class="mt-1 text-lg font-bold text-blue-600 dark:text-blue-400">{{ design.no_of_blades|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total Pockets Count</dt>
+                        <dd class="mt-1 text-lg font-bold text-green-600 dark:text-green-400">{{ design.total_pockets_count|default:"--" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rows Count</dt>
+                        <dd class="mt-1">
+                            <span class="text-lg font-bold text-purple-600 dark:text-purple-400" x-text="rowsCount"></span>
+                            <span class="text-xs text-gray-400 ml-1">(click separators in grid)</span>
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Pocket Layout No.</dt>
+                        <dd class="mt-1">
+                            <input type="text"
+                                   x-model="layoutNumber"
+                                   @change="saveDesignInfo()"
+                                   placeholder="--"
+                                   class="w-24 text-lg font-mono text-orange-600 dark:text-orange-400 bg-transparent border-b-2 border-orange-300 dark:border-orange-600 focus:border-orange-500 focus:outline-none text-center">
+                        </dd>
+                    </div>
+                </dl>
+            </div>
         </div>
-        <div class="px-6 py-16 text-center">
-            <i data-lucide="construction" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
-            <h3 class="text-xl font-medium text-gray-900 dark:text-white mb-2">Coming Soon</h3>
-            <p class="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
-                The Pockets Layout and Features configuration module is under development.
-                This will allow you to define pocket positions, cutter placements, and special features for this design.
-            </p>
-            <div class="flex justify-center gap-4">
-                <a href="{% url 'technology:design_detail' design.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Design
-                </a>
+
+        <!-- Section 2: Pocket Sizes Configuration Table -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="list" class="w-5 h-5"></i>
+                    Pocket Size Configuration
+                </h2>
+                <button @click="addConfigRow()" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add Size
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-24">Order</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Pocket Size</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-24">L/M/S</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Pocket Shape</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-24">Count</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-32">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for config in pocket_configs %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50" data-config-id="{{ config.pk }}">
+                            <!-- Order with color background and reorder arrows -->
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="flex flex-col">
+                                        <button type="button"
+                                                onclick="reorderConfig({{ config.pk }}, 'up')"
+                                                class="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 {% if forloop.first %}opacity-30 cursor-not-allowed{% endif %}">
+                                            <i data-lucide="chevron-up" class="w-4 h-4"></i>
+                                        </button>
+                                        <button type="button"
+                                                onclick="reorderConfig({{ config.pk }}, 'down')"
+                                                class="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 {% if forloop.last %}opacity-30 cursor-not-allowed{% endif %}">
+                                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                    <span class="w-8 h-8 flex items-center justify-center rounded font-bold text-white text-sm"
+                                          style="background-color: {{ config.display_color }}">
+                                        {{ config.order }}
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 text-gray-900 dark:text-white font-medium">{{ config.pocket_size.display_name }}</td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-0.5 text-xs font-medium rounded
+                                    {% if config.length_type == 'L' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                                    {% elif config.length_type == 'M' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200{% endif %}">
+                                    {{ config.get_length_type_display }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-gray-900 dark:text-white">
+                                {{ config.pocket_shape.name }}
+                            </td>
+                            <td class="px-4 py-3 text-gray-900 dark:text-white font-bold">{{ config.count }}</td>
+                            <td class="px-4 py-3 text-right">
+                                <form method="post" action="{% url 'technology:pocket_config_delete' design.pk config.pk %}" class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-red-600 hover:text-red-800 dark:text-red-400" onclick="return confirm('Delete this configuration?')">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                                <p>No pocket configurations defined yet</p>
+                                <p class="text-sm">Click "Add Size" to start configuring pocket sizes</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if pocket_configs %}
+                    <tfoot class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <td colspan="4" class="px-4 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Total:</td>
+                            <td class="px-4 py-3 font-bold text-gray-900 dark:text-white">{{ config_total }}</td>
+                            <td class="px-4 py-3">
+                                {% if design.total_pockets_count %}
+                                    {% if config_total == design.total_pockets_count %}
+                                    <span class="text-green-600 dark:text-green-400 text-sm"><i data-lucide="check-circle" class="w-4 h-4 inline"></i> Matches</span>
+                                    {% else %}
+                                    <span class="text-red-600 dark:text-red-400 text-sm"><i data-lucide="alert-circle" class="w-4 h-4 inline"></i> Expected: {{ design.total_pockets_count }}</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+
+        <!-- Section 3: Pockets Grid with Row Separators -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="grid-3x3" class="w-5 h-5"></i>
+                    Pockets Grid
+                </h2>
+                <div class="flex items-center gap-4">
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ design.no_of_blades|default:0 }} Blades × <span x-text="rowSeparators.length + 1"></span> Row<span x-show="rowSeparators.length > 0">s</span>
+                    </div>
+                    <button @click="saveGridData()"
+                            :disabled="isSaving"
+                            class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+                        <i data-lucide="save" class="w-4 h-4 mr-2" x-show="!isSaving"></i>
+                        <i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin" x-show="isSaving" x-cloak></i>
+                        <span x-text="isSaving ? 'Saving...' : 'Save Grid'"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Grid Legend with Real-time Counters -->
+            {% if pocket_configs %}
+            <div class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <div class="flex flex-wrap gap-3 mb-3">
+                    {% for config in pocket_configs %}
+                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
+                         @click="selectedConfigId = {{ config.pk }}; selectedConfigColor = '{{ config.display_color }}'"
+                         :class="[selectedConfigId === {{ config.pk }} ? 'ring-2 ring-blue-500' : '', isConfigOverAssigned({{ config.pk }}) ? 'border-red-500 bg-red-50 dark:bg-red-900/30' : '']">
+                        <div class="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold" style="background-color: {{ config.display_color }}">{{ config.order }}</div>
+                        <span class="text-sm text-gray-700 dark:text-gray-300">{{ config.pocket_size.display_name }}</span>
+                        <!-- Real-time counter: assigned / expected -->
+                        <span class="text-xs font-mono px-1.5 py-0.5 rounded"
+                              :class="getConfigAssignedCount({{ config.pk }}) === {{ config.count }} ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : getConfigAssignedCount({{ config.pk }}) > {{ config.count }} ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'">
+                            <span x-text="getConfigAssignedCount({{ config.pk }})">0</span>/<span>{{ config.count }}</span>
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <!-- Actions and Total counter -->
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <!-- Copy/Paste/Clear buttons -->
+                        <div class="flex items-center gap-1">
+                            <button @click="copySelection()"
+                                    class="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 flex items-center gap-1"
+                                    title="Copy selected cells (Ctrl+C)">
+                                <i data-lucide="copy" class="w-3 h-3"></i> Copy
+                            </button>
+                            <button @click="pasteSelection()"
+                                    class="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 flex items-center gap-1"
+                                    title="Paste at focused cell (Ctrl+V)">
+                                <i data-lucide="clipboard" class="w-3 h-3"></i> Paste
+                            </button>
+                            <button @click="clearSelectedCellsData()"
+                                    class="px-2 py-1 text-xs bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800 flex items-center gap-1"
+                                    title="Clear selected cells (Delete)">
+                                <i data-lucide="trash-2" class="w-3 h-3"></i> Clear
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            <span class="font-medium text-blue-600 dark:text-blue-400">Type 1,2,3</span> to assign |
+                            <span class="font-medium">0</span> clear |
+                            <span class="font-medium">Arrows</span> navigate
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Total:</span>
+                        <span class="text-sm font-bold px-2 py-0.5 rounded"
+                              :class="getTotalAssigned() === {{ config_total|default:0 }} ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : getTotalAssigned() > {{ design.total_pockets_count|default:0 }} ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'">
+                            <span x-text="getTotalAssigned()">0</span> / {{ design.total_pockets_count|default:"--" }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="p-6 overflow-x-auto" @mouseup="handleMouseUp()" @mouseleave="handleMouseUp()">
+                {% if design.no_of_blades and pocket_configs %}
+                <div class="inline-block min-w-full select-none">
+                    <!-- Location Zone Header Row (watermarks) -->
+                    <div class="flex mb-1" x-show="Object.keys(locationData).length > 0">
+                        <div class="w-16 flex-shrink-0 text-xs text-gray-400 flex items-center">Zone</div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <div class="w-10 text-center text-[10px] font-bold py-0.5 rounded-t"
+                                         :style="getLocationZoneHeaderStyle(col)">
+                                        <span x-text="getLocationZoneLabel(col)"></span>
+                                    </div>
+                                    <div class="w-4" x-show="col < 20"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Header Row with Pocket Numbers and Separator Markers -->
+                    <div class="flex mb-1">
+                        <div class="w-16 flex-shrink-0"></div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <!-- Column number -->
+                                    <div class="w-10 text-center text-xs font-medium py-1"
+                                         :class="getColumnRowClass(col)">
+                                        <span x-text="col"></span>
+                                    </div>
+                                    <!-- Row separator marker (between columns) - CLICKABLE -->
+                                    <div class="w-4 flex items-center justify-center cursor-pointer group"
+                                         @click="toggleRowSeparator(col)"
+                                         x-show="col < 20"
+                                         title="Click to add/remove row separator">
+                                        <div class="w-1 h-8 rounded transition-all"
+                                             :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-gray-300 dark:bg-gray-600 group-hover:bg-red-300 dark:group-hover:bg-red-700'">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Pocket position within row (resets after each separator) -->
+                    <div class="flex mb-2">
+                        <div class="w-16 flex-shrink-0 text-xs text-gray-400">Pos →</div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <div class="w-10 text-center text-xs font-bold"
+                                         :class="getColumnRowClass(col)">
+                                        <span x-text="getPositionInRow(col)"></span>
+                                    </div>
+                                    <div class="w-4" x-show="col < 20"
+                                         :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Blade Rows -->
+                    {% for blade_num in "123456789"|make_list %}
+                    {% if blade_num|add:0 <= design.no_of_blades %}
+                    <div class="flex items-center mb-1">
+                        <div class="w-16 flex-shrink-0 font-medium text-gray-900 dark:text-white text-sm">B{{ blade_num }}</div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <!-- Grid cell with Excel-like selection -->
+                                    <div class="w-10 h-10 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-xs font-bold text-white cursor-pointer transition-all"
+                                         :style="getCellStyle({{ blade_num }}, col)"
+                                         :class="getCellClass({{ blade_num }}, col)"
+                                         @click="handleCellClick({{ blade_num }}, col, $event)"
+                                         @mousedown="handleCellMouseDown({{ blade_num }}, col, $event)"
+                                         @mouseenter="handleCellMouseEnter({{ blade_num }}, col)"
+                                         tabindex="-1"
+                                         x-text="getCellNumber({{ blade_num }}, col)">
+                                    </div>
+                                    <!-- Separator visual between cells -->
+                                    <div class="w-4" x-show="col < 20"
+                                         :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+
+                    <!-- Sequence per Row -->
+                    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">Sequence per Row:</div>
+                        <template x-for="(row, index) in getRowRanges()" :key="index">
+                            <div class="flex items-center mb-1">
+                                <div class="w-20 flex-shrink-0 text-xs font-medium" :class="getRowColor(index + 1)">
+                                    Row <span x-text="index + 1"></span>:
+                                </div>
+                                <div class="text-xs font-mono text-gray-600 dark:text-gray-400" x-text="getRowSequenceText(row.start, row.end)"></div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- All Blades Sequence -->
+                    <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">Total Sequence (All Blades):</div>
+                        <div class="text-xs font-mono text-gray-600 dark:text-gray-400" x-text="getAllBladesSequence()"></div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                    <p class="text-lg font-medium">Cannot display grid</p>
+                    <p class="text-sm mt-2">
+                        {% if not design.no_of_blades %}
+                        Please set the number of blades in the design first.
+                        {% elif not pocket_configs %}
+                        Please add pocket size configurations above first.
+                        {% endif %}
+                    </p>
+                    {% if not design.no_of_blades %}
+                    <a href="{% url 'technology:design_update' design.pk %}" class="inline-flex items-center mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit Design
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Future Features Preview -->
-    <div class="mt-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-        <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <i data-lucide="lightbulb" class="w-4 h-4 text-yellow-500"></i>
-            Planned Features
-        </h3>
-        <ul class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600 dark:text-gray-400">
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                Visual pocket layout editor
-            </li>
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                Cutter position configuration
-            </li>
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                Blade-by-blade pocket definition
-            </li>
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                Import from CAD drawings
-            </li>
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                Feature templates library
-            </li>
-            <li class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
-                3D pocket visualization
-            </li>
-        </ul>
+    <!-- Tab 2: Pockets Locations on Blade -->
+    <div x-show="activeTab === 'locations'" class="space-y-6">
+        <!-- Location Zone Legend -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="map-pin" class="w-5 h-5"></i>
+                    Blade Location Zones
+                </h2>
+                <button @click="saveLocationData()"
+                        :disabled="isSavingLocations"
+                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+                    <i data-lucide="save" class="w-4 h-4 mr-2" x-show="!isSavingLocations"></i>
+                    <i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin" x-show="isSavingLocations" x-cloak></i>
+                    <span x-text="isSavingLocations ? 'Saving...' : 'Save Locations'"></span>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <!-- Location Zone Colors -->
+                <div class="flex flex-wrap gap-4 mb-4">
+                    <template x-for="loc in locationZones" :key="loc.code">
+                        <div class="flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all"
+                             :style="`border-color: ${loc.color}; background-color: ${selectedLocation === loc.code ? loc.color + '20' : 'transparent'}`"
+                             :class="selectedLocation === loc.code ? 'ring-2 ring-offset-1' : ''"
+                             :style="`--tw-ring-color: ${loc.color}`"
+                             @click="selectedLocation = loc.code">
+                            <div class="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold"
+                                 :style="`background-color: ${loc.color}`"
+                                 x-text="loc.code"></div>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300" x-text="loc.name"></span>
+                            <span class="text-xs text-gray-500" x-text="`(${getLocationCount(loc.code)})`"></span>
+                        </div>
+                    </template>
+                    <button @click="selectedLocation = null"
+                            class="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg"
+                            :class="selectedLocation === null ? 'bg-gray-100 dark:bg-gray-700' : ''">
+                        Clear Selection
+                    </button>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                    <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
+                    Click a zone, then click cells to assign. Sequence must follow: Cone → Nose → Taper → Shoulder → Gage (cannot reverse order within a row)
+                </p>
+            </div>
+        </div>
+
+        <!-- Location Assignment Grid -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="grid-3x3" class="w-5 h-5"></i>
+                    Location Assignment Grid
+                </h2>
+            </div>
+            <div class="p-6 overflow-x-auto">
+                {% if design.no_of_blades and pocket_configs %}
+                <div class="inline-block min-w-full select-none">
+                    <!-- Header Row with Separators -->
+                    <div class="flex mb-1">
+                        <div class="w-16 flex-shrink-0"></div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <div class="w-10 text-center text-xs font-medium py-1"
+                                         :class="getColumnRowClass(col)">
+                                        <span x-text="col"></span>
+                                    </div>
+                                    <!-- Row separator marker -->
+                                    <div class="w-4 flex items-center justify-center" x-show="col < 20">
+                                        <div class="w-1 h-6 rounded"
+                                             :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Position in Row indicator -->
+                    <div class="flex mb-2">
+                        <div class="w-16 flex-shrink-0 text-xs text-gray-400">Pos →</div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <div class="w-10 text-center text-[10px] text-gray-400" x-text="getPositionInRow(col)"></div>
+                                    <div class="w-4" x-show="col < 20"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Blade Rows for Location Assignment -->
+                    {% for blade_num in "123456789"|make_list %}
+                    {% if blade_num|add:0 <= design.no_of_blades %}
+                    <div class="flex items-center mb-1">
+                        <div class="w-16 flex-shrink-0 font-medium text-gray-900 dark:text-white text-sm">B{{ blade_num }}</div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <!-- Location cell -->
+                                    <div class="w-10 h-10 border rounded flex items-center justify-center text-xs font-bold cursor-pointer transition-all relative"
+                                         :style="getLocationCellStyle({{ blade_num }}, col)"
+                                         :class="getLocationCellClass({{ blade_num }}, col)"
+                                         @click="assignLocation({{ blade_num }}, col)"
+                                         :title="getLocationTooltip({{ blade_num }}, col)">
+                                        <span x-text="getLocationCode({{ blade_num }}, col)"></span>
+                                        <!-- Config number indicator -->
+                                        <span class="absolute bottom-0 right-0.5 text-[8px] text-gray-400"
+                                              x-show="gridData[`{{ blade_num }}_${col}`]"
+                                              x-text="getCellNumber({{ blade_num }}, col)"></span>
+                                    </div>
+                                    <!-- Row separator between cells -->
+                                    <div class="w-4 flex items-center justify-center" x-show="col < 20">
+                                        <div class="w-1 h-10"
+                                             :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+
+                    <!-- Location Summary per Row -->
+                    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">Location Boundaries (per row):</div>
+                        <template x-for="(rowBoundaries, rowIndex) in getLocationBoundariesPerRow()" :key="rowIndex">
+                            <div class="mb-2">
+                                <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Row <span x-text="rowIndex + 1"></span>:</span>
+                                <div class="flex flex-wrap gap-2 mt-1">
+                                    <template x-for="(boundary, bIndex) in rowBoundaries" :key="bIndex">
+                                        <div class="flex items-center">
+                                            <div class="w-5 h-4 rounded mr-1 text-white text-[9px] flex items-center justify-center"
+                                                 :style="`background-color: ${getLocationColor(boundary.location)}`"
+                                                 x-text="boundary.location"></div>
+                                            <span class="text-[10px] text-gray-500">
+                                                <span x-text="boundary.start"></span>-<span x-text="boundary.end"></span>
+                                            </span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                    <p class="text-lg font-medium">Save pocket grid first</p>
+                    <p class="text-sm mt-2">Go to Configuration & Grid tab to assign pockets before setting locations.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: Engagements -->
+    <div x-show="activeTab === 'engagements'" class="space-y-3">
+        <!-- Engagement Info Header -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="layers" class="w-4 h-4"></i>
+                        Engagement Sequence
+                    </h2>
+                    <span class="text-xs font-bold px-2 py-0.5 rounded"
+                          :class="getEngagementProgress() === getTotalPockets() ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'">
+                        <span x-text="getEngagementProgress()">0</span> / <span x-text="getTotalPockets()">0</span>
+                    </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button @click="toggleAutoIncrement()"
+                            class="px-2 py-1 text-xs rounded transition-all"
+                            :class="autoIncrementMode ? 'bg-blue-600 text-white ring-2 ring-blue-300' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'">
+                        <i data-lucide="mouse-pointer-click" class="w-3 h-3 inline mr-1"></i>
+                        <span x-text="autoIncrementMode ? 'Click ON' : 'Click'"></span>
+                    </button>
+                    <button @click="clearEngagements()"
+                            class="px-2 py-1 text-xs bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800">
+                        <i data-lucide="trash-2" class="w-3 h-3 inline mr-1"></i> Clear
+                    </button>
+                    <button @click="saveEngagementData()"
+                            :disabled="isSavingEngagements"
+                            class="inline-flex items-center px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium">
+                        <i data-lucide="save" class="w-3 h-3 mr-1" x-show="!isSavingEngagements"></i>
+                        <i data-lucide="loader-2" class="w-3 h-3 mr-1 animate-spin" x-show="isSavingEngagements" x-cloak></i>
+                        <span x-text="isSavingEngagements ? 'Saving...' : 'Save'"></span>
+                    </button>
+                </div>
+            </div>
+            <div class="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                    <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
+                    <span x-show="!autoIncrementMode">Type numbers sequentially. <strong>Drag</strong> to swap. Delete removes highest #.</span>
+                    <span x-show="autoIncrementMode" class="text-blue-600 dark:text-blue-400 font-medium">Click empty cells to auto-assign. Drag to swap.</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Pocket Configs Legend -->
+        {% if pocket_configs %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="list" class="w-4 h-4"></i>
+                    Pocket Configurations
+                </h2>
+            </div>
+            <div class="px-4 py-3">
+                <div class="flex flex-wrap gap-2">
+                    {% for config in pocket_configs %}
+                    <div class="flex items-center gap-1.5 px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
+                        <div class="w-5 h-5 rounded flex items-center justify-center text-white text-[10px] font-bold" style="background-color: {{ config.display_color }}">{{ config.order }}</div>
+                        <span class="text-xs text-gray-700 dark:text-gray-300">{{ config.pocket_size.display_name }}</span>
+                        <span class="text-[10px] text-gray-400">({{ config.pocket_shape.code }})</span>
+                        <span class="text-[10px] font-mono px-1 rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">x{{ config.count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Engagement Grid -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="grid-3x3" class="w-4 h-4"></i>
+                    Engagement Order Grid
+                </h2>
+            </div>
+            <div class="p-4 overflow-x-auto" @keydown.window="handleEngagementKeydown($event)">
+                {% if design.no_of_blades and pocket_configs %}
+                <div class="inline-block min-w-full select-none">
+                    <!-- Header Row with Separators -->
+                    <div class="flex mb-0.5">
+                        <div class="w-10 flex-shrink-0"></div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <div class="w-9 text-center text-[10px] font-medium py-0.5"
+                                         :class="getColumnRowClass(col)">
+                                        <span x-text="col"></span>
+                                    </div>
+                                    <!-- Row separator marker -->
+                                    <div class="w-1 flex items-center justify-center" x-show="col < 20">
+                                        <div class="w-0.5 h-4 rounded"
+                                             :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Location Zone Header -->
+                    <div class="flex mb-0.5" x-show="Object.keys(locationData).length > 0">
+                        <div class="w-10 flex-shrink-0 text-[10px] text-gray-400 flex items-center">Zone</div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <div class="w-9 text-center text-[9px] font-bold py-0.5 rounded-t"
+                                         :style="getLocationZoneHeaderStyle(col)">
+                                        <span x-text="getLocationZoneLabel(col)"></span>
+                                    </div>
+                                    <div class="w-1" x-show="col < 20"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Blade Rows for Engagement Entry -->
+                    {% for blade_num in "123456789"|make_list %}
+                    {% if blade_num|add:0 <= design.no_of_blades %}
+                    <div class="flex items-center mb-0.5">
+                        <div class="w-10 flex-shrink-0 font-medium text-gray-900 dark:text-white text-xs">B{{ blade_num }}</div>
+                        <div class="flex">
+                            <template x-for="col in 20" :key="col">
+                                <div class="flex">
+                                    <!-- Engagement cell -->
+                                    <div class="w-9 h-9 border rounded flex flex-col items-center justify-center cursor-pointer transition-all relative"
+                                         :style="getEngagementCellStyle({{ blade_num }}, col)"
+                                         :class="[getEngagementCellClass({{ blade_num }}, col), draggingEngagement && draggingEngagement.key !== `{{ blade_num }}_${col}` ? 'ring-2 ring-dashed ring-blue-400' : '']"
+                                         :draggable="!!engagementData[`{{ blade_num }}_${col}`]"
+                                         @click="focusEngagementCell({{ blade_num }}, col)"
+                                         @dblclick="editEngagementCell({{ blade_num }}, col)"
+                                         @dragstart="startEngagementDrag({{ blade_num }}, col, $event)"
+                                         @dragover="handleEngagementDragOver($event)"
+                                         @drop="dropEngagementSwap({{ blade_num }}, col, $event)"
+                                         @dragend="endEngagementDrag()"
+                                         :title="getEngagementTooltip({{ blade_num }}, col)">
+                                        <!-- Config number (small, top) -->
+                                        <span class="text-[8px] text-gray-400 absolute top-0 left-0.5"
+                                              x-show="gridData[`{{ blade_num }}_${col}`]"
+                                              x-text="getCellNumber({{ blade_num }}, col)"></span>
+                                        <!-- Engagement order (large, center) -->
+                                        <span class="text-xs font-bold"
+                                              :class="{'animate-pulse-fast text-red-600': blinkingCell === `{{ blade_num }}_${col}`}"
+                                              x-text="engagementData[`{{ blade_num }}_${col}`] || ''"></span>
+                                    </div>
+                                    <!-- Row separator between cells -->
+                                    <div class="w-1 flex items-center justify-center" x-show="col < 20">
+                                        <div class="w-0.5 h-9"
+                                             :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                    <p class="text-lg font-medium">Save pocket grid first</p>
+                    <p class="text-sm mt-2">Go to Configuration & Grid tab to assign pockets before setting engagements.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Config Modal -->
+    <div x-show="showAddModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black bg-opacity-50" @click="showAddModal = false"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full p-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Pocket Configuration</h3>
+                <form method="post" action="{% url 'technology:pocket_config_create' design.pk %}">
+                    {% csrf_token %}
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pocket Size</label>
+                            <select name="pocket_size" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                                <option value="">Select size...</option>
+                                {% for size in pocket_sizes %}
+                                <option value="{{ size.id }}">{{ size.display_name }}</option>
+                                {% empty %}
+                                <option disabled>Run: python manage.py seed_pocket_sizes</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Length (L/M/S)</label>
+                                <select name="length_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                                    {% for value, label in length_choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Count</label>
+                                <input type="number" name="count" min="1" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pocket Shape</label>
+                            <select name="pocket_shape" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" required>
+                                <option value="">Select shape...</option>
+                                {% for shape in pocket_shapes %}
+                                <option value="{{ shape.id }}">{{ shape.name }}</option>
+                                {% empty %}
+                                <option disabled>Run: python manage.py seed_pocket_shapes</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" @click="showAddModal = false" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            Add Configuration
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
+
+<script>
+function pocketsLayout() {
+    const bladesCount = {{ design.no_of_blades|default:0 }};
+    const maxColumns = 20;
+    const designPk = {{ design.pk }};
+
+    // Config data for counting
+    const configData = {
+        {% for config in pocket_configs %}
+        {{ config.pk }}: { count: {{ config.count }}, order: {{ config.order }}, color: '{{ config.display_color }}', name: '{{ config.pocket_size.display_name }}' },
+        {% endfor %}
+    };
+
+    return {
+        activeTab: 'config',
+        showAddModal: false,
+        selectedConfigId: null,
+        selectedConfigColor: null,
+        gridData: {}, // Store grid assignments: {blade_col: configId}
+        rowSeparators: [], // Column numbers where row separators are placed
+        bladesCount: bladesCount,
+        maxColumns: maxColumns,
+        configData: configData,
+        designPk: designPk,
+
+        // Editable design info fields
+        rowsCount: {{ design.pocket_rows_count|default:1 }},
+        layoutNumber: '{{ design.pocket_layout_number|default:"" }}',
+
+        // Excel-like selection features
+        selectedCells: [], // Array of {blade, col} objects
+        focusedCell: null, // {blade, col} - currently focused cell for keyboard nav
+        isDragging: false,
+        selectionStart: null, // Starting cell for range selection
+        clipboard: [], // Copied cell patterns: [{relBlade, relCol, configId}]
+        isSaving: false, // Track save operation
+
+        // Location assignment features
+        locationData: {}, // {blade_col: 'C'/'N'/'T'/'S'/'G'}
+        selectedLocation: null, // Currently selected location zone
+        isSavingLocations: false,
+        locationZones: [
+            { code: 'C', name: 'Cone', color: '#ef4444' },      // Red
+            { code: 'N', name: 'Nose', color: '#f97316' },      // Orange
+            { code: 'T', name: 'Taper', color: '#eab308' },     // Yellow
+            { code: 'S', name: 'Shoulder', color: '#22c55e' },  // Green
+            { code: 'G', name: 'Gage', color: '#3b82f6' }       // Blue
+        ],
+        locationOrder: { 'C': 1, 'N': 2, 'T': 3, 'S': 4, 'G': 5 },
+
+        // Engagement features
+        engagementData: {}, // {blade_col: orderNumber}
+        focusedEngagementCell: null, // {blade, col}
+        isSavingEngagements: false,
+        blinkingCell: null, // Cell key that's blinking due to duplicate
+        engagementInputBuffer: '', // Buffer for multi-digit input
+        autoIncrementMode: false, // Toggle for click-to-increment mode
+        draggingEngagement: null, // {blade, col, value} - cell being dragged for swap
+
+        init() {
+            this.loadGridData();
+            this.setupKeyboardListeners();
+            // Auto-select first config if available
+            const configIds = Object.keys(this.configData);
+            if (configIds.length > 0) {
+                this.selectedConfigId = parseInt(configIds[0]);
+                this.selectedConfigColor = this.configData[this.selectedConfigId]?.color;
+            }
+        },
+
+        async saveDesignInfo() {
+            const formData = new FormData();
+            formData.append('pocket_rows_count', this.rowsCount);
+            formData.append('pocket_layout_number', this.layoutNumber);
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+            try {
+                const response = await fetch(`/technology/designs/${this.designPk}/pockets/update-info/`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    this.showNotification('Saved');
+                } else {
+                    this.showNotification('Save failed');
+                }
+            } catch (error) {
+                console.error('Error saving:', error);
+                this.showNotification('Save failed');
+            }
+        },
+
+        setupKeyboardListeners() {
+            document.addEventListener('keydown', (e) => {
+                // Only handle if we're in the config tab
+                if (this.activeTab !== 'config') return;
+
+                // Handle copy/paste even without focused cell (show helpful message)
+                if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'v')) {
+                    if (!this.focusedCell) {
+                        e.preventDefault();
+                        this.showNotification('Click a cell first to use copy/paste');
+                        return;
+                    }
+                }
+
+                // Other keys require a focused cell
+                if (!this.focusedCell) return;
+
+                const { blade, col } = this.focusedCell;
+
+                // Handle direct number entry (1, 2, 3, etc.)
+                if (e.key >= '0' && e.key <= '9' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    const orderNum = parseInt(e.key);
+                    if (orderNum === 0) {
+                        // 0 clears the cell(s)
+                        this.clearSelectedCellsData();
+                    } else {
+                        this.assignByOrderNumber(orderNum);
+                    }
+                    return;
+                }
+
+                switch(e.key) {
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        this.moveFocus(blade - 1, col, e.shiftKey);
+                        break;
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        this.moveFocus(blade + 1, col, e.shiftKey);
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        this.moveFocus(blade, col - 1, e.shiftKey);
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        this.moveFocus(blade, col + 1, e.shiftKey);
+                        break;
+                    case 'Enter':
+                    case ' ':
+                        e.preventDefault();
+                        this.toggleSelectedCells();
+                        break;
+                    case 'Escape':
+                        e.preventDefault();
+                        this.clearSelection();
+                        break;
+                    case 'a':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            this.selectAll();
+                        }
+                        break;
+                    case 'c':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            this.copySelection();
+                        }
+                        break;
+                    case 'v':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            this.pasteSelection();
+                        }
+                        break;
+                    case 'Delete':
+                    case 'Backspace':
+                        e.preventDefault();
+                        this.clearSelectedCellsData();
+                        break;
+                }
+            });
+        },
+
+        moveFocus(newBlade, newCol, extendSelection) {
+            // Clamp values to valid range
+            newBlade = Math.max(1, Math.min(this.bladesCount, newBlade));
+            newCol = Math.max(1, Math.min(this.maxColumns, newCol));
+
+            if (extendSelection) {
+                // Extend selection from selectionStart to new position
+                if (!this.selectionStart) {
+                    this.selectionStart = { ...this.focusedCell };
+                }
+                this.selectRange(this.selectionStart.blade, this.selectionStart.col, newBlade, newCol);
+            } else {
+                // Clear selection and select only the new cell
+                this.selectionStart = null;
+                this.selectedCells = [{ blade: newBlade, col: newCol }];
+            }
+
+            this.focusedCell = { blade: newBlade, col: newCol };
+        },
+
+        selectRange(b1, c1, b2, c2) {
+            const minBlade = Math.min(b1, b2);
+            const maxBlade = Math.max(b1, b2);
+            const minCol = Math.min(c1, c2);
+            const maxCol = Math.max(c1, c2);
+
+            this.selectedCells = [];
+            for (let blade = minBlade; blade <= maxBlade; blade++) {
+                for (let col = minCol; col <= maxCol; col++) {
+                    this.selectedCells.push({ blade, col });
+                }
+            }
+        },
+
+        selectAll() {
+            this.selectedCells = [];
+            for (let blade = 1; blade <= this.bladesCount; blade++) {
+                for (let col = 1; col <= this.maxColumns; col++) {
+                    this.selectedCells.push({ blade, col });
+                }
+            }
+        },
+
+        clearSelection() {
+            this.selectedCells = [];
+            this.focusedCell = null;
+            this.selectionStart = null;
+        },
+
+        toggleSelectedCells() {
+            if (!this.selectedConfigId) {
+                this.showNotification('Select a config from legend first');
+                return;
+            }
+
+            // Check if all selected cells already have this config - if so, clear them
+            const allHaveConfig = this.selectedCells.every(cell => {
+                const key = `${cell.blade}_${cell.col}`;
+                return this.gridData[key] === this.selectedConfigId;
+            });
+
+            if (allHaveConfig) {
+                // Remove config from all selected cells
+                for (const cell of this.selectedCells) {
+                    const key = `${cell.blade}_${cell.col}`;
+                    delete this.gridData[key];
+                }
+            } else {
+                // Add config to cells, respecting count limit
+                const maxCount = this.configData[this.selectedConfigId]?.count || 0;
+                let assigned = 0;
+                let skipped = 0;
+
+                for (const cell of this.selectedCells) {
+                    const key = `${cell.blade}_${cell.col}`;
+                    // Skip if already has this config
+                    if (this.gridData[key] === this.selectedConfigId) continue;
+
+                    const currentCount = this.getConfigAssignedCount(this.selectedConfigId);
+                    if (currentCount >= maxCount) {
+                        skipped++;
+                        continue;
+                    }
+
+                    // Remove old config if exists
+                    if (this.gridData[key]) {
+                        delete this.gridData[key];
+                    }
+                    this.gridData[key] = this.selectedConfigId;
+                    assigned++;
+                }
+
+                if (skipped > 0) {
+                    this.showNotification(`Assigned ${assigned}, skipped ${skipped} (limit reached)`);
+                }
+            }
+        },
+
+        clearSelectedCellsData() {
+            for (const cell of this.selectedCells) {
+                const key = `${cell.blade}_${cell.col}`;
+                delete this.gridData[key];
+            }
+        },
+
+        // Find config ID by order number (1, 2, 3, etc.)
+        getConfigIdByOrder(orderNum) {
+            for (const [configId, data] of Object.entries(this.configData)) {
+                if (data.order === orderNum) {
+                    return parseInt(configId);
+                }
+            }
+            return null;
+        },
+
+        // Assign config by typing its order number (1, 2, 3, etc.)
+        assignByOrderNumber(orderNum) {
+            const configId = this.getConfigIdByOrder(orderNum);
+
+            if (!configId) {
+                const validOrders = Object.values(this.configData).map(c => c.order).sort().join(', ');
+                this.showNotification(`Invalid! Use: ${validOrders || 'no configs'}`);
+                return;
+            }
+
+            const maxCount = this.configData[configId]?.count || 0;
+            let assigned = 0;
+            let skipped = 0;
+
+            for (const cell of this.selectedCells) {
+                const key = `${cell.blade}_${cell.col}`;
+
+                // Skip if already has this config
+                if (this.gridData[key] === configId) continue;
+
+                const currentCount = this.getConfigAssignedCount(configId);
+                if (currentCount >= maxCount) {
+                    skipped++;
+                    continue;
+                }
+
+                // Remove old config if exists
+                if (this.gridData[key]) {
+                    delete this.gridData[key];
+                }
+                this.gridData[key] = configId;
+                assigned++;
+            }
+
+            if (skipped > 0 && assigned === 0) {
+                this.showNotification(`Limit reached! (${maxCount}/${maxCount})`);
+            } else if (skipped > 0) {
+                this.showNotification(`Assigned ${assigned}, skipped ${skipped} (limit)`);
+            }
+
+            // Also select this config in legend for visual feedback
+            this.selectedConfigId = configId;
+            this.selectedConfigColor = this.configData[configId]?.color;
+        },
+
+        copySelection() {
+            if (this.selectedCells.length === 0) return;
+
+            // Find the top-left corner of selection for relative positioning
+            const minBlade = Math.min(...this.selectedCells.map(c => c.blade));
+            const minCol = Math.min(...this.selectedCells.map(c => c.col));
+
+            this.clipboard = [];
+            for (const cell of this.selectedCells) {
+                const key = `${cell.blade}_${cell.col}`;
+                if (this.gridData[key]) {
+                    this.clipboard.push({
+                        relBlade: cell.blade - minBlade,
+                        relCol: cell.col - minCol,
+                        configId: this.gridData[key]
+                    });
+                }
+            }
+
+            // Show feedback
+            this.showNotification(`Copied ${this.clipboard.length} cell(s)`);
+        },
+
+        pasteSelection() {
+            if (this.clipboard.length === 0 || !this.focusedCell) return;
+
+            const baseBlade = this.focusedCell.blade;
+            const baseCol = this.focusedCell.col;
+
+            let pasted = 0;
+            let skipped = 0;
+
+            for (const item of this.clipboard) {
+                const targetBlade = baseBlade + item.relBlade;
+                const targetCol = baseCol + item.relCol;
+
+                // Check bounds
+                if (targetBlade < 1 || targetBlade > this.bladesCount ||
+                    targetCol < 1 || targetCol > this.maxColumns) {
+                    continue;
+                }
+
+                const key = `${targetBlade}_${targetCol}`;
+
+                // Skip if already has this config
+                if (this.gridData[key] === item.configId) {
+                    pasted++;
+                    continue;
+                }
+
+                // Check count limit for this config
+                const currentCount = this.getConfigAssignedCount(item.configId);
+                const maxCount = this.configData[item.configId]?.count || 0;
+
+                if (currentCount >= maxCount) {
+                    skipped++;
+                    continue;
+                }
+
+                // Remove old config if exists
+                if (this.gridData[key]) {
+                    delete this.gridData[key];
+                }
+                this.gridData[key] = item.configId;
+                pasted++;
+            }
+
+            if (skipped > 0) {
+                this.showNotification(`Pasted ${pasted}, skipped ${skipped} (limit)`);
+            } else {
+                this.showNotification(`Pasted ${pasted} cell(s)`);
+            }
+        },
+
+        showNotification(message) {
+            // Simple notification - could be enhanced
+            const el = document.createElement('div');
+            el.className = 'fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+            el.textContent = message;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 2000);
+        },
+
+        async loadGridData() {
+            try {
+                const response = await fetch(`/technology/designs/${this.designPk}/pockets/grid/`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        this.gridData = data.gridData || {};
+                        if (data.rowSeparators && data.rowSeparators.length > 0) {
+                            this.rowSeparators = data.rowSeparators;
+                            this.rowsCount = this.rowSeparators.length + 1;
+                        }
+                        // Also load location data
+                        if (data.locationData) {
+                            this.locationData = data.locationData;
+                        }
+                        // Also load engagement data
+                        if (data.engagementData) {
+                            this.engagementData = data.engagementData;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading grid data:', error);
+            }
+        },
+
+        async saveGridData() {
+            this.isSaving = true;
+            try {
+                const response = await fetch(`/technology/designs/${this.designPk}/pockets/grid/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        gridData: this.gridData,
+                        rowSeparators: this.rowSeparators
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.showNotification(data.success ? 'Grid saved!' : data.message);
+                } else {
+                    this.showNotification('Save failed');
+                }
+            } catch (error) {
+                console.error('Error saving grid:', error);
+                this.showNotification('Save failed');
+            } finally {
+                this.isSaving = false;
+            }
+        },
+
+        addConfigRow() {
+            this.showAddModal = true;
+        },
+
+        toggleRowSeparator(afterCol) {
+            const index = this.rowSeparators.indexOf(afterCol);
+            if (index > -1) {
+                this.rowSeparators.splice(index, 1);
+            } else {
+                this.rowSeparators.push(afterCol);
+                this.rowSeparators.sort((a, b) => a - b);
+            }
+            // Auto-update rows count and save
+            this.rowsCount = this.rowSeparators.length + 1;
+            this.saveDesignInfo();
+        },
+
+        getColumnRow(col) {
+            // Determine which row a column belongs to based on separators
+            let row = 1;
+            for (const sep of this.rowSeparators) {
+                if (col > sep) row++;
+            }
+            return row;
+        },
+
+        // Get position within the current row (resets to 1 after each separator)
+        getPositionInRow(col) {
+            // Find the start of this column's row
+            let rowStart = 1;
+            for (const sep of this.rowSeparators) {
+                if (col > sep) {
+                    rowStart = sep + 1;
+                }
+            }
+            return col - rowStart + 1;
+        },
+
+        getColumnRowClass(col) {
+            const row = this.getColumnRow(col);
+            const colors = [
+                'text-blue-600 dark:text-blue-400',
+                'text-green-600 dark:text-green-400',
+                'text-purple-600 dark:text-purple-400',
+                'text-orange-600 dark:text-orange-400'
+            ];
+            return colors[(row - 1) % colors.length];
+        },
+
+        getRowColor(row) {
+            const colors = [
+                'text-blue-600 dark:text-blue-400',
+                'text-green-600 dark:text-green-400',
+                'text-purple-600 dark:text-purple-400',
+                'text-orange-600 dark:text-orange-400'
+            ];
+            return colors[(row - 1) % colors.length];
+        },
+
+        getRowRanges() {
+            const ranges = [];
+            let start = 1;
+            for (const sep of this.rowSeparators) {
+                ranges.push({ start, end: sep });
+                start = sep + 1;
+            }
+            ranges.push({ start, end: this.maxColumns });
+            return ranges;
+        },
+
+        getRowSequenceText(startCol, endCol) {
+            let seq = [];
+            for (let blade = 1; blade <= this.bladesCount; blade++) {
+                for (let col = startCol; col <= endCol; col++) {
+                    const key = `${blade}_${col}`;
+                    if (this.gridData[key]) {
+                        seq.push(`B${blade}P${col}`);
+                    }
+                }
+            }
+            return seq.length > 0 ? seq.join(', ') : 'No assignments yet';
+        },
+
+        getAllBladesSequence() {
+            let seq = [];
+            for (let blade = 1; blade <= this.bladesCount; blade++) {
+                for (let col = 1; col <= this.maxColumns; col++) {
+                    const key = `${blade}_${col}`;
+                    if (this.gridData[key]) {
+                        seq.push(`B${blade}P${col}`);
+                    }
+                }
+            }
+            return seq.length > 0 ? seq.join(', ') : 'Click cells to assign pockets';
+        },
+
+        // Get count of assigned cells per config
+        getConfigAssignedCount(configId) {
+            let count = 0;
+            for (const key in this.gridData) {
+                if (this.gridData[key] === configId) {
+                    count++;
+                }
+            }
+            return count;
+        },
+
+        // Check if config count exceeds expected
+        isConfigOverAssigned(configId) {
+            const expected = this.configData[configId]?.count || 0;
+            const assigned = this.getConfigAssignedCount(configId);
+            return assigned > expected;
+        },
+
+        // Get total assigned
+        getTotalAssigned() {
+            return Object.keys(this.gridData).length;
+        },
+
+        // Cell click handling with selection support
+        handleCellClick(blade, col, event) {
+            event.preventDefault();
+
+            if (event.shiftKey && this.focusedCell) {
+                // Shift+click: select range from focused to clicked
+                this.selectRange(this.focusedCell.blade, this.focusedCell.col, blade, col);
+                this.selectionStart = { ...this.focusedCell };
+            } else if (event.ctrlKey || event.metaKey) {
+                // Ctrl/Cmd+click: toggle cell in selection
+                const index = this.selectedCells.findIndex(c => c.blade === blade && c.col === col);
+                if (index > -1) {
+                    this.selectedCells.splice(index, 1);
+                } else {
+                    this.selectedCells.push({ blade, col });
+                }
+            } else {
+                // Normal click: select single cell and assign if config selected
+                this.selectedCells = [{ blade, col }];
+                this.selectionStart = null;
+
+                // If a config is selected, assign it
+                if (this.selectedConfigId) {
+                    this.toggleSingleCell(blade, col);
+                }
+            }
+
+            this.focusedCell = { blade, col };
+        },
+
+        // Handle drag start
+        handleCellMouseDown(blade, col, event) {
+            if (event.button !== 0) return; // Left click only
+
+            this.isDragging = true;
+            this.selectionStart = { blade, col };
+
+            if (!event.shiftKey && !event.ctrlKey && !event.metaKey) {
+                this.selectedCells = [{ blade, col }];
+            }
+
+            this.focusedCell = { blade, col };
+        },
+
+        // Handle drag over cell
+        handleCellMouseEnter(blade, col) {
+            if (!this.isDragging || !this.selectionStart) return;
+            this.selectRange(this.selectionStart.blade, this.selectionStart.col, blade, col);
+            this.focusedCell = { blade, col };
+        },
+
+        // Handle drag end
+        handleMouseUp() {
+            this.isDragging = false;
+        },
+
+        toggleSingleCell(blade, col) {
+            if (!this.selectedConfigId) {
+                this.showNotification('Select a config from legend first');
+                return;
+            }
+
+            const key = `${blade}_${col}`;
+
+            // If cell already has this config, remove it (toggle off)
+            if (this.gridData[key] === this.selectedConfigId) {
+                delete this.gridData[key];
+                return;
+            }
+
+            // Check if we've reached the limit for this config
+            const currentCount = this.getConfigAssignedCount(this.selectedConfigId);
+            const maxCount = this.configData[this.selectedConfigId]?.count || 0;
+
+            if (currentCount >= maxCount) {
+                this.showNotification(`Limit reached! (${currentCount}/${maxCount})`);
+                return;
+            }
+
+            // If cell has a different config, remove old and assign new
+            if (this.gridData[key]) {
+                delete this.gridData[key];
+            }
+
+            this.gridData[key] = this.selectedConfigId;
+        },
+
+        // Get config order number for display in cell
+        getCellNumber(blade, col) {
+            const key = `${blade}_${col}`;
+            const configId = this.gridData[key];
+            if (configId && this.configData[configId]) {
+                return this.configData[configId].order;
+            }
+            return '';
+        },
+
+        assignPocket(blade, col) {
+            // Legacy method - now handled by handleCellClick
+            this.handleCellClick(blade, col, { shiftKey: false, ctrlKey: false, metaKey: false, preventDefault: () => {} });
+        },
+
+        getCellStyle(blade, col) {
+            const key = `${blade}_${col}`;
+            const configId = this.gridData[key];
+            const location = this.locationData[key];
+            const configColors = {
+                {% for config in pocket_configs %}
+                {{ config.pk }}: '{{ config.display_color }}',
+                {% endfor %}
+            };
+            let styles = [];
+            if (configId && configColors[configId]) {
+                styles.push(`background-color: ${configColors[configId]}`);
+            }
+            // Add location outline
+            if (location) {
+                const locColor = this.getLocationColor(location);
+                styles.push(`outline: 5px solid ${locColor}`);
+                styles.push(`outline-offset: -5px`);
+            }
+            return styles.join('; ');
+        },
+
+        isCellSelected(blade, col) {
+            return this.selectedCells.some(c => c.blade === blade && c.col === col);
+        },
+
+        isCellFocused(blade, col) {
+            return this.focusedCell?.blade === blade && this.focusedCell?.col === col;
+        },
+
+        getCellClass(blade, col) {
+            const key = `${blade}_${col}`;
+            let classes = [];
+
+            // Selection and focus styling
+            if (this.isCellFocused(blade, col)) {
+                classes.push('ring-2 ring-blue-500 ring-offset-1');
+            }
+
+            if (this.isCellSelected(blade, col)) {
+                classes.push('bg-blue-100 dark:bg-blue-900/50');
+            }
+
+            if (this.gridData[key]) {
+                classes.push('border-solid border-2');
+            } else {
+                classes.push('hover:bg-gray-100 dark:hover:bg-gray-700');
+            }
+
+            // Add location border indicator on first tab
+            const location = this.locationData[key];
+            if (location) {
+                const color = this.getLocationColor(location);
+                classes.push(`outline outline-2 outline-offset-[-2px]`);
+            }
+
+            return classes.join(' ');
+        },
+
+        // =====================================================
+        // LOCATION FUNCTIONS
+        // =====================================================
+
+        getLocationColor(locationCode) {
+            const zone = this.locationZones.find(z => z.code === locationCode);
+            return zone ? zone.color : '#9ca3af';
+        },
+
+        getLocationCode(blade, col) {
+            const key = `${blade}_${col}`;
+            return this.locationData[key] || '';
+        },
+
+        getLocationCount(locationCode) {
+            return Object.values(this.locationData).filter(loc => loc === locationCode).length;
+        },
+
+        getLocationCellStyle(blade, col) {
+            const key = `${blade}_${col}`;
+            const location = this.locationData[key];
+            const hasConfig = this.gridData[key];
+
+            if (location) {
+                const color = this.getLocationColor(location);
+                return `background-color: ${color}; color: white;`;
+            } else if (hasConfig) {
+                return 'background-color: #f3f4f6; border-color: #d1d5db;';
+            }
+            return 'background-color: transparent; border-color: #e5e7eb;';
+        },
+
+        getLocationCellClass(blade, col) {
+            const key = `${blade}_${col}`;
+            const hasConfig = this.gridData[key];
+
+            if (!hasConfig) {
+                return 'opacity-30 cursor-not-allowed border-dashed';
+            }
+            return 'border-solid hover:opacity-80';
+        },
+
+        getLocationTooltip(blade, col) {
+            const key = `${blade}_${col}`;
+            const location = this.locationData[key];
+            const hasConfig = this.gridData[key];
+
+            if (!hasConfig) {
+                return 'No pocket assigned - assign in Configuration tab first';
+            }
+
+            if (location) {
+                const zone = this.locationZones.find(z => z.code === location);
+                return zone ? zone.name : location;
+            }
+            return 'Click to assign location';
+        },
+
+        assignLocation(blade, col) {
+            const key = `${blade}_${col}`;
+
+            // Only allow location assignment if cell has a config
+            if (!this.gridData[key]) {
+                this.showNotification('Assign a pocket config first');
+                return;
+            }
+
+            // If no location selected, toggle off existing
+            if (!this.selectedLocation) {
+                if (this.locationData[key]) {
+                    delete this.locationData[key];
+                }
+                return;
+            }
+
+            // Validate sequence within this blade
+            if (!this.validateLocationSequence(blade, col, this.selectedLocation)) {
+                this.showNotification('Invalid sequence! Must follow C→N→T→S→G order');
+                return;
+            }
+
+            // Toggle if same location, otherwise assign new
+            if (this.locationData[key] === this.selectedLocation) {
+                delete this.locationData[key];
+            } else {
+                this.locationData[key] = this.selectedLocation;
+            }
+        },
+
+        // Get which row a column belongs to (based on separators)
+        getRowForColumn(col) {
+            let row = 1;
+            for (const sep of this.rowSeparators.sort((a, b) => a - b)) {
+                if (col > sep) {
+                    row++;
+                }
+            }
+            return row;
+        },
+
+        // Get column range for a specific row
+        getRowColumnRange(rowNum) {
+            const sortedSeps = [...this.rowSeparators].sort((a, b) => a - b);
+            let start = 1;
+            let end = this.maxColumns;
+
+            for (let i = 0; i < sortedSeps.length; i++) {
+                if (i + 1 < rowNum) {
+                    start = sortedSeps[i] + 1;
+                }
+                if (i + 1 === rowNum - 1 && rowNum > 1) {
+                    start = sortedSeps[i] + 1;
+                }
+                if (i + 1 === rowNum) {
+                    end = sortedSeps[i];
+                    break;
+                }
+            }
+
+            if (rowNum === 1) {
+                start = 1;
+                end = sortedSeps.length > 0 ? sortedSeps[0] : this.maxColumns;
+            } else if (rowNum > sortedSeps.length) {
+                start = sortedSeps.length > 0 ? sortedSeps[sortedSeps.length - 1] + 1 : 1;
+                end = this.maxColumns;
+            }
+
+            return { start, end };
+        },
+
+        validateLocationSequence(blade, col, newLocation) {
+            // Validate per-row (within the same row determined by separators)
+            const targetRow = this.getRowForColumn(col);
+            const { start, end } = this.getRowColumnRange(targetRow);
+
+            // Get all locations for this blade within this row, sorted by column
+            const rowLocations = [];
+            for (let c = start; c <= end; c++) {
+                const key = `${blade}_${c}`;
+                if (this.gridData[key]) {  // Only cells with configs
+                    const loc = c === col ? newLocation : this.locationData[key];
+                    if (loc) {
+                        rowLocations.push({ col: c, location: loc });
+                    }
+                }
+            }
+
+            // Sort by column
+            rowLocations.sort((a, b) => a.col - b.col);
+
+            // Check sequence - each location must be >= previous within the row
+            let lastOrder = 0;
+            for (const item of rowLocations) {
+                const currentOrder = this.locationOrder[item.location] || 0;
+                if (currentOrder < lastOrder) {
+                    return false;
+                }
+                lastOrder = currentOrder;
+            }
+
+            return true;
+        },
+
+        getLocationBoundaries() {
+            // Calculate location boundaries (grouped zones)
+            const boundaries = [];
+            let currentLoc = null;
+            let startCol = null;
+            let count = 0;
+
+            // Use blade 1 as reference
+            for (let col = 1; col <= this.maxColumns; col++) {
+                const key = `1_${col}`;
+                const loc = this.locationData[key];
+
+                if (loc !== currentLoc) {
+                    if (currentLoc && count > 0) {
+                        boundaries.push({
+                            location: currentLoc,
+                            start: startCol,
+                            end: col - 1,
+                            count: count
+                        });
+                    }
+                    currentLoc = loc;
+                    startCol = col;
+                    count = loc ? 1 : 0;
+                } else if (loc) {
+                    count++;
+                }
+            }
+
+            // Add last group
+            if (currentLoc && count > 0) {
+                boundaries.push({
+                    location: currentLoc,
+                    start: startCol,
+                    end: this.maxColumns,
+                    count: count
+                });
+            }
+
+            return boundaries;
+        },
+
+        // Get location boundaries per row
+        getLocationBoundariesPerRow() {
+            const totalRows = this.rowSeparators.length + 1;
+            const allRowBoundaries = [];
+
+            for (let rowNum = 1; rowNum <= totalRows; rowNum++) {
+                const { start, end } = this.getRowColumnRange(rowNum);
+                const rowBoundaries = [];
+                let currentLoc = null;
+                let startCol = null;
+
+                // Use blade 1 as reference
+                for (let col = start; col <= end; col++) {
+                    const key = `1_${col}`;
+                    const loc = this.locationData[key];
+
+                    if (loc !== currentLoc) {
+                        if (currentLoc) {
+                            rowBoundaries.push({
+                                location: currentLoc,
+                                start: startCol,
+                                end: col - 1
+                            });
+                        }
+                        currentLoc = loc;
+                        startCol = col;
+                    }
+                }
+
+                // Add last group
+                if (currentLoc) {
+                    rowBoundaries.push({
+                        location: currentLoc,
+                        start: startCol,
+                        end: end
+                    });
+                }
+
+                allRowBoundaries.push(rowBoundaries);
+            }
+
+            return allRowBoundaries;
+        },
+
+        // Get zone label for column header (using blade 1 as reference)
+        getLocationZoneLabel(col) {
+            const key = `1_${col}`;
+            const location = this.locationData[key];
+            if (location) {
+                const zone = this.locationZones.find(z => z.code === location);
+                return zone ? zone.code : '';
+            }
+            return '';
+        },
+
+        // Get zone header style for column
+        getLocationZoneHeaderStyle(col) {
+            const key = `1_${col}`;
+            const location = this.locationData[key];
+            if (location) {
+                const color = this.getLocationColor(location);
+                return `background-color: ${color}; color: white;`;
+            }
+            return 'background-color: transparent; color: transparent;';
+        },
+
+        async saveLocationData() {
+            this.isSavingLocations = true;
+            try {
+                const response = await fetch(`/technology/designs/${this.designPk}/pockets/locations/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        locationData: this.locationData
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    this.showNotification('Locations saved!');
+                } else {
+                    this.showNotification(data.message || 'Save failed');
+                }
+            } catch (error) {
+                console.error('Error saving locations:', error);
+                this.showNotification('Save failed');
+            } finally {
+                this.isSavingLocations = false;
+            }
+        },
+
+        // =====================================================
+        // ENGAGEMENT FUNCTIONS
+        // =====================================================
+
+        getTotalPockets() {
+            return Object.keys(this.gridData).length;
+        },
+
+        getEngagementProgress() {
+            return Object.keys(this.engagementData).filter(k => this.engagementData[k]).length;
+        },
+
+        focusEngagementCell(blade, col) {
+            const key = `${blade}_${col}`;
+            if (!this.gridData[key]) {
+                this.showNotification('No pocket here');
+                return;
+            }
+            this.focusedEngagementCell = { blade, col };
+            this.engagementInputBuffer = '';
+
+            // Auto-increment mode: assign next number on click
+            if (this.autoIncrementMode && !this.engagementData[key]) {
+                const nextNum = this.getNextEngagementNumber();
+                const totalPockets = this.getTotalPockets();
+                if (nextNum > totalPockets) {
+                    this.showNotification(`All ${totalPockets} pockets already assigned!`);
+                    const lastKey = this.findEngagementByValue(totalPockets);
+                    if (lastKey) this.blinkCell(lastKey);
+                    return;
+                }
+                this.engagementData[key] = nextNum;
+            }
+        },
+
+        getNextEngagementNumber() {
+            return this.getMaxEngagementNumber() + 1;
+        },
+
+        toggleAutoIncrement() {
+            this.autoIncrementMode = !this.autoIncrementMode;
+            this.showNotification(this.autoIncrementMode ? 'Auto-increment ON: Click cells to assign' : 'Auto-increment OFF');
+        },
+
+        editEngagementCell(blade, col) {
+            const key = `${blade}_${col}`;
+            if (!this.gridData[key]) return;
+            const current = this.engagementData[key] || '';
+            const newValue = prompt(`Enter engagement order (1-${this.getTotalPockets()}):`, current);
+            if (newValue !== null) {
+                this.setEngagementValue(blade, col, newValue);
+            }
+        },
+
+        handleEngagementKeydown(event) {
+            if (this.activeTab !== 'engagements') return;
+            if (!this.focusedEngagementCell) return;
+            const { blade, col } = this.focusedEngagementCell;
+            const key = `${blade}_${col}`;
+
+            if (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                event.preventDefault();
+                this.navigateEngagementCell(event.key);
+                return;
+            }
+
+            if (/^[0-9]$/.test(event.key)) {
+                event.preventDefault();
+                this.engagementInputBuffer += event.key;
+                if (this.inputTimeout) clearTimeout(this.inputTimeout);
+                this.inputTimeout = setTimeout(() => {
+                    this.setEngagementValue(blade, col, this.engagementInputBuffer);
+                    this.engagementInputBuffer = '';
+                }, 500);
+                return;
+            }
+
+            if (event.key === 'Delete' || event.key === 'Backspace') {
+                event.preventDefault();
+                this.engagementInputBuffer = '';
+                this.deleteEngagementValue(key);
+                return;
+            }
+
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (this.engagementInputBuffer) {
+                    this.setEngagementValue(blade, col, this.engagementInputBuffer);
+                    this.engagementInputBuffer = '';
+                }
+                this.navigateEngagementCell('ArrowDown');
+                return;
+            }
+
+            if (event.key === 'Tab') {
+                event.preventDefault();
+                if (this.engagementInputBuffer) {
+                    this.setEngagementValue(blade, col, this.engagementInputBuffer);
+                    this.engagementInputBuffer = '';
+                }
+                this.navigateEngagementCell(event.shiftKey ? 'ArrowLeft' : 'ArrowRight');
+                return;
+            }
+        },
+
+        navigateEngagementCell(direction) {
+            if (!this.focusedEngagementCell) return;
+            let { blade, col } = this.focusedEngagementCell;
+            switch (direction) {
+                case 'ArrowUp': blade = Math.max(1, blade - 1); break;
+                case 'ArrowDown': blade = Math.min(this.bladesCount, blade + 1); break;
+                case 'ArrowLeft': col = Math.max(1, col - 1); break;
+                case 'ArrowRight': col = Math.min(this.maxColumns, col + 1); break;
+            }
+            const key = `${blade}_${col}`;
+            if (this.gridData[key]) {
+                this.focusedEngagementCell = { blade, col };
+            }
+        },
+
+        setEngagementValue(blade, col, value) {
+            const key = `${blade}_${col}`;
+            const numValue = parseInt(value);
+            const totalPockets = this.getTotalPockets();
+            const currentMax = this.getMaxEngagementNumber();
+            const nextAllowed = currentMax + 1;
+
+            // Validate: must be a valid number >= 1
+            if (isNaN(numValue) || numValue < 1) {
+                // Trying to clear - use delete validation
+                this.deleteEngagementValue(key);
+                return;
+            }
+
+            // Rule 1: Cannot exceed total pocket count
+            if (numValue > totalPockets) {
+                this.showNotification(`Max allowed is ${totalPockets} (total pockets)`);
+                const lastKey = this.findEngagementByValue(currentMax);
+                if (lastKey) this.blinkCell(lastKey);
+                return;
+            }
+
+            // Rule 2: Check for duplicates
+            const existingKey = this.findEngagementByValue(numValue);
+            if (existingKey && existingKey !== key) {
+                this.blinkCell(existingKey);
+                this.showNotification(`#${numValue} already assigned!`);
+                return;
+            }
+
+            // Rule 3: No gaps - must be sequential (next number must be currentMax + 1)
+            // Allow if: it's replacing same cell, or it's the next number in sequence
+            const isReplacingSameCell = existingKey === key;
+            if (!isReplacingSameCell && numValue !== nextAllowed) {
+                this.showNotification(`No gaps! Next number must be ${nextAllowed}`);
+                const lastKey = this.findEngagementByValue(currentMax);
+                if (lastKey) this.blinkCell(lastKey);
+                return;
+            }
+
+            this.engagementData[key] = numValue;
+        },
+
+        getMaxEngagementNumber() {
+            const values = Object.values(this.engagementData).filter(v => v);
+            if (values.length === 0) return 0;
+            return Math.max(...values);
+        },
+
+        deleteEngagementValue(key) {
+            const value = this.engagementData[key];
+            if (!value) return;
+
+            const maxNum = this.getMaxEngagementNumber();
+            // Only allow deleting the highest number to prevent gaps
+            if (value !== maxNum) {
+                this.showNotification(`Can only delete #${maxNum} (highest). Use drag to swap.`);
+                const maxKey = this.findEngagementByValue(maxNum);
+                if (maxKey) this.blinkCell(maxKey);
+                return;
+            }
+            delete this.engagementData[key];
+        },
+
+        // Drag and swap functionality
+        startEngagementDrag(blade, col, event) {
+            const key = `${blade}_${col}`;
+            const value = this.engagementData[key];
+            if (!value) return;
+
+            this.draggingEngagement = { blade, col, value, key };
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', value.toString());
+        },
+
+        handleEngagementDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+        },
+
+        dropEngagementSwap(blade, col, event) {
+            event.preventDefault();
+            if (!this.draggingEngagement) return;
+
+            const targetKey = `${blade}_${col}`;
+            const sourceKey = this.draggingEngagement.key;
+
+            // Can't drop on same cell
+            if (targetKey === sourceKey) {
+                this.draggingEngagement = null;
+                return;
+            }
+
+            // Target must have a pocket assigned
+            if (!this.gridData[targetKey]) {
+                this.showNotification('No pocket here');
+                this.draggingEngagement = null;
+                return;
+            }
+
+            // Swap values
+            const sourceValue = this.draggingEngagement.value;
+            const targetValue = this.engagementData[targetKey];
+
+            if (targetValue) {
+                // Both have values - swap them
+                this.engagementData[sourceKey] = targetValue;
+                this.engagementData[targetKey] = sourceValue;
+                this.showNotification(`Swapped #${sourceValue} and #${targetValue}`);
+            } else {
+                // Target is empty - just move
+                delete this.engagementData[sourceKey];
+                this.engagementData[targetKey] = sourceValue;
+                this.showNotification(`Moved #${sourceValue}`);
+            }
+
+            this.draggingEngagement = null;
+        },
+
+        endEngagementDrag() {
+            this.draggingEngagement = null;
+        },
+
+        findEngagementByValue(value) {
+            for (const [key, val] of Object.entries(this.engagementData)) {
+                if (val === value) return key;
+            }
+            return null;
+        },
+
+        blinkCell(key) {
+            this.blinkingCell = key;
+            setTimeout(() => { this.blinkingCell = null; }, 1500);
+        },
+
+        getEngagementCellStyle(blade, col) {
+            const key = `${blade}_${col}`;
+            const hasConfig = this.gridData[key];
+            const location = this.locationData[key];
+            if (!hasConfig) {
+                return 'background-color: transparent; border-color: #e5e7eb;';
+            }
+            if (location) {
+                const color = this.getLocationColor(location);
+                return `background-color: ${color}20; border-color: ${color};`;
+            }
+            return 'background-color: #f9fafb; border-color: #d1d5db;';
+        },
+
+        getEngagementCellClass(blade, col) {
+            const key = `${blade}_${col}`;
+            const hasConfig = this.gridData[key];
+            const isFocused = this.focusedEngagementCell?.blade === blade && this.focusedEngagementCell?.col === col;
+            let classes = [];
+            if (!hasConfig) {
+                classes.push('opacity-30 cursor-not-allowed border-dashed');
+            } else {
+                classes.push('border-solid hover:shadow-md');
+                if (isFocused) {
+                    classes.push('ring-2 ring-blue-500 ring-offset-1');
+                }
+            }
+            return classes.join(' ');
+        },
+
+        getEngagementTooltip(blade, col) {
+            const key = `${blade}_${col}`;
+            if (!this.gridData[key]) return 'No pocket assigned';
+            const engagement = this.engagementData[key];
+            return engagement ? `Engagement order: ${engagement}` : 'Click to set engagement order';
+        },
+
+        autoFillEngagements() {
+            let order = 1;
+            for (let blade = 1; blade <= this.bladesCount; blade++) {
+                for (let col = 1; col <= this.maxColumns; col++) {
+                    const key = `${blade}_${col}`;
+                    if (this.gridData[key]) {
+                        this.engagementData[key] = order++;
+                    }
+                }
+            }
+            this.showNotification(`Auto-filled ${order - 1} engagements`);
+        },
+
+        clearEngagements() {
+            if (confirm('Clear all engagement orders?')) {
+                this.engagementData = {};
+                this.showNotification('Engagements cleared');
+            }
+        },
+
+        async saveEngagementData() {
+            this.isSavingEngagements = true;
+            try {
+                const response = await fetch(`/technology/designs/${this.designPk}/pockets/engagements/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({ engagementData: this.engagementData })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    this.showNotification('Engagements saved!');
+                } else {
+                    this.showNotification(data.message || 'Save failed');
+                }
+            } catch (error) {
+                console.error('Error saving engagements:', error);
+                this.showNotification('Save failed');
+            } finally {
+                this.isSavingEngagements = false;
+            }
+        }
+    }
+}
+
+function reorderConfig(configId, direction) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{% url "technology:pocket_config_reorder" design.pk %}';
+
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = '{{ csrf_token }}';
+    form.appendChild(csrfInput);
+
+    const configInput = document.createElement('input');
+    configInput.type = 'hidden';
+    configInput.name = 'config_id';
+    configInput.value = configId;
+    form.appendChild(configInput);
+
+    const dirInput = document.createElement('input');
+    dirInput.type = 'hidden';
+    dirInput.name = 'direction';
+    dirInput.value = direction;
+    form.appendChild(dirInput);
+
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
 {% endblock %}
