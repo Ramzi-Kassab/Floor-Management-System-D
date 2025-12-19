@@ -20,12 +20,13 @@ class Command(BaseCommand):
 
         created_count = 0
 
-        # 1. Create ARDT internal party
+        # 1. Create ARDT internal party (can own stock)
         ardt_party, created = Party.objects.get_or_create(
             code="ARDT",
             defaults={
                 "name": "ARDT (Internal)",
                 "party_type": Party.PartyType.INTERNAL,
+                "can_own_stock": True,
                 "notes": "Main ARDT internal party for owned inventory",
                 "is_active": True,
             }
@@ -36,7 +37,7 @@ class Command(BaseCommand):
         else:
             self.stdout.write(f"  Exists: ARDT (Internal)")
 
-        # 2. Create Party records for existing Customers
+        # 2. Create Party records for existing Customers (can own stock)
         try:
             from apps.sales.models import Customer
             customers = Customer.objects.filter(is_active=True)
@@ -47,6 +48,7 @@ class Command(BaseCommand):
                         "code": f"C-{customer.code}",
                         "name": customer.name,
                         "party_type": Party.PartyType.CUSTOMER,
+                        "can_own_stock": True,  # Customers can own stock (client-owned materials)
                         "is_active": True,
                     }
                 )
@@ -56,7 +58,7 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"  Could not sync Customers: {e}"))
 
-        # 3. Create Party records for existing Vendors/Suppliers
+        # 3. Create Party records for existing Vendors/Suppliers (can own stock)
         try:
             from apps.supplychain.models import Supplier
             suppliers = Supplier.objects.filter(is_active=True)
@@ -67,6 +69,7 @@ class Command(BaseCommand):
                         "code": f"V-{supplier.code}",
                         "name": supplier.name,
                         "party_type": Party.PartyType.VENDOR,
+                        "can_own_stock": True,  # Vendors can own stock (consignment)
                         "is_active": True,
                     }
                 )
@@ -76,7 +79,7 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"  Could not sync Vendors: {e}"))
 
-        # 4. Create Party records for existing Rigs
+        # 4. Create Party records for existing Rigs (CANNOT own stock - locations only)
         try:
             from apps.sales.models import Rig
             rigs = Rig.objects.filter(is_active=True)
@@ -87,6 +90,7 @@ class Command(BaseCommand):
                         "code": f"R-{rig.code}",
                         "name": rig.name,
                         "party_type": Party.PartyType.RIG,
+                        "can_own_stock": False,  # Rigs are locations, not owners
                         "is_active": True,
                     }
                 )

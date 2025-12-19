@@ -91,6 +91,12 @@ class Party(models.Model):
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
 
+    # Ownership capability (for validation without CHECK constraints)
+    can_own_stock = models.BooleanField(
+        default=True,
+        help_text="Can this party own stock? RIG parties typically cannot own stock directly."
+    )
+
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -319,17 +325,28 @@ class AdjustmentReason(models.Model):
 
 class OwnershipType(models.Model):
     """
-    Master data for ownership types.
+    Defines the legal/financial relationship of stock ownership.
 
-    Defines the nature of ownership/consignment relationship:
-    - OWNED: ARDT-owned stock
-    - CLIENT: Client-owned stock (held by ARDT)
-    - CONSIGNMENT_IN: Vendor-owned stock at ARDT
-    - CONSIGNMENT_OUT: ARDT-owned stock at customer site
-    - THIRD_PARTY: Third-party stock being processed
-    - LOAN: Loaned equipment
+    This is SEPARATE from Party (which identifies WHO owns/is responsible).
+    OwnershipType defines WHAT the relationship is for financial reporting.
 
-    Used in combination with Party to fully describe ownership.
+    Core Types (simplified to 4):
+    - OWNED: We own the stock (appears on our balance sheet)
+    - CLIENT: Client owns stock, we hold it (custodial responsibility)
+    - CONSIGNMENT_IN: Vendor owns stock at our location (not our asset)
+    - CONSIGNMENT_OUT: We own stock at customer site (our asset, their custody)
+
+    Examples:
+    - ARDT owns stock at ARDT warehouse: owner_party=ARDT, ownership_type=OWNED
+    - Aramco owns stock at ARDT warehouse: owner_party=Aramco, ownership_type=CLIENT
+    - ARDT owns stock at Aramco rig site: owner_party=ARDT, ownership_type=CONSIGNMENT_OUT
+    - Baker Hughes stock at ARDT (consignment): owner_party=BakerHughes, ownership_type=CONSIGNMENT_IN
+
+    Financial Impact:
+    - OWNED: Asset on ARDT balance sheet
+    - CLIENT: Off-balance-sheet, tracked for liability
+    - CONSIGNMENT_IN: Off-balance-sheet, vendor's asset
+    - CONSIGNMENT_OUT: On ARDT balance sheet (we own it)
     """
 
     code = models.CharField(max_length=20, unique=True, help_text="Ownership code")
@@ -340,7 +357,11 @@ class OwnershipType(models.Model):
     is_ardt_owned = models.BooleanField(default=False, help_text="Is stock owned by ARDT?")
     requires_party = models.BooleanField(default=False, help_text="Requires party reference?")
 
-    # Accounting
+    # Accounting - clearer naming
+    affects_balance_sheet = models.BooleanField(
+        default=False,
+        help_text="True if this ownership type should appear on ARDT's balance sheet"
+    )
     include_in_valuation = models.BooleanField(default=True, help_text="Include in inventory valuation?")
 
     # Display
@@ -669,6 +690,11 @@ class InventoryItem(models.Model):
     Category-specific specs go to Attributes.
     Planning params go to ItemPlanning (per warehouse).
     Supplier info goes to ItemSupplier (many-to-many).
+
+    Phase 1 Enhancements:
+    - tracking_type: Consolidated tracking method (NONE, LOT, SERIAL, ASSET)
+    - base_uom: Required for ledger operations (always store in base UOM)
+    - costing_method: AVG (default), FIFO, or STD
     """
 
     class ItemType(models.TextChoices):
@@ -700,6 +726,19 @@ class InventoryItem(models.Model):
         B = "B", "B - Medium Value"
         C = "C", "C - Low Value"
 
+    # Phase 1: Consolidated tracking type
+    class TrackingType(models.TextChoices):
+        NONE = "NONE", "No Tracking (quantity only)"
+        LOT = "LOT", "Lot/Batch Tracking"
+        SERIAL = "SERIAL", "Serial Number Tracking"
+        ASSET = "ASSET", "Asset Tracking (serialized + lifecycle)"
+
+    # Phase 1: Costing method
+    class CostingMethod(models.TextChoices):
+        AVG = "AVG", "Weighted Average"
+        FIFO = "FIFO", "First In First Out"
+        STD = "STD", "Standard Cost"
+
     # Core identification
     code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=200)
@@ -726,6 +765,32 @@ class InventoryItem(models.Model):
         blank=True,
         related_name="items",
         help_text="Preferred: Use UOM FK instead of unit char field"
+    )
+
+    # Phase 1: Base UOM for ledger operations (always store quantities in base UOM)
+    base_uom = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="items_using_as_base",
+        help_text="Base UOM for ledger - all quantities stored in this unit"
+    )
+
+    # Phase 1: Consolidated tracking type
+    tracking_type = models.CharField(
+        max_length=10,
+        choices=TrackingType.choices,
+        default=TrackingType.NONE,
+        help_text="How this item is tracked: NONE, LOT, SERIAL, or ASSET"
+    )
+
+    # Phase 1: Costing method for inventory valuation
+    costing_method = models.CharField(
+        max_length=10,
+        choices=CostingMethod.choices,
+        default=CostingMethod.AVG,
+        help_text="Costing method: AVG (default), FIFO, or STD"
     )
 
     # Manufacturer / Brand (NEW)
@@ -1306,8 +1371,16 @@ class InventoryTransaction(models.Model):
 
 class MaterialLot(models.Model):
     """
-    Sprint 4: Lot/batch tracking for inventory items.
-    Enables full traceability of materials used in repairs.
+    Lot/batch tracking for inventory items with full ownership & quality tracking.
+
+    Phase 1 Enhancement: Added condition, quality status, owner, and ownership type
+    to enable complete lifecycle tracking of lot-controlled materials.
+
+    Key capabilities:
+    - Full traceability of materials used in repairs
+    - Ownership tracking (who owns the lot)
+    - Quality gate workflow (quarantine → released/blocked)
+    - Condition tracking (new, used, refurbished, etc.)
     """
     class Status(models.TextChoices):
         AVAILABLE = "AVAILABLE", "Available"
@@ -1354,7 +1427,31 @@ class MaterialLot(models.Model):
         related_name="lots"
     )
 
-    # Status
+    # Phase 1: Condition and Quality Status
+    condition = models.ForeignKey(
+        ConditionType, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="lots",
+        help_text="Physical condition of the lot (NEW, USED, REFURB, etc.)"
+    )
+    quality_status = models.ForeignKey(
+        QualityStatus, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="lots",
+        help_text="QC status - gates what can be done with the lot"
+    )
+
+    # Phase 1: Ownership Tracking
+    owner_party = models.ForeignKey(
+        Party, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="owned_lots",
+        help_text="Who owns this lot (Party - could be ARDT, customer, or vendor)"
+    )
+    ownership_type = models.ForeignKey(
+        OwnershipType, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="lots",
+        help_text="Ownership relationship type (OWNED, CLIENT, CONSIGNMENT, etc.)"
+    )
+
+    # Status (legacy - being replaced by quality_status workflow)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.AVAILABLE)
 
     # Cost
