@@ -33,6 +33,46 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 
+# =============================================================================
+# REFERENCE TABLES
+# =============================================================================
+
+
+class BitSize(models.Model):
+    """
+    Reference table for standard bit sizes.
+    Used by technology.Design and technology.BreakerSlot for size references.
+    """
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        help_text="e.g., '8.500'"
+    )
+    size_decimal = models.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        help_text="Size in decimal inches (e.g., 8.500)"
+    )
+    size_display = models.CharField(
+        max_length=20,
+        help_text="Display format (e.g., '8 1/2\"')"
+    )
+    size_inches = models.CharField(
+        max_length=20,
+        help_text="Fraction format (e.g., '8 1/2')"
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "bit_sizes"
+        ordering = ["size_decimal"]
+        verbose_name = "Bit Size"
+        verbose_name_plural = "Bit Sizes"
+
+    def __str__(self):
+        return self.size_display
+
+
 class DrillBit(models.Model):
     """
     🟢 P1: Drill bit master - tracks individual bits through their lifecycle.
