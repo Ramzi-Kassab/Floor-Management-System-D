@@ -75,7 +75,7 @@ class DesignForm(forms.ModelForm):
             # Category & Classification
             "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "body_material": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_body_material"}),
-            "size": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            # Note: 'size' widget is set in __init__ to avoid app loading order issues
             # Identity
             "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 800012345"}),
             "hdbs_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHS", "id": "id_hdbs_type"}),
@@ -146,6 +146,9 @@ class DesignForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Set size widget here to avoid app loading order issues with workorders.BitSize
+        if 'size' in self.fields:
+            self.fields['size'].widget = forms.Select(attrs={"class": TAILWIND_SELECT})
         # Make most fields optional
         required_fields = ["mat_no", "hdbs_type", "category", "status"]
         for field_name, field in self.fields.items():
