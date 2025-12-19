@@ -6,6 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
+        ("inventory", "0009_new_architecture_tables"),
         ("inventory", "0012_variantcase_alter_itemvariant_options_and_more"),
     ]
 

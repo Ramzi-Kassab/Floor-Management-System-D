@@ -8,7 +8,7 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Delete Variant Case</h1>
         <p class="text-gray-600 dark:text-gray-400">Confirm deletion of {{ object.code }}</p>
     </div>
-    <a href="{% url 'inventory:variant_case_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+    <a href="{% url 'inventory:variant_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
         <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
     </a>
 </div>
@@ -46,7 +46,7 @@
         <form method="post">
             {% csrf_token %}
             <div class="flex justify-center space-x-3">
-                <a href="{% url 'inventory:variant_case_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg">
+                <a href="{% url 'inventory:variant_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg">
                     Cancel
                 </a>
                 <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
