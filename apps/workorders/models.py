@@ -73,6 +73,72 @@ class BitSize(models.Model):
         return self.size_display
 
 
+class BitType(models.Model):
+    """
+    Reference table for bit product types/models (e.g., GT65RHS).
+    """
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Model code (e.g., 'GT65RHS')"
+    )
+    name = models.CharField(max_length=100)
+    series = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Series (GT, HD, MM, FX, etc.)"
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "bit_types"
+        ordering = ["series", "code"]
+        verbose_name = "Bit Type"
+        verbose_name_plural = "Bit Types"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class Location(models.Model):
+    """
+    Physical locations where bits can be stored/tracked.
+    """
+    class LocationType(models.TextChoices):
+        WAREHOUSE = "WAREHOUSE", "Warehouse"
+        REPAIR_SHOP = "REPAIR_SHOP", "Repair Shop"
+        RIG = "RIG", "Rig Site"
+        EVALUATION = "EVALUATION", "Evaluation Area"
+        QC = "QC", "QC Area"
+        SCRAP = "SCRAP", "Scrap Yard"
+        USA = "USA", "USA Facility"
+        TRANSIT = "TRANSIT", "In Transit"
+
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    location_type = models.CharField(max_length=20, choices=LocationType.choices)
+    address = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    rig = models.ForeignKey(
+        "sales.Rig",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bit_locations",
+        help_text="Link to rig if location_type is RIG"
+    )
+
+    class Meta:
+        db_table = "locations"
+        ordering = ["location_type", "name"]
+        verbose_name = "Location"
+        verbose_name_plural = "Locations"
+
+    def __str__(self):
+        return f"{self.name} ({self.get_location_type_display()})"
+
+
 class DrillBit(models.Model):
     """
     🟢 P1: Drill bit master - tracks individual bits through their lifecycle.
@@ -191,6 +257,68 @@ class DrillBit(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_bits")
 
+    # Phase 2: Bit Tracking fields (from migration 0005)
+    class LifecycleStatus(models.TextChoices):
+        NEW = "NEW", "New"
+        DEPLOYED = "DEPLOYED", "Deployed"
+        BACKLOADED = "BACKLOADED", "Backloaded"
+        EVALUATION = "EVALUATION", "In Evaluation"
+        HOLD = "HOLD", "On Hold"
+        IN_REPAIR = "IN_REPAIR", "In Repair"
+        REPAIRED = "REPAIRED", "Repaired"
+        USA_REPAIR = "USA_REPAIR", "USA Repair"
+        RERUN = "RERUN", "Rerun Ready"
+        SCRAP = "SCRAP", "Scrapped"
+        SAVED_BODY = "SAVED_BODY", "Saved Body"
+
+    lifecycle_status = models.CharField(
+        max_length=20,
+        choices=LifecycleStatus.choices,
+        default=LifecycleStatus.NEW,
+        help_text="Phase 2 lifecycle tracking status"
+    )
+    mat_number = models.CharField(max_length=20, blank=True, help_text="MAT number for inventory")
+    received_date = models.DateField(null=True, blank=True, help_text="Date bit was received")
+    scrap_date = models.DateField(null=True, blank=True, help_text="Date bit was scrapped")
+
+    # Deployment counters
+    deployment_count = models.PositiveIntegerField(default=0, help_text="Times deployed")
+    backload_count = models.PositiveIntegerField(default=0, help_text="Times returned to factory")
+    last_deployed_date = models.DateField(null=True, blank=True, help_text="Last deployment date")
+    last_backload_date = models.DateField(null=True, blank=True, help_text="Last backload date")
+
+    # Repair counters
+    repair_count = models.PositiveIntegerField(default=0, help_text="Repairs completed at ARDT")
+    repair_count_usa = models.PositiveIntegerField(default=0, help_text="Repairs completed in USA")
+    rerun_count_factory = models.PositiveIntegerField(default=0, help_text="Factory reruns (charged)")
+    rerun_count_field = models.PositiveIntegerField(default=0, help_text="Field reruns (no charge)")
+
+    # Phase 2: Reference links
+    bit_size_ref = models.ForeignKey(
+        BitSize,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="drill_bits",
+        help_text="Standard bit size reference"
+    )
+    product_type = models.ForeignKey(
+        "BitType",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="drill_bits",
+        help_text="Product model (e.g., GT65RHS)"
+    )
+    bit_location = models.ForeignKey(
+        Location,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="current_bits",
+        help_text="Current physical location (Phase 2)"
+    )
+
     class Meta:
         db_table = "drill_bits"
         ordering = ["-created_at"]
@@ -210,6 +338,109 @@ class DrillBit(models.Model):
         if not self.qr_code:
             self.qr_code = f"BIT-{self.serial_number}"
         super().save(*args, **kwargs)
+
+
+class BitEvent(models.Model):
+    """
+    Track all lifecycle events for a drill bit (Phase 2).
+    """
+    class EventType(models.TextChoices):
+        RECEIVED = "RECEIVED", "Received (New)"
+        DEPLOYED = "DEPLOYED", "Deployed to Rig"
+        BACKLOADED = "BACKLOADED", "Backloaded to Factory"
+        EVALUATION_START = "EVALUATION_START", "Evaluation Started"
+        EVALUATION_COMPLETE = "EVALUATION_COMPLETE", "Evaluation Complete"
+        REPAIR_DECISION = "REPAIR_DECISION", "Decision: Repair"
+        RERUN_DECISION_FACTORY = "RERUN_DECISION_FACTORY", "Decision: Rerun (Factory)"
+        RERUN_DECISION_FIELD = "RERUN_DECISION_FIELD", "Decision: Rerun (Field)"
+        USA_REPAIR_DECISION = "USA_REPAIR_DECISION", "Decision: USA Repair"
+        SCRAP_DECISION = "SCRAP_DECISION", "Decision: Scrap"
+        HOLD_DECISION = "HOLD_DECISION", "Decision: Hold"
+        REPAIR_START = "REPAIR_START", "Repair Started"
+        REPAIR_COMPLETE = "REPAIR_COMPLETE", "Repair Complete"
+        USA_REPAIR_SENT = "USA_REPAIR_SENT", "Sent to USA"
+        USA_REPAIR_RECEIVED = "USA_REPAIR_RECEIVED", "Received from USA"
+        QC_PASS = "QC_PASS", "QC Passed"
+        QC_FAIL = "QC_FAIL", "QC Failed"
+        TRANSFER = "TRANSFER", "Stock Transfer"
+        RELOCATION = "RELOCATION", "Relocation (Rig to Rig)"
+        SCRAPPED = "SCRAPPED", "Scrapped"
+        BODY_SAVED = "BODY_SAVED", "Body Saved"
+
+    bit = models.ForeignKey(
+        DrillBit,
+        on_delete=models.CASCADE,
+        related_name="bit_events"
+    )
+    event_type = models.CharField(max_length=30, choices=EventType.choices)
+    event_date = models.DateTimeField()
+    notes = models.TextField(blank=True)
+
+    # Location tracking
+    location = models.ForeignKey(
+        Location,
+        on_delete=models.PROTECT,
+        related_name="bit_events"
+    )
+    from_location = models.ForeignKey(
+        Location,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bit_events_from"
+    )
+    to_location = models.ForeignKey(
+        Location,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bit_events_to"
+    )
+
+    # Related entities
+    work_order = models.ForeignKey(
+        "WorkOrder",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bit_events"
+    )
+    rig = models.ForeignKey(
+        "sales.Rig",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bit_events"
+    )
+    well = models.ForeignKey(
+        "sales.Well",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bit_events"
+    )
+
+    # Audit
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="performed_bit_events"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "bit_events"
+        ordering = ["-event_date"]
+        verbose_name = "Bit Event"
+        verbose_name_plural = "Bit Events"
+        indexes = [
+            models.Index(fields=["bit", "event_date"], name="bit_events_bit_id_201c1f_idx"),
+            models.Index(fields=["event_type"], name="bit_events_event_t_1b7af6_idx"),
+            models.Index(fields=["performed_by", "event_date"], name="bit_events_perform_6e3064_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.bit.serial_number} - {self.get_event_type_display()} ({self.event_date})"
 
 
 class WorkOrder(models.Model):
