@@ -4,9 +4,9 @@
 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
     <div><h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ session.session_number }}</h1></div>
     <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
-        <a href="{% url 'inventory:cycle_count_session_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm"><i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back</a>
+        <a href="{% url 'inventory:cyclecount_session_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm"><i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back</a>
         {% if session.status != 'FINALIZED' %}
-        <form method="post" action="{% url 'inventory:cycle_count_session_finalize' session.pk %}" class="inline">{% csrf_token %}<button type="submit" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm" onclick="return confirm('Finalize this session? Adjustments will be created.')"><i data-lucide="check-circle" class="w-4 h-4 mr-1"></i>Finalize</button></form>
+        <form method="post" action="{% url 'inventory:cyclecount_session_finalize' session.pk %}" class="inline">{% csrf_token %}<button type="submit" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm" onclick="return confirm('Finalize this session? Adjustments will be created.')"><i data-lucide="check-circle" class="w-4 h-4 mr-1"></i>Finalize</button></form>
         {% endif %}
     </div>
 </div>
