@@ -1,15 +1,23 @@
 #!/bin/bash
 # ARDT FMS Backup Script
-# Creates a timestamped backup of database and fixtures
 
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_DIR="backups"
 
-echo "🔄 Starting ARDT FMS Backup..."
+echo "🔄 ARDT FMS Backup"
+echo "=================="
 echo ""
-read -p "📝 Enter description (optional, press Enter to skip): " DESCRIPTION
+echo "What to backup?"
+echo "  1) Database only (test data) - recommended"
+echo "  2) Full project (code + database)"
+echo ""
+read -e -p "Choice [1]: " BACKUP_TYPE
+BACKUP_TYPE=${BACKUP_TYPE:-1}
 
-# Clean description: replace spaces with underscores, remove special chars
+echo ""
+read -e -p "📝 Description (optional): " DESCRIPTION
+
+# Clean description
 if [ -n "$DESCRIPTION" ]; then
     CLEAN_DESC=$(echo "$DESCRIPTION" | tr ' ' '_' | tr -cd '[:alnum:]_-')
     BACKUP_NAME="ardt_backup_${TIMESTAMP}_${CLEAN_DESC}"
@@ -17,35 +25,38 @@ else
     BACKUP_NAME="ardt_backup_${TIMESTAMP}"
 fi
 
-echo ""
-echo "📁 Backup name: ${BACKUP_NAME}"
-
-# Create backup directory if not exists
 mkdir -p ${BACKUP_DIR}
 
-# Dump database data to JSON
-echo "📦 Exporting database..."
-python manage.py dumpdata --indent 2 \
-    --exclude auth.permission \
-    --exclude contenttypes \
-    --exclude admin.logentry \
-    --exclude sessions.session \
-    > ${BACKUP_DIR}/${BACKUP_NAME}_data.json
+if [ "$BACKUP_TYPE" = "2" ]; then
+    # Full project backup
+    echo ""
+    echo "📦 Creating full project backup..."
+    zip -rq ${BACKUP_DIR}/${BACKUP_NAME}.zip \
+        apps templates static staticfiles \
+        ardt_fms manage.py requirements.txt \
+        db.sqlite3 \
+        -x "*.pyc" -x "*__pycache__*" -x "*.git*" 2>/dev/null
+else
+    # Database only backup
+    echo ""
+    echo "📦 Exporting database..."
+    python manage.py dumpdata --indent 2 \
+        --exclude auth.permission \
+        --exclude contenttypes \
+        --exclude admin.logentry \
+        --exclude sessions.session \
+        > ${BACKUP_DIR}/${BACKUP_NAME}_data.json
 
-# Copy database file
-if [ -f "db.sqlite3" ]; then
-    echo "💾 Copying database file..."
-    cp db.sqlite3 ${BACKUP_DIR}/${BACKUP_NAME}_db.sqlite3
+    if [ -f "db.sqlite3" ]; then
+        cp db.sqlite3 ${BACKUP_DIR}/${BACKUP_NAME}_db.sqlite3
+    fi
+
+    cd ${BACKUP_DIR}
+    zip -q ${BACKUP_NAME}.zip ${BACKUP_NAME}_data.json ${BACKUP_NAME}_db.sqlite3 2>/dev/null
+    rm -f ${BACKUP_NAME}_data.json ${BACKUP_NAME}_db.sqlite3 2>/dev/null
+    cd ..
 fi
 
-# Create ZIP archive
-echo "🗜️ Creating ZIP archive..."
-cd ${BACKUP_DIR}
-zip -q ${BACKUP_NAME}.zip ${BACKUP_NAME}_data.json ${BACKUP_NAME}_db.sqlite3 2>/dev/null
-rm -f ${BACKUP_NAME}_data.json ${BACKUP_NAME}_db.sqlite3 2>/dev/null
-cd ..
-
 echo ""
-echo "✅ Backup complete: ${BACKUP_DIR}/${BACKUP_NAME}.zip"
-echo ""
+echo "✅ Backup complete!"
 ls -lh ${BACKUP_DIR}/${BACKUP_NAME}.zip
