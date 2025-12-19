@@ -86,4 +86,80 @@ urlpatterns = [
     # API Endpoints
     path("api/category/<int:category_pk>/attributes/", views.CategoryAttributesAPIView.as_view(), name="api_category_attributes"),
     path("api/category/<int:category_pk>/generate-code/", views.CategoryGenerateCodeAPIView.as_view(), name="api_category_generate_code"),
+
+    # =========================================================================
+    # PHASE 2: LEDGER (Read-Only)
+    # =========================================================================
+    path("ledger/", views.StockLedgerListView.as_view(), name="stock_ledger_list"),
+    path("balances/", views.StockBalanceListView.as_view(), name="stock_balance_list"),
+
+    # =========================================================================
+    # PHASE 3: DOCUMENTS (GRN, Issues, Transfers, Adjustments)
+    # =========================================================================
+
+    # Goods Receipt Notes
+    path("grn/", views.GRNListView.as_view(), name="grn_list"),
+    path("grn/create/", views.GRNCreateView.as_view(), name="grn_create"),
+    path("grn/<int:pk>/", views.GRNDetailView.as_view(), name="grn_detail"),
+    path("grn/<int:pk>/edit/", views.GRNUpdateView.as_view(), name="grn_update"),
+    path("grn/<int:pk>/post/", views.GRNPostView.as_view(), name="grn_post"),
+
+    # Stock Issues
+    path("issues/", views.StockIssueListView.as_view(), name="issue_list"),
+    path("issues/create/", views.StockIssueCreateView.as_view(), name="issue_create"),
+    path("issues/<int:pk>/", views.StockIssueDetailView.as_view(), name="issue_detail"),
+    path("issues/<int:pk>/post/", views.StockIssuePostView.as_view(), name="issue_post"),
+
+    # Stock Transfers
+    path("transfers/", views.StockTransferListView.as_view(), name="transfer_list"),
+    path("transfers/create/", views.StockTransferCreateView.as_view(), name="transfer_create"),
+    path("transfers/<int:pk>/", views.StockTransferDetailView.as_view(), name="transfer_detail"),
+    path("transfers/<int:pk>/post/", views.StockTransferPostView.as_view(), name="transfer_post"),
+
+    # Stock Adjustments (Document-based)
+    path("adjustments/", views.StockAdjustmentDocListView.as_view(), name="adjustment_list"),
+    path("adjustments/create/", views.StockAdjustmentDocCreateView.as_view(), name="adjustment_create"),
+    path("adjustments/<int:pk>/", views.StockAdjustmentDocDetailView.as_view(), name="adjustment_detail"),
+    path("adjustments/<int:pk>/post/", views.StockAdjustmentDocPostView.as_view(), name="adjustment_post"),
+
+    # =========================================================================
+    # PHASE 4: ASSETS
+    # =========================================================================
+    path("assets/", views.AssetListView.as_view(), name="asset_list"),
+    path("assets/create/", views.AssetCreateView.as_view(), name="asset_create"),
+    path("assets/<int:pk>/", views.AssetDetailView.as_view(), name="asset_detail"),
+    path("assets/<int:pk>/edit/", views.AssetUpdateView.as_view(), name="asset_update"),
+    path("assets/<int:asset_pk>/move/", views.AssetMovementCreateView.as_view(), name="asset_move"),
+
+    # =========================================================================
+    # PHASE 5: QC GATES
+    # =========================================================================
+    path("qc/changes/", views.QualityStatusChangeListView.as_view(), name="qc_change_list"),
+    path("qc/changes/create/", views.QualityStatusChangeCreateView.as_view(), name="qc_change_create"),
+
+    # =========================================================================
+    # PHASE 6: RESERVATIONS
+    # =========================================================================
+    path("reservations/", views.StockReservationListView.as_view(), name="reservation_list"),
+    path("reservations/create/", views.StockReservationCreateView.as_view(), name="reservation_create"),
+    path("reservations/<int:pk>/cancel/", views.StockReservationCancelView.as_view(), name="reservation_cancel"),
+
+    # =========================================================================
+    # PHASE 7: BOM
+    # =========================================================================
+    path("bom/", views.BOMListView.as_view(), name="bom_list"),
+    path("bom/create/", views.BOMCreateView.as_view(), name="bom_create"),
+    path("bom/<int:pk>/", views.BOMDetailView.as_view(), name="bom_detail"),
+    path("bom/<int:pk>/edit/", views.BOMUpdateView.as_view(), name="bom_update"),
+    path("bom/<int:pk>/recalculate/", views.BOMRecalculateView.as_view(), name="bom_recalculate"),
+
+    # =========================================================================
+    # PHASE 8: CYCLE COUNT
+    # =========================================================================
+    path("cyclecount/plans/", views.CycleCountPlanListView.as_view(), name="cyclecount_plan_list"),
+    path("cyclecount/plans/create/", views.CycleCountPlanCreateView.as_view(), name="cyclecount_plan_create"),
+    path("cyclecount/sessions/", views.CycleCountSessionListView.as_view(), name="cyclecount_session_list"),
+    path("cyclecount/sessions/create/", views.CycleCountSessionCreateView.as_view(), name="cyclecount_session_create"),
+    path("cyclecount/sessions/<int:pk>/", views.CycleCountSessionDetailView.as_view(), name="cyclecount_session_detail"),
+    path("cyclecount/sessions/<int:pk>/finalize/", views.CycleCountSessionFinalizeView.as_view(), name="cyclecount_session_finalize"),
 ]

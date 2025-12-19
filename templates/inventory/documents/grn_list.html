@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Manage goods receipt notes for inbound materials</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'inventory:grn_create' %}" class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="plus" class="w-4 h-4 mr-1"></i>New GRN
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1">
+            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search by GRN# or PO reference..."
+                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+        </div>
+        <div class="w-full md:w-40">
+            <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Status</option>
+                {% for code, label in status_choices %}
+                <option value="{{ code }}" {% if request.GET.status == code %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-full md:w-40">
+            <select name="warehouse" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Warehouses</option>
+                {% for wh in warehouses %}
+                <option value="{{ wh.pk }}" {% if request.GET.warehouse == wh.pk|stringformat:"s" %}selected{% endif %}>{{ wh.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Filter</button>
+    </form>
+</div>
+
+<!-- GRN Table -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">GRN #</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Type</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Warehouse</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Supplier</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Reference</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for grn in grns %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-4 py-3">
+                        <a href="{% url 'inventory:grn_detail' grn.pk %}" class="text-blue-600 hover:text-blue-800 font-medium">{{ grn.grn_number }}</a>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ grn.receipt_date|date:"Y-m-d" }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ grn.get_receipt_type_display }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ grn.warehouse.name }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ grn.supplier.name|default:"-" }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ grn.source_reference|default:"-" }}</td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full
+                            {% if grn.status == 'DRAFT' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200
+                            {% elif grn.status == 'POSTED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                            {% elif grn.status == 'CANCELLED' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                            {% endif %}">
+                            {{ grn.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="{% url 'inventory:grn_detail' grn.pk %}" class="text-blue-600 hover:text-blue-800">View</a>
+                        {% if grn.status == 'DRAFT' %}
+                        <a href="{% url 'inventory:grn_update' grn.pk %}" class="ml-2 text-gray-600 hover:text-gray-800">Edit</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                        No goods receipt notes found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% include "components/pagination.html" %}
+{% endblock %}

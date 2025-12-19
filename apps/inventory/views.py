@@ -1869,3 +1869,1227 @@ class ItemCutterSpecUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+# =============================================================================
+# PHASE 2: LEDGER VIEWS (Read-Only)
+# =============================================================================
+
+from .models import (
+    StockLedger,
+    StockBalance,
+    GoodsReceiptNote,
+    GRNLine,
+    StockIssue,
+    StockIssueLine,
+    StockTransfer,
+    StockTransferLine,
+    StockAdjustment as StockAdjustmentDoc,
+    StockAdjustmentLine,
+    Asset,
+    AssetMovement,
+    QualityStatusChange,
+    StockReservation,
+    BillOfMaterial,
+    BOMLine,
+    CycleCountPlan,
+    CycleCountSession,
+    CycleCountLine,
+    Party,
+    ConditionType,
+    QualityStatus,
+    AdjustmentReason,
+    OwnershipType,
+)
+
+from .forms import (
+    GoodsReceiptNoteForm,
+    GRNLineFormSet,
+    StockIssueForm,
+    StockIssueLineFormSet,
+    StockTransferForm,
+    StockTransferLineFormSet,
+    StockAdjustmentDocForm,
+    StockAdjustmentLineFormSet,
+    AssetForm,
+    AssetMovementForm,
+    QualityStatusChangeForm,
+    StockReservationForm,
+    BillOfMaterialForm,
+    BOMLineFormSet,
+    CycleCountPlanForm,
+    CycleCountSessionForm,
+    CycleCountLineFormSet,
+)
+
+
+class StockLedgerListView(LoginRequiredMixin, ListView):
+    """View stock ledger entries (immutable audit trail)."""
+
+    model = StockLedger
+    template_name = "inventory/ledger/stock_ledger_list.html"
+    context_object_name = "entries"
+    paginate_by = 50
+
+    def get_queryset(self):
+        qs = StockLedger.objects.select_related(
+            "item", "location", "lot", "owner_party", "quality_status"
+        ).order_by("-transaction_date", "-entry_number")
+
+        # Filters
+        item = self.request.GET.get("item")
+        if item:
+            qs = qs.filter(item_id=item)
+
+        location = self.request.GET.get("location")
+        if location:
+            qs = qs.filter(location_id=location)
+
+        trans_type = self.request.GET.get("type")
+        if trans_type:
+            qs = qs.filter(transaction_type=trans_type)
+
+        date_from = self.request.GET.get("date_from")
+        if date_from:
+            qs = qs.filter(transaction_date__gte=date_from)
+
+        date_to = self.request.GET.get("date_to")
+        if date_to:
+            qs = qs.filter(transaction_date__lte=date_to)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Ledger"
+        context["items"] = InventoryItem.objects.filter(is_active=True)
+        context["locations"] = InventoryLocation.objects.filter(is_active=True)
+        context["transaction_types"] = StockLedger.TransactionType.choices
+        return context
+
+
+class StockBalanceListView(LoginRequiredMixin, ListView):
+    """View current stock balances (materialized view)."""
+
+    model = StockBalance
+    template_name = "inventory/ledger/stock_balance_list.html"
+    context_object_name = "balances"
+    paginate_by = 50
+
+    def get_queryset(self):
+        qs = StockBalance.objects.select_related(
+            "item", "location", "lot", "owner_party", "quality_status", "condition", "ownership_type"
+        ).filter(qty_on_hand__gt=0).order_by("item__code", "location__code")
+
+        # Filters
+        item = self.request.GET.get("item")
+        if item:
+            qs = qs.filter(item_id=item)
+
+        location = self.request.GET.get("location")
+        if location:
+            qs = qs.filter(location_id=location)
+
+        owner = self.request.GET.get("owner")
+        if owner:
+            qs = qs.filter(owner_party_id=owner)
+
+        quality = self.request.GET.get("quality")
+        if quality:
+            qs = qs.filter(quality_status_id=quality)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Balances"
+        context["items"] = InventoryItem.objects.filter(is_active=True)
+        context["locations"] = InventoryLocation.objects.filter(is_active=True)
+        context["parties"] = Party.objects.filter(is_active=True, can_own_stock=True)
+        context["quality_statuses"] = QualityStatus.objects.filter(is_active=True)
+        return context
+
+
+# =============================================================================
+# PHASE 3: DOCUMENT VIEWS (GRN, Issues, Transfers, Adjustments)
+# =============================================================================
+
+
+class GRNListView(LoginRequiredMixin, ListView):
+    """List all Goods Receipt Notes."""
+
+    model = GoodsReceiptNote
+    template_name = "inventory/documents/grn_list.html"
+    context_object_name = "grns"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = GoodsReceiptNote.objects.select_related(
+            "warehouse", "supplier", "owner_party", "created_by"
+        ).order_by("-receipt_date", "-grn_number")
+
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+
+        warehouse = self.request.GET.get("warehouse")
+        if warehouse:
+            qs = qs.filter(warehouse_id=warehouse)
+
+        search = self.request.GET.get("q")
+        if search:
+            qs = qs.filter(
+                Q(grn_number__icontains=search) | Q(source_reference__icontains=search)
+            )
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Goods Receipt Notes"
+        context["status_choices"] = GoodsReceiptNote.Status.choices
+        from apps.sales.models import Warehouse
+        context["warehouses"] = Warehouse.objects.filter(is_active=True)
+        return context
+
+
+class GRNCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Goods Receipt Note with lines."""
+
+    model = GoodsReceiptNote
+    form_class = GoodsReceiptNoteForm
+    template_name = "inventory/documents/grn_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Goods Receipt"
+        context["form_title"] = "Create Goods Receipt Note"
+        if self.request.POST:
+            context["lines_formset"] = GRNLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = GRNLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            messages.success(self.request, f"GRN {self.object.grn_number} created successfully.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:grn_detail", kwargs={"pk": self.object.pk})
+
+
+class GRNDetailView(LoginRequiredMixin, DetailView):
+    """View GRN details with lines."""
+
+    model = GoodsReceiptNote
+    template_name = "inventory/documents/grn_detail.html"
+    context_object_name = "grn"
+
+    def get_queryset(self):
+        return GoodsReceiptNote.objects.select_related(
+            "warehouse", "supplier", "owner_party", "ownership_type", "created_by"
+        ).prefetch_related("lines__item", "lines__location", "lines__lot")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"GRN {self.object.grn_number}"
+        context["lines"] = self.object.lines.all()
+        return context
+
+
+class GRNUpdateView(LoginRequiredMixin, UpdateView):
+    """Update GRN (only if DRAFT)."""
+
+    model = GoodsReceiptNote
+    form_class = GoodsReceiptNoteForm
+    template_name = "inventory/documents/grn_form.html"
+
+    def get_queryset(self):
+        return GoodsReceiptNote.objects.filter(status="DRAFT")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.grn_number}"
+        context["form_title"] = "Edit Goods Receipt Note"
+        if self.request.POST:
+            context["lines_formset"] = GRNLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = GRNLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.save()
+            messages.success(self.request, f"GRN {self.object.grn_number} updated successfully.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:grn_detail", kwargs={"pk": self.object.pk})
+
+
+class GRNPostView(LoginRequiredMixin, View):
+    """Post a GRN to create ledger entries."""
+
+    def post(self, request, pk):
+        grn = get_object_or_404(GoodsReceiptNote, pk=pk)
+
+        if grn.status != "DRAFT":
+            messages.error(request, "Only DRAFT GRNs can be posted.")
+            return redirect("inventory:grn_detail", pk=pk)
+
+        try:
+            # Post each line
+            for line in grn.lines.filter(is_posted=False):
+                # Create ledger entry for each line
+                StockLedger.objects.create(
+                    transaction_type="RECEIPT",
+                    transaction_date=grn.receipt_date,
+                    item=line.item,
+                    location=line.location,
+                    lot=line.lot,
+                    qty_delta=line.qty_received,
+                    unit_cost=line.unit_cost,
+                    total_cost=line.total_cost,
+                    owner_party=grn.owner_party,
+                    ownership_type=grn.ownership_type,
+                    condition=line.condition,
+                    quality_status=line.quality_status,
+                    reference_type="GRN",
+                    reference_id=str(grn.pk),
+                    created_by=request.user,
+                )
+                line.is_posted = True
+                line.posted_at = timezone.now()
+                line.save()
+
+            # Update GRN status
+            grn.status = "POSTED"
+            grn.posted_date = timezone.now()
+            grn.posted_by = request.user
+            grn.save()
+
+            messages.success(request, f"GRN {grn.grn_number} posted successfully.")
+        except Exception as e:
+            messages.error(request, f"Error posting GRN: {str(e)}")
+
+        return redirect("inventory:grn_detail", pk=pk)
+
+
+# Stock Issue Views
+class StockIssueListView(LoginRequiredMixin, ListView):
+    """List all Stock Issues."""
+
+    model = StockIssue
+    template_name = "inventory/documents/issue_list.html"
+    context_object_name = "issues"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = StockIssue.objects.select_related(
+            "warehouse", "issued_to_party", "created_by"
+        ).order_by("-issue_date", "-issue_number")
+
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Issues"
+        context["status_choices"] = StockIssue.Status.choices
+        return context
+
+
+class StockIssueCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Stock Issue."""
+
+    model = StockIssue
+    form_class = StockIssueForm
+    template_name = "inventory/documents/issue_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Stock Issue"
+        context["form_title"] = "Create Stock Issue"
+        if self.request.POST:
+            context["lines_formset"] = StockIssueLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = StockIssueLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            messages.success(self.request, f"Issue {self.object.issue_number} created.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:issue_detail", kwargs={"pk": self.object.pk})
+
+
+class StockIssueDetailView(LoginRequiredMixin, DetailView):
+    """View Stock Issue details."""
+
+    model = StockIssue
+    template_name = "inventory/documents/issue_detail.html"
+    context_object_name = "issue"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Issue {self.object.issue_number}"
+        context["lines"] = self.object.lines.select_related("item", "from_location", "lot")
+        return context
+
+
+class StockIssuePostView(LoginRequiredMixin, View):
+    """Post a Stock Issue to create ledger entries."""
+
+    def post(self, request, pk):
+        issue = get_object_or_404(StockIssue, pk=pk)
+
+        if issue.status != "DRAFT":
+            messages.error(request, "Only DRAFT issues can be posted.")
+            return redirect("inventory:issue_detail", pk=pk)
+
+        try:
+            for line in issue.lines.filter(is_posted=False):
+                StockLedger.objects.create(
+                    transaction_type="ISSUE",
+                    transaction_date=issue.issue_date,
+                    item=line.item,
+                    location=line.from_location,
+                    lot=line.lot,
+                    qty_delta=-line.qty_issued,  # Negative for issue
+                    unit_cost=line.unit_cost,
+                    total_cost=line.total_cost,
+                    reference_type="ISSUE",
+                    reference_id=str(issue.pk),
+                    created_by=request.user,
+                )
+                line.is_posted = True
+                line.posted_at = timezone.now()
+                line.save()
+
+            issue.status = "POSTED"
+            issue.posted_date = timezone.now()
+            issue.posted_by = request.user
+            issue.save()
+
+            messages.success(request, f"Issue {issue.issue_number} posted.")
+        except Exception as e:
+            messages.error(request, f"Error posting issue: {str(e)}")
+
+        return redirect("inventory:issue_detail", pk=pk)
+
+
+# Stock Transfer Views
+class StockTransferListView(LoginRequiredMixin, ListView):
+    """List all Stock Transfers."""
+
+    model = StockTransfer
+    template_name = "inventory/documents/transfer_list.html"
+    context_object_name = "transfers"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return StockTransfer.objects.select_related(
+            "from_warehouse", "to_warehouse", "created_by"
+        ).order_by("-transfer_date", "-transfer_number")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Transfers"
+        context["status_choices"] = StockTransfer.Status.choices
+        return context
+
+
+class StockTransferCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Stock Transfer."""
+
+    model = StockTransfer
+    form_class = StockTransferForm
+    template_name = "inventory/documents/transfer_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Stock Transfer"
+        context["form_title"] = "Create Stock Transfer"
+        if self.request.POST:
+            context["lines_formset"] = StockTransferLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = StockTransferLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            messages.success(self.request, f"Transfer {self.object.transfer_number} created.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:transfer_detail", kwargs={"pk": self.object.pk})
+
+
+class StockTransferDetailView(LoginRequiredMixin, DetailView):
+    """View Stock Transfer details."""
+
+    model = StockTransfer
+    template_name = "inventory/documents/transfer_detail.html"
+    context_object_name = "transfer"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Transfer {self.object.transfer_number}"
+        context["lines"] = self.object.lines.select_related("item", "from_location", "to_location", "lot")
+        return context
+
+
+class StockTransferPostView(LoginRequiredMixin, View):
+    """Post a Stock Transfer to create ledger entries."""
+
+    def post(self, request, pk):
+        transfer = get_object_or_404(StockTransfer, pk=pk)
+
+        if transfer.status != "DRAFT":
+            messages.error(request, "Only DRAFT transfers can be posted.")
+            return redirect("inventory:transfer_detail", pk=pk)
+
+        try:
+            for line in transfer.lines.filter(is_posted=False):
+                # Create OUT entry (from location)
+                StockLedger.objects.create(
+                    transaction_type="TRANSFER_OUT",
+                    transaction_date=transfer.transfer_date,
+                    item=line.item,
+                    location=line.from_location,
+                    lot=line.lot,
+                    qty_delta=-line.qty_transferred,
+                    reference_type="TRANSFER",
+                    reference_id=str(transfer.pk),
+                    created_by=request.user,
+                )
+                # Create IN entry (to location)
+                StockLedger.objects.create(
+                    transaction_type="TRANSFER_IN",
+                    transaction_date=transfer.transfer_date,
+                    item=line.item,
+                    location=line.to_location,
+                    lot=line.lot,
+                    qty_delta=line.qty_transferred,
+                    reference_type="TRANSFER",
+                    reference_id=str(transfer.pk),
+                    created_by=request.user,
+                )
+                line.is_posted = True
+                line.posted_at = timezone.now()
+                line.save()
+
+            transfer.status = "POSTED"
+            transfer.posted_date = timezone.now()
+            transfer.posted_by = request.user
+            transfer.save()
+
+            messages.success(request, f"Transfer {transfer.transfer_number} posted.")
+        except Exception as e:
+            messages.error(request, f"Error posting transfer: {str(e)}")
+
+        return redirect("inventory:transfer_detail", pk=pk)
+
+
+# Stock Adjustment Document Views
+class StockAdjustmentDocListView(LoginRequiredMixin, ListView):
+    """List all Stock Adjustment documents."""
+
+    model = StockAdjustmentDoc
+    template_name = "inventory/documents/adjustment_list.html"
+    context_object_name = "adjustments"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return StockAdjustmentDoc.objects.select_related(
+            "warehouse", "reason", "created_by"
+        ).order_by("-adjustment_date", "-adjustment_number")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Adjustments"
+        context["status_choices"] = StockAdjustmentDoc.Status.choices
+        return context
+
+
+class StockAdjustmentDocCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Stock Adjustment document."""
+
+    model = StockAdjustmentDoc
+    form_class = StockAdjustmentDocForm
+    template_name = "inventory/documents/adjustment_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Stock Adjustment"
+        context["form_title"] = "Create Stock Adjustment"
+        if self.request.POST:
+            context["lines_formset"] = StockAdjustmentLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = StockAdjustmentLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            messages.success(self.request, f"Adjustment {self.object.adjustment_number} created.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:adjustment_detail", kwargs={"pk": self.object.pk})
+
+
+class StockAdjustmentDocDetailView(LoginRequiredMixin, DetailView):
+    """View Stock Adjustment details."""
+
+    model = StockAdjustmentDoc
+    template_name = "inventory/documents/adjustment_detail.html"
+    context_object_name = "adjustment"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Adjustment {self.object.adjustment_number}"
+        context["lines"] = self.object.lines.select_related("item", "location", "lot")
+        return context
+
+
+class StockAdjustmentDocPostView(LoginRequiredMixin, View):
+    """Post a Stock Adjustment to create ledger entries."""
+
+    def post(self, request, pk):
+        adjustment = get_object_or_404(StockAdjustmentDoc, pk=pk)
+
+        if adjustment.status != "DRAFT":
+            messages.error(request, "Only DRAFT adjustments can be posted.")
+            return redirect("inventory:adjustment_detail", pk=pk)
+
+        try:
+            for line in adjustment.lines.filter(is_posted=False):
+                # qty_adjustment = qty_actual - qty_system
+                StockLedger.objects.create(
+                    transaction_type="ADJUSTMENT",
+                    transaction_date=adjustment.adjustment_date,
+                    item=line.item,
+                    location=line.location,
+                    lot=line.lot,
+                    qty_delta=line.qty_adjustment,
+                    unit_cost=line.unit_cost,
+                    total_cost=line.total_cost,
+                    reference_type="ADJUSTMENT",
+                    reference_id=str(adjustment.pk),
+                    created_by=request.user,
+                )
+                line.is_posted = True
+                line.posted_at = timezone.now()
+                line.save()
+
+            adjustment.status = "POSTED"
+            adjustment.posted_date = timezone.now()
+            adjustment.posted_by = request.user
+            adjustment.save()
+
+            messages.success(request, f"Adjustment {adjustment.adjustment_number} posted.")
+        except Exception as e:
+            messages.error(request, f"Error posting adjustment: {str(e)}")
+
+        return redirect("inventory:adjustment_detail", pk=pk)
+
+
+# =============================================================================
+# PHASE 4: ASSET VIEWS
+# =============================================================================
+
+
+class AssetListView(LoginRequiredMixin, ListView):
+    """List all Assets."""
+
+    model = Asset
+    template_name = "inventory/assets/asset_list.html"
+    context_object_name = "assets"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = Asset.objects.select_related(
+            "item", "condition", "quality_status", "current_location", "warehouse", "owner_party"
+        ).order_by("-created_at")
+
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+
+        warehouse = self.request.GET.get("warehouse")
+        if warehouse:
+            qs = qs.filter(warehouse_id=warehouse)
+
+        search = self.request.GET.get("q")
+        if search:
+            qs = qs.filter(
+                Q(serial_number__icontains=search) |
+                Q(asset_tag__icontains=search) |
+                Q(item__code__icontains=search)
+            )
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Asset Register"
+        context["status_choices"] = Asset.Status.choices
+        from apps.sales.models import Warehouse
+        context["warehouses"] = Warehouse.objects.filter(is_active=True)
+        return context
+
+
+class AssetCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Asset."""
+
+    model = Asset
+    form_class = AssetForm
+    template_name = "inventory/assets/asset_form.html"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Asset {form.instance.serial_number} created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:asset_detail", kwargs={"pk": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Asset"
+        context["form_title"] = "Create Asset"
+        return context
+
+
+class AssetDetailView(LoginRequiredMixin, DetailView):
+    """View Asset details with movement history."""
+
+    model = Asset
+    template_name = "inventory/assets/asset_detail.html"
+    context_object_name = "asset"
+
+    def get_queryset(self):
+        return Asset.objects.select_related(
+            "item", "condition", "quality_status", "current_location",
+            "warehouse", "owner_party", "ownership_type", "custodian_party"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Asset {self.object.serial_number}"
+        context["movements"] = self.object.movements.select_related(
+            "from_location", "to_location", "created_by"
+        ).order_by("-movement_date")[:20]
+        return context
+
+
+class AssetUpdateView(LoginRequiredMixin, UpdateView):
+    """Update Asset."""
+
+    model = Asset
+    form_class = AssetForm
+    template_name = "inventory/assets/asset_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Asset {form.instance.serial_number} updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:asset_detail", kwargs={"pk": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.serial_number}"
+        context["form_title"] = "Edit Asset"
+        return context
+
+
+class AssetMovementCreateView(LoginRequiredMixin, CreateView):
+    """Record an asset movement."""
+
+    model = AssetMovement
+    form_class = AssetMovementForm
+    template_name = "inventory/assets/movement_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        asset = get_object_or_404(Asset, pk=self.kwargs["asset_pk"])
+        context["asset"] = asset
+        context["page_title"] = f"Move Asset {asset.serial_number}"
+        context["form_title"] = "Record Asset Movement"
+        return context
+
+    def form_valid(self, form):
+        asset = get_object_or_404(Asset, pk=self.kwargs["asset_pk"])
+        form.instance.asset = asset
+        form.instance.created_by = self.request.user
+
+        # Update asset location if movement is location-based
+        if form.instance.to_location:
+            asset.current_location = form.instance.to_location
+        if form.instance.to_status:
+            asset.status = form.instance.to_status
+        asset.save()
+
+        messages.success(self.request, "Asset movement recorded.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:asset_detail", kwargs={"pk": self.kwargs["asset_pk"]})
+
+
+# =============================================================================
+# PHASE 5: QC GATES VIEWS
+# =============================================================================
+
+
+class QualityStatusChangeListView(LoginRequiredMixin, ListView):
+    """List QC status changes."""
+
+    model = QualityStatusChange
+    template_name = "inventory/qc/qc_change_list.html"
+    context_object_name = "changes"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return QualityStatusChange.objects.select_related(
+            "lot", "asset", "from_status", "to_status", "changed_by"
+        ).order_by("-change_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "QC Status Changes"
+        return context
+
+
+class QualityStatusChangeCreateView(LoginRequiredMixin, CreateView):
+    """Record a QC status change."""
+
+    model = QualityStatusChange
+    form_class = QualityStatusChangeForm
+    template_name = "inventory/qc/qc_change_form.html"
+
+    def form_valid(self, form):
+        form.instance.changed_by = self.request.user
+
+        # Update the lot or asset's quality status
+        if form.instance.lot:
+            form.instance.lot.quality_status = form.instance.to_status
+            form.instance.lot.save()
+        elif form.instance.asset:
+            form.instance.asset.quality_status = form.instance.to_status
+            form.instance.asset.save()
+
+        messages.success(self.request, "QC status change recorded.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:qc_change_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New QC Status Change"
+        context["form_title"] = "Record QC Status Change"
+        return context
+
+
+# =============================================================================
+# PHASE 6: RESERVATION VIEWS
+# =============================================================================
+
+
+class StockReservationListView(LoginRequiredMixin, ListView):
+    """List stock reservations."""
+
+    model = StockReservation
+    template_name = "inventory/reservations/reservation_list.html"
+    context_object_name = "reservations"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = StockReservation.objects.select_related(
+            "item", "lot", "location", "created_by"
+        ).order_by("-created_at")
+
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Reservations"
+        context["status_choices"] = StockReservation.Status.choices
+        return context
+
+
+class StockReservationCreateView(LoginRequiredMixin, CreateView):
+    """Create a stock reservation."""
+
+    model = StockReservation
+    form_class = StockReservationForm
+    template_name = "inventory/reservations/reservation_form.html"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Reservation {form.instance.reservation_number} created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:reservation_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Reservation"
+        context["form_title"] = "Create Stock Reservation"
+        return context
+
+
+class StockReservationCancelView(LoginRequiredMixin, View):
+    """Cancel a stock reservation."""
+
+    def post(self, request, pk):
+        reservation = get_object_or_404(StockReservation, pk=pk)
+
+        if reservation.status not in ["PENDING", "CONFIRMED"]:
+            messages.error(request, "Only PENDING or CONFIRMED reservations can be cancelled.")
+            return redirect("inventory:reservation_list")
+
+        reservation.status = "CANCELLED"
+        reservation.save()
+        messages.success(request, f"Reservation {reservation.reservation_number} cancelled.")
+
+        return redirect("inventory:reservation_list")
+
+
+# =============================================================================
+# PHASE 7: BOM VIEWS
+# =============================================================================
+
+
+class BOMListView(LoginRequiredMixin, ListView):
+    """List all BOMs."""
+
+    model = BillOfMaterial
+    template_name = "inventory/bom/bom_list.html"
+    context_object_name = "boms"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = BillOfMaterial.objects.select_related(
+            "parent_item", "created_by"
+        ).order_by("-created_at")
+
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+
+        search = self.request.GET.get("q")
+        if search:
+            qs = qs.filter(
+                Q(bom_code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(parent_item__code__icontains=search)
+            )
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Bills of Material"
+        context["status_choices"] = BillOfMaterial.Status.choices
+        return context
+
+
+class BOMCreateView(LoginRequiredMixin, CreateView):
+    """Create a new BOM."""
+
+    model = BillOfMaterial
+    form_class = BillOfMaterialForm
+    template_name = "inventory/bom/bom_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New BOM"
+        context["form_title"] = "Create Bill of Material"
+        if self.request.POST:
+            context["lines_formset"] = BOMLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = BOMLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            self.object.recalculate_costs()
+            messages.success(self.request, f"BOM {self.object.bom_code} created.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:bom_detail", kwargs={"pk": self.object.pk})
+
+
+class BOMDetailView(LoginRequiredMixin, DetailView):
+    """View BOM details with components."""
+
+    model = BillOfMaterial
+    template_name = "inventory/bom/bom_detail.html"
+    context_object_name = "bom"
+
+    def get_queryset(self):
+        return BillOfMaterial.objects.select_related("parent_item", "created_by")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"BOM {self.object.bom_code}"
+        context["lines"] = self.object.lines.select_related("component_item", "uom").order_by("line_number")
+        return context
+
+
+class BOMUpdateView(LoginRequiredMixin, UpdateView):
+    """Update a BOM."""
+
+    model = BillOfMaterial
+    form_class = BillOfMaterialForm
+    template_name = "inventory/bom/bom_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.bom_code}"
+        context["form_title"] = "Edit Bill of Material"
+        if self.request.POST:
+            context["lines_formset"] = BOMLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = BOMLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.save()
+            self.object.recalculate_costs()
+            messages.success(self.request, f"BOM {self.object.bom_code} updated.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:bom_detail", kwargs={"pk": self.object.pk})
+
+
+class BOMRecalculateView(LoginRequiredMixin, View):
+    """Recalculate BOM costs."""
+
+    def post(self, request, pk):
+        bom = get_object_or_404(BillOfMaterial, pk=pk)
+        bom.recalculate_costs()
+        messages.success(request, f"BOM {bom.bom_code} costs recalculated.")
+        return redirect("inventory:bom_detail", pk=pk)
+
+
+# =============================================================================
+# PHASE 8: CYCLE COUNT VIEWS
+# =============================================================================
+
+
+class CycleCountPlanListView(LoginRequiredMixin, ListView):
+    """List cycle count plans."""
+
+    model = CycleCountPlan
+    template_name = "inventory/cyclecount/plan_list.html"
+    context_object_name = "plans"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return CycleCountPlan.objects.select_related(
+            "warehouse", "created_by"
+        ).order_by("-start_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Cycle Count Plans"
+        context["status_choices"] = CycleCountPlan.Status.choices
+        return context
+
+
+class CycleCountPlanCreateView(LoginRequiredMixin, CreateView):
+    """Create a cycle count plan."""
+
+    model = CycleCountPlan
+    form_class = CycleCountPlanForm
+    template_name = "inventory/cyclecount/plan_form.html"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Cycle count plan {form.instance.plan_code} created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:cyclecount_plan_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Cycle Count Plan"
+        context["form_title"] = "Create Cycle Count Plan"
+        return context
+
+
+class CycleCountSessionListView(LoginRequiredMixin, ListView):
+    """List cycle count sessions."""
+
+    model = CycleCountSession
+    template_name = "inventory/cyclecount/session_list.html"
+    context_object_name = "sessions"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return CycleCountSession.objects.select_related(
+            "plan", "warehouse", "location", "counted_by"
+        ).order_by("-session_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Cycle Count Sessions"
+        context["status_choices"] = CycleCountSession.Status.choices
+        return context
+
+
+class CycleCountSessionCreateView(LoginRequiredMixin, CreateView):
+    """Create a cycle count session."""
+
+    model = CycleCountSession
+    form_class = CycleCountSessionForm
+    template_name = "inventory/cyclecount/session_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Count Session"
+        context["form_title"] = "Create Cycle Count Session"
+        if self.request.POST:
+            context["lines_formset"] = CycleCountLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = CycleCountLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.counted_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            messages.success(self.request, f"Session {self.object.session_number} created.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:cyclecount_session_detail", kwargs={"pk": self.object.pk})
+
+
+class CycleCountSessionDetailView(LoginRequiredMixin, DetailView):
+    """View cycle count session with lines."""
+
+    model = CycleCountSession
+    template_name = "inventory/cyclecount/session_detail.html"
+    context_object_name = "session"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Session {self.object.session_number}"
+        context["lines"] = self.object.lines.select_related("item", "lot", "location", "counted_by")
+        return context
+
+
+class CycleCountSessionFinalizeView(LoginRequiredMixin, View):
+    """Finalize a cycle count session and create adjustments."""
+
+    def post(self, request, pk):
+        session = get_object_or_404(CycleCountSession, pk=pk)
+
+        if session.status != "IN_PROGRESS":
+            messages.error(request, "Only IN_PROGRESS sessions can be finalized.")
+            return redirect("inventory:cyclecount_session_detail", pk=pk)
+
+        # Calculate totals
+        lines = session.lines.all()
+        session.total_items = lines.count()
+        session.items_counted = lines.exclude(qty_counted__isnull=True).count()
+        session.items_variance = lines.exclude(qty_variance=0).count()
+        session.total_variance_value = sum(line.variance_value or 0 for line in lines)
+
+        session.status = "COMPLETED"
+        session.save()
+
+        messages.success(request, f"Session {session.session_number} finalized.")
+        return redirect("inventory:cyclecount_session_detail", pk=pk)

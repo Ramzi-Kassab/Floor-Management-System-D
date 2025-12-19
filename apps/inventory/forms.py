@@ -5,7 +5,10 @@ Version: 5.4
 
 from django import forms
 
+from django.forms import inlineformset_factory
+
 from .models import (
+    # Original models
     Attribute,
     CategoryAttribute,
     InventoryCategory,
@@ -20,6 +23,40 @@ from .models import (
     ItemSupplier,
     ItemVariant,
     UnitOfMeasure,
+    # Phase 0: Foundation
+    Party,
+    ConditionType,
+    QualityStatus,
+    AdjustmentReason,
+    OwnershipType,
+    # Phase 1: Lot Tracking
+    MaterialLot,
+    # Phase 2: Ledger
+    StockLedger,
+    StockBalance,
+    # Phase 3: Documents
+    GoodsReceiptNote,
+    GRNLine,
+    StockIssue,
+    StockIssueLine,
+    StockTransfer,
+    StockTransferLine,
+    StockAdjustment as StockAdjustmentDoc,
+    StockAdjustmentLine,
+    # Phase 4: Assets
+    Asset,
+    AssetMovement,
+    # Phase 5: QC Gates
+    QualityStatusChange,
+    # Phase 6: Reservations
+    StockReservation,
+    # Phase 7: BOM
+    BillOfMaterial,
+    BOMLine,
+    # Phase 8: Cycle Count
+    CycleCountPlan,
+    CycleCountSession,
+    CycleCountLine,
 )
 
 TAILWIND_INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -406,3 +443,570 @@ class ItemCutterSpecForm(forms.ModelForm):
             "thermal_stability_temp": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "placeholder": "C"}),
             "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
         }
+
+
+# =============================================================================
+# PHASE 3: DOCUMENT FORMS (GRN, Issues, Transfers, Adjustments)
+# =============================================================================
+
+
+class GoodsReceiptNoteForm(forms.ModelForm):
+    """Form for Goods Receipt Note header."""
+
+    class Meta:
+        model = GoodsReceiptNote
+        fields = [
+            "receipt_type",
+            "warehouse",
+            "supplier",
+            "receipt_date",
+            "source_reference",
+            "owner_party",
+            "ownership_type",
+            "notes",
+        ]
+        widgets = {
+            "receipt_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "warehouse": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "supplier": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "receipt_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "source_reference": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "PO-001 or RMA-001"}),
+            "owner_party": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "ownership_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+
+
+class GRNLineForm(forms.ModelForm):
+    """Form for GRN line items."""
+
+    class Meta:
+        model = GRNLine
+        fields = [
+            "item",
+            "lot",
+            "location",
+            "qty_expected",
+            "qty_received",
+            "unit_cost",
+            "condition",
+            "quality_status",
+            "notes",
+        ]
+        widgets = {
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "qty_expected": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "qty_received": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "unit_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "condition": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "quality_status": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+        }
+
+
+# GRN Line Formset
+GRNLineFormSet = inlineformset_factory(
+    GoodsReceiptNote,
+    GRNLine,
+    form=GRNLineForm,
+    extra=1,
+    can_delete=True,
+)
+
+
+class StockIssueForm(forms.ModelForm):
+    """Form for Stock Issue header."""
+
+    class Meta:
+        model = StockIssue
+        fields = [
+            "issue_type",
+            "warehouse",
+            "issue_date",
+            "reference",
+            "issued_to_party",
+            "notes",
+        ]
+        widgets = {
+            "issue_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "warehouse": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "issue_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "reference": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "JOB-001 or SO-001"}),
+            "issued_to_party": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+
+
+class StockIssueLineForm(forms.ModelForm):
+    """Form for Stock Issue line items."""
+
+    class Meta:
+        model = StockIssueLine
+        fields = [
+            "item",
+            "lot",
+            "from_location",
+            "qty_requested",
+            "qty_issued",
+            "unit_cost",
+            "reservation",
+            "notes",
+        ]
+        widgets = {
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "from_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "qty_requested": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "qty_issued": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "unit_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "reservation": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+        }
+
+
+StockIssueLineFormSet = inlineformset_factory(
+    StockIssue,
+    StockIssueLine,
+    form=StockIssueLineForm,
+    extra=1,
+    can_delete=True,
+)
+
+
+class StockTransferForm(forms.ModelForm):
+    """Form for Stock Transfer header."""
+
+    class Meta:
+        model = StockTransfer
+        fields = [
+            "transfer_type",
+            "from_warehouse",
+            "to_warehouse",
+            "transfer_date",
+            "notes",
+        ]
+        widgets = {
+            "transfer_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "from_warehouse": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "to_warehouse": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "transfer_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+
+
+class StockTransferLineForm(forms.ModelForm):
+    """Form for Stock Transfer line items."""
+
+    class Meta:
+        model = StockTransferLine
+        fields = [
+            "item",
+            "lot",
+            "from_location",
+            "to_location",
+            "qty_requested",
+            "qty_transferred",
+            "notes",
+        ]
+        widgets = {
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "from_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "to_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "qty_requested": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "qty_transferred": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+        }
+
+
+StockTransferLineFormSet = inlineformset_factory(
+    StockTransfer,
+    StockTransferLine,
+    form=StockTransferLineForm,
+    extra=1,
+    can_delete=True,
+)
+
+
+class StockAdjustmentDocForm(forms.ModelForm):
+    """Form for Stock Adjustment document header."""
+
+    class Meta:
+        model = StockAdjustmentDoc
+        fields = [
+            "adjustment_type",
+            "warehouse",
+            "reason",
+            "adjustment_date",
+            "notes",
+        ]
+        widgets = {
+            "adjustment_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "warehouse": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "reason": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "adjustment_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+
+
+class StockAdjustmentLineForm(forms.ModelForm):
+    """Form for Stock Adjustment line items."""
+
+    class Meta:
+        model = StockAdjustmentLine
+        fields = [
+            "item",
+            "lot",
+            "location",
+            "qty_system",
+            "qty_actual",
+            "unit_cost",
+            "notes",
+        ]
+        widgets = {
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "qty_system": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "readonly": "readonly"}),
+            "qty_actual": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "unit_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+        }
+
+
+StockAdjustmentLineFormSet = inlineformset_factory(
+    StockAdjustmentDoc,
+    StockAdjustmentLine,
+    form=StockAdjustmentLineForm,
+    extra=1,
+    can_delete=True,
+)
+
+
+# =============================================================================
+# PHASE 4: ASSET FORMS
+# =============================================================================
+
+
+class AssetForm(forms.ModelForm):
+    """Form for Asset master data."""
+
+    class Meta:
+        model = Asset
+        fields = [
+            "serial_number",
+            "asset_tag",
+            "item",
+            "status",
+            "condition",
+            "quality_status",
+            "current_location",
+            "warehouse",
+            "owner_party",
+            "ownership_type",
+            "custodian_party",
+            "acquisition_date",
+            "acquisition_cost",
+            "in_service_date",
+            "warranty_expiry",
+            "next_service_date",
+            "notes",
+        ]
+        widgets = {
+            "serial_number": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "S/N or unique identifier"}),
+            "asset_tag": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Optional internal tag"}),
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "status": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "condition": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "quality_status": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "current_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "warehouse": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "owner_party": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "ownership_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "custodian_party": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "acquisition_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "acquisition_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01"}),
+            "in_service_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "warranty_expiry": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "next_service_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+
+
+class AssetMovementForm(forms.ModelForm):
+    """Form for recording Asset movements."""
+
+    class Meta:
+        model = AssetMovement
+        fields = [
+            "movement_type",
+            "from_location",
+            "to_location",
+            "from_status",
+            "to_status",
+            "reference_type",
+            "reference_id",
+            "notes",
+        ]
+        widgets = {
+            "movement_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "from_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "to_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "from_status": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "to_status": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "reference_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "JOB, DISPATCH, etc."}),
+            "reference_id": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+        }
+
+
+# =============================================================================
+# PHASE 5: QC GATES FORMS
+# =============================================================================
+
+
+class QualityStatusChangeForm(forms.ModelForm):
+    """Form for recording QC status changes."""
+
+    class Meta:
+        model = QualityStatusChange
+        fields = [
+            "change_type",
+            "lot",
+            "asset",
+            "from_status",
+            "to_status",
+            "reason",
+            "inspection_number",
+            "notes",
+        ]
+        widgets = {
+            "change_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "asset": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "from_status": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "to_status": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "reason": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Reason for status change"}),
+            "inspection_number": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "INS-001"}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        lot = cleaned_data.get("lot")
+        asset = cleaned_data.get("asset")
+
+        if not lot and not asset:
+            raise forms.ValidationError("Either a Lot or an Asset must be specified.")
+
+        if lot and asset:
+            raise forms.ValidationError("Specify either a Lot OR an Asset, not both.")
+
+        return cleaned_data
+
+
+# =============================================================================
+# PHASE 6: RESERVATIONS FORMS
+# =============================================================================
+
+
+class StockReservationForm(forms.ModelForm):
+    """Form for Stock Reservations."""
+
+    class Meta:
+        model = StockReservation
+        fields = [
+            "reservation_type",
+            "item",
+            "lot",
+            "location",
+            "qty_reserved",
+            "reference_type",
+            "reference_id",
+            "required_date",
+            "expiry_date",
+            "priority",
+            "notes",
+        ]
+        widgets = {
+            "reservation_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "qty_reserved": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "reference_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "JOB, SO, WO"}),
+            "reference_id": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "JOB-001"}),
+            "required_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "expiry_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "priority": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": "1", "max": "10"}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+        }
+
+
+# =============================================================================
+# PHASE 7: BOM FORMS
+# =============================================================================
+
+
+class BillOfMaterialForm(forms.ModelForm):
+    """Form for Bill of Material header."""
+
+    class Meta:
+        model = BillOfMaterial
+        fields = [
+            "bom_code",
+            "name",
+            "parent_item",
+            "version",
+            "bom_type",
+            "status",
+            "effective_from",
+            "effective_to",
+            "base_quantity",
+            "labor_cost",
+            "overhead_cost",
+            "notes",
+        ]
+        widgets = {
+            "bom_code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "BOM-001"}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "BOM Name"}),
+            "parent_item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "version": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "1.0"}),
+            "bom_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "status": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "effective_from": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "effective_to": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "base_quantity": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "labor_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01"}),
+            "overhead_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01"}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+
+
+class BOMLineForm(forms.ModelForm):
+    """Form for BOM line items (components)."""
+
+    class Meta:
+        model = BOMLine
+        fields = [
+            "line_number",
+            "component_item",
+            "quantity",
+            "uom",
+            "is_optional",
+            "scrap_percent",
+            "notes",
+        ]
+        widgets = {
+            "line_number": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "component_item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "quantity": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "uom": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "is_optional": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "scrap_percent": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "placeholder": "%"}),
+            "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+        }
+
+
+BOMLineFormSet = inlineformset_factory(
+    BillOfMaterial,
+    BOMLine,
+    form=BOMLineForm,
+    extra=3,
+    can_delete=True,
+)
+
+
+# =============================================================================
+# PHASE 8: CYCLE COUNT FORMS
+# =============================================================================
+
+
+class CycleCountPlanForm(forms.ModelForm):
+    """Form for Cycle Count Plan."""
+
+    class Meta:
+        model = CycleCountPlan
+        fields = [
+            "plan_code",
+            "name",
+            "plan_type",
+            "warehouse",
+            "start_date",
+            "end_date",
+            "frequency_days",
+            "count_a_items_every",
+            "count_b_items_every",
+            "count_c_items_every",
+            "notes",
+        ]
+        widgets = {
+            "plan_code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "CCP-2024-001"}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Q1 2024 Cycle Count"}),
+            "plan_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "warehouse": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "start_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "end_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "frequency_days": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "count_a_items_every": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Days"}),
+            "count_b_items_every": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Days"}),
+            "count_c_items_every": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Days"}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+        }
+
+
+class CycleCountSessionForm(forms.ModelForm):
+    """Form for Cycle Count Session header."""
+
+    class Meta:
+        model = CycleCountSession
+        fields = [
+            "plan",
+            "session_date",
+            "warehouse",
+            "location",
+            "notes",
+        ]
+        widgets = {
+            "plan": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "session_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "warehouse": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+        }
+
+
+class CycleCountLineForm(forms.ModelForm):
+    """Form for Cycle Count Line (individual count entries)."""
+
+    class Meta:
+        model = CycleCountLine
+        fields = [
+            "item",
+            "lot",
+            "location",
+            "qty_system",
+            "qty_counted",
+            "count_time",
+            "notes",
+        ]
+        widgets = {
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "qty_system": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "readonly": "readonly"}),
+            "qty_counted": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "count_time": forms.DateTimeInput(attrs={"class": TAILWIND_INPUT, "type": "datetime-local"}),
+            "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+        }
+
+
+CycleCountLineFormSet = inlineformset_factory(
+    CycleCountSession,
+    CycleCountLine,
+    form=CycleCountLineForm,
+    extra=5,
+    can_delete=True,
+)

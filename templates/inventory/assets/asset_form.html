@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">{% if object %}Edit asset {{ object.serial_number }}{% else %}Register a new asset{% endif %}</p>
+    </div>
+    <a href="{% url 'inventory:asset_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back to List
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- Identification -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Identification</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Serial Number *</label>
+                {{ form.serial_number }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Asset Tag</label>
+                {{ form.asset_tag }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Item *</label>
+                {{ form.item }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Status & Condition -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Status & Condition</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                {{ form.status }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Condition</label>
+                {{ form.condition }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">QC Status</label>
+                {{ form.quality_status }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Location -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Location</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Location</label>
+                {{ form.current_location }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Warehouse</label>
+                {{ form.warehouse }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Ownership -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ownership</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Owner Party</label>
+                {{ form.owner_party }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ownership Type</label>
+                {{ form.ownership_type }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Custodian Party</label>
+                {{ form.custodian_party }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Dates & Financials -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Dates & Financials</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Acquisition Date</label>
+                {{ form.acquisition_date }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Acquisition Cost</label>
+                {{ form.acquisition_cost }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">In Service Date</label>
+                {{ form.in_service_date }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Warranty Expiry</label>
+                {{ form.warranty_expiry }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Next Service Date</label>
+                {{ form.next_service_date }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notes</h2>
+        {{ form.notes }}
+    </div>
+
+    <!-- Actions -->
+    <div class="flex justify-end gap-3">
+        <a href="{% url 'inventory:asset_list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">Cancel</a>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="save" class="w-4 h-4 inline mr-1"></i>Save Asset
+        </button>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ grn.grn_number }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Goods Receipt Note</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'inventory:grn_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back to List
+        </a>
+        {% if grn.status == 'DRAFT' %}
+        <a href="{% url 'inventory:grn_update' grn.pk %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+            <i data-lucide="edit" class="w-4 h-4 mr-1"></i>Edit
+        </a>
+        <form method="post" action="{% url 'inventory:grn_post' grn.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                    onclick="return confirm('Post this GRN? This will create ledger entries and cannot be undone.')">
+                <i data-lucide="check-circle" class="w-4 h-4 mr-1"></i>Post GRN
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Status Banner -->
+<div class="mb-6">
+    <span class="inline-flex px-3 py-1 text-sm font-medium rounded-full
+        {% if grn.status == 'DRAFT' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200
+        {% elif grn.status == 'POSTED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+        {% elif grn.status == 'CANCELLED' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+        {% endif %}">
+        {{ grn.get_status_display }}
+    </span>
+    {% if grn.posted_date %}
+    <span class="ml-2 text-sm text-gray-500 dark:text-gray-400">Posted on {{ grn.posted_date|date:"Y-m-d H:i" }}</span>
+    {% endif %}
+</div>
+
+<!-- Header Info -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Receipt Type</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.get_receipt_type_display }}</p>
+        </div>
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Warehouse</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.warehouse.name }}</p>
+        </div>
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Receipt Date</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.receipt_date|date:"Y-m-d" }}</p>
+        </div>
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Supplier</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.supplier.name|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Source Reference</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.source_reference|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Owner Party</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.owner_party.name|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ownership Type</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.ownership_type.name|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created By</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.created_by.get_full_name|default:grn.created_by.username }}</p>
+        </div>
+    </div>
+    {% if grn.notes %}
+    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Notes</p>
+        <p class="text-sm text-gray-900 dark:text-white">{{ grn.notes }}</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Lines Table -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Receipt Lines</h2>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Item</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Location</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Lot</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Qty Expected</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Qty Received</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Unit Cost</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Total Cost</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Condition</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">QC Status</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Posted</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for line in lines %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{{ line.item.code }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ line.location.code }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ line.lot.lot_number|default:"-" }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-300">{{ line.qty_expected }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-white">{{ line.qty_received }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-300">{{ line.unit_cost }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-white">{{ line.total_cost }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ line.condition.code|default:"-" }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ line.quality_status.code|default:"-" }}</td>
+                    <td class="px-4 py-3 text-center">
+                        {% if line.is_posted %}
+                        <i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>
+                        {% else %}
+                        <i data-lucide="minus" class="w-4 h-4 text-gray-400 inline"></i>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                        No lines found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
