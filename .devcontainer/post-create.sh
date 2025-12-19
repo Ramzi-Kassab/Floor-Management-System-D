@@ -14,33 +14,65 @@ echo "=============================================="
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 1: Create .env file from template if it doesn't exist
+# Step 1: Install Python dependencies (must be first for Django SECRET_KEY gen)
 # -----------------------------------------------------------------------------
-echo "[1/7] Setting up environment variables..."
+echo "[1/7] Installing Python dependencies..."
+pip install --upgrade pip
+pip install -r requirements.txt
+echo ""
+
+# -----------------------------------------------------------------------------
+# Step 2: Create .env file from template if it doesn't exist
+# -----------------------------------------------------------------------------
+echo "[2/7] Setting up environment variables..."
 
 if [ ! -f .env ]; then
     cp .env.example .env
 
-    # Generate a secure SECRET_KEY
-    SECRET_KEY=$(python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())")
+    # Generate a secure SECRET_KEY using Python (handles special chars safely)
+    python << 'PYEOF'
+import re
+from django.core.management.utils import get_random_secret_key
 
-    # Update .env with generated key and SQLite database
-    sed -i "s|SECRET_KEY=.*|SECRET_KEY=${SECRET_KEY}|" .env
+secret_key = get_random_secret_key()
+
+with open('.env', 'r') as f:
+    content = f.read()
+
+# Replace SECRET_KEY line safely
+content = re.sub(r'SECRET_KEY=.*', f'SECRET_KEY={secret_key}', content)
+
+with open('.env', 'w') as f:
+    f.write(content)
+
+print(f"   - Generated SECRET_KEY")
+PYEOF
 
     echo "   - Created .env file"
-    echo "   - Generated SECRET_KEY"
 else
     echo "   - .env file already exists"
+    # Ensure SECRET_KEY is set even if .env exists
+    if ! grep -q "^SECRET_KEY=." .env || grep -q "^SECRET_KEY=your-secret-key" .env; then
+        echo "   - SECRET_KEY appears empty or placeholder, generating..."
+        python << 'PYEOF'
+import re
+from django.core.management.utils import get_random_secret_key
+
+secret_key = get_random_secret_key()
+
+with open('.env', 'r') as f:
+    content = f.read()
+
+content = re.sub(r'SECRET_KEY=.*', f'SECRET_KEY={secret_key}', content)
+
+with open('.env', 'w') as f:
+    f.write(content)
+
+print(f"   - Generated new SECRET_KEY")
+PYEOF
+    fi
 fi
 
-echo ""
-
-# -----------------------------------------------------------------------------
-# Step 2: Install Python dependencies
-# -----------------------------------------------------------------------------
-echo "[2/7] Installing Python dependencies..."
-pip install --upgrade pip
-pip install -r requirements.txt
 echo ""
 
 # -----------------------------------------------------------------------------
