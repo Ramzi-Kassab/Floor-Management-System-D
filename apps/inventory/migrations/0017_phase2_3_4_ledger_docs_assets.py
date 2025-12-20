@@ -28,7 +28,7 @@ class Migration(migrations.Migration):
         ("inventory", "0016_phase1_lot_tracking"),
         ("sales", "0006_week3_field_data_capture"),
         ("supplychain", "0003_sprint6_fixes"),
-        ("workorders", "0008_sprint7_templates"),
+        ("workorders", "0006_bittype_phase2_fields"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
