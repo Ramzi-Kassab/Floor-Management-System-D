@@ -84,10 +84,10 @@ class InventoryDashboardView(LoginRequiredMixin, View):
                 total=Sum(F("qty_delta") * F("unit_cost"))
             )["total"] or 0,
             "low_stock_count": InventoryStock.objects.filter(
-                quantity__lt=F("reorder_point")
+                quantity_on_hand__lt=F("item__reorder_point")
             ).count(),
             "active_reservations": StockReservation.objects.filter(
-                status="ACTIVE"
+                status="PENDING"
             ).count(),
             "draft_grns": GoodsReceiptNote.objects.filter(status="DRAFT").count(),
             "draft_issues": StockIssue.objects.filter(status="DRAFT").count(),
