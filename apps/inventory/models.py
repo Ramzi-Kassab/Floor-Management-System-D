@@ -447,6 +447,11 @@ class UnitOfMeasure(models.Model):
     """
     Master data for units of measure.
     Provides standardized units for inventory items.
+
+    UOM Categories:
+    - SI Base Units: M, KG, L, EA (standard reference)
+    - Conversion Units: Fixed conversion to SI base (IN→M, LB→KG)
+    - Packaging Units: Variable conversion per item (ROLL, CARTON, DRUM)
     """
 
     class UnitType(models.TextChoices):
@@ -463,20 +468,32 @@ class UnitOfMeasure(models.Model):
     unit_type = models.CharField(max_length=20, choices=UnitType.choices, default=UnitType.QUANTITY)
     symbol = models.CharField(max_length=10, blank=True, help_text="Symbol for display (kg, m, L)")
 
-    # Conversion to base unit (optional)
+    # SI Base unit flag
+    is_si_base = models.BooleanField(
+        default=False,
+        help_text="Is this an SI standard base unit? (M, KG, L, EA)"
+    )
+
+    # Packaging unit flag (requires item-level conversion)
+    is_packaging = models.BooleanField(
+        default=False,
+        help_text="Is this a packaging unit with variable conversion per item? (ROLL, CARTON, DRUM)"
+    )
+
+    # Conversion to base unit (for fixed conversion units like IN→M)
     base_unit = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="derived_units",
-        help_text="Base unit for conversion"
+        help_text="Base unit for conversion (for non-packaging units)"
     )
     conversion_factor = models.DecimalField(
         max_digits=15,
         decimal_places=6,
         default=1,
-        help_text="Multiply by this to convert to base unit"
+        help_text="Multiply by this to convert to base unit (for non-packaging units)"
     )
 
     is_active = models.BooleanField(default=True)
@@ -490,6 +507,15 @@ class UnitOfMeasure(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    def convert_to_base(self, quantity):
+        """Convert quantity to SI base unit (for fixed conversion units)."""
+        from decimal import Decimal
+        if self.is_si_base:
+            return Decimal(str(quantity))
+        if self.is_packaging:
+            raise ValueError("Packaging units require item-specific conversion. Use ItemUOMConversion.")
+        return Decimal(str(quantity)) * self.conversion_factor
 
 
 class InventoryCategory(models.Model):
@@ -951,6 +977,70 @@ class ItemAttributeValue(models.Model):
             self.date_value = value
         else:
             self.text_value = str(value) if value else ""
+
+
+class ItemUOMConversion(models.Model):
+    """
+    Item-specific UOM conversion for packaging units.
+
+    Used when the conversion factor varies by item:
+    - Roll of Tape A = 100 meters
+    - Roll of Tape B = 50 meters
+    - Carton of Screws = 24 each
+    - Drum of Oil = 200 liters
+
+    This allows each item to define its own pack sizes while
+    still converting everything to SI base units for reporting.
+    """
+
+    item = models.ForeignKey(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="uom_conversions"
+    )
+    from_uom = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.PROTECT,
+        related_name="item_conversions_from",
+        help_text="Packaging/alternate unit (ROLL, CARTON, DRUM)"
+    )
+    to_uom = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.PROTECT,
+        related_name="item_conversions_to",
+        help_text="Base unit to convert to (M, KG, L, EA)"
+    )
+    conversion_factor = models.DecimalField(
+        max_digits=15,
+        decimal_places=6,
+        help_text="1 from_uom = X to_uom (e.g., 1 ROLL = 100 M)"
+    )
+    is_default = models.BooleanField(
+        default=False,
+        help_text="Default conversion for this item's packaging unit"
+    )
+    is_active = models.BooleanField(default=True)
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        db_table = "item_uom_conversions"
+        unique_together = ["item", "from_uom", "to_uom"]
+        verbose_name = "Item UOM Conversion"
+        verbose_name_plural = "Item UOM Conversions"
+        ordering = ["item", "from_uom"]
+
+    def __str__(self):
+        return f"{self.item.code}: 1 {self.from_uom.code} = {self.conversion_factor} {self.to_uom.code}"
+
+    def convert(self, quantity):
+        """Convert quantity from packaging unit to base unit."""
+        from decimal import Decimal
+        return Decimal(str(quantity)) * self.conversion_factor
+
+    def reverse_convert(self, quantity):
+        """Convert quantity from base unit to packaging unit."""
+        from decimal import Decimal
+        return Decimal(str(quantity)) / self.conversion_factor
 
 
 # =============================================================================

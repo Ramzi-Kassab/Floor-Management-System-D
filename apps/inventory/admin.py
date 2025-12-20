@@ -17,6 +17,7 @@ from .models import (
     # Phase 1: Lot Tracking
     MaterialLot,
     UnitOfMeasure,
+    ItemUOMConversion,
     # Phase 2: Ledger & Balance
     StockLedger,
     StockBalance,
@@ -148,9 +149,19 @@ class MaterialLotAdmin(admin.ModelAdmin):
 
 @admin.register(UnitOfMeasure)
 class UnitOfMeasureAdmin(admin.ModelAdmin):
-    list_display = ["code", "name", "unit_type", "is_active"]
-    list_filter = ["unit_type", "is_active"]
+    list_display = ["code", "name", "unit_type", "symbol", "is_si_base", "is_packaging", "base_unit", "conversion_factor", "is_active"]
+    list_filter = ["unit_type", "is_si_base", "is_packaging", "is_active"]
     search_fields = ["code", "name"]
+    list_editable = ["is_si_base", "is_packaging", "is_active"]
+
+
+@admin.register(ItemUOMConversion)
+class ItemUOMConversionAdmin(admin.ModelAdmin):
+    list_display = ["item", "from_uom", "to_uom", "conversion_factor", "is_default", "is_active"]
+    list_filter = ["from_uom", "to_uom", "is_default", "is_active"]
+    search_fields = ["item__code", "item__name", "from_uom__code", "to_uom__code"]
+    autocomplete_fields = ["item", "from_uom", "to_uom"]
+    list_editable = ["conversion_factor", "is_default", "is_active"]
 
 
 # =============================================================================
