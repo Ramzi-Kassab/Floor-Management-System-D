@@ -273,6 +273,7 @@ class Command(BaseCommand):
                 grn_number=f"GRN-2024-{i:04d}",
                 defaults={
                     "receipt_date": timezone.now().date() - timedelta(days=random.randint(1, 60)),
+                    "warehouse": warehouses.get("WH-MAIN"),
                     "supplier": supplier,
                     "receiving_location": locations.get("WH-RECV-01"),
                     "status": random.choice(["DRAFT", "RECEIVED", "POSTED"]),
@@ -284,28 +285,43 @@ class Command(BaseCommand):
                 # Add lines
                 for j, item_code in enumerate(random.sample(list(items.keys())[:8], 3)):
                     item = items[item_code]
-                    GRNLine.objects.create(
-                        grn=grn,
-                        line_number=j + 1,
-                        item=item,
-                        qty_ordered=Decimal(str(random.randint(10, 100))),
-                        qty_received=Decimal(str(random.randint(10, 100))),
-                        unit_cost=item.standard_cost or Decimal("10.00"),
-                        location=locations.get("WH-MAIN-A1"),
-                    )
+                    default_uom = uoms.get("EA") or list(uoms.values())[0] if uoms else None
+                    default_condition = list(condition_types.values())[0] if condition_types else None
+                    default_qs = list(quality_statuses.values())[0] if quality_statuses else None
+                    if default_uom and default_condition and default_qs:
+                        GRNLine.objects.create(
+                            grn=grn,
+                            line_number=j + 1,
+                            item=item,
+                            qty_expected=Decimal(str(random.randint(10, 100))),
+                            qty_received=Decimal(str(random.randint(10, 100))),
+                            uom=default_uom,
+                            unit_cost=item.standard_cost or Decimal("10.00"),
+                            location=locations.get("WH-MAIN-A1"),
+                            condition=default_condition,
+                            quality_status=default_qs,
+                        )
                 self.stdout.write(f"    Created: {grn.grn_number}")
 
         # =====================================================
         # 9. CREATE STOCK ISSUES
         # =====================================================
         self.stdout.write("  Creating stock issues...")
+        # Create a default party for ownership tracking
+        from apps.core.models import Party
+        default_party, _ = Party.objects.get_or_create(
+            code="ARDT-OPS",
+            defaults={"name": "ARDT Operations", "party_type": "INTERNAL", "is_active": True}
+        )
         for i in range(1, 4):
             issue, created = StockIssue.objects.get_or_create(
                 issue_number=f"ISS-2024-{i:04d}",
                 defaults={
                     "issue_date": timezone.now().date() - timedelta(days=random.randint(1, 30)),
-                    "issue_type": random.choice(["PRODUCTION", "MAINTENANCE", "SALES"]),
-                    "status": random.choice(["DRAFT", "ISSUED", "POSTED"]),
+                    "issue_type": random.choice(["WO", "INTERNAL", "SALES"]),
+                    "warehouse": warehouses.get("WH-MAIN"),
+                    "default_location": locations.get("WH-MAIN-A1"),
+                    "status": random.choice(["DRAFT", "ISSUED"]),
                     "notes": f"Test Issue {i}",
                     "created_by": admin_user,
                 }
@@ -314,14 +330,25 @@ class Command(BaseCommand):
                 for j, item_code in enumerate(random.sample(list(items.keys())[:8], 2)):
                     item = items[item_code]
                     loc = locations.get("WH-MAIN-A1")
-                    StockIssueLine.objects.create(
-                        issue=issue,
-                        line_number=j + 1,
-                        item=item,
-                        qty_requested=Decimal(str(random.randint(5, 20))),
-                        qty_issued=Decimal(str(random.randint(5, 20))),
-                        location=loc,
-                    )
+                    # Get first available dimension types
+                    default_uom = uoms.get("EA") or list(uoms.values())[0] if uoms else None
+                    default_ownership = list(ownership_types.values())[0] if ownership_types else None
+                    default_condition = list(condition_types.values())[0] if condition_types else None
+                    default_qs = list(quality_statuses.values())[0] if quality_statuses else None
+                    if default_uom and default_ownership and default_condition and default_qs:
+                        StockIssueLine.objects.create(
+                            issue=issue,
+                            line_number=j + 1,
+                            item=item,
+                            qty_requested=Decimal(str(random.randint(5, 20))),
+                            qty_issued=Decimal(str(random.randint(5, 20))),
+                            uom=default_uom,
+                            location=loc,
+                            owner_party=default_party,
+                            ownership_type=default_ownership,
+                            condition=default_condition,
+                            quality_status=default_qs,
+                        )
                 self.stdout.write(f"    Created: {issue.issue_number}")
 
         # =====================================================
@@ -333,8 +360,11 @@ class Command(BaseCommand):
                 transfer_number=f"TRF-2024-{i:04d}",
                 defaults={
                     "transfer_date": timezone.now().date() - timedelta(days=random.randint(1, 20)),
+                    "from_warehouse": warehouses.get("WH-MAIN"),
                     "from_location": locations.get("WH-MAIN-A1"),
+                    "to_warehouse": warehouses.get("WH-FIELD-01"),
                     "to_location": locations.get("WH-PROD-01"),
+                    "from_owner": default_party,
                     "status": random.choice(["DRAFT", "IN_TRANSIT", "COMPLETED"]),
                     "notes": f"Test Transfer {i}",
                     "created_by": admin_user,
@@ -343,14 +373,19 @@ class Command(BaseCommand):
             if created:
                 for j, item_code in enumerate(random.sample(list(items.keys())[:6], 2)):
                     item = items[item_code]
-                    StockTransferLine.objects.create(
-                        transfer=transfer,
-                        line_number=j + 1,
-                        item=item,
-                        qty_requested=Decimal(str(random.randint(10, 50))),
-                        qty_shipped=Decimal(str(random.randint(10, 50))),
-                        qty_received=Decimal(str(random.randint(10, 50))),
-                    )
+                    default_uom = uoms.get("EA") or list(uoms.values())[0] if uoms else None
+                    default_ownership = list(ownership_types.values())[0] if ownership_types else None
+                    if default_uom and default_ownership:
+                        StockTransferLine.objects.create(
+                            transfer=transfer,
+                            line_number=j + 1,
+                            item=item,
+                            qty_requested=Decimal(str(random.randint(10, 50))),
+                            qty_shipped=Decimal(str(random.randint(10, 50))),
+                            qty_received=Decimal(str(random.randint(10, 50))),
+                            uom=default_uom,
+                            ownership_type=default_ownership,
+                        )
                 self.stdout.write(f"    Created: {transfer.transfer_number}")
 
         # =====================================================
@@ -363,7 +398,10 @@ class Command(BaseCommand):
                 adjustment_number=f"ADJ-2024-{i:04d}",
                 defaults={
                     "adjustment_date": timezone.now().date() - timedelta(days=random.randint(1, 15)),
-                    "adjustment_type": "CYCLE_COUNT",
+                    "adjustment_type": "CYCLE",
+                    "warehouse": warehouses.get("WH-MAIN"),
+                    "location": locations.get("WH-MAIN-A1"),
+                    "reason": reason_cc,
                     "status": random.choice(["DRAFT", "APPROVED", "POSTED"]),
                     "notes": f"Cycle count adjustment {i}",
                     "created_by": admin_user,
@@ -372,17 +410,26 @@ class Command(BaseCommand):
             if created:
                 for j, item_code in enumerate(random.sample(list(items.keys())[:5], 2)):
                     item = items[item_code]
-                    loc = locations.get("WH-MAIN-B1")
-                    StockAdjustmentLine.objects.create(
-                        adjustment=adj,
-                        line_number=j + 1,
-                        item=item,
-                        location=loc,
-                        reason=reason_cc,
-                        qty_system=Decimal(str(random.randint(50, 100))),
-                        qty_counted=Decimal(str(random.randint(48, 102))),
-                        qty_adjustment=Decimal(str(random.randint(-3, 3))),
-                    )
+                    default_uom = uoms.get("EA") or list(uoms.values())[0] if uoms else None
+                    default_ownership = list(ownership_types.values())[0] if ownership_types else None
+                    default_condition = list(condition_types.values())[0] if condition_types else None
+                    default_qs = list(quality_statuses.values())[0] if quality_statuses else None
+                    if default_uom and default_ownership and default_condition and default_qs:
+                        qty_sys = Decimal(str(random.randint(50, 100)))
+                        qty_cnt = Decimal(str(random.randint(48, 102)))
+                        StockAdjustmentLine.objects.create(
+                            adjustment=adj,
+                            line_number=j + 1,
+                            item=item,
+                            qty_system=qty_sys,
+                            qty_counted=qty_cnt,
+                            qty_adjustment=qty_cnt - qty_sys,
+                            uom=default_uom,
+                            owner_party=default_party,
+                            ownership_type=default_ownership,
+                            condition=default_condition,
+                            quality_status=default_qs,
+                        )
                 self.stdout.write(f"    Created: {adj.adjustment_number}")
 
         # =====================================================
