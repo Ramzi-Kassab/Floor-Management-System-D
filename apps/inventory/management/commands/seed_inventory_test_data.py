@@ -363,7 +363,7 @@ class Command(BaseCommand):
                     "transfer_date": timezone.now().date() - timedelta(days=random.randint(1, 20)),
                     "from_warehouse": warehouses.get("WH-MAIN"),
                     "from_location": locations.get("WH-MAIN-A1"),
-                    "to_warehouse": warehouses.get("WH-FIELD-01"),
+                    "to_warehouse": warehouses.get("WH-PROD"),
                     "to_location": locations.get("WH-PROD-01"),
                     "from_owner": default_party,
                     "status": random.choice(["DRAFT", "IN_TRANSIT", "COMPLETED"]),
