@@ -376,7 +376,9 @@ class Command(BaseCommand):
                     item = items[item_code]
                     default_uom = uoms.get("EA") or list(uoms.values())[0] if uoms else None
                     default_ownership = list(ownership_types.values())[0] if ownership_types else None
-                    if default_uom and default_ownership:
+                    default_condition = list(condition_types.values())[0] if condition_types else None
+                    default_qs = list(quality_statuses.values())[0] if quality_statuses else None
+                    if default_uom and default_ownership and default_condition and default_qs:
                         StockTransferLine.objects.create(
                             transfer=transfer,
                             line_number=j + 1,
@@ -386,6 +388,8 @@ class Command(BaseCommand):
                             qty_received=Decimal(str(random.randint(10, 50))),
                             uom=default_uom,
                             ownership_type=default_ownership,
+                            condition=default_condition,
+                            from_quality_status=default_qs,
                         )
                 self.stdout.write(f"    Created: {transfer.transfer_number}")
 
