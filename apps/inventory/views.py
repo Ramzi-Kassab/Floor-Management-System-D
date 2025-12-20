@@ -94,7 +94,7 @@ class InventoryDashboardView(LoginRequiredMixin, View):
             "draft_transfers": StockTransfer.objects.filter(status="DRAFT").count(),
             "draft_adjustments": StockAdjustmentDoc.objects.filter(status="DRAFT").count(),
             "total_assets": Asset.objects.count(),
-            "active_boms": BillOfMaterial.objects.filter(is_active=True).count(),
+            "active_boms": BillOfMaterial.objects.filter(status="ACTIVE").count(),
         }
 
         # Recent ledger entries
