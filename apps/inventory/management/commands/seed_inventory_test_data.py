@@ -468,6 +468,7 @@ class Command(BaseCommand):
                         "quality_status": default_qs,
                         "acquisition_date": timezone.now().date() - timedelta(days=random.randint(30, 365)),
                         "acquisition_cost": item.standard_cost or Decimal("10000.00"),
+                        "created_by": admin_user,
                     }
                 )
                 if created:
@@ -488,7 +489,7 @@ class Command(BaseCommand):
                     "parent_item": fg_item,
                     "version": "1.0",
                     "status": "ACTIVE",
-                    "bom_type": "PRODUCTION",
+                    "bom_type": "STD",
                     "base_quantity": Decimal("1"),
                     "uom": uoms.get("EA"),
                     "created_by": admin_user,
