@@ -28,7 +28,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ("inventory", "0017_phase2_3_4_ledger_docs_assets"),
         ("sales", "0006_week3_field_data_capture"),
-        ("workorders", "0008_sprint7_templates"),
+        ("workorders", "0006_bittype_phase2_fields"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
