@@ -268,6 +268,9 @@ class Command(BaseCommand):
             defaults={"name": "Baker Hughes Supply Co.", "is_active": True}
         )
 
+        # Get ownership type for GRNs
+        owned_type = ownership_types.get("OWNED") or list(ownership_types.values())[0] if ownership_types else None
+
         for i in range(1, 6):
             grn, created = GoodsReceiptNote.objects.get_or_create(
                 grn_number=f"GRN-2024-{i:04d}",
@@ -276,7 +279,9 @@ class Command(BaseCommand):
                     "warehouse": warehouses.get("WH-MAIN"),
                     "supplier": supplier,
                     "receiving_location": locations.get("WH-RECV-01"),
-                    "status": random.choice(["DRAFT", "RECEIVED", "POSTED"]),
+                    "owner_party": ardt_party,
+                    "ownership_type": owned_type,
+                    "status": random.choice(["DRAFT", "CONFIRMED"]),
                     "notes": f"Test GRN {i}",
                     "created_by": admin_user,
                 }
