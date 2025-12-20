@@ -4008,7 +4008,8 @@ class BOMLine(models.Model):
 
     def save(self, *args, **kwargs):
         # Calculate extended cost with scrap allowance
-        scrap_factor = 1 + (self.scrap_percent / 100)
+        from decimal import Decimal
+        scrap_factor = Decimal("1") + (self.scrap_percent / Decimal("100"))
         self.extended_cost = self.quantity_per * self.unit_cost * scrap_factor
         super().save(*args, **kwargs)
 
