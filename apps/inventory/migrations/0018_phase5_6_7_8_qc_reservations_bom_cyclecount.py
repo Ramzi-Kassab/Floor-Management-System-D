@@ -225,7 +225,7 @@ class Migration(migrations.Migration):
             options={
                 "verbose_name": "BOM Line",
                 "verbose_name_plural": "BOM Lines",
-                "db_table": "bom_lines",
+                "db_table": "inventory_bom_lines",
                 "ordering": ["bom", "line_number"],
                 "unique_together": {("bom", "line_number")},
             },
