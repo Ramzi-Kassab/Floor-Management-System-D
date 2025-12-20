@@ -312,12 +312,8 @@ class Command(BaseCommand):
         # 9. CREATE STOCK ISSUES
         # =====================================================
         self.stdout.write("  Creating stock issues...")
-        # Create a default party for ownership tracking
-        from apps.core.models import Party
-        default_party, _ = Party.objects.get_or_create(
-            code="ARDT-OPS",
-            defaults={"name": "ARDT Operations", "party_type": "INTERNAL", "is_active": True}
-        )
+        # Use ardt_party already created in stock balance section
+        default_party = ardt_party
         for i in range(1, 4):
             issue, created = StockIssue.objects.get_or_create(
                 issue_number=f"ISS-2024-{i:04d}",
