@@ -3994,7 +3994,7 @@ class BOMLine(models.Model):
     notes = models.TextField(blank=True)
 
     class Meta:
-        db_table = "bom_lines"
+        db_table = "inventory_bom_lines"
         verbose_name = "BOM Line"
         verbose_name_plural = "BOM Lines"
         ordering = ["bom", "line_number"]

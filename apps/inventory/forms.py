@@ -526,7 +526,7 @@ class StockIssueForm(forms.ModelForm):
             "warehouse",
             "issue_date",
             "reference",
-            "issued_to_party",
+            "issue_to_party",
             "notes",
         ]
         widgets = {
@@ -534,7 +534,7 @@ class StockIssueForm(forms.ModelForm):
             "warehouse": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "issue_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
             "reference": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "JOB-001 or SO-001"}),
-            "issued_to_party": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "issue_to_party": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
         }
 
@@ -547,21 +547,19 @@ class StockIssueLineForm(forms.ModelForm):
         fields = [
             "item",
             "lot",
-            "from_location",
+            "location",
             "qty_requested",
             "qty_issued",
             "unit_cost",
-            "reservation",
             "notes",
         ]
         widgets = {
             "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "from_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "qty_requested": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "qty_issued": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "unit_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
-            "reservation": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
         }
 
@@ -604,19 +602,17 @@ class StockTransferLineForm(forms.ModelForm):
         fields = [
             "item",
             "lot",
-            "from_location",
-            "to_location",
             "qty_requested",
-            "qty_transferred",
+            "qty_shipped",
+            "qty_received",
             "notes",
         ]
         widgets = {
             "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "from_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "to_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "qty_requested": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
-            "qty_transferred": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "qty_shipped": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "qty_received": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
         }
 
@@ -659,18 +655,18 @@ class StockAdjustmentLineForm(forms.ModelForm):
         fields = [
             "item",
             "lot",
-            "location",
             "qty_system",
-            "qty_actual",
+            "qty_counted",
+            "qty_adjustment",
             "unit_cost",
             "notes",
         ]
         widgets = {
             "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "qty_system": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "readonly": "readonly"}),
-            "qty_actual": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "qty_counted": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "qty_adjustment": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "readonly": "readonly"}),
             "unit_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
             "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
         }
@@ -746,18 +742,16 @@ class AssetMovementForm(forms.ModelForm):
             "to_location",
             "from_status",
             "to_status",
-            "reference_type",
-            "reference_id",
+            "reason",
             "notes",
         ]
         widgets = {
             "movement_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "from_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "to_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "from_status": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "to_status": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "reference_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "JOB, DISPATCH, etc."}),
-            "reference_id": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "from_status": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "to_status": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "reason": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
             "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
         }
 
@@ -779,7 +773,7 @@ class QualityStatusChangeForm(forms.ModelForm):
             "from_status",
             "to_status",
             "reason",
-            "inspection_number",
+            "inspection_notes",
             "notes",
         ]
         widgets = {
@@ -788,9 +782,9 @@ class QualityStatusChangeForm(forms.ModelForm):
             "asset": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "from_status": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "to_status": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "reason": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Reason for status change"}),
-            "inspection_number": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "INS-001"}),
-            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+            "reason": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2, "placeholder": "Reason for status change"}),
+            "inspection_notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
         }
 
     def clean(self):
@@ -823,8 +817,7 @@ class StockReservationForm(forms.ModelForm):
             "lot",
             "location",
             "qty_reserved",
-            "reference_type",
-            "reference_id",
+            "reserved_for_party",
             "required_date",
             "expiry_date",
             "priority",
@@ -836,8 +829,7 @@ class StockReservationForm(forms.ModelForm):
             "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "qty_reserved": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
-            "reference_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "JOB, SO, WO"}),
-            "reference_id": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "JOB-001"}),
+            "reserved_for_party": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "required_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
             "expiry_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
             "priority": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": "1", "max": "10"}),
@@ -893,7 +885,8 @@ class BOMLineForm(forms.ModelForm):
         fields = [
             "line_number",
             "component_item",
-            "quantity",
+            "component_type",
+            "quantity_per",
             "uom",
             "is_optional",
             "scrap_percent",
@@ -902,7 +895,8 @@ class BOMLineForm(forms.ModelForm):
         widgets = {
             "line_number": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
             "component_item": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "quantity": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "component_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "quantity_per": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "uom": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "is_optional": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "scrap_percent": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "placeholder": "%"}),
@@ -936,10 +930,9 @@ class CycleCountPlanForm(forms.ModelForm):
             "warehouse",
             "start_date",
             "end_date",
-            "frequency_days",
-            "count_a_items_every",
-            "count_b_items_every",
-            "count_c_items_every",
+            "count_frequency_a",
+            "count_frequency_b",
+            "count_frequency_c",
             "notes",
         ]
         widgets = {
@@ -949,10 +942,9 @@ class CycleCountPlanForm(forms.ModelForm):
             "warehouse": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "start_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
             "end_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
-            "frequency_days": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
-            "count_a_items_every": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Days"}),
-            "count_b_items_every": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Days"}),
-            "count_c_items_every": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Days"}),
+            "count_frequency_a": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Days for A items"}),
+            "count_frequency_b": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Days for B items"}),
+            "count_frequency_c": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Days for C items"}),
             "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
         }
 
@@ -989,7 +981,6 @@ class CycleCountLineForm(forms.ModelForm):
             "location",
             "qty_system",
             "qty_counted",
-            "count_time",
             "notes",
         ]
         widgets = {
@@ -998,7 +989,6 @@ class CycleCountLineForm(forms.ModelForm):
             "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "qty_system": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "readonly": "readonly"}),
             "qty_counted": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
-            "count_time": forms.DateTimeInput(attrs={"class": TAILWIND_INPUT, "type": "datetime-local"}),
             "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
         }
 
@@ -1027,18 +1017,16 @@ class PartyForm(forms.ModelForm):
             "name",
             "party_type",
             "can_own_stock",
-            "can_receive_stock",
-            "can_supply_stock",
             "is_active",
+            "notes",
         ]
         widgets = {
             "code": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
             "name": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
             "party_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "can_own_stock": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
-            "can_receive_stock": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
-            "can_supply_stock": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
             "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
         }
 
 
@@ -1051,15 +1039,19 @@ class ConditionTypeForm(forms.ModelForm):
             "code",
             "name",
             "description",
-            "is_serviceable",
+            "is_new",
+            "is_saleable",
+            "cost_multiplier",
             "display_order",
             "is_active",
         ]
         widgets = {
             "code": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
             "name": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
-            "description": forms.Textarea(attrs={"class": TAILWIND_INPUT, "rows": 2}),
-            "is_serviceable": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+            "is_new": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "is_saleable": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "cost_multiplier": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01"}),
             "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
             "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
         }
@@ -1075,16 +1067,18 @@ class QualityStatusForm(forms.ModelForm):
             "name",
             "description",
             "is_available",
-            "requires_inspection",
+            "is_initial",
+            "is_terminal",
             "display_order",
             "is_active",
         ]
         widgets = {
             "code": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
             "name": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
-            "description": forms.Textarea(attrs={"class": TAILWIND_INPUT, "rows": 2}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
             "is_available": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
-            "requires_inspection": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "is_initial": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "is_terminal": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
             "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
             "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
         }
@@ -1122,13 +1116,21 @@ class OwnershipTypeForm(forms.ModelForm):
             "code",
             "name",
             "description",
-            "is_company_owned",
+            "is_ardt_owned",
+            "requires_party",
+            "affects_balance_sheet",
+            "include_in_valuation",
+            "display_order",
             "is_active",
         ]
         widgets = {
             "code": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
             "name": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
             "description": forms.Textarea(attrs={"class": TAILWIND_INPUT, "rows": 2}),
-            "is_company_owned": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "is_ardt_owned": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "requires_party": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "affects_balance_sheet": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "include_in_valuation": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
+            "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
             "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
         }

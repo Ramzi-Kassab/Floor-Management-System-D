@@ -148,8 +148,8 @@ class MaterialLotAdmin(admin.ModelAdmin):
 
 @admin.register(UnitOfMeasure)
 class UnitOfMeasureAdmin(admin.ModelAdmin):
-    list_display = ["code", "name", "uom_type", "is_active"]
-    list_filter = ["uom_type", "is_active"]
+    list_display = ["code", "name", "unit_type", "is_active"]
+    list_filter = ["unit_type", "is_active"]
     search_fields = ["code", "name"]
 
 
