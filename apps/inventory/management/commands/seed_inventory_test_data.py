@@ -397,7 +397,12 @@ class Command(BaseCommand):
         # 11. CREATE STOCK ADJUSTMENTS
         # =====================================================
         self.stdout.write("  Creating stock adjustments...")
-        reason_cc = adjustment_reasons.get("CC")
+        # Get or create an adjustment reason
+        reason_cc = adjustment_reasons.get("CC") or adjustment_reasons.get("CYCLE") or list(adjustment_reasons.values())[0] if adjustment_reasons else None
+        if not reason_cc:
+            reason_cc, _ = AdjustmentReason.objects.get_or_create(
+                code="CC", defaults={"name": "Cycle Count", "is_active": True}
+            )
         for i in range(1, 3):
             adj, created = StockAdjustment.objects.get_or_create(
                 adjustment_number=f"ADJ-2024-{i:04d}",
@@ -441,25 +446,34 @@ class Command(BaseCommand):
         # 12. CREATE ASSETS
         # =====================================================
         self.stdout.write("  Creating assets...")
-        for i in range(1, 6):
-            item = items.get("FG-BIT-812") or list(items.values())[0]
-            asset, created = Asset.objects.get_or_create(
-                serial_number=f"SN-2024-{i:05d}",
-                defaults={
-                    "asset_tag": f"AST-{i:05d}",
-                    "item": item,
-                    "status": random.choice(["IN_STOCK", "IN_USE", "IN_REPAIR"]),
-                    "current_location": locations.get("WH-SHIP-01"),
-                    "owner_party": ardt_party,
-                    "ownership_type": owned_type,
-                    "condition": new_condition,
-                    "quality_status": avail_status,
-                    "acquisition_date": timezone.now().date() - timedelta(days=random.randint(30, 365)),
-                    "acquisition_cost": item.standard_cost or Decimal("10000.00"),
-                }
-            )
-            if created:
-                self.stdout.write(f"    Created: {asset.serial_number}")
+        # Get default dimension types for assets
+        default_condition = new_condition or list(condition_types.values())[0] if condition_types else None
+        default_qs = avail_status or list(quality_statuses.values())[0] if quality_statuses else None
+        default_ownership = owned_type or list(ownership_types.values())[0] if ownership_types else None
+        default_owner = ardt_party or list(parties.values())[0] if parties else None
+
+        if default_condition and default_qs and default_ownership and default_owner:
+            for i in range(1, 6):
+                item = items.get("FG-BIT-812") or list(items.values())[0]
+                asset, created = Asset.objects.get_or_create(
+                    serial_number=f"SN-2024-{i:05d}",
+                    defaults={
+                        "asset_tag": f"AST-{i:05d}",
+                        "item": item,
+                        "status": random.choice(["AVAILABLE", "IN_USE", "MAINTENANCE"]),
+                        "current_location": locations.get("WH-SHIP-01"),
+                        "owner_party": default_owner,
+                        "ownership_type": default_ownership,
+                        "condition": default_condition,
+                        "quality_status": default_qs,
+                        "acquisition_date": timezone.now().date() - timedelta(days=random.randint(30, 365)),
+                        "acquisition_cost": item.standard_cost or Decimal("10000.00"),
+                    }
+                )
+                if created:
+                    self.stdout.write(f"    Created: {asset.serial_number}")
+        else:
+            self.stdout.write("    Skipped assets - missing dimension types")
 
         # =====================================================
         # 13. CREATE BILLS OF MATERIAL
@@ -504,21 +518,26 @@ class Command(BaseCommand):
         # 14. CREATE STOCK RESERVATIONS
         # =====================================================
         self.stdout.write("  Creating reservations...")
-        for i in range(1, 4):
-            item = list(items.values())[i]
-            res, created = StockReservation.objects.get_or_create(
-                reservation_number=f"RES-2024-{i:04d}",
-                defaults={
-                    "reservation_type": "WO",
-                    "status": "PENDING",
-                    "item": item,
-                    "qty_reserved": Decimal(str(random.randint(5, 25))),
-                    "required_date": timezone.now().date() + timedelta(days=random.randint(7, 30)),
-                    "created_by": admin_user,
-                }
-            )
-            if created:
-                self.stdout.write(f"    Created: {res.reservation_number}")
+        default_uom = uoms.get("EA") or list(uoms.values())[0] if uoms else None
+        if default_uom:
+            for i in range(1, 4):
+                item = list(items.values())[i]
+                res, created = StockReservation.objects.get_or_create(
+                    reservation_number=f"RES-2024-{i:04d}",
+                    defaults={
+                        "reservation_type": "WO",
+                        "status": "PENDING",
+                        "item": item,
+                        "uom": item.uom or default_uom,
+                        "qty_reserved": Decimal(str(random.randint(5, 25))),
+                        "required_date": timezone.now().date() + timedelta(days=random.randint(7, 30)),
+                        "created_by": admin_user,
+                    }
+                )
+                if created:
+                    self.stdout.write(f"    Created: {res.reservation_number}")
+        else:
+            self.stdout.write("    Skipped reservations - no UOM available")
 
         # =====================================================
         # 15. CREATE CYCLE COUNT PLANS
