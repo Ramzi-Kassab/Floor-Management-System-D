@@ -253,8 +253,8 @@ class Command(BaseCommand):
                         "qty_on_hand": Decimal(str(stock_rec["qty"])),
                         "qty_reserved": Decimal("0"),
                         "qty_available": Decimal(str(stock_rec["qty"])),
-                        "unit_cost": item.standard_cost or Decimal("0"),
-                        "total_value": Decimal(str(stock_rec["qty"])) * (item.standard_cost or Decimal("0")),
+                        "avg_unit_cost": item.standard_cost or Decimal("0"),
+                        "total_cost": Decimal(str(stock_rec["qty"])) * (item.standard_cost or Decimal("0")),
                     }
                 )
 
