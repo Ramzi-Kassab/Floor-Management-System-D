@@ -103,7 +103,7 @@
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                         {% for row in selected_data %}
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                            <td class="px-4 py-2 text-xs text-gray-400">{{ row.__row_index__|default:forloop.counter }}</td>
+                            <td class="px-4 py-2 text-xs text-gray-400">{{ forloop.counter }}</td>
                             {% for key, value in row.items %}
                                 {% if not key|slice:":2" == "__" %}
                                 <td class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ value|default:"-" }}</td>
