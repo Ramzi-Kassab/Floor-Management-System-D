@@ -279,6 +279,17 @@ class LocatorStrategyAdmin(admin.ModelAdmin):
     success_rate_display.short_description = "Success Rate"
 
 
+@admin.register(FieldMapping)
+class FieldMappingAdmin(admin.ModelAdmin):
+    list_display = [
+        "workflow", "excel_column", "erp_field",
+        "locator", "is_required", "is_active"
+    ]
+    list_filter = ["workflow", "is_required", "is_active"]
+    search_fields = ["excel_column", "erp_field", "workflow__name"]
+    autocomplete_fields = ["workflow", "locator"]
+
+
 @admin.register(RecordedAction)
 class RecordedActionAdmin(admin.ModelAdmin):
     list_display = [
