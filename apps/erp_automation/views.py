@@ -102,6 +102,57 @@ def get_credentials(request):
     return request.session.get("erp_credentials")
 
 
+@login_required
+@require_POST
+def clear_credentials(request):
+    """Clear ERP credentials from session."""
+    request.session.pop("erp_credentials", None)
+    messages.info(request, "Credentials cleared.")
+    return redirect("erp_automation:dashboard")
+
+
+@login_required
+def check_browser(request):
+    """Check if Playwright browser is installed and working."""
+    status = {
+        "playwright_installed": False,
+        "playwright_version": None,
+        "browser_available": False,
+        "error": None,
+        "install_command": "playwright install",
+    }
+
+    try:
+        import playwright
+        from playwright.sync_api import sync_playwright
+        status["playwright_installed"] = True
+        status["playwright_version"] = getattr(playwright, "__version__", "unknown")
+
+        # Try to launch browser
+        p = sync_playwright().start()
+        try:
+            browser = p.chromium.launch(headless=True)
+            status["browser_available"] = True
+            status["browser_version"] = browser.version
+            browser.close()
+        except Exception as e:
+            error_msg = str(e)
+            status["error"] = error_msg
+            # Provide helpful guidance based on error type
+            if "Executable doesn't exist" in error_msg:
+                status["install_command"] = "playwright install chromium"
+            elif "version" in error_msg.lower():
+                status["install_command"] = "pip install --upgrade playwright && playwright install"
+        finally:
+            p.stop()
+
+    except ImportError as e:
+        status["error"] = f"Playwright not installed: {e}"
+        status["install_command"] = "pip install playwright && playwright install"
+
+    return JsonResponse(status)
+
+
 # =============================================================================
 # WORKFLOWS
 # =============================================================================
@@ -155,37 +206,71 @@ class WorkflowExecuteView(LoginRequiredMixin, View):
             messages.warning(request, "No Excel rows selected. Please select data first.")
             return redirect("erp_automation:excel_handler")
 
+        # Check headless option
+        headless = request.POST.get("headless") == "on"
+
         # Start execution (simplified - in production use Celery)
-        from .services.executor import WorkflowExecutor
+        try:
+            from .services.executor import WorkflowExecutor
+        except ImportError as e:
+            messages.error(request, f"Executor service not available: {e}")
+            return redirect("erp_automation:workflow_detail", pk=pk)
 
         global _executor_instance
-        if _executor_instance is None:
-            _executor_instance = WorkflowExecutor()
 
-        # Start browser
-        if not _executor_instance.page:
-            _executor_instance.start_browser(
-                url=workflow.target_url,
-                credentials=credentials,
-                headless=False
-            )
+        try:
+            if _executor_instance is None:
+                _executor_instance = WorkflowExecutor()
 
-        # Execute for each row
-        results = []
-        for row in selected_data:
-            execution = WorkflowExecution.objects.create(
-                workflow=workflow,
-                row_data=row,
-                executed_by=request.user
-            )
-            result = _executor_instance.execute_workflow(workflow, row, execution)
-            results.append(result)
+            # Start browser if not already running
+            if not _executor_instance.page:
+                browser_started = _executor_instance.start_browser(
+                    url=workflow.target_url,
+                    credentials=credentials,
+                    headless=headless
+                )
+                if not browser_started:
+                    messages.error(
+                        request,
+                        "Failed to start browser. Please ensure Playwright browsers are installed. "
+                        "Run 'playwright install' in your terminal."
+                    )
+                    return redirect("erp_automation:workflow_detail", pk=pk)
 
-        success_count = sum(1 for r in results if r["success"])
-        messages.success(
-            request,
-            f"Execution complete: {success_count}/{len(results)} successful"
-        )
+            # Execute for each row
+            results = []
+            for row in selected_data:
+                execution = WorkflowExecution.objects.create(
+                    workflow=workflow,
+                    row_data=row,
+                    executed_by=request.user
+                )
+                result = _executor_instance.execute_workflow(workflow, row, execution)
+                results.append(result)
+
+            success_count = sum(1 for r in results if r["success"])
+            failed_count = len(results) - success_count
+
+            if success_count == len(results):
+                messages.success(request, f"Execution complete: all {success_count} rows successful!")
+            elif success_count > 0:
+                messages.warning(
+                    request,
+                    f"Execution complete: {success_count} successful, {failed_count} failed."
+                )
+            else:
+                # All failed - show error details from first failure
+                first_error = next((r.get("message", "Unknown error") for r in results if not r["success"]), "Unknown error")
+                messages.error(
+                    request,
+                    f"Execution failed for all {len(results)} rows. Error: {first_error}"
+                )
+
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.exception(f"Workflow execution error: {e}")
+            messages.error(request, f"Execution error: {str(e)}")
 
         return redirect("erp_automation:workflow_detail", pk=pk)
 

@@ -49,4 +49,8 @@ urlpatterns = [
 
     # Session credentials
     path("credentials/", views.CredentialsView.as_view(), name="credentials"),
+    path("credentials/clear/", views.clear_credentials, name="clear_credentials"),
+
+    # Diagnostics
+    path("check-browser/", views.check_browser, name="check_browser"),
 ]
