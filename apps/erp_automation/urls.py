@@ -53,4 +53,5 @@ urlpatterns = [
 
     # Diagnostics
     path("check-browser/", views.check_browser, name="check_browser"),
+    path("test-browser/", views.test_browser, name="test_browser"),
 ]

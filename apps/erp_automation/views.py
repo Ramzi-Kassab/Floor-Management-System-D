@@ -190,6 +190,83 @@ def check_browser(request):
     return JsonResponse(status)
 
 
+def test_browser(request):
+    """Test browser by creating a simple page - returns JSON result."""
+    import glob
+
+    result = {
+        "success": False,
+        "message": "",
+        "browser_version": None,
+    }
+
+    def find_browser_executable():
+        cache_paths = [
+            os.path.expanduser("~/.cache/ms-playwright"),
+            "/root/.cache/ms-playwright",
+        ]
+        for cache_path in cache_paths:
+            if not os.path.exists(cache_path):
+                continue
+            chromium_dirs = sorted(
+                glob.glob(os.path.join(cache_path, "chromium-*")),
+                reverse=True
+            )
+            for chromium_dir in chromium_dirs:
+                chrome_linux = os.path.join(chromium_dir, "chrome-linux", "chrome")
+                if os.path.exists(chrome_linux):
+                    return chrome_linux
+        return None
+
+    try:
+        from playwright.sync_api import sync_playwright
+
+        exe_path = find_browser_executable()
+        if not exe_path:
+            result["message"] = "No browser executable found"
+            return JsonResponse(result)
+
+        p = sync_playwright().start()
+        try:
+            browser = p.chromium.launch(
+                headless=True,
+                executable_path=exe_path,
+                args=["--no-sandbox", "--disable-dev-shm-usage"]
+            )
+            result["browser_version"] = browser.version
+
+            context = browser.new_context()
+            page = context.new_page()
+
+            # Create a simple test page (no network needed)
+            page.set_content("""
+                <html>
+                <head><title>Playwright Test Page</title></head>
+                <body>
+                    <h1>Browser is working!</h1>
+                    <p>If you can see this, Playwright automation is functional.</p>
+                </body>
+                </html>
+            """)
+
+            # Get page info
+            title = page.title()
+            h1_text = page.locator("h1").text_content()
+
+            result["success"] = True
+            result["message"] = f"Browser working! Version: {browser.version}, Title: {title}, H1: {h1_text}"
+
+            browser.close()
+
+        finally:
+            p.stop()
+
+    except Exception as e:
+        result["message"] = f"Error: {str(e)}"
+
+    return JsonResponse(result)
+
+
 # =============================================================================
 # WORKFLOWS
 # =============================================================================
