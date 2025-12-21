@@ -72,10 +72,20 @@ class WorkflowExecutor:
         """
         try:
             self.playwright = sync_playwright().start()
-            self.browser = self.playwright.chromium.launch(
-                headless=headless,
-                args=["--start-maximized"]
-            )
+
+            # Try to find an available browser executable
+            executable_path = self._find_browser_executable()
+
+            launch_args = {
+                "headless": headless,
+                "args": ["--start-maximized", "--no-sandbox", "--disable-dev-shm-usage"]
+            }
+
+            if executable_path:
+                launch_args["executable_path"] = executable_path
+                logger.info(f"Using browser at: {executable_path}")
+
+            self.browser = self.playwright.chromium.launch(**launch_args)
             self.context = self.browser.new_context(
                 viewport={"width": 1920, "height": 1080}
             )
@@ -99,6 +109,52 @@ class WorkflowExecutor:
             logger.error(f"Failed to start browser: {e}")
             self.stop_browser()
             return False
+
+    def _find_browser_executable(self) -> Optional[str]:
+        """
+        Find an available Chromium browser executable.
+        Checks Playwright cache for any available version.
+        """
+        import glob
+
+        # Possible cache locations
+        cache_paths = [
+            os.path.expanduser("~/.cache/ms-playwright"),
+            "/root/.cache/ms-playwright",
+            os.path.expanduser("~/Library/Caches/ms-playwright"),  # macOS
+        ]
+
+        for cache_path in cache_paths:
+            if not os.path.exists(cache_path):
+                continue
+
+            # Look for chromium directories (any version)
+            chromium_dirs = sorted(
+                glob.glob(os.path.join(cache_path, "chromium-*")),
+                reverse=True  # Prefer newer versions
+            )
+
+            for chromium_dir in chromium_dirs:
+                # Linux path
+                chrome_linux = os.path.join(chromium_dir, "chrome-linux", "chrome")
+                if os.path.exists(chrome_linux):
+                    return chrome_linux
+
+                # macOS path
+                chrome_mac = os.path.join(
+                    chromium_dir, "chrome-mac", "Chromium.app",
+                    "Contents", "MacOS", "Chromium"
+                )
+                if os.path.exists(chrome_mac):
+                    return chrome_mac
+
+                # Windows path
+                chrome_win = os.path.join(chromium_dir, "chrome-win", "chrome.exe")
+                if os.path.exists(chrome_win):
+                    return chrome_win
+
+        # Return None to use default Playwright-managed browser
+        return None
 
     def stop_browser(self):
         """Close browser and cleanup."""

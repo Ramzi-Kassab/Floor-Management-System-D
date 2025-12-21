@@ -114,6 +114,8 @@ def clear_credentials(request):
 @login_required
 def check_browser(request):
     """Check if Playwright browser is installed and working."""
+    import glob
+
     status = {
         "playwright_installed": False,
         "playwright_version": None,
@@ -122,18 +124,54 @@ def check_browser(request):
         "install_command": "playwright install",
     }
 
+    def find_browser_executable():
+        """Find any available Chromium browser in Playwright cache."""
+        cache_paths = [
+            os.path.expanduser("~/.cache/ms-playwright"),
+            "/root/.cache/ms-playwright",
+            os.path.expanduser("~/Library/Caches/ms-playwright"),
+        ]
+        for cache_path in cache_paths:
+            if not os.path.exists(cache_path):
+                continue
+            chromium_dirs = sorted(
+                glob.glob(os.path.join(cache_path, "chromium-*")),
+                reverse=True
+            )
+            for chromium_dir in chromium_dirs:
+                chrome_linux = os.path.join(chromium_dir, "chrome-linux", "chrome")
+                if os.path.exists(chrome_linux):
+                    return chrome_linux
+                chrome_mac = os.path.join(
+                    chromium_dir, "chrome-mac", "Chromium.app",
+                    "Contents", "MacOS", "Chromium"
+                )
+                if os.path.exists(chrome_mac):
+                    return chrome_mac
+                chrome_win = os.path.join(chromium_dir, "chrome-win", "chrome.exe")
+                if os.path.exists(chrome_win):
+                    return chrome_win
+        return None
+
     try:
         import playwright
         from playwright.sync_api import sync_playwright
         status["playwright_installed"] = True
         status["playwright_version"] = getattr(playwright, "__version__", "unknown")
 
-        # Try to launch browser
+        # Try to launch browser - use fallback to cached version if needed
         p = sync_playwright().start()
         try:
-            browser = p.chromium.launch(headless=True)
+            executable_path = find_browser_executable()
+            launch_args = {"headless": True}
+            if executable_path:
+                launch_args["executable_path"] = executable_path
+
+            browser = p.chromium.launch(**launch_args)
             status["browser_available"] = True
             status["browser_version"] = browser.version
+            if executable_path:
+                status["browser_path"] = executable_path
             browser.close()
         except Exception as e:
             error_msg = str(e)
