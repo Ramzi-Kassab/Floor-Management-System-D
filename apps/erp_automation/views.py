@@ -23,7 +23,7 @@ from django.conf import settings
 from .models import (
     Workflow, WorkflowStep, Locator, LocatorStrategy,
     RecordingSession, RecordedAction,
-    WorkflowExecution, ItemCounter
+    WorkflowExecution, ItemCounter, FieldMapping, WorkflowStatus
 )
 
 # Global recorder instance (per-process, for development)
@@ -347,10 +347,14 @@ class ExcelHandlerView(LoginRequiredMixin, View):
     """View for handling Excel data."""
 
     def get(self, request):
-        selected_data = request.session.get("selected_excel_data", [])
+        excel_data = request.session.get("excel_data", [])
+        excel_columns = request.session.get("excel_columns", [])
+
         return render(request, "erp_automation/excel_handler.html", {
-            "selected_data": selected_data,
-            "selected_count": len(selected_data),
+            "excel_data": excel_data,
+            "excel_columns": excel_columns,
+            "field_mappings": FieldMapping.objects.select_related('locator').all(),
+            "workflows": Workflow.objects.filter(status=WorkflowStatus.ACTIVE),
         })
 
 
