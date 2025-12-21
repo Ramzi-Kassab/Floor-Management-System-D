@@ -102,6 +102,9 @@ LOCAL_APPS = [
     'apps.hr',
     'apps.hsse',
     'apps.erp_integration',
+
+    # ERP Automation (browser automation for ERP)
+    'apps.erp_automation',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

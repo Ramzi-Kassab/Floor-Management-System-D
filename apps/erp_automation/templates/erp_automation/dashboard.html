@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ERP Automation - Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">ERP Automation</h1>
+            <p class="text-muted mb-0">Browser automation with smart recording</p>
+        </div>
+        <div>
+            {% if has_credentials %}
+            <span class="badge bg-success me-2">
+                <i class="fas fa-lock"></i> Credentials Set
+            </span>
+            {% else %}
+            <a href="{% url 'erp_automation:credentials' %}" class="btn btn-warning btn-sm">
+                <i class="fas fa-key"></i> Set Credentials
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 bg-primary bg-opacity-10 rounded p-3">
+                            <i class="fas fa-cogs text-primary fa-2x"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0">{{ workflow_count }}</h2>
+                            <p class="text-muted mb-0">Active Workflows</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 bg-success bg-opacity-10 rounded p-3">
+                            <i class="fas fa-crosshairs text-success fa-2x"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0">{{ locator_count }}</h2>
+                            <p class="text-muted mb-0">Locators</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 bg-info bg-opacity-10 rounded p-3">
+                            <i class="fas fa-play-circle text-info fa-2x"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0">{{ recent_executions|length }}</h2>
+                            <p class="text-muted mb-0">Recent Runs</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 bg-warning bg-opacity-10 rounded p-3">
+                            <i class="fas fa-hashtag text-warning fa-2x"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h2 class="mb-0">{{ item_counters|length }}</h2>
+                            <p class="text-muted mb-0">Item Counters</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent">
+                    <h5 class="card-title mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <a href="{% url 'erp_automation:record' %}" class="btn btn-outline-primary w-100 py-3">
+                                <i class="fas fa-record-vinyl fa-2x mb-2 d-block"></i>
+                                Start Recording
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{% url 'erp_automation:excel_handler' %}" class="btn btn-outline-success w-100 py-3">
+                                <i class="fas fa-file-excel fa-2x mb-2 d-block"></i>
+                                Load Excel Data
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{% url 'erp_automation:workflow_list' %}" class="btn btn-outline-info w-100 py-3">
+                                <i class="fas fa-play fa-2x mb-2 d-block"></i>
+                                Run Workflow
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{% url 'erp_automation:locator_list' %}" class="btn btn-outline-secondary w-100 py-3">
+                                <i class="fas fa-crosshairs fa-2x mb-2 d-block"></i>
+                                Manage Locators
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Executions -->
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Recent Executions</h5>
+                    <a href="{% url 'erp_automation:execution_list' %}" class="btn btn-sm btn-link">View All</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Workflow</th>
+                                    <th>Status</th>
+                                    <th>Started</th>
+                                    <th>User</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for exec in recent_executions %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'erp_automation:execution_detail' exec.pk %}">
+                                            {{ exec.workflow.name }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if exec.status == 'success' %}
+                                        <span class="badge bg-success">Success</span>
+                                        {% elif exec.status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                        {% elif exec.status == 'running' %}
+                                        <span class="badge bg-info">Running</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ exec.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ exec.started_at|date:"M d, H:i" }}</td>
+                                    <td>{{ exec.executed_by.username|default:"-" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        No executions yet
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Item Counters -->
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent">
+                    <h5 class="card-title mb-0">Item Counters</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for counter in item_counters %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ counter.account_type }}</strong>
+                                <br>
+                                <small class="text-muted">{{ counter.prefix }}</small>
+                            </div>
+                            <div class="text-end">
+                                <code>{{ counter.get_next_preview }}</code>
+                                <br>
+                                <small class="text-muted">Next: #{{ counter.current_number }}</small>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="list-group-item text-center text-muted">
+                            No counters configured
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
