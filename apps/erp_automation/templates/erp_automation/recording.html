@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ERP Automation - Recording{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Record Browser Actions</h1>
+            <p class="text-muted mb-0">Capture element locators by performing actions in the browser</p>
+        </div>
+        <a href="{% url 'erp_automation:dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Recording Controls -->
+        <div class="col-lg-4 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-cog"></i> Recording Setup
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="recordingForm">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label class="form-label">Session Name</label>
+                            <input type="text" name="session_name" class="form-control"
+                                   placeholder="e.g., Create Item Flow" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Target URL</label>
+                            <input type="url" name="target_url" class="form-control"
+                                   placeholder="https://dynamics.microsoft.com/..." required>
+                            <div class="form-text">The ERP page URL to record</div>
+                        </div>
+
+                        {% if not has_credentials %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>Credentials Required</strong>
+                            <p class="mb-2 small">You need to set ERP credentials before recording.</p>
+                            <a href="{% url 'erp_automation:credentials' %}" class="btn btn-warning btn-sm">
+                                Set Credentials
+                            </a>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i> Credentials are set
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" name="headless" class="form-check-input" id="headlessCheck">
+                                <label class="form-check-label" for="headlessCheck">
+                                    Headless mode (no visible browser)
+                                </label>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-danger w-100" id="startBtn"
+                                {% if not has_credentials %}disabled{% endif %}>
+                            <i class="fas fa-record-vinyl"></i> Start Recording
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-header bg-transparent">
+                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> How it Works</h6>
+                </div>
+                <div class="card-body">
+                    <ol class="mb-0 ps-3">
+                        <li class="mb-2">Enter a session name and target URL</li>
+                        <li class="mb-2">Click "Start Recording"</li>
+                        <li class="mb-2">A browser window will open</li>
+                        <li class="mb-2">Perform your actions (click, type, select)</li>
+                        <li class="mb-2">Each action captures element locators</li>
+                        <li class="mb-0">Close browser or stop to save session</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Sessions -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-history"></i> Recent Recording Sessions
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Session</th>
+                                    <th>Target URL</th>
+                                    <th>Actions</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for session in recent_sessions %}
+                                <tr>
+                                    <td><strong>{{ session.name }}</strong></td>
+                                    <td>
+                                        <code class="small">{{ session.target_url|truncatechars:40 }}</code>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ session.actions.count }} actions</span>
+                                    </td>
+                                    <td>
+                                        {% if session.status == 'completed' %}
+                                        <span class="badge bg-success">Completed</span>
+                                        {% elif session.status == 'recording' %}
+                                        <span class="badge bg-danger">Recording</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ session.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ session.started_at|date:"M d, H:i" }}</td>
+                                    <td>
+                                        <a href="{% url 'erp_automation:recording_detail' session.pk %}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-muted">
+                                        No recording sessions yet
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Captured Locators Preview -->
+            {% if recent_sessions %}
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-header bg-transparent">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-crosshairs"></i> Recently Captured Locators
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for locator in recent_locators|slice:":6" %}
+                        <div class="col-md-6 mb-2">
+                            <div class="d-flex align-items-center p-2 bg-light rounded">
+                                <i class="fas fa-crosshairs text-primary me-2"></i>
+                                <div>
+                                    <strong class="small">{{ locator.name }}</strong>
+                                    <br>
+                                    <span class="badge bg-secondary small">{{ locator.strategies.count }} strategies</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col-12 text-muted text-center">
+                            No locators captured yet
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

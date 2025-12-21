@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ERP Automation - Workflows{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Workflows</h1>
+            <p class="text-muted mb-0">Manage automation workflows</p>
+        </div>
+        <div>
+            <a href="{% url 'erp_automation:dashboard' %}" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+            <a href="{% url 'admin:erp_automation_workflow_add' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> New Workflow
+            </a>
+        </div>
+    </div>
+
+    <!-- Workflows List -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Description</th>
+                            <th>Steps</th>
+                            <th>Condition Field</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for workflow in object_list %}
+                        <tr>
+                            <td>
+                                <strong>{{ workflow.name }}</strong>
+                            </td>
+                            <td>{{ workflow.description|truncatewords:10|default:"-" }}</td>
+                            <td>
+                                <span class="badge bg-secondary">{{ workflow.steps.count }} steps</span>
+                            </td>
+                            <td>
+                                {% if workflow.condition_field %}
+                                <code>{{ workflow.condition_field }}</code>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if workflow.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'erp_automation:execute_workflow' workflow.pk %}"
+                                       class="btn btn-outline-primary" title="Execute">
+                                        <i class="fas fa-play"></i>
+                                    </a>
+                                    <a href="{% url 'admin:erp_automation_workflow_change' workflow.pk %}"
+                                       class="btn btn-outline-secondary" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5">
+                                <div class="text-muted">
+                                    <i class="fas fa-cogs fa-3x mb-3 d-block"></i>
+                                    <p class="mb-2">No workflows created yet</p>
+                                    <a href="{% url 'admin:erp_automation_workflow_add' %}" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-plus"></i> Create First Workflow
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            </li>
+            {% endif %}
+            <li class="page-item active">
+                <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

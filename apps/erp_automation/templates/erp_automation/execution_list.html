@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ERP Automation - Executions{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Workflow Executions</h1>
+            <p class="text-muted mb-0">History of automation runs</p>
+        </div>
+        <a href="{% url 'erp_automation:dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Statuses</option>
+                        <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="running" {% if request.GET.status == 'running' %}selected{% endif %}>Running</option>
+                        <option value="success" {% if request.GET.status == 'success' %}selected{% endif %}>Success</option>
+                        <option value="failed" {% if request.GET.status == 'failed' %}selected{% endif %}>Failed</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Workflow</label>
+                    <select name="workflow" class="form-select">
+                        <option value="">All Workflows</option>
+                        {% for wf in workflows %}
+                        <option value="{{ wf.pk }}" {% if request.GET.workflow == wf.pk|stringformat:'d' %}selected{% endif %}>
+                            {{ wf.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Date Range</label>
+                    <input type="date" name="date_from" class="form-control"
+                           value="{{ request.GET.date_from }}">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-filter"></i> Filter
+                    </button>
+                    <a href="{% url 'erp_automation:execution_list' %}" class="btn btn-outline-secondary">
+                        Clear
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Executions List -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Workflow</th>
+                            <th>Status</th>
+                            <th>Progress</th>
+                            <th>Started</th>
+                            <th>Duration</th>
+                            <th>User</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for execution in object_list %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'erp_automation:execution_detail' execution.pk %}">
+                                    #{{ execution.pk }}
+                                </a>
+                            </td>
+                            <td>
+                                <strong>{{ execution.workflow.name }}</strong>
+                            </td>
+                            <td>
+                                {% if execution.status == 'success' %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check"></i> Success
+                                </span>
+                                {% elif execution.status == 'failed' %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-times"></i> Failed
+                                </span>
+                                {% elif execution.status == 'running' %}
+                                <span class="badge bg-info">
+                                    <i class="fas fa-spinner fa-spin"></i> Running
+                                </span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ execution.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="progress" style="height: 20px; min-width: 100px;">
+                                    {% with total=execution.step_executions.count %}
+                                    {% with success=execution.step_executions.filter.status__eq:'success'|length %}
+                                    <div class="progress-bar bg-success"
+                                         style="width: {% widthratio execution.steps_completed total 100 %}%">
+                                    </div>
+                                    {% endwith %}
+                                    {% endwith %}
+                                </div>
+                                <small class="text-muted">
+                                    {{ execution.steps_completed|default:0 }}/{{ execution.steps_total|default:0 }} steps
+                                </small>
+                            </td>
+                            <td>
+                                {{ execution.started_at|date:"M d, Y" }}
+                                <br>
+                                <small class="text-muted">{{ execution.started_at|time:"H:i:s" }}</small>
+                            </td>
+                            <td>
+                                {% if execution.completed_at %}
+                                {{ execution.duration|default:"-" }}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ execution.executed_by.username|default:"-" }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'erp_automation:execution_detail' execution.pk %}"
+                                       class="btn btn-outline-primary" title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if execution.status == 'running' %}
+                                    <button type="button" class="btn btn-outline-danger"
+                                            onclick="stopExecution({{ execution.pk }})" title="Stop">
+                                        <i class="fas fa-stop"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center py-5">
+                                <div class="text-muted">
+                                    <i class="fas fa-history fa-3x mb-3 d-block"></i>
+                                    <p class="mb-2">No executions found</p>
+                                    <a href="{% url 'erp_automation:workflow_list' %}" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-play"></i> Run a Workflow
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                    Previous
+                </a>
+            </li>
+            {% endif %}
+            <li class="page-item active">
+                <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                    Next
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+<script>
+function stopExecution(executionId) {
+    if (confirm('Are you sure you want to stop this execution?')) {
+        fetch(`/erp-automation/executions/${executionId}/stop/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

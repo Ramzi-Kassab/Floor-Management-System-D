@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ERP Automation - Locators{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Locators</h1>
+            <p class="text-muted mb-0">Element locators with fallback strategies</p>
+        </div>
+        <div>
+            <a href="{% url 'erp_automation:dashboard' %}" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+            <a href="{% url 'erp_automation:record' %}" class="btn btn-success me-2">
+                <i class="fas fa-record-vinyl"></i> Record New
+            </a>
+            <a href="{% url 'admin:erp_automation_locator_add' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add Manually
+            </a>
+        </div>
+    </div>
+
+    <!-- Locators Grid -->
+    <div class="row">
+        {% for locator in object_list %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-crosshairs text-primary me-2"></i>
+                        {{ locator.name }}
+                    </h6>
+                    <div>
+                        {% if locator.is_dynamic %}
+                        <span class="badge bg-warning" title="Dynamic element">
+                            <i class="fas fa-sync"></i>
+                        </span>
+                        {% endif %}
+                        {% if locator.requires_scroll %}
+                        <span class="badge bg-info" title="Requires scroll">
+                            <i class="fas fa-arrows-alt-v"></i>
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if locator.description %}
+                    <p class="text-muted small mb-3">{{ locator.description }}</p>
+                    {% endif %}
+
+                    <p class="mb-2"><strong>Strategies:</strong></p>
+                    <div class="list-group list-group-flush small">
+                        {% for strategy in locator.strategies.all|slice:":3" %}
+                        <div class="list-group-item px-0 py-1 border-0 d-flex justify-content-between">
+                            <span>
+                                <span class="badge bg-secondary">{{ strategy.strategy_type }}</span>
+                                <code class="ms-2 small">{{ strategy.value|truncatechars:30 }}</code>
+                            </span>
+                            <span class="text-muted">
+                                <i class="fas fa-check text-success"></i> {{ strategy.success_count }}
+                                <i class="fas fa-times text-danger ms-2"></i> {{ strategy.failure_count }}
+                            </span>
+                        </div>
+                        {% empty %}
+                        <div class="text-muted small">No strategies defined</div>
+                        {% endfor %}
+                        {% if locator.strategies.count > 3 %}
+                        <div class="text-muted small mt-1">
+                            +{{ locator.strategies.count|add:"-3" }} more strategies
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0">
+                    <div class="btn-group btn-group-sm w-100">
+                        <a href="{% url 'admin:erp_automation_locator_change' locator.pk %}"
+                           class="btn btn-outline-secondary">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        <button type="button" class="btn btn-outline-primary"
+                                onclick="testLocator({{ locator.pk }})" title="Test locator">
+                            <i class="fas fa-flask"></i> Test
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-crosshairs fa-3x text-muted mb-3"></i>
+                    <h5>No locators yet</h5>
+                    <p class="text-muted mb-3">Record your first browser session to capture element locators</p>
+                    <a href="{% url 'erp_automation:record' %}" class="btn btn-success">
+                        <i class="fas fa-record-vinyl"></i> Start Recording
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            </li>
+            {% endif %}
+            <li class="page-item active">
+                <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+<script>
+function testLocator(locatorId) {
+    alert('Locator testing requires an active browser session. Start a recording first.');
+}
+</script>
+{% endblock %}

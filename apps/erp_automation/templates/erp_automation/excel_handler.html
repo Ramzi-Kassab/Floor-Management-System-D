@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ERP Automation - Excel Data{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Excel Data Handler</h1>
+            <p class="text-muted mb-0">Upload and manage Excel files for automation</p>
+        </div>
+        <a href="{% url 'erp_automation:dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Upload Section -->
+        <div class="col-lg-5 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-upload"></i> Upload Excel File
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" id="uploadForm">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label class="form-label">Excel File</label>
+                            <input type="file" name="excel_file" class="form-control"
+                                   accept=".xlsx,.xls,.csv" required>
+                            <div class="form-text">Supported: .xlsx, .xls, .csv</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Sheet Name (optional)</label>
+                            <input type="text" name="sheet_name" class="form-control"
+                                   placeholder="Leave blank for first sheet">
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" name="has_header" class="form-check-input"
+                                       id="headerCheck" checked>
+                                <label class="form-check-label" for="headerCheck">
+                                    First row contains headers
+                                </label>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-file-upload"></i> Upload & Preview
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Field Mappings -->
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-header bg-transparent">
+                    <h6 class="mb-0"><i class="fas fa-link"></i> Field Mappings</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for mapping in field_mappings %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <code>{{ mapping.excel_column }}</code>
+                                <i class="fas fa-arrow-right mx-2 text-muted"></i>
+                                <span class="badge bg-primary">{{ mapping.erp_field }}</span>
+                            </div>
+                            <a href="{% url 'admin:erp_automation_fieldmapping_change' mapping.pk %}"
+                               class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </div>
+                        {% empty %}
+                        <div class="list-group-item text-center text-muted">
+                            <p class="mb-2">No field mappings configured</p>
+                            <a href="{% url 'admin:erp_automation_fieldmapping_add' %}"
+                               class="btn btn-sm btn-primary">
+                                <i class="fas fa-plus"></i> Add Mapping
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Preview -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-table"></i> Data Preview
+                    </h5>
+                    {% if excel_data %}
+                    <span class="badge bg-info">{{ excel_data|length }} rows</span>
+                    {% endif %}
+                </div>
+                <div class="card-body p-0">
+                    {% if excel_data %}
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>#</th>
+                                    {% for col in excel_columns %}
+                                    <th>{{ col }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in excel_data|slice:":50" %}
+                                <tr>
+                                    <td class="text-muted">{{ forloop.counter }}</td>
+                                    {% for col in excel_columns %}
+                                    <td>{{ row|get_item:col|default:"-" }}</td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if excel_data|length > 50 %}
+                    <div class="card-footer text-center text-muted">
+                        Showing first 50 of {{ excel_data|length }} rows
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-file-excel fa-3x mb-3"></i>
+                        <p class="mb-0">Upload an Excel file to preview data</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if excel_data %}
+            <!-- Run Workflow with Data -->
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-header bg-transparent">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-play"></i> Run Workflow with This Data
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'erp_automation:execute_workflow' 0 %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="use_session_data" value="1">
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Select Workflow</label>
+                                <select name="workflow" class="form-select" required>
+                                    <option value="">-- Choose Workflow --</option>
+                                    {% for workflow in workflows %}
+                                    <option value="{{ workflow.pk }}">{{ workflow.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Start Row</label>
+                                <input type="number" name="start_row" class="form-control"
+                                       value="1" min="1" max="{{ excel_data|length }}">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">End Row</label>
+                                <input type="number" name="end_row" class="form-control"
+                                       value="{{ excel_data|length }}" min="1" max="{{ excel_data|length }}">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-rocket"></i> Execute Workflow
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
