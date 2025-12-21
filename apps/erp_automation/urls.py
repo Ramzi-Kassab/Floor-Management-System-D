@@ -29,6 +29,13 @@ urlpatterns = [
     path("excel/", views.ExcelHandlerView.as_view(), name="excel_handler"),
     path("excel/upload/", views.excel_upload, name="excel_upload"),
     path("excel/read-sheet/", views.excel_read_sheet, name="excel_read_sheet"),
+    path("excel/select-rows/", views.select_rows_for_execution, name="select_rows"),
+
+    # Field Mappings
+    path("mappings/", views.FieldMappingListView.as_view(), name="field_mapping_list"),
+    path("mappings/add/", views.FieldMappingFormView.as_view(), name="field_mapping_add"),
+    path("mappings/<int:pk>/edit/", views.FieldMappingFormView.as_view(), name="field_mapping_edit"),
+    path("mappings/<int:pk>/delete/", views.FieldMappingDeleteView.as_view(), name="field_mapping_delete"),
 
     # Execution
     path("execute/", views.execute_workflow_api, name="execute_workflow"),

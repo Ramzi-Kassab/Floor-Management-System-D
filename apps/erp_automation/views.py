@@ -569,3 +569,116 @@ def api_next_item_number(request, account_type):
         "next_number": number,
         "current_counter": counter.current_number
     })
+
+
+# =============================================================================
+# FIELD MAPPINGS
+# =============================================================================
+
+class FieldMappingListView(LoginRequiredMixin, View):
+    """List and manage field mappings."""
+
+    def get(self, request):
+        workflow_filter = request.GET.get("workflow")
+        mappings = FieldMapping.objects.select_related("workflow", "locator").order_by("workflow__name", "excel_column")
+
+        if workflow_filter:
+            mappings = mappings.filter(workflow_id=workflow_filter)
+
+        return render(request, "erp_automation/field_mapping_list.html", {
+            "mappings": mappings,
+            "workflows": Workflow.objects.all().order_by("name"),
+            "selected_workflow": int(workflow_filter) if workflow_filter else None,
+        })
+
+
+class FieldMappingFormView(LoginRequiredMixin, View):
+    """Add or edit a field mapping."""
+
+    def get(self, request, pk=None):
+        if pk:
+            mapping = get_object_or_404(FieldMapping, pk=pk)
+        else:
+            mapping = FieldMapping()
+
+        return render(request, "erp_automation/field_mapping_form.html", {
+            "form": {"instance": mapping},
+            "workflows": Workflow.objects.all().order_by("name"),
+            "locators": Locator.objects.all().order_by("name"),
+            "excel_columns": request.session.get("excel_columns", []),
+        })
+
+    def post(self, request, pk=None):
+        if pk:
+            mapping = get_object_or_404(FieldMapping, pk=pk)
+        else:
+            mapping = FieldMapping()
+
+        # Update fields
+        workflow_id = request.POST.get("workflow")
+        if workflow_id:
+            mapping.workflow_id = int(workflow_id)
+
+        mapping.excel_column = request.POST.get("excel_column", "").strip()
+        mapping.erp_field = request.POST.get("erp_field", "").strip()
+
+        locator_id = request.POST.get("locator")
+        mapping.locator_id = int(locator_id) if locator_id else None
+
+        mapping.transform_function = request.POST.get("transform_function", "")
+        mapping.default_value = request.POST.get("default_value", "")
+        mapping.is_required = request.POST.get("is_required") == "on"
+        mapping.is_active = request.POST.get("is_active") == "on"
+
+        try:
+            mapping.save()
+            messages.success(request, f"Field mapping {'updated' if pk else 'created'} successfully.")
+            return redirect("erp_automation:field_mapping_list")
+        except Exception as e:
+            messages.error(request, f"Error saving mapping: {str(e)}")
+            return render(request, "erp_automation/field_mapping_form.html", {
+                "form": {"instance": mapping},
+                "workflows": Workflow.objects.all().order_by("name"),
+                "locators": Locator.objects.all().order_by("name"),
+                "excel_columns": request.session.get("excel_columns", []),
+            })
+
+
+class FieldMappingDeleteView(LoginRequiredMixin, View):
+    """Delete a field mapping."""
+
+    def get(self, request, pk):
+        mapping = get_object_or_404(FieldMapping, pk=pk)
+        mapping.delete()
+        messages.success(request, "Field mapping deleted.")
+        return redirect("erp_automation:field_mapping_list")
+
+
+# =============================================================================
+# SELECT ROWS FOR EXECUTION
+# =============================================================================
+
+@login_required
+@require_POST
+def select_rows_for_execution(request):
+    """Store selected rows in session for workflow execution."""
+    data = json.loads(request.body)
+    selected_indices = data.get("selected_indices", [])
+
+    excel_data = request.session.get("excel_data", [])
+
+    # Get selected rows
+    selected_rows = []
+    for idx in selected_indices:
+        if 0 <= idx < len(excel_data):
+            row = excel_data[idx].copy()
+            row["__row_index__"] = idx + 1
+            selected_rows.append(row)
+
+    request.session["selected_excel_data"] = selected_rows
+
+    return JsonResponse({
+        "success": True,
+        "selected_count": len(selected_rows),
+        "message": f"{len(selected_rows)} rows selected for execution"
+    })
