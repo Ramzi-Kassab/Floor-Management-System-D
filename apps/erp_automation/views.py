@@ -111,9 +111,8 @@ def clear_credentials(request):
     return redirect("erp_automation:dashboard")
 
 
-@login_required
 def check_browser(request):
-    """Check if Playwright browser is installed and working."""
+    """Check if Playwright browser is installed and working (public endpoint)."""
     import glob
 
     status = {
