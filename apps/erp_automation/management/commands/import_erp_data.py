@@ -150,7 +150,7 @@ class Command(BaseCommand):
 
                 # Import steps
                 steps = workflow_data.get('steps', [])
-                order = 1
+                self.current_order = 1
 
                 for step_ref in steps:
                     # Handle conditional steps (JSON string with locator_by_account)
@@ -160,17 +160,15 @@ class Command(BaseCommand):
                             if 'locator_by_account' in conditional:
                                 for account_type, step_name in conditional['locator_by_account'].items():
                                     self._create_workflow_step(
-                                        workflow, step_name, order,
+                                        workflow, step_name,
                                         condition_value=account_type if account_type != 'default' else ''
                                     )
                         except json.JSONDecodeError:
                             pass
                     else:
-                        self._create_workflow_step(workflow, step_ref, order)
+                        self._create_workflow_step(workflow, step_ref)
 
-                    order += 1
-
-    def _create_workflow_step(self, workflow, step_ref, order, condition_value=''):
+    def _create_workflow_step(self, workflow, step_ref, condition_value=''):
         """Create a workflow step from a step definition reference"""
         step_def = self.step_definitions.get(step_ref, {})
 
@@ -201,7 +199,7 @@ class Command(BaseCommand):
 
         WorkflowStep.objects.create(
             workflow=workflow,
-            order=order,
+            order=self.current_order,
             name=step_def.get('name', step_ref),
             action_type=action_type,
             locator=locator,
@@ -212,6 +210,7 @@ class Command(BaseCommand):
             condition_value=condition_value,
             clear_before_fill=step_def.get('clear_before', False),
         )
+        self.current_order += 1
 
     def _extract_field_name(self, template):
         """Extract field name from template like {{FIELD_NAME}}"""
