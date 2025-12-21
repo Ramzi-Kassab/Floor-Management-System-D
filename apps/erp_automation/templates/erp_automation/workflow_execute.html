@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% load erp_filters %}
+{% block title %}Execute {{ workflow.name }} - ERP Automation{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Execute Workflow</h1>
+            <p class="text-gray-600 dark:text-gray-400">{{ workflow.name }}</p>
+        </div>
+        <a href="{% url 'erp_automation:excel_handler' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back to Excel
+        </a>
+    </div>
+
+    <!-- Credentials Warning -->
+    {% if not has_credentials %}
+    <div class="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+        <div class="flex">
+            <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 dark:text-amber-400 mr-3 flex-shrink-0 mt-0.5"></i>
+            <div>
+                <h3 class="text-sm font-medium text-amber-800 dark:text-amber-300">Credentials Required</h3>
+                <p class="mt-1 text-sm text-amber-700 dark:text-amber-400">
+                    You need to set your ERP credentials before executing workflows.
+                </p>
+                <a href="{% url 'erp_automation:credentials' %}" class="mt-2 inline-flex items-center text-sm font-medium text-amber-800 dark:text-amber-300 hover:underline">
+                    <i data-lucide="key" class="w-4 h-4 mr-1"></i>
+                    Set Credentials
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Workflow Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="workflow" class="w-5 h-5 mr-2 text-gray-400"></i>
+                    Workflow Details
+                </h2>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</label>
+                    <p class="text-sm text-gray-900 dark:text-white">{{ workflow.name }}</p>
+                </div>
+                {% if workflow.description %}
+                <div>
+                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Description</label>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">{{ workflow.description }}</p>
+                </div>
+                {% endif %}
+                <div>
+                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Target URL</label>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 break-all">{{ workflow.target_url|default:"Not set" }}</p>
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</label>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                        {% if workflow.status == 'active' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                        {% elif workflow.status == 'draft' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+                        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+                        {{ workflow.get_status_display }}
+                    </span>
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Steps</label>
+                    <p class="text-sm text-gray-900 dark:text-white">{{ workflow.steps.count }} steps</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Selected Data -->
+        <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="table" class="w-5 h-5 mr-2 text-gray-400"></i>
+                    Selected Data
+                </h2>
+                <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                    {{ selected_data|length }} rows
+                </span>
+            </div>
+
+            {% if selected_data %}
+            <div class="overflow-x-auto max-h-64">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">#</th>
+                            {% for key, value in selected_data.0.items %}
+                                {% if not key|slice:":2" == "__" %}
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ key }}</th>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for row in selected_data %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td class="px-4 py-2 text-xs text-gray-400">{{ row.__row_index__|default:forloop.counter }}</td>
+                            {% for key, value in row.items %}
+                                {% if not key|slice:":2" == "__" %}
+                                <td class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ value|default:"-" }}</td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-8 text-center">
+                <i data-lucide="alert-circle" class="w-12 h-12 mx-auto text-amber-400 mb-4"></i>
+                <p class="text-gray-500 dark:text-gray-400 mb-4">No rows selected for execution</p>
+                <a href="{% url 'erp_automation:excel_handler' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                    Go Back and Select Rows
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Execution Controls -->
+    {% if selected_data and has_credentials %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                <i data-lucide="play-circle" class="w-5 h-5 mr-2 text-gray-400"></i>
+                Execute
+            </h2>
+        </div>
+        <div class="p-5">
+            <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+                <div class="flex">
+                    <i data-lucide="info" class="w-5 h-5 text-blue-600 dark:text-blue-400 mr-3 flex-shrink-0 mt-0.5"></i>
+                    <div class="text-sm text-blue-700 dark:text-blue-400">
+                        <p>This will open a browser and execute <strong>{{ workflow.name }}</strong> for each of the <strong>{{ selected_data|length }}</strong> selected rows.</p>
+                        <p class="mt-1">Make sure you have access to the ERP system and your credentials are correct.</p>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" id="executeForm">
+                {% csrf_token %}
+                <div class="flex flex-wrap gap-4">
+                    <div class="flex items-center">
+                        <input type="checkbox" name="headless" id="headless" class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                        <label for="headless" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Run in background (headless)</label>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex gap-3">
+                    <button type="submit" id="startBtn" class="inline-flex items-center px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                        <i data-lucide="play" class="w-4 h-4 mr-2"></i>
+                        Start Execution
+                    </button>
+                    <a href="{% url 'erp_automation:excel_handler' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% elif selected_data and not has_credentials %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 text-center">
+        <i data-lucide="key" class="w-12 h-12 mx-auto text-amber-400 mb-4"></i>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">Set your credentials to execute this workflow</p>
+        <a href="{% url 'erp_automation:credentials' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="key" class="w-4 h-4 mr-2"></i>
+            Set Credentials
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Execution Progress (hidden initially) -->
+    <div id="progressSection" class="hidden bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                <i data-lucide="loader-2" class="w-5 h-5 mr-2 text-blue-500 animate-spin"></i>
+                Execution Progress
+            </h2>
+        </div>
+        <div class="p-5">
+            <div class="mb-4">
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="text-gray-600 dark:text-gray-400">Processing...</span>
+                    <span id="progressText" class="text-gray-900 dark:text-white">0 / {{ selected_data|length }}</span>
+                </div>
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div id="progressBar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            <div id="logOutput" class="bg-gray-900 rounded-lg p-4 font-mono text-xs text-green-400 h-48 overflow-y-auto">
+                <p>Waiting to start...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        lucide.createIcons();
+
+        const form = document.getElementById('executeForm');
+        const startBtn = document.getElementById('startBtn');
+        const progressSection = document.getElementById('progressSection');
+
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // Show progress section
+                if (progressSection) {
+                    progressSection.classList.remove('hidden');
+                }
+
+                // Disable button
+                if (startBtn) {
+                    startBtn.disabled = true;
+                    startBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin"></i> Executing...';
+                    lucide.createIcons();
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
