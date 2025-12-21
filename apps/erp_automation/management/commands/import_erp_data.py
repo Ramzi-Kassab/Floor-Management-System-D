@@ -7,7 +7,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 from apps.erp_automation.models import (
     Locator, LocatorStrategy, Workflow, WorkflowStep,
-    ItemCounter, ActionType, LocatorStrategyType
+    ItemCounter, ActionType, LocatorStrategyType, WorkflowStatus
 )
 
 
@@ -140,7 +140,7 @@ class Command(BaseCommand):
                 name=workflow_name,
                 defaults={
                     'description': f'Imported workflow: {workflow_name}',
-                    'is_active': True,
+                    'status': WorkflowStatus.ACTIVE,
                     'condition_field': 'ACCOUNT_TYPE',
                 }
             )
