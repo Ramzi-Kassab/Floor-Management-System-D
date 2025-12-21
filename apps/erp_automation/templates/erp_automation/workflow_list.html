@@ -1,116 +1,122 @@
 {% extends "base.html" %}
-{% load static %}
-
-{% block title %}ERP Automation - Workflows{% endblock %}
+{% block title %}Workflows - ERP Automation{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+<div class="space-y-6">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-            <h1 class="h3 mb-1">Workflows</h1>
-            <p class="text-muted mb-0">Manage automation workflows</p>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Workflows</h1>
+            <p class="text-gray-600 dark:text-gray-400">Manage automation workflows for ERP operations</p>
         </div>
-        <div>
-            <a href="{% url 'erp_automation:dashboard' %}" class="btn btn-outline-secondary me-2">
-                <i class="fas fa-arrow-left"></i> Back
+        <div class="flex items-center gap-3">
+            <a href="{% url 'erp_automation:dashboard' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                Back
             </a>
-            <a href="{% url 'admin:erp_automation_workflow_add' %}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> New Workflow
+            <a href="{% url 'admin:erp_automation_workflow_add' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                New Workflow
             </a>
         </div>
     </div>
 
-    <!-- Workflows List -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Name</th>
-                            <th>Description</th>
-                            <th>Steps</th>
-                            <th>Condition Field</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for workflow in object_list %}
-                        <tr>
-                            <td>
-                                <strong>{{ workflow.name }}</strong>
-                            </td>
-                            <td>{{ workflow.description|truncatewords:10|default:"-" }}</td>
-                            <td>
-                                <span class="badge bg-secondary">{{ workflow.steps.count }} steps</span>
-                            </td>
-                            <td>
-                                {% if workflow.condition_field %}
-                                <code>{{ workflow.condition_field }}</code>
-                                {% else %}
-                                <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if workflow.is_active %}
-                                <span class="badge bg-success">Active</span>
-                                {% else %}
-                                <span class="badge bg-secondary">Inactive</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'erp_automation:execute_workflow' workflow.pk %}"
-                                       class="btn btn-outline-primary" title="Execute">
-                                        <i class="fas fa-play"></i>
-                                    </a>
-                                    <a href="{% url 'admin:erp_automation_workflow_change' workflow.pk %}"
-                                       class="btn btn-outline-secondary" title="Edit">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="6" class="text-center py-5">
-                                <div class="text-muted">
-                                    <i class="fas fa-cogs fa-3x mb-3 d-block"></i>
-                                    <p class="mb-2">No workflows created yet</p>
-                                    <a href="{% url 'admin:erp_automation_workflow_add' %}" class="btn btn-primary btn-sm">
-                                        <i class="fas fa-plus"></i> Create First Workflow
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <!-- Workflows Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Workflow</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Description</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Steps</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Condition</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {% for workflow in object_list %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-6 py-4">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                                <i data-lucide="workflow" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="font-medium text-gray-900 dark:text-white">{{ workflow.name }}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                        {{ workflow.description|truncatewords:10|default:"-" }}
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300">
+                            {{ workflow.steps.count }} steps
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if workflow.condition_field %}
+                        <code class="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">{{ workflow.condition_field }}</code>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if workflow.is_active %}
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Active</span>
+                        {% else %}
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex items-center justify-end gap-2">
+                            <a href="{% url 'erp_automation:execute_workflow' workflow.pk %}" class="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Execute">
+                                <i data-lucide="play" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'admin:erp_automation_workflow_change' workflow.pk %}" class="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors" title="Edit">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center">
+                        <div class="flex flex-col items-center">
+                            <i data-lucide="workflow" class="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3"></i>
+                            <p class="text-gray-500 dark:text-gray-400 mb-3">No workflows created yet</p>
+                            <a href="{% url 'admin:erp_automation_workflow_add' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                                Create First Workflow
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 
     <!-- Pagination -->
     {% if is_paginated %}
-    <nav class="mt-4">
-        <ul class="pagination justify-content-center">
+    <div class="flex justify-center">
+        <nav class="flex items-center gap-2">
             {% if page_obj.has_previous %}
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
-            </li>
+            <a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Previous</a>
             {% endif %}
-            <li class="page-item active">
-                <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-            </li>
+            <span class="px-4 py-2 text-gray-700 dark:text-gray-300">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
             {% if page_obj.has_next %}
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
-            </li>
+            <a href="?page={{ page_obj.next_page_number }}" class="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Next</a>
             {% endif %}
-        </ul>
-    </nav>
+        </nav>
+    </div>
     {% endif %}
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        lucide.createIcons();
+    });
+</script>
 {% endblock %}
