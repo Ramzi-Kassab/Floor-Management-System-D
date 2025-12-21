@@ -662,23 +662,29 @@ class FieldMappingDeleteView(LoginRequiredMixin, View):
 @require_POST
 def select_rows_for_execution(request):
     """Store selected rows in session for workflow execution."""
-    data = json.loads(request.body)
-    selected_indices = data.get("selected_indices", [])
+    try:
+        data = json.loads(request.body)
+        selected_indices = data.get("selected_indices", [])
 
-    excel_data = request.session.get("excel_data", [])
+        excel_data = request.session.get("excel_data", [])
 
-    # Get selected rows
-    selected_rows = []
-    for idx in selected_indices:
-        if 0 <= idx < len(excel_data):
-            row = excel_data[idx].copy()
-            row["__row_index__"] = idx + 1
-            selected_rows.append(row)
+        # Get selected rows
+        selected_rows = []
+        for idx in selected_indices:
+            if 0 <= idx < len(excel_data):
+                row = excel_data[idx].copy()
+                row["__row_index__"] = idx + 1
+                selected_rows.append(row)
 
-    request.session["selected_excel_data"] = selected_rows
+        request.session["selected_excel_data"] = selected_rows
+        request.session.modified = True  # Ensure session is saved
 
-    return JsonResponse({
-        "success": True,
-        "selected_count": len(selected_rows),
-        "message": f"{len(selected_rows)} rows selected for execution"
-    })
+        return JsonResponse({
+            "success": True,
+            "selected_count": len(selected_rows),
+            "message": f"{len(selected_rows)} rows selected for execution"
+        })
+    except json.JSONDecodeError as e:
+        return JsonResponse({"success": False, "message": f"Invalid JSON: {str(e)}"}, status=400)
+    except Exception as e:
+        return JsonResponse({"success": False, "message": f"Error: {str(e)}"}, status=500)
