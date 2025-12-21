@@ -364,7 +364,7 @@ class ExcelHandlerView(LoginRequiredMixin, View):
             return redirect("erp_automation:excel_handler")
 
         excel_file = request.FILES["excel_file"]
-        sheet_name = request.POST.get("sheet_name", "").strip() or None
+        sheet_name = request.POST.get("sheet_name", "").strip() or 0  # Default to first sheet (index 0)
         has_header = request.POST.get("has_header") == "on"
 
         # Save temporarily
@@ -383,8 +383,9 @@ class ExcelHandlerView(LoginRequiredMixin, View):
                 df = pd.read_excel(temp_path, sheet_name=sheet_name, header=0 if has_header else None)
 
             # Convert to list of dicts
-            excel_data = df.fillna("").to_dict("records")
-            excel_columns = list(df.columns)
+            df = df.fillna("")
+            excel_data = df.to_dict("records")
+            excel_columns = [str(col) for col in df.columns]
 
             # Store in session
             request.session["excel_data"] = excel_data
