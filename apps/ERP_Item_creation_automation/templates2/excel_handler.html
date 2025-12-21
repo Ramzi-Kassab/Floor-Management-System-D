@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- Toast container (fixed; does NOT push layout) -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 1080">
+  <div id="flash-toasts"></div>
+</div>
+
+<h2 class="mb-3">Excel File Handler</h2>
+
+{# RENDER FLASHED MESSAGES AS BOOTSTRAP TOASTS #}
+{% with msgs = get_flashed_messages(with_categories=true) %}
+  {% if msgs %}
+    <script>
+      (function(){
+        const host = document.getElementById('flash-toasts');
+        {% for category, message in msgs %}
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = `
+            <div class="toast align-items-center text-bg-{{ 'danger' if category=='danger' else (category if category in ['success','warning','info'] else 'secondary') }} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="4000">
+              <div class="d-flex">
+                <div class="toast-body">{{ message|safe }}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+              </div>
+            </div>`;
+          const toastEl = wrapper.firstElementChild;
+          host.appendChild(toastEl);
+          const t = new bootstrap.Toast(toastEl);
+          t.show();
+        {% endfor %}
+      })();
+    </script>
+  {% endif %}
+{% endwith %}
+
+
+{% if file_found_path %}
+  <div class="alert alert-success">File found: {{ file_found_path }}</div>
+{% endif %}
+
+<!-- FIND -->
+<form method="post" action="{{ url_for('excel_handler.excel_handler') }}" class="row g-3">
+  <input type="hidden" name="action" value="find">
+
+  <div class="col-md-6">
+    <label for="excel_path" class="form-label">Excel Folder Path</label>
+    <input id="excel_path" name="excel_path" class="form-control" type="text"
+           value="{{ excel_path or '' }}"
+           placeholder="E:/PycharmProjects/ERP_automation/EXCEL BITS TRACKING" required>
+  </div>
+
+  <div class="col-md-6">
+    <label for="excel_name_partial" class="form-label">Excel File Name (Partial)</label>
+    <input id="excel_name_partial" name="excel_name_partial" class="form-control" type="text"
+           value="{{ excel_name_partial or '' }}" placeholder="BITS TRACKING">
+  </div>
+
+  <div class="col-12">
+    <button type="submit" class="btn btn-primary">Find File</button>
+  </div>
+</form>
+
+<hr class="my-4">
+
+<!-- READ -->
+<form method="post" action="{{ url_for('excel_handler.excel_handler') }}" class="row g-3">
+  <input type="hidden" name="action" value="read">
+  <input type="hidden" name="excel_path" value="{{ excel_path or '' }}">
+  <input type="hidden" name="excel_name_partial" value="{{ excel_name_partial or '' }}">
+
+  <div class="col-md-9">
+    <label for="sheet_name" class="form-label">Select Sheet</label>
+    <select id="sheet_name" name="sheet_name" class="form-select" {% if not sheets %}disabled{% endif %}>
+      {% if sheets %}
+        {% for s in sheets %}
+          <option value="{{ s }}" {% if (selected_sheet or '') == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      {% else %}
+        <option value="">(No sheets yet — find a file first)</option>
+      {% endif %}
+    </select>
+  </div>
+
+  <div class="col-md-3">
+    <label for="rows_to_display" class="form-label">Rows to preview</label>
+    <select id="rows_to_display" name="rows_to_display" class="form-select" {% if not sheets %}disabled{% endif %}>
+      {% set rtd = rows_to_display if rows_to_display is not none else 'all' %}
+      {% for opt in ['10','25','50','100','500','1000','all'] %}
+        <option value="{{ opt }}" {% if (rtd|string) == opt %}selected{% endif %}>
+          {{ 'All' if opt == 'all' else opt }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-12">
+    <button type="submit" class="btn btn-success" {% if not sheets %}disabled{% endif %}>Read Sheet</button>
+  </div>
+</form>
+
+<!-- WRITE -->
+<form method="post" action="{{ url_for('excel_handler.excel_handler') }}" class="row g-3 mt-2">
+  <input type="hidden" name="action" value="write">
+  <input type="hidden" name="excel_path" value="{{ excel_path or '' }}">
+  <input type="hidden" name="excel_name_partial" value="{{ excel_name_partial or '' }}">
+
+  <div class="col-md-3">
+    <label class="form-label">Sheet</label>
+    <select name="sheet_name" class="form-select" {% if not sheets %}disabled{% endif %}>
+      {% if sheets %}
+        {% for s in sheets %}
+          <option value="{{ s }}" {% if (selected_sheet or '') == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      {% else %}
+        <option value="">(Find a file first)</option>
+      {% endif %}
+    </select>
+  </div>
+
+  <div class="col-md-2">
+    <label class="form-label">Row (0-based)</label>
+    <input class="form-control" type="number" name="row_index" value="0" min="0" {% if not sheets %}disabled{% endif %}>
+  </div>
+
+  <div class="col-md-3">
+    <label class="form-label">Column (header)</label>
+    <input class="form-control" type="text" name="column_name" placeholder="e.g., SERIAL NO" {% if not sheets %}disabled{% endif %}>
+  </div>
+
+  <div class="col-md-3">
+    <label class="form-label">Value</label>
+    <input class="form-control" type="text" name="value" {% if not sheets %}disabled{% endif %}>
+  </div>
+
+  <div class="col-md-1 d-flex align-items-end">
+    <button class="btn btn-warning w-100" type="submit" {% if not sheets %}disabled{% endif %}>Write</button>
+  </div>
+</form>
+
+{% if rows and columns %}
+  <form method="post" action="{{ url_for('excel_handler.excel_handler') }}">
+    <input type="hidden" name="action" value="select_rows">
+    <input type="hidden" name="excel_path" value="{{ excel_path or '' }}">
+    <input type="hidden" name="excel_name_partial" value="{{ excel_name_partial or '' }}">
+    <input type="hidden" name="sheet_name" value="{{ selected_sheet or '' }}">
+
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+      <div class="fw-semibold">Preview: {{ selected_sheet }}</div>
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-outline-primary btn-sm">Add Selected Rows</button>
+        <button type="submit" formaction="{{ url_for('excel_handler.excel_handler') }}" formmethod="post"
+                name="action" value="reset_selections" class="btn btn-outline-secondary btn-sm">
+          Clear All Selections
+        </button>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-striped align-middle">
+        <thead>
+          <tr>
+            <th style="width: 42px;">
+              <input class="form-check-input" type="checkbox" id="chk-all">
+            </th>
+            {% for c in columns %}<th>{{ c }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td>
+                <input class="form-check-input row-check" type="checkbox" name="selected_rows" value="{{ loop.index0 }}">
+              </td>
+              {% for c in columns %}<td>{{ r[c] }}</td>{% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+
+  <script>
+    // Select/Deselect all
+    (function(){
+      const all = document.getElementById('chk-all');
+      if(!all) return;
+      all.addEventListener('change', () => {
+        document.querySelectorAll('.row-check').forEach(cb => { cb.checked = all.checked; });
+      });
+    })();
+  </script>
+{% endif %}
+
+{% set sel = session.get('all_selected_data', []) %}
+{% if sel %}
+  <form method="post" action="{{ url_for('excel_handler.excel_handler') }}" class="card mt-3">
+    <input type="hidden" name="action" value="remove_selected">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <span>Current selection ({{ sel|length }} rows)</span>
+      <button type="submit" class="btn btn-outline-danger btn-sm">Remove Selected</button>
+    </div>
+    <div class="card-body p-2">
+      <div class="table-responsive" style="max-height: 260px; overflow:auto;">
+        <table class="table table-sm table-hover align-middle">
+          <thead>
+            {% set header_cols = session.get('last_columns') or columns or (sel[0].keys() | list) %}
+            <tr>
+              <th style="width:42px;">
+                <input class="form-check-input" type="checkbox" id="rm-all">
+              </th>
+              <th>Excel Row</th>
+              {% for c in header_cols %}
+                {% if c != '__excel_row__' and c != '__sheet__' %}
+                  <th>{{ c }}</th>
+                {% endif %}
+              {% endfor %}
+              <th style="width:1%"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in sel %}
+              {% set key = r['__sheet__'] ~ '|' ~ r['__excel_row__'] %}
+              <tr>
+                <td>
+                  <input class="form-check-input rm-check" type="checkbox" name="remove_keys" value="{{ key }}">
+                </td>
+                <td class="text-nowrap">{{ r['__excel_row__'] }}</td>
+                {% for c in header_cols %}
+                  {% if c != '__excel_row__' and c != '__sheet__' %}
+                    <td>{{ r.get(c, '') }}</td>
+                  {% endif %}
+                {% endfor %}
+                <td>
+                  <!-- per-row remove: submits only this row -->
+                  <button class="btn btn-sm btn-link text-danger p-0"
+                          formaction="{{ url_for('excel_handler.excel_handler') }}"
+                          formmethod="post"
+                          name="action" value="remove_selected"
+                          onclick="this.closest('tr').querySelector('.rm-check').checked=true;">
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if sel|length > 50 %}
+        <div class="text-muted small px-2">Showing first 50 of {{ sel|length }} selected rows…</div>
+      {% endif %}
+    </div>
+  </form>
+
+  <script>
+    (function(){
+      const all = document.getElementById('rm-all');
+      if(!all) return;
+      all.addEventListener('change', () => {
+        document.querySelectorAll('.rm-check').forEach(cb => { cb.checked = all.checked; });
+      });
+    })();
+  </script>
+{% endif %}
+
+
+
+
+{% endblock %}

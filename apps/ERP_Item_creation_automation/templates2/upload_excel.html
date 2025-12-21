@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Excel{% endblock %}
+
+{% block content %}
+<h1>Upload Excel File</h1>
+
+<div class="card">
+    <div class="card-body">
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+        
+        <form method="post" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="file" class="form-label">Excel File</label>
+                <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls" required>
+                <div class="form-text">Please select an Excel file (.xlsx or .xls)</div>
+            </div>
+            <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
