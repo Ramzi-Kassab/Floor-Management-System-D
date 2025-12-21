@@ -357,6 +357,47 @@ class ExcelHandlerView(LoginRequiredMixin, View):
             "workflows": Workflow.objects.filter(status=WorkflowStatus.ACTIVE),
         })
 
+    def post(self, request):
+        """Handle Excel file upload."""
+        if "excel_file" not in request.FILES:
+            messages.error(request, "No file uploaded")
+            return redirect("erp_automation:excel_handler")
+
+        excel_file = request.FILES["excel_file"]
+        sheet_name = request.POST.get("sheet_name", "").strip() or None
+        has_header = request.POST.get("has_header") == "on"
+
+        # Save temporarily
+        temp_path = f"/tmp/erp_automation/{uuid.uuid4()}_{excel_file.name}"
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+
+        with open(temp_path, "wb") as f:
+            for chunk in excel_file.chunks():
+                f.write(chunk)
+
+        try:
+            # Read Excel file
+            if excel_file.name.endswith('.csv'):
+                df = pd.read_csv(temp_path, header=0 if has_header else None)
+            else:
+                df = pd.read_excel(temp_path, sheet_name=sheet_name, header=0 if has_header else None)
+
+            # Convert to list of dicts
+            excel_data = df.fillna("").to_dict("records")
+            excel_columns = list(df.columns)
+
+            # Store in session
+            request.session["excel_data"] = excel_data
+            request.session["excel_columns"] = excel_columns
+            request.session["excel_file_path"] = temp_path
+
+            messages.success(request, f"Loaded {len(excel_data)} rows from {excel_file.name}")
+
+        except Exception as e:
+            messages.error(request, f"Error reading file: {str(e)}")
+
+        return redirect("erp_automation:excel_handler")
+
 
 @login_required
 @require_POST
