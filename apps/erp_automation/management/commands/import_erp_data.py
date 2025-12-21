@@ -80,7 +80,7 @@ class Command(BaseCommand):
                 name=name,
                 defaults={
                     'description': display_name,
-                    'element_type': self._guess_element_type(name, data.get('value', '')),
+                    'application': 'dynamics365',
                     'is_dynamic': 'contains(@id' in data.get('value', ''),
                     'requires_scroll': False,
                 }
@@ -141,7 +141,7 @@ class Command(BaseCommand):
                 defaults={
                     'description': f'Imported workflow: {workflow_name}',
                     'is_active': True,
-                    'condition_field': 'ACCOUNT_TYPE',  # Based on the locator_by_account in steps
+                    'condition_field': 'ACCOUNT_TYPE',
                 }
             )
 
@@ -154,7 +154,7 @@ class Command(BaseCommand):
 
                 for step_ref in steps:
                     # Handle conditional steps (JSON string with locator_by_account)
-                    if step_ref.startswith('{'):
+                    if isinstance(step_ref, str) and step_ref.startswith('{'):
                         try:
                             conditional = json.loads(step_ref)
                             if 'locator_by_account' in conditional:
@@ -190,11 +190,14 @@ class Command(BaseCommand):
         if action_value and '{{' in action_value:
             action_type = ActionType.FILL
         elif action_value:
-            action_type = ActionType.TYPE
+            action_type = ActionType.FILL
         elif any(keys):
-            action_type = ActionType.KEY
+            action_type = ActionType.PRESS_KEY
         else:
             action_type = ActionType.CLICK
+
+        # Convert wait_after from seconds to milliseconds
+        wait_after_ms = int(step_def.get('wait_after', 0.5) * 1000)
 
         WorkflowStep.objects.create(
             workflow=workflow,
@@ -204,10 +207,10 @@ class Command(BaseCommand):
             locator=locator,
             value_template=action_value,
             value_field=self._extract_field_name(action_value),
-            delay_before=step_def.get('delay', 1),
-            wait_after=step_def.get('wait_after', 0.5),
+            wait_after=wait_after_ms,
             max_retries=step_def.get('max_retries', 3),
             condition_value=condition_value,
+            clear_before_fill=step_def.get('clear_before', False),
         )
 
     def _extract_field_name(self, template):
@@ -244,30 +247,3 @@ class Command(BaseCommand):
             'name': LocatorStrategyType.NAME,
         }
         return mapping.get(source_type.lower(), LocatorStrategyType.XPATH)
-
-    def _guess_element_type(self, name, xpath):
-        """Guess element type from name and xpath"""
-        name_lower = name.lower()
-
-        if 'button' in name_lower or 'btn' in name_lower or 'submit' in name_lower:
-            return 'button'
-        elif 'input' in name_lower or 'field' in name_lower:
-            return 'input'
-        elif 'select' in name_lower or 'dropdown' in name_lower or 'ddown' in name_lower:
-            return 'select'
-        elif 'link' in name_lower:
-            return 'link'
-        elif 'checkbox' in name_lower or 'check' in name_lower:
-            return 'checkbox'
-
-        # Check xpath patterns
-        if '//button' in xpath or '@type="button"' in xpath:
-            return 'button'
-        elif '//input' in xpath:
-            return 'input'
-        elif '//select' in xpath:
-            return 'select'
-        elif '//a[' in xpath or '//a@' in xpath:
-            return 'link'
-
-        return 'element'
