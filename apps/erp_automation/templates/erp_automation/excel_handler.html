@@ -159,7 +159,7 @@
                     </h2>
                 </div>
                 <div class="p-5">
-                    <form method="post" action="{% url 'erp_automation:execute_workflow' 0 %}" class="space-y-4">
+                    <form method="post" action="{% url 'erp_automation:execute_workflow' %}" class="space-y-4">
                         {% csrf_token %}
                         <input type="hidden" name="use_session_data" value="1">
 
