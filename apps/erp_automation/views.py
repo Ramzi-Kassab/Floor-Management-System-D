@@ -59,23 +59,30 @@ class CredentialsView(LoginRequiredMixin, View):
 
     def get(self, request):
         has_credentials = "erp_credentials" in request.session
+        # Get the 'next' URL from query params or referrer
+        next_url = request.GET.get("next") or request.META.get("HTTP_REFERER", "")
         return render(request, "erp_automation/credentials.html", {
-            "has_credentials": has_credentials
+            "has_credentials": has_credentials,
+            "next_url": next_url,
         })
 
     def post(self, request):
         action = request.POST.get("action")
+        next_url = request.POST.get("next", "")
 
         if action == "save":
             username = request.POST.get("username", "").strip()
             password = request.POST.get("password", "").strip()
+            erp_url = request.POST.get("erp_url", "").strip()
 
             if username and password:
                 # Store in session (encrypted in production)
                 request.session["erp_credentials"] = {
                     "username": username,
                     "password": password,
+                    "erp_url": erp_url,
                 }
+                request.session.modified = True
                 messages.success(request, "Credentials saved for this session.")
             else:
                 messages.error(request, "Please provide both username and password.")
@@ -84,6 +91,9 @@ class CredentialsView(LoginRequiredMixin, View):
             request.session.pop("erp_credentials", None)
             messages.info(request, "Credentials cleared.")
 
+        # Redirect to next URL if provided, otherwise dashboard
+        if next_url and next_url.startswith("/"):
+            return redirect(next_url)
         return redirect("erp_automation:dashboard")
 
 
