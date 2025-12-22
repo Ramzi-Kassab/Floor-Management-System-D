@@ -5,9 +5,7 @@ Run this periodically or after major changes/migrations.
 
 Usage:
     python scripts/health_check.py
-
-Or via manage.py:
-    python manage.py runscript health_check  (requires django-extensions)
+    ./hc  (short alias)
 """
 import os
 import sys
@@ -24,6 +22,7 @@ GREEN = '\033[92m'
 RED = '\033[91m'
 YELLOW = '\033[93m'
 BLUE = '\033[94m'
+CYAN = '\033[96m'
 RESET = '\033[0m'
 BOLD = '\033[1m'
 
@@ -37,6 +36,22 @@ def run_command(cmd, capture=True):
     )
     return result.returncode, result.stdout, result.stderr
 
+def run_interactive(cmd):
+    """Run command with live output."""
+    return subprocess.run(cmd, shell=True).returncode
+
+def ask_yes_no(question, default='y'):
+    """Ask a yes/no question and return True for yes."""
+    suffix = "[Y/n]" if default.lower() == 'y' else "[y/N]"
+    try:
+        answer = input(f"  {CYAN}?{RESET} {question} {suffix}: ").strip().lower()
+        if not answer:
+            answer = default.lower()
+        return answer in ('y', 'yes')
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+
 def print_header(title):
     print(f"\n{BOLD}{BLUE}{'='*60}{RESET}")
     print(f"{BOLD}{BLUE}  {title}{RESET}")
@@ -47,6 +62,39 @@ def print_status(check_name, passed, details=""):
     print(f"  {status}  {check_name}")
     if details and not passed:
         print(f"         {YELLOW}{details}{RESET}")
+
+def git_pull():
+    """Pull latest changes from remote."""
+    print_header("Git Pull")
+
+    # Check if we're in a git repo
+    code, out, err = run_command("git rev-parse --is-inside-work-tree 2>&1")
+    if code != 0:
+        print(f"  {YELLOW}Not a git repository, skipping pull{RESET}")
+        return True
+
+    # Get current branch
+    code, branch, err = run_command("git rev-parse --abbrev-ref HEAD")
+    branch = branch.strip()
+
+    # Check for uncommitted changes
+    code, status, err = run_command("git status --porcelain")
+    if status.strip():
+        print(f"  {YELLOW}⚠ Uncommitted changes detected{RESET}")
+        if ask_yes_no("Stash changes before pulling?", 'n'):
+            run_command("git stash")
+            print(f"  {GREEN}✓{RESET} Changes stashed")
+
+    # Pull
+    print(f"  Pulling from origin/{branch}...")
+    code = run_interactive(f"git pull origin {branch}")
+
+    if code == 0:
+        print(f"  {GREEN}✓{RESET} Pull successful")
+        return True
+    else:
+        print(f"  {RED}✗{RESET} Pull failed")
+        return False
 
 def check_migrations():
     """Check all migrations are applied."""
@@ -63,6 +111,18 @@ def check_migrations():
             print(f"         - {m.strip()}")
         if len(unapplied) > 5:
             print(f"         ... and {len(unapplied)-5} more")
+
+        # Offer to run migrations
+        print()
+        if ask_yes_no("Apply pending migrations now?"):
+            print()
+            code = run_interactive("python manage.py migrate")
+            if code == 0:
+                print(f"\n  {GREEN}✓ Migrations applied successfully{RESET}")
+                return True
+            else:
+                print(f"\n  {RED}✗ Migration failed{RESET}")
+                return False
         return False
     else:
         print_status("All migrations applied", True)
@@ -82,6 +142,18 @@ def check_pending_migrations():
         if out:
             for line in out.strip().split('\n')[:10]:
                 print(f"         {line}")
+
+        # Offer to create migrations
+        print()
+        if ask_yes_no("Create new migrations now?"):
+            print()
+            code = run_interactive("python manage.py makemigrations")
+            if code == 0:
+                print(f"\n  {GREEN}✓ Migrations created{RESET}")
+                # Offer to apply them
+                if ask_yes_no("Apply the new migrations now?"):
+                    run_interactive("python manage.py migrate")
+                return True
         return False
 
 def check_system():
@@ -164,8 +236,6 @@ def check_database():
     """Quick database connectivity check."""
     print_header("Database Connection")
 
-    code, out, err = run_command("python manage.py dbshell -- -c 'SELECT 1;' 2>&1")
-
     # For SQLite, just check if we can query
     code2, out2, err2 = run_command("python -c \"import django; django.setup(); from django.db import connection; connection.ensure_connection(); print('Connected')\" 2>&1")
 
@@ -193,12 +263,26 @@ def count_apps():
 
     return True
 
+def offer_run_server():
+    """Offer to run the development server."""
+    print()
+    if ask_yes_no("Start the development server?", 'n'):
+        print(f"\n  {CYAN}Starting server on http://127.0.0.1:8000/{RESET}")
+        print(f"  {YELLOW}Press Ctrl+C to stop{RESET}\n")
+        try:
+            run_interactive("python manage.py runserver")
+        except KeyboardInterrupt:
+            print(f"\n  {YELLOW}Server stopped{RESET}")
+
 def main():
     print(f"\n{BOLD}{'#'*60}{RESET}")
     print(f"{BOLD}#  Floor Management System - Health Check{RESET}")
     print(f"{BOLD}{'#'*60}{RESET}")
 
     results = []
+
+    # Git pull first
+    git_pull()
 
     results.append(("Database", check_database()))
     results.append(("Migrations Applied", check_migrations()))
@@ -224,6 +308,9 @@ def main():
     else:
         print(f"  {YELLOW}{passed}/{total} checks passed{RESET}")
         print(f"  {RED}{total-passed} issue(s) need attention{RESET}")
+
+    # Offer to run server
+    offer_run_server()
 
     print()
     return 0 if passed == total else 1
