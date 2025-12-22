@@ -717,7 +717,7 @@ class PocketsLayoutListView(LoginRequiredMixin, ListView):
 
 
 class BOMListView(LoginRequiredMixin, ListView):
-    """List all BOMs."""
+    """List all BOMs with material availability status."""
 
     model = BOM
     template_name = "technology/bom_list.html"
@@ -725,7 +725,9 @@ class BOMListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = BOM.objects.select_related("design", "created_by").order_by("-created_at")
+        queryset = BOM.objects.select_related("design", "created_by").prefetch_related(
+            "lines__inventory_item"
+        ).order_by("-created_at")
 
         search = self.request.GET.get("q")
         if search:
@@ -740,11 +742,37 @@ class BOMListView(LoginRequiredMixin, ListView):
         return queryset
 
     def get_context_data(self, **kwargs):
+        from apps.inventory.models import Stock
+        from django.db.models import Sum
+
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Bills of Materials"
         context["search_query"] = self.request.GET.get("q", "")
         context["current_status"] = self.request.GET.get("status", "")
         context["status_choices"] = BOM.Status.choices
+
+        # Add material availability status for each BOM
+        boms_with_status = []
+        for bom in context["boms"]:
+            all_available = True
+            line_count = 0
+            for line in bom.lines.all():
+                line_count += 1
+                stock = Stock.objects.filter(item=line.inventory_item).aggregate(
+                    available=Sum('quantity_available')
+                )
+                available = stock['available'] or 0
+                if available < line.quantity:
+                    all_available = False
+                    break
+
+            boms_with_status.append({
+                'bom': bom,
+                'materials_ready': all_available if line_count > 0 else None,
+                'line_count': line_count,
+            })
+
+        context["boms_with_status"] = boms_with_status
         return context
 
 
