@@ -7,7 +7,7 @@ Creates standard bit sizes used in drilling operations.
 
 from django.core.management.base import BaseCommand
 
-from apps.workorders.models import BitSize
+from apps.technology.models import BitSize
 
 
 class Command(BaseCommand):

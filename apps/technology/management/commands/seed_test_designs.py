@@ -3,8 +3,7 @@ Seed command for test designs data.
 Creates sample bit designs for testing pockets layout.
 """
 from django.core.management.base import BaseCommand
-from apps.technology.models import Design, DesignPocketConfig, PocketSize, PocketShape
-from apps.workorders.models import BitSize
+from apps.technology.models import BitSize, Design, DesignPocketConfig, PocketSize, PocketShape
 
 
 class Command(BaseCommand):

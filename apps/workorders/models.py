@@ -36,69 +36,7 @@ from django.db import models
 # =============================================================================
 # REFERENCE TABLES
 # =============================================================================
-
-
-class BitSize(models.Model):
-    """
-    Reference table for standard bit sizes.
-    Used by technology.Design and technology.BreakerSlot for size references.
-    """
-    code = models.CharField(
-        max_length=20,
-        unique=True,
-        help_text="e.g., '8.500'"
-    )
-    size_decimal = models.DecimalField(
-        max_digits=6,
-        decimal_places=3,
-        help_text="Size in decimal inches (e.g., 8.500)"
-    )
-    size_display = models.CharField(
-        max_length=20,
-        help_text="Display format (e.g., '8 1/2\"')"
-    )
-    size_inches = models.CharField(
-        max_length=20,
-        help_text="Fraction format (e.g., '8 1/2')"
-    )
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        db_table = "bit_sizes"
-        ordering = ["size_decimal"]
-        verbose_name = "Bit Size"
-        verbose_name_plural = "Bit Sizes"
-
-    def __str__(self):
-        return self.size_display
-
-
-class BitType(models.Model):
-    """
-    Reference table for bit product types/models (e.g., GT65RHS).
-    """
-    code = models.CharField(
-        max_length=50,
-        unique=True,
-        help_text="Model code (e.g., 'GT65RHS')"
-    )
-    name = models.CharField(max_length=100)
-    series = models.CharField(
-        max_length=20,
-        blank=True,
-        help_text="Series (GT, HD, MM, FX, etc.)"
-    )
-    description = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        db_table = "bit_types"
-        ordering = ["series", "code"]
-        verbose_name = "Bit Type"
-        verbose_name_plural = "Bit Types"
-
-    def __str__(self):
-        return f"{self.code} - {self.name}"
+# Note: BitSize and BitType models have been moved to apps.technology.models
 
 
 class Location(models.Model):
@@ -293,9 +231,9 @@ class DrillBit(models.Model):
     rerun_count_factory = models.PositiveIntegerField(default=0, help_text="Factory reruns (charged)")
     rerun_count_field = models.PositiveIntegerField(default=0, help_text="Field reruns (no charge)")
 
-    # Phase 2: Reference links
+    # Phase 2: Reference links (BitSize and BitType now in technology app)
     bit_size_ref = models.ForeignKey(
-        BitSize,
+        "technology.BitSize",
         on_delete=models.PROTECT,
         null=True,
         blank=True,
@@ -303,7 +241,7 @@ class DrillBit(models.Model):
         help_text="Standard bit size reference"
     )
     product_type = models.ForeignKey(
-        "BitType",
+        "technology.BitType",
         on_delete=models.PROTECT,
         null=True,
         blank=True,

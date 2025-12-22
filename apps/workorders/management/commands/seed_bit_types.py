@@ -7,7 +7,7 @@ Creates product models/types used by ARDT (GT, HD, MM, FX series, etc.)
 
 from django.core.management.base import BaseCommand
 
-from apps.workorders.models import BitType
+from apps.technology.models import BitType
 
 
 class Command(BaseCommand):

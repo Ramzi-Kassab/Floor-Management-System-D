@@ -15,7 +15,7 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 from django.http import JsonResponse
 
 from .forms import BOMForm, BOMLineForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm
-from .models import BOM, BOMLine, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout
+from .models import BOM, BOMLine, BitSize, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout
 
 
 # =============================================================================
@@ -32,8 +32,6 @@ class DesignListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        from apps.workorders.models import BitSize
-
         queryset = Design.objects.select_related(
             "size", "connection_ref", "connection_ref__connection_type",
             "connection_ref__connection_size", "breaker_slot", "iadc_code_ref"
@@ -85,8 +83,6 @@ class DesignListView(LoginRequiredMixin, ListView):
         return queryset
 
     def get_context_data(self, **kwargs):
-        from apps.workorders.models import BitSize
-
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Designs"
         context["search_query"] = self.request.GET.get("q", "")
@@ -705,8 +701,6 @@ class PocketsLayoutListView(LoginRequiredMixin, ListView):
         return queryset
 
     def get_context_data(self, **kwargs):
-        from apps.workorders.models import BitSize
-
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Pockets Layout"
         context["search_query"] = self.request.GET.get("q", "")
