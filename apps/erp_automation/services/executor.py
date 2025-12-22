@@ -116,13 +116,24 @@ class WorkflowExecutor:
         Checks Playwright cache for any available version.
         """
         import glob
+        import sys
 
-        # Possible cache locations
+        # Possible cache locations (platform-specific)
         cache_paths = [
-            os.path.expanduser("~/.cache/ms-playwright"),
-            "/root/.cache/ms-playwright",
+            os.path.expanduser("~/.cache/ms-playwright"),  # Linux
+            "/root/.cache/ms-playwright",  # Linux root
             os.path.expanduser("~/Library/Caches/ms-playwright"),  # macOS
         ]
+
+        # Windows paths
+        if sys.platform == "win32":
+            local_app_data = os.environ.get("LOCALAPPDATA", "")
+            if local_app_data:
+                cache_paths.insert(0, os.path.join(local_app_data, "ms-playwright"))
+            # Also check user profile
+            user_profile = os.environ.get("USERPROFILE", "")
+            if user_profile:
+                cache_paths.insert(0, os.path.join(user_profile, "AppData", "Local", "ms-playwright"))
 
         for cache_path in cache_paths:
             if not os.path.exists(cache_path):
@@ -135,6 +146,11 @@ class WorkflowExecutor:
             )
 
             for chromium_dir in chromium_dirs:
+                # Windows path (check first on Windows)
+                chrome_win = os.path.join(chromium_dir, "chrome-win", "chrome.exe")
+                if os.path.exists(chrome_win):
+                    return chrome_win
+
                 # Linux path
                 chrome_linux = os.path.join(chromium_dir, "chrome-linux", "chrome")
                 if os.path.exists(chrome_linux):
@@ -147,11 +163,6 @@ class WorkflowExecutor:
                 )
                 if os.path.exists(chrome_mac):
                     return chrome_mac
-
-                # Windows path
-                chrome_win = os.path.join(chromium_dir, "chrome-win", "chrome.exe")
-                if os.path.exists(chrome_win):
-                    return chrome_win
 
         # Return None to use default Playwright-managed browser
         return None

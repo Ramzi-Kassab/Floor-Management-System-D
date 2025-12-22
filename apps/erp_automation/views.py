@@ -111,10 +111,54 @@ def clear_credentials(request):
     return redirect("erp_automation:dashboard")
 
 
+def _find_browser_executable():
+    """Find any available Chromium browser in Playwright cache (all platforms)."""
+    import glob
+    import sys
+
+    cache_paths = [
+        os.path.expanduser("~/.cache/ms-playwright"),  # Linux
+        "/root/.cache/ms-playwright",  # Linux root
+        os.path.expanduser("~/Library/Caches/ms-playwright"),  # macOS
+    ]
+
+    # Windows paths
+    if sys.platform == "win32":
+        local_app_data = os.environ.get("LOCALAPPDATA", "")
+        if local_app_data:
+            cache_paths.insert(0, os.path.join(local_app_data, "ms-playwright"))
+        user_profile = os.environ.get("USERPROFILE", "")
+        if user_profile:
+            cache_paths.insert(0, os.path.join(user_profile, "AppData", "Local", "ms-playwright"))
+
+    for cache_path in cache_paths:
+        if not os.path.exists(cache_path):
+            continue
+        chromium_dirs = sorted(
+            glob.glob(os.path.join(cache_path, "chromium-*")),
+            reverse=True
+        )
+        for chromium_dir in chromium_dirs:
+            # Windows
+            chrome_win = os.path.join(chromium_dir, "chrome-win", "chrome.exe")
+            if os.path.exists(chrome_win):
+                return chrome_win
+            # Linux
+            chrome_linux = os.path.join(chromium_dir, "chrome-linux", "chrome")
+            if os.path.exists(chrome_linux):
+                return chrome_linux
+            # macOS
+            chrome_mac = os.path.join(
+                chromium_dir, "chrome-mac", "Chromium.app",
+                "Contents", "MacOS", "Chromium"
+            )
+            if os.path.exists(chrome_mac):
+                return chrome_mac
+    return None
+
+
 def check_browser(request):
     """Check if Playwright browser is installed and working (public endpoint)."""
-    import glob
-
     status = {
         "playwright_installed": False,
         "playwright_version": None,
@@ -122,35 +166,6 @@ def check_browser(request):
         "error": None,
         "install_command": "playwright install",
     }
-
-    def find_browser_executable():
-        """Find any available Chromium browser in Playwright cache."""
-        cache_paths = [
-            os.path.expanduser("~/.cache/ms-playwright"),
-            "/root/.cache/ms-playwright",
-            os.path.expanduser("~/Library/Caches/ms-playwright"),
-        ]
-        for cache_path in cache_paths:
-            if not os.path.exists(cache_path):
-                continue
-            chromium_dirs = sorted(
-                glob.glob(os.path.join(cache_path, "chromium-*")),
-                reverse=True
-            )
-            for chromium_dir in chromium_dirs:
-                chrome_linux = os.path.join(chromium_dir, "chrome-linux", "chrome")
-                if os.path.exists(chrome_linux):
-                    return chrome_linux
-                chrome_mac = os.path.join(
-                    chromium_dir, "chrome-mac", "Chromium.app",
-                    "Contents", "MacOS", "Chromium"
-                )
-                if os.path.exists(chrome_mac):
-                    return chrome_mac
-                chrome_win = os.path.join(chromium_dir, "chrome-win", "chrome.exe")
-                if os.path.exists(chrome_win):
-                    return chrome_win
-        return None
 
     try:
         import playwright
@@ -161,7 +176,7 @@ def check_browser(request):
         # Try to launch browser - use fallback to cached version if needed
         p = sync_playwright().start()
         try:
-            executable_path = find_browser_executable()
+            executable_path = _find_browser_executable()
             launch_args = {"headless": True}
             if executable_path:
                 launch_args["executable_path"] = executable_path
@@ -192,47 +207,26 @@ def check_browser(request):
 
 def test_browser(request):
     """Test browser by creating a simple page - returns JSON result."""
-    import glob
-
     result = {
         "success": False,
         "message": "",
         "browser_version": None,
     }
 
-    def find_browser_executable():
-        cache_paths = [
-            os.path.expanduser("~/.cache/ms-playwright"),
-            "/root/.cache/ms-playwright",
-        ]
-        for cache_path in cache_paths:
-            if not os.path.exists(cache_path):
-                continue
-            chromium_dirs = sorted(
-                glob.glob(os.path.join(cache_path, "chromium-*")),
-                reverse=True
-            )
-            for chromium_dir in chromium_dirs:
-                chrome_linux = os.path.join(chromium_dir, "chrome-linux", "chrome")
-                if os.path.exists(chrome_linux):
-                    return chrome_linux
-        return None
-
     try:
         from playwright.sync_api import sync_playwright
 
-        exe_path = find_browser_executable()
-        if not exe_path:
-            result["message"] = "No browser executable found"
-            return JsonResponse(result)
+        exe_path = _find_browser_executable()
+        launch_args = {
+            "headless": True,
+            "args": ["--no-sandbox", "--disable-dev-shm-usage"]
+        }
+        if exe_path:
+            launch_args["executable_path"] = exe_path
 
         p = sync_playwright().start()
         try:
-            browser = p.chromium.launch(
-                headless=True,
-                executable_path=exe_path,
-                args=["--no-sandbox", "--disable-dev-shm-usage"]
-            )
+            browser = p.chromium.launch(**launch_args)
             result["browser_version"] = browser.version
 
             context = browser.new_context()
