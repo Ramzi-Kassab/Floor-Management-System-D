@@ -18,10 +18,10 @@ print(f"  LOCALAPPDATA: {os.environ.get('LOCALAPPDATA', 'NOT SET')}")
 print(f"  USERPROFILE: {os.environ.get('USERPROFILE', 'NOT SET')}")
 print(f"  HOME: {os.environ.get('HOME', 'NOT SET')}")
 
-# Check cache locations
+# Check cache locations (priority: root first for containers)
 cache_paths = [
-    os.path.expanduser("~/.cache/ms-playwright"),  # Linux
-    "/root/.cache/ms-playwright",  # Linux root
+    "/root/.cache/ms-playwright",  # Linux root (check first for containers)
+    os.path.expanduser("~/.cache/ms-playwright"),  # Linux user
     os.path.expanduser("~/Library/Caches/ms-playwright"),  # macOS
 ]
 

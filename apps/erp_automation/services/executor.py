@@ -119,13 +119,14 @@ class WorkflowExecutor:
         import sys
 
         # Possible cache locations (platform-specific)
+        # Priority: root cache first (for containers/Codespaces), then user cache
         cache_paths = [
-            os.path.expanduser("~/.cache/ms-playwright"),  # Linux
-            "/root/.cache/ms-playwright",  # Linux root
+            "/root/.cache/ms-playwright",  # Linux root (check first for containers)
+            os.path.expanduser("~/.cache/ms-playwright"),  # Linux user
             os.path.expanduser("~/Library/Caches/ms-playwright"),  # macOS
         ]
 
-        # Windows paths
+        # Windows paths (highest priority on Windows)
         if sys.platform == "win32":
             local_app_data = os.environ.get("LOCALAPPDATA", "")
             if local_app_data:
