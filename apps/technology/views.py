@@ -14,8 +14,8 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from django.http import JsonResponse
 
-from .forms import BOMForm, BOMLineForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm
-from .models import BOM, BOMLine, BitSize, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout
+from .forms import BOMForm, BOMLineForm, BitSizeForm, BitTypeForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm
+from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout
 
 
 # =============================================================================
@@ -1515,3 +1515,228 @@ class APIDesignSaveDraftView(LoginRequiredMixin, View):
             return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# =============================================================================
+# BIT SIZE CRUD VIEWS
+# =============================================================================
+
+
+class BitSizeListView(LoginRequiredMixin, ListView):
+    """List all bit sizes with filtering."""
+
+    model = BitSize
+    template_name = "technology/bit_size_list.html"
+    context_object_name = "sizes"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = BitSize.objects.order_by('size_decimal')
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(size_display__icontains=search) |
+                Q(size_inches__icontains=search)
+            )
+
+        if not self.request.GET.get("show_inactive"):
+            queryset = queryset.filter(is_active=True)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Bit Sizes"
+        return context
+
+
+class BitSizeDetailView(LoginRequiredMixin, DetailView):
+    """View bit size details including related types and designs."""
+
+    model = BitSize
+    template_name = "technology/bit_size_detail.html"
+    context_object_name = "size"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get bit types using this size
+        context["related_types"] = self.object.bit_types.order_by('code')
+        # Get designs using this size
+        context["related_designs"] = Design.objects.filter(size=self.object).select_related('size').order_by('hdbs_type')[:20]
+        return context
+
+
+class BitSizeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new bit size."""
+
+    model = BitSize
+    form_class = BitSizeForm
+    template_name = "technology/bit_size_form.html"
+    success_url = reverse_lazy("technology:bit_size_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Bit Size"
+        context["submit_text"] = "Create Size"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Bit Size {form.instance.size_display} created successfully.")
+        return super().form_valid(form)
+
+
+class BitSizeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing bit size."""
+
+    model = BitSize
+    form_class = BitSizeForm
+    template_name = "technology/bit_size_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("technology:bit_size_detail", kwargs={"pk": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Bit Size {self.object.size_display}"
+        context["submit_text"] = "Update Size"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Bit Size {self.object.size_display} updated successfully.")
+        return super().form_valid(form)
+
+
+class BitSizeDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a bit size."""
+
+    model = BitSize
+    template_name = "technology/bit_size_confirm_delete.html"
+    success_url = reverse_lazy("technology:bit_size_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Bit Size {self.object.size_display} deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# BIT TYPE CRUD VIEWS
+# =============================================================================
+
+
+class BitTypeListView(LoginRequiredMixin, ListView):
+    """List all bit types with filtering."""
+
+    model = BitType
+    template_name = "technology/bit_type_list.html"
+    context_object_name = "types"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = BitType.objects.select_related('size').order_by('category', 'series', 'code')
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(smi_name__icontains=search) |
+                Q(hdbs_name__icontains=search) |
+                Q(hdbs_mn__icontains=search)
+            )
+
+        category = self.request.GET.get("category")
+        if category:
+            queryset = queryset.filter(category=category)
+
+        series = self.request.GET.get("series")
+        if series:
+            queryset = queryset.filter(series__icontains=series)
+
+        size = self.request.GET.get("size")
+        if size:
+            queryset = queryset.filter(size_id=size)
+
+        if not self.request.GET.get("show_inactive"):
+            queryset = queryset.filter(is_active=True)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Bit Types (HDBS/SMI)"
+        context["category_choices"] = BitType.Category.choices
+        context["sizes"] = BitSize.objects.filter(is_active=True).order_by('size_decimal')
+        # Get unique series for filter dropdown
+        context["series_list"] = BitType.objects.values_list('series', flat=True).distinct().order_by('series')
+        return context
+
+
+class BitTypeDetailView(LoginRequiredMixin, DetailView):
+    """View bit type details."""
+
+    model = BitType
+    template_name = "technology/bit_type_detail.html"
+    context_object_name = "bit_type"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get designs using this type code (matching hdbs_type or smi_type)
+        context["related_designs"] = Design.objects.filter(
+            Q(hdbs_type__icontains=self.object.code) |
+            Q(smi_type__icontains=self.object.smi_name)
+        ).select_related('size')[:20]
+        return context
+
+
+class BitTypeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new bit type."""
+
+    model = BitType
+    form_class = BitTypeForm
+    template_name = "technology/bit_type_form.html"
+    success_url = reverse_lazy("technology:bit_type_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create Bit Type"
+        context["submit_text"] = "Create Type"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Bit Type {form.instance.code} created successfully.")
+        return super().form_valid(form)
+
+
+class BitTypeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing bit type."""
+
+    model = BitType
+    form_class = BitTypeForm
+    template_name = "technology/bit_type_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("technology:bit_type_detail", kwargs={"pk": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Bit Type {self.object.code}"
+        context["submit_text"] = "Update Type"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Bit Type {self.object.code} updated successfully.")
+        return super().form_valid(form)
+
+
+class BitTypeDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a bit type."""
+
+    model = BitType
+    template_name = "technology/bit_type_confirm_delete.html"
+    success_url = reverse_lazy("technology:bit_type_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Bit Type {self.object.code} deleted.")
+        return super().form_valid(form)

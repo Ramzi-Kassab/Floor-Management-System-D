@@ -7,7 +7,7 @@ Forms for Design, BOM, and Cutter Layout management.
 
 from django import forms
 
-from .models import BOM, BOMLine, BreakerSlot, Connection, Design, DesignCutterLayout
+from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, Design, DesignCutterLayout
 
 # Tailwind CSS classes
 TAILWIND_INPUT = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -325,3 +325,104 @@ class BreakerSlotForm(forms.ModelForm):
         self.fields["hardness"].required = False
         self.fields["compatible_sizes"].required = False
         self.fields["remarks"].required = False
+
+
+class BitSizeForm(forms.ModelForm):
+    """Form for creating and editing Bit Sizes."""
+
+    class Meta:
+        model = BitSize
+        fields = [
+            "code",
+            "size_decimal",
+            "size_display",
+            "size_inches",
+            "is_active",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 8.500"}),
+            "size_decimal": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "e.g., 8.500"}),
+            "size_display": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": 'e.g., 8 1/2"'}),
+            "size_inches": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 8 1/2"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
+        }
+        labels = {
+            "code": "Code",
+            "size_decimal": "Size (Decimal Inches)",
+            "size_display": "Display Format",
+            "size_inches": "Fraction Format",
+            "is_active": "Active",
+        }
+
+
+class BitTypeForm(forms.ModelForm):
+    """Form for creating and editing Bit Types (HDBS/SMI Types)."""
+
+    class Meta:
+        model = BitType
+        fields = [
+            "code",
+            "name",
+            "category",
+            "series",
+            "smi_name",
+            "hdbs_name",
+            "hdbs_mn",
+            "ref_hdbs_mn",
+            "ardt_item_number",
+            "size",
+            "body_material",
+            "no_of_blades",
+            "cutter_size",
+            "gage_length",
+            "order_level",
+            "description",
+            "is_active",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHS"}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Type name"}),
+            "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "series": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT, HD, MM"}),
+            "smi_name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Client-facing name"}),
+            "hdbs_name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Internal HDBS name"}),
+            "hdbs_mn": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "HDBS SAP Material Number"}),
+            "ref_hdbs_mn": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Parent/Reference HDBS MN"}),
+            "ardt_item_number": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "ARDT ERP Item No."}),
+            "size": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "body_material": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "no_of_blades": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": "0", "placeholder": "FC only"}),
+            "cutter_size": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": "0", "placeholder": "mm (FC only)"}),
+            "gage_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.1", "min": "0", "placeholder": "inches (FC only)"}),
+            "order_level": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
+        }
+        labels = {
+            "code": "Type Code",
+            "name": "Name",
+            "category": "Category",
+            "series": "Series",
+            "smi_name": "SMI Name (Client)",
+            "hdbs_name": "HDBS Name (Internal)",
+            "hdbs_mn": "HDBS Material No.",
+            "ref_hdbs_mn": "Ref HDBS Material No.",
+            "ardt_item_number": "ARDT Item No.",
+            "size": "Bit Size",
+            "body_material": "Body Material",
+            "no_of_blades": "No. of Blades",
+            "cutter_size": "Cutter Size (mm)",
+            "gage_length": "Gage Length (in)",
+            "order_level": "Order Level",
+            "description": "Description",
+            "is_active": "Active",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make most fields optional
+        optional = ["name", "series", "smi_name", "hdbs_name", "hdbs_mn", "ref_hdbs_mn",
+                    "ardt_item_number", "size", "no_of_blades", "cutter_size", "gage_length",
+                    "order_level", "description"]
+        for field in optional:
+            self.fields[field].required = False

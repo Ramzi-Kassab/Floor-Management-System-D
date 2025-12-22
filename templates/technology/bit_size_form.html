@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center gap-4 mb-6">
+    <a href="{% url 'technology:bit_size_list' %}" class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+    </a>
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Bit size configuration</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Size Information -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="ruler" class="w-5 h-5"></i>
+                    Size Information
+                </h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Code <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.code }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Unique identifier (e.g., 8.500)</p>
+                        {% if form.code.errors %}<p class="mt-1 text-sm text-red-600">{{ form.code.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Size (Decimal Inches) <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.size_decimal }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Size in decimal (e.g., 8.500)</p>
+                        {% if form.size_decimal.errors %}<p class="mt-1 text-sm text-red-600">{{ form.size_decimal.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Display Format <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.size_display }}</div>
+                        <p class="mt-1 text-xs text-gray-500">How size appears (e.g., 8 1/2")</p>
+                        {% if form.size_display.errors %}<p class="mt-1 text-sm text-red-600">{{ form.size_display.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fraction Format <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.size_inches }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Fraction format (e.g., 8 1/2)</p>
+                        {% if form.size_inches.errors %}<p class="mt-1 text-sm text-red-600">{{ form.size_inches.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                    Status
+                </h3>
+            </div>
+            <div class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                    {{ form.is_active }}
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Active</label>
+                </div>
+                <p class="mt-1 text-xs text-gray-500 ml-6">Inactive sizes won't appear in selection dropdowns</p>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'technology:bit_size_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</a>
+            <button type="submit" class="px-6 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                {{ submit_text }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

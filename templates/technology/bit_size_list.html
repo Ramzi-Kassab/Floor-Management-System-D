@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Bit Sizes - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Bit Sizes</h1>
+        <p class="text-gray-600 dark:text-gray-400">Manage standard bit sizes for designs</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'technology:bit_size_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Size
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1">
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search sizes..."
+                       class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <input type="checkbox" name="show_inactive" id="show_inactive" {% if request.GET.show_inactive %}checked{% endif %}
+                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+            <label for="show_inactive" class="text-sm text-gray-600 dark:text-gray-400">Show Inactive</label>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>Filter
+        </button>
+    </form>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if sizes %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">Code</th>
+                    <th class="px-6 py-3 font-medium">Size (Decimal)</th>
+                    <th class="px-6 py-3 font-medium">Display</th>
+                    <th class="px-6 py-3 font-medium">Fraction</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium">Types</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for size in sizes %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4">
+                        <a href="{% url 'technology:bit_size_detail' size.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium font-mono">
+                            {{ size.code }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white font-mono">{{ size.size_decimal }}"</td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white font-medium">{{ size.size_display }}</td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ size.size_inches }}</td>
+                    <td class="px-6 py-4">
+                        {% if size.is_active %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ size.bit_types.count }}</td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex items-center justify-end space-x-2">
+                            <a href="{% url 'technology:bit_size_detail' size.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'technology:bit_size_update' size.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'technology:bit_size_delete' size.pk %}" class="p-1 text-gray-400 hover:text-red-600" title="Delete">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="ruler" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No bit sizes found</h3>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Create your first bit size</p>
+        <a href="{% url 'technology:bit_size_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Size
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
