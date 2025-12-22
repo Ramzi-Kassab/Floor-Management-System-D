@@ -82,7 +82,8 @@ class DrillBit(models.Model):
     🟢 P1: Drill bit master - tracks individual bits through their lifecycle.
     """
 
-    class BitType(models.TextChoices):
+    class BitCategory(models.TextChoices):
+        """Category of drill bit - FC (Fixed Cutter/PDC) or RC (Roller Cone)."""
         FC = "FC", "Fixed Cutter (PDC)"
         RC = "RC", "Roller Cone"
 
@@ -99,7 +100,13 @@ class DrillBit(models.Model):
         SCRAPPED = "SCRAPPED", "Scrapped"
 
     serial_number = models.CharField(max_length=50, unique=True)
-    bit_type = models.CharField(max_length=20, choices=BitType.choices)
+    # Note: Field kept as bit_type for backward compatibility, but uses BitCategory choices
+    bit_type = models.CharField(
+        max_length=20,
+        choices=BitCategory.choices,
+        default=BitCategory.FC,
+        help_text="Bit category: FC (Fixed Cutter) or RC (Roller Cone)"
+    )
 
     # Sprint 4: Serial number tracking for Aramco contract
     base_serial_number = models.CharField(

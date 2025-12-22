@@ -1894,7 +1894,8 @@ class ItemBitSpec(models.Model):
     Use this for the SKU/design level, not individual serial numbers.
     """
 
-    class BitType(models.TextChoices):
+    class BitCategory(models.TextChoices):
+        """Category of drill bit design."""
         PDC = "PDC", "PDC (Fixed Cutter)"
         ROLLER_CONE = "RC", "Roller Cone"
         HYBRID = "HYBRID", "Hybrid"
@@ -1907,8 +1908,8 @@ class ItemBitSpec(models.Model):
         primary_key=True
     )
 
-    # Bit identification
-    bit_type = models.CharField(max_length=20, choices=BitType.choices, default=BitType.PDC)
+    # Bit identification (field kept as bit_type for backward compatibility)
+    bit_type = models.CharField(max_length=20, choices=BitCategory.choices, default=BitCategory.PDC)
     iadc_code = models.CharField(max_length=10, blank=True, help_text="IADC classification code")
 
     # Size
