@@ -379,8 +379,21 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
         # NEW: Suppliers (multiple suppliers per item)
         context["suppliers"] = ItemSupplier.objects.filter(item=item).select_related("supplier")
 
-        # NEW: Identifiers (multiple barcodes/identifiers)
-        context["identifiers"] = ItemIdentifier.objects.filter(item=item)
+        # NEW: Identifiers (multiple barcodes/identifiers) with generated images
+        identifiers = ItemIdentifier.objects.filter(item=item)
+
+        # Generate QR/barcode images for each identifier
+        from .utils import generate_identifier_image, generate_inventory_item_qr
+        identifiers_with_images = []
+        for ident in identifiers:
+            identifiers_with_images.append({
+                'identifier': ident,
+                'image': generate_identifier_image(ident)
+            })
+        context["identifiers"] = identifiers_with_images
+
+        # Generate default QR code for the item itself
+        context["item_qr_code"] = generate_inventory_item_qr(item)
 
         # NEW: Bit Spec (if exists)
         try:

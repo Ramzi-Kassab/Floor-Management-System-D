@@ -29,7 +29,22 @@
     </a>
 </div>
 {% endblock %}
+
 {% block content %}
+{% if errors %}
+<div class="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+    <div class="flex items-center">
+        <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 mr-2"></i>
+        <span class="text-red-700 dark:text-red-300 font-medium">Please correct the following errors:</span>
+    </div>
+    <ul class="mt-2 ml-7 list-disc text-red-600 dark:text-red-400 text-sm">
+        {% for error in errors %}
+        <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Generate Single Code</h2>
@@ -40,21 +55,22 @@
                 <select name="entity_type" id="entity_type"
                         class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                     {% for value, label in entity_types %}
-                    <option value="{{ value }}">{{ label }}</option>
+                    <option value="{{ value }}" {% if generated_code.entity_type == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div>
-                <label for="entity_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Entity ID</label>
+                <label for="entity_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Entity ID <span class="text-gray-400">(optional)</span></label>
                 <input type="number" name="entity_id" id="entity_id"
                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                       placeholder="Enter entity ID">
+                       placeholder="Enter entity ID"
+                       value="{{ generated_code.entity_id|default:'' }}">
             </div>
             <div>
-                <label for="custom_data" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Custom Data (JSON)</label>
+                <label for="custom_data" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Custom Data (JSON) <span class="text-gray-400">(optional)</span></label>
                 <textarea name="custom_data" id="custom_data" rows="3"
                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
-                          placeholder='{"key": "value"}'></textarea>
+                          placeholder='{"key": "value"}'>{% if generated_code.encoded_data %}{{ generated_code.encoded_data|safe }}{% endif %}</textarea>
             </div>
             <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                 <i data-lucide="qr-code" class="w-4 h-4 inline mr-2"></i>Generate QR Code
@@ -64,6 +80,40 @@
 
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Generated Code</h2>
+        {% if qr_image %}
+        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-8 flex items-center justify-center min-h-[300px]">
+            <div class="text-center">
+                <div class="w-48 h-48 bg-white mx-auto rounded-lg flex items-center justify-center shadow-sm">
+                    <img src="{{ qr_image }}" alt="Generated QR Code" class="w-40 h-40" id="qr-image">
+                </div>
+                <p class="text-sm font-mono text-gray-700 dark:text-gray-300 mt-4">{{ generated_code.code }}</p>
+                {% if is_new %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-2">
+                    New Code Created
+                </span>
+                {% else %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-2">
+                    Existing Code
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="mt-4 flex gap-2">
+            <button type="button" onclick="downloadQR('{{ qr_image }}', '{{ generated_code.code }}')"
+                    class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <i data-lucide="download" class="w-4 h-4 inline mr-2"></i>Download PNG
+            </button>
+            <button type="button" onclick="printQR('{{ qr_image }}', '{{ generated_code.code }}', '{{ generated_code.get_entity_type_display }}')"
+                    class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                <i data-lucide="printer" class="w-4 h-4 inline mr-2"></i>Print
+            </button>
+        </div>
+        <div class="mt-4 text-center">
+            <a href="{% url 'scancodes:scancode-detail' generated_code.pk %}" class="text-sm text-blue-600 hover:text-blue-800">
+                View Code Details
+            </a>
+        </div>
+        {% else %}
         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-8 flex items-center justify-center min-h-[300px]">
             <div class="text-center">
                 <div class="w-48 h-48 bg-white mx-auto rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600">
@@ -73,13 +123,14 @@
             </div>
         </div>
         <div class="mt-4 flex gap-2">
-            <button type="button" disabled class="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-400 rounded-lg">
+            <button type="button" disabled class="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-400 rounded-lg cursor-not-allowed">
                 <i data-lucide="download" class="w-4 h-4 inline mr-2"></i>Download PNG
             </button>
-            <button type="button" disabled class="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-400 rounded-lg">
+            <button type="button" disabled class="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-400 rounded-lg cursor-not-allowed">
                 <i data-lucide="printer" class="w-4 h-4 inline mr-2"></i>Print
             </button>
         </div>
+        {% endif %}
     </div>
 </div>
 
@@ -91,26 +142,117 @@
             <i data-lucide="package" class="w-8 h-8 mx-auto text-blue-500 mb-2"></i>
             <h3 class="font-medium text-gray-900 dark:text-white">Inventory Items</h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Generate codes for inventory</p>
-            <button type="button" class="px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-200">
-                Select Items
-            </button>
+            <a href="{% url 'inventory:item_list' %}"
+               class="inline-block px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-200">
+                Go to Inventory
+            </a>
         </div>
         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 text-center">
             <i data-lucide="hard-hat" class="w-8 h-8 mx-auto text-orange-500 mb-2"></i>
-            <h3 class="font-medium text-gray-900 dark:text-white">Equipment</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Generate codes for equipment</p>
-            <button type="button" class="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg text-sm hover:bg-orange-200">
-                Select Equipment
-            </button>
+            <h3 class="font-medium text-gray-900 dark:text-white">Drill Bits</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Generate codes for drill bits</p>
+            <a href="{% url 'workorders:drillbit-list' %}"
+               class="inline-block px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg text-sm hover:bg-orange-200">
+                Go to Drill Bits
+            </a>
         </div>
         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 text-center">
             <i data-lucide="map-pin" class="w-8 h-8 mx-auto text-green-500 mb-2"></i>
             <h3 class="font-medium text-gray-900 dark:text-white">Locations</h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Generate codes for locations</p>
-            <button type="button" class="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm hover:bg-green-200">
-                Select Locations
-            </button>
+            <a href="{% url 'inventory:location_list' %}"
+               class="inline-block px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm hover:bg-green-200">
+                Go to Locations
+            </a>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function downloadQR(imageSrc, code) {
+    const link = document.createElement('a');
+    link.href = imageSrc;
+    link.download = `QR-${code}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function printQR(imageSrc, code, entityType) {
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+
+    const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Print QR - ${code}</title>
+            <style>
+                @page {
+                    size: 2in 3in;
+                    margin: 0.25in;
+                }
+                body {
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    padding: 10px;
+                    margin: 0;
+                }
+                .label-container {
+                    border: 1px solid #ccc;
+                    padding: 15px;
+                    display: inline-block;
+                }
+                .qr-code {
+                    width: 150px;
+                    height: 150px;
+                    margin: 0 auto 10px;
+                }
+                .code {
+                    font-size: 12px;
+                    font-weight: bold;
+                    font-family: monospace;
+                    margin: 5px 0;
+                    word-break: break-all;
+                }
+                .entity-type {
+                    font-size: 10px;
+                    color: #666;
+                    margin: 5px 0;
+                }
+                .company {
+                    font-size: 9px;
+                    color: #999;
+                    margin-top: 10px;
+                }
+                @media print {
+                    body { padding: 0; }
+                    .label-container { border: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="label-container">
+                <img src="${imageSrc}" class="qr-code" alt="QR Code">
+                <div class="code">${code}</div>
+                <div class="entity-type">${entityType}</div>
+                <div class="company">ARDT FMS</div>
+            </div>
+            <script>
+                window.onload = function() {
+                    setTimeout(function() {
+                        window.print();
+                        window.close();
+                    }, 250);
+                };
+            <\/script>
+        </body>
+        </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+}
+</script>
 {% endblock %}

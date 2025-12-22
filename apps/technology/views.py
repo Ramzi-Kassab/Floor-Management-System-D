@@ -749,7 +749,7 @@ class BOMListView(LoginRequiredMixin, ListView):
 
 
 class BOMDetailView(LoginRequiredMixin, DetailView):
-    """View BOM details with line items."""
+    """View BOM details with line items and inventory availability."""
 
     model = BOM
     template_name = "technology/bom_detail.html"
@@ -759,9 +759,56 @@ class BOMDetailView(LoginRequiredMixin, DetailView):
         return BOM.objects.select_related("design", "created_by")
 
     def get_context_data(self, **kwargs):
+        from apps.inventory.models import Stock
+        from django.db.models import Sum
+
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"BOM {self.object.code}"
-        context["lines"] = self.object.lines.select_related("inventory_item").order_by("line_number")
+
+        # Get lines with inventory items
+        lines = self.object.lines.select_related(
+            "inventory_item", "inventory_item__category", "inventory_item__primary_supplier"
+        ).order_by("line_number")
+
+        # Enrich lines with stock information
+        lines_with_stock = []
+        all_available = True
+
+        for line in lines:
+            item = line.inventory_item
+            # Get total stock for this item
+            stock_data = Stock.objects.filter(
+                item=item
+            ).aggregate(
+                total_on_hand=Sum('quantity_on_hand'),
+                total_available=Sum('quantity_available')
+            )
+
+            on_hand = stock_data['total_on_hand'] or 0
+            available = stock_data['total_available'] or 0
+            required = line.quantity
+
+            # Determine availability status
+            if available >= required:
+                status = 'available'
+            elif available > 0:
+                status = 'partial'
+                all_available = False
+            else:
+                status = 'unavailable'
+                all_available = False
+
+            lines_with_stock.append({
+                'line': line,
+                'on_hand': on_hand,
+                'available': available,
+                'required': required,
+                'shortage': max(0, required - available),
+                'status': status,
+            })
+
+        context["lines"] = lines_with_stock
+        context["all_materials_available"] = all_available
         context["total_cost"] = self.object.total_cost
         context["line_form"] = BOMLineForm()
         return context
