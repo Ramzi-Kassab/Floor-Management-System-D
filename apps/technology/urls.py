@@ -48,4 +48,6 @@ urlpatterns = [
     # API endpoints (for quick create from modals)
     path("api/connections/create/", views.APIConnectionCreateView.as_view(), name="api_connection_create"),
     path("api/breaker-slots/create/", views.APIBreakerSlotCreateView.as_view(), name="api_breaker_slot_create"),
+    # API endpoint (for design draft save)
+    path("api/designs/save-draft/", views.APIDesignSaveDraftView.as_view(), name="api_design_save_draft"),
 ]

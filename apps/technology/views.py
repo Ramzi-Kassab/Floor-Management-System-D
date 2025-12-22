@@ -96,6 +96,11 @@ class DesignListView(LoginRequiredMixin, ListView):
         context["status_choices"] = Design.Status.choices
         context["order_level_choices"] = Design.OrderLevel.choices
         context["sizes"] = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+        # Count drafts for the banner (only show if not already filtering by status)
+        if not self.request.GET.get("status"):
+            context["draft_count"] = Design.objects.filter(status=Design.Status.DRAFT).count()
+        else:
+            context["draft_count"] = 0
         return context
 
 
@@ -1050,10 +1055,14 @@ class APIBreakerSlotsView(LoginRequiredMixin, View):
         # Build filter options - material choices from model
         materials = [{'code': code, 'name': name} for code, name in BreakerSlot.Material.choices]
 
+        # Bit sizes for compatible sizes checkboxes in quick create
+        bit_sizes = [{'id': bs.id, 'display': bs.size_display} for bs in BitSize.objects.filter(is_active=True)]
+
         return JsonResponse({
             'breaker_slots': breaker_slots,
             'filters': {
                 'materials': materials,
+                'sizes': bit_sizes,
             }
         })
 
@@ -1315,7 +1324,7 @@ class APIConnectionCreateView(LoginRequiredMixin, View):
                 special_features=data.get('special_features', ''),
                 can_replace_in_ksa=data.get('can_replace_in_ksa', False),
                 remarks=data.get('remarks', ''),
-                is_active=True
+                is_active=data.get('is_active', True)
             )
 
             return JsonResponse({
@@ -1373,7 +1382,7 @@ class APIBreakerSlotCreateView(LoginRequiredMixin, View):
                 material=material,
                 hardness=data.get('hardness', ''),
                 remarks=data.get('remarks', ''),
-                is_active=True
+                is_active=data.get('is_active', True)
             )
 
             # Add compatible sizes if provided
@@ -1391,6 +1400,115 @@ class APIBreakerSlotCreateView(LoginRequiredMixin, View):
                     'material': breaker_slot.material,
                     'material_display': breaker_slot.get_material_display(),
                 }
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+class APIDesignSaveDraftView(LoginRequiredMixin, View):
+    """API endpoint to save a design as draft from the design form."""
+
+    def post(self, request):
+        import json
+
+        try:
+            data = json.loads(request.body)
+
+            # Validate minimum required fields
+            mat_no = data.get('mat_no', '').strip()
+            hdbs_type = data.get('hdbs_type', '').strip()
+
+            if not mat_no and not hdbs_type:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'At least MAT No. or HDBS Type is required to save a draft'
+                }, status=400)
+
+            # Check for existing draft with same MAT No
+            design_id = data.get('design_id')  # For updating existing draft
+            if design_id:
+                # Update existing design
+                try:
+                    design = Design.objects.get(id=design_id)
+                except Design.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Design not found'}, status=404)
+            else:
+                # Create new design
+                design = Design()
+
+            # Set all provided fields
+            design.mat_no = mat_no or f"DRAFT-{Design.objects.count() + 1}"
+            design.hdbs_type = hdbs_type or "DRAFT"
+            design.status = Design.Status.DRAFT
+
+            # Optional fields
+            if data.get('category'):
+                design.category = data['category']
+            if data.get('size'):
+                design.size_id = data['size']
+            if data.get('smi_type'):
+                design.smi_type = data['smi_type']
+            if data.get('ref_mat_no'):
+                design.ref_mat_no = data['ref_mat_no']
+            if data.get('ardt_item_no'):
+                design.ardt_item_no = data['ardt_item_no']
+            if data.get('body_material'):
+                design.body_material = data['body_material']
+            if data.get('series'):
+                design.series = data['series']
+            if data.get('no_of_blades'):
+                design.no_of_blades = data['no_of_blades']
+            if data.get('cutter_size'):
+                design.cutter_size = data['cutter_size']
+            if data.get('total_pockets_count'):
+                design.total_pockets_count = data['total_pockets_count']
+            if data.get('gage_length'):
+                design.gage_length = data['gage_length']
+            if data.get('gage_relief'):
+                design.gage_relief = data['gage_relief']
+            if data.get('nozzle_count'):
+                design.nozzle_count = data['nozzle_count']
+            if data.get('nozzle_bore_size'):
+                design.nozzle_bore_size = data['nozzle_bore_size']
+            if data.get('nozzle_config'):
+                design.nozzle_config = data['nozzle_config']
+            if data.get('port_count'):
+                design.port_count = data['port_count']
+            if data.get('port_size'):
+                design.port_size = data['port_size']
+            if data.get('order_level'):
+                design.order_level = data['order_level']
+            if data.get('iadc_code_ref'):
+                design.iadc_code_ref_id = data['iadc_code_ref']
+            if data.get('connection_ref'):
+                design.connection_ref_id = data['connection_ref']
+            if data.get('breaker_slot'):
+                design.breaker_slot_id = data['breaker_slot']
+            if data.get('formation_type_ref'):
+                design.formation_type_ref_id = data['formation_type_ref']
+            if data.get('application_ref'):
+                design.application_ref_id = data['application_ref']
+            if data.get('revision'):
+                design.revision = data['revision']
+            if data.get('description'):
+                design.description = data['description']
+            if data.get('notes'):
+                design.notes = data['notes']
+
+            design.save()
+
+            return JsonResponse({
+                'success': True,
+                'design': {
+                    'id': design.id,
+                    'mat_no': design.mat_no,
+                    'hdbs_type': design.hdbs_type,
+                    'status': design.status,
+                },
+                'message': 'Design saved as draft'
             })
 
         except json.JSONDecodeError:

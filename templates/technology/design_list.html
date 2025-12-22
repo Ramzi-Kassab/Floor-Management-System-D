@@ -17,6 +17,27 @@
 {% endblock %}
 
 {% block content %}
+<!-- Drafts Banner (if there are drafts) -->
+{% if draft_count > 0 %}
+<div class="mb-6 bg-gradient-to-r from-yellow-500/10 to-amber-500/10 dark:from-yellow-900/30 dark:to-amber-900/30 border border-yellow-300 dark:border-yellow-700 rounded-xl p-4">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-yellow-100 dark:bg-yellow-900/50 rounded-lg">
+                <i data-lucide="file-edit" class="w-5 h-5 text-yellow-600 dark:text-yellow-400"></i>
+            </div>
+            <div>
+                <h3 class="text-sm font-semibold text-yellow-800 dark:text-yellow-200">You have {{ draft_count }} draft{{ draft_count|pluralize }}</h3>
+                <p class="text-xs text-yellow-600 dark:text-yellow-400">Continue editing your incomplete designs</p>
+            </div>
+        </div>
+        <a href="?status=DRAFT" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-yellow-700 bg-yellow-100 hover:bg-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-300 dark:hover:bg-yellow-900 rounded-lg transition-colors">
+            <i data-lucide="filter" class="w-4 h-4 mr-1.5"></i>
+            View Drafts
+        </a>
+    </div>
+</div>
+{% endif %}
+
 <!-- Compact Filter Bar -->
 <div class="bg-gradient-to-r from-slate-800 to-slate-900 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg p-4 mb-6 border border-slate-700">
     <form method="get" id="filterForm">
