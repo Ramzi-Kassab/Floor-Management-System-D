@@ -440,20 +440,20 @@
             <!-- Left side: Reset button (only for create mode) -->
             <div>
                 {% if not object %}
-                <button type="button" id="reset-form-btn" class="px-4 py-2 border border-orange-300 rounded-lg text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-700 flex items-center gap-2" title="Save current as draft and start a new design">
+                <button type="button" id="reset-form-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 bg-white hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 flex items-center gap-2" title="Clear the form and start fresh">
                     <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                    Reset (Save as Draft)
+                    Reset
                 </button>
                 {% endif %}
             </div>
             <!-- Right side: Cancel, Save as Draft, Create/Update -->
             <div class="flex gap-3">
                 <a href="{% url 'technology:design_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</a>
-                <button type="button" id="save-draft-btn" class="px-4 py-2 border border-yellow-400 rounded-lg text-sm font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-700 flex items-center gap-2">
+                <button type="button" id="save-draft-btn" class="px-4 py-2 border border-yellow-400 rounded-lg text-sm font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-700 flex items-center gap-2" title="Save as draft and continue editing (enables pockets, BOMs)">
                     <i data-lucide="file-edit" class="w-4 h-4"></i>
                     Save as Draft
                 </button>
-                <button type="submit" class="px-6 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2">
+                <button type="submit" class="px-6 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2" title="Save and go to list">
                     <i data-lucide="save" class="w-4 h-4"></i>
                     {% if object %}Update{% else %}Create{% endif %} Design
                 </button>
@@ -1531,7 +1531,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return formData;
     }
 
-    function saveDraft(callback) {
+    function saveDraft() {
         const data = gatherFormData();
 
         // Check if there's any data to save
@@ -1539,6 +1539,10 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Please enter at least a MAT No. or HDBS Type to save as draft.');
             return;
         }
+
+        // Disable button to prevent double-click
+        saveDraftBtn.disabled = true;
+        saveDraftBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Saving...';
 
         fetch('{% url "technology:api_design_save_draft" %}', {
             method: 'POST',
@@ -1553,65 +1557,61 @@ document.addEventListener('DOMContentLoaded', function() {
             if (result.success) {
                 // Clear localStorage since we saved to database
                 clearFormStorage();
-                // Show success notification
-                const notification = document.createElement('div');
-                notification.className = 'fixed bottom-20 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50';
-                notification.innerHTML = `
-                    <i data-lucide="check-circle" class="w-5 h-5"></i>
-                    <span>Design saved as draft (${result.design.mat_no})</span>
-                    <button type="button" class="ml-2 text-green-200 hover:text-white" onclick="this.parentElement.remove()">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
-                `;
-                document.body.appendChild(notification);
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-                setTimeout(() => notification.remove(), 5000);
-
-                if (callback) callback(result);
+                // Redirect to the edit page so pockets, BOMs become available
+                window.location.href = '/technology/designs/' + result.design.id + '/edit/';
             } else {
                 alert('Error saving draft: ' + (result.error || 'Unknown error'));
+                saveDraftBtn.disabled = false;
+                saveDraftBtn.innerHTML = '<i data-lucide="file-edit" class="w-4 h-4"></i> Save as Draft';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
             }
         })
         .catch(err => {
             alert('Network error: ' + err.message);
+            saveDraftBtn.disabled = false;
+            saveDraftBtn.innerHTML = '<i data-lucide="file-edit" class="w-4 h-4"></i> Save as Draft';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         });
     }
 
     function resetForm() {
-        // First save current form as draft
-        saveDraft(function(result) {
-            // Then clear the form
-            form.reset();
-            // Clear connection and breaker slot selections
-            if (connInput) {
-                connInput.value = '';
-                connDetails.classList.add('hidden');
-                connPlaceholder.classList.remove('hidden');
-            }
-            if (breakerInput) {
-                breakerInput.value = '';
-                breakerDetails.classList.add('hidden');
-                breakerPlaceholder.classList.remove('hidden');
-            }
-            // Clear localStorage
-            clearFormStorage();
-            // Show message
-            alert('Previous design saved as draft. Form has been reset for a new design.');
-        });
+        // Just clear the form without saving
+        form.reset();
+        // Clear connection and breaker slot selections
+        if (connInput) {
+            connInput.value = '';
+            connDetails.classList.add('hidden');
+            connPlaceholder.classList.remove('hidden');
+        }
+        if (breakerInput) {
+            breakerInput.value = '';
+            breakerDetails.classList.add('hidden');
+            breakerPlaceholder.classList.remove('hidden');
+        }
+        // Clear localStorage
+        clearFormStorage();
+        // Show notification
+        const notification = document.createElement('div');
+        notification.className = 'fixed bottom-20 right-4 bg-blue-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50';
+        notification.innerHTML = `
+            <i data-lucide="check-circle" class="w-5 h-5"></i>
+            <span>Form has been reset</span>
+            <button type="button" class="ml-2 text-blue-200 hover:text-white" onclick="this.parentElement.remove()">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        `;
+        document.body.appendChild(notification);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        setTimeout(() => notification.remove(), 3000);
     }
 
     if (saveDraftBtn) {
-        saveDraftBtn.addEventListener('click', function() {
-            saveDraft(function(result) {
-                // Optionally redirect to the draft edit page
-                // window.location.href = '/technology/designs/' + result.design.id + '/edit/';
-            });
-        });
+        saveDraftBtn.addEventListener('click', saveDraft);
     }
 
     if (resetFormBtn) {
         resetFormBtn.addEventListener('click', function() {
-            if (confirm('This will save the current design as a draft and clear the form. Continue?')) {
+            if (confirm('This will clear the form. Any unsaved data will be lost. Continue?')) {
                 resetForm();
             }
         });
