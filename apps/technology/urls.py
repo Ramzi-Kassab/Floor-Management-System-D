@@ -45,4 +45,7 @@ urlpatterns = [
     # API endpoints (for modal pickers)
     path("api/connections/", views.APIConnectionsView.as_view(), name="api_connections"),
     path("api/breaker-slots/", views.APIBreakerSlotsView.as_view(), name="api_breaker_slots"),
+    # API endpoints (for quick create from modals)
+    path("api/connections/create/", views.APIConnectionCreateView.as_view(), name="api_connection_create"),
+    path("api/breaker-slots/create/", views.APIBreakerSlotCreateView.as_view(), name="api_breaker_slot_create"),
 ]

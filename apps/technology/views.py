@@ -1275,3 +1275,125 @@ class BreakerSlotDeleteView(LoginRequiredMixin, DeleteView):
     def form_valid(self, form):
         messages.success(self.request, f"Breaker Slot {self.object.mat_no} deleted.")
         return super().form_valid(form)
+
+
+# =============================================================================
+# QUICK CREATE API VIEWS (for modal quick-create without leaving the page)
+# =============================================================================
+
+
+class APIConnectionCreateView(LoginRequiredMixin, View):
+    """API endpoint to create a new connection from the design form modal."""
+
+    def post(self, request):
+        import json
+
+        try:
+            data = json.loads(request.body)
+
+            # Validate required fields
+            mat_no = data.get('mat_no', '').strip()
+            connection_type_id = data.get('connection_type')
+            connection_size_id = data.get('connection_size')
+
+            if not mat_no:
+                return JsonResponse({'success': False, 'error': 'MAT No. is required'}, status=400)
+            if not connection_type_id:
+                return JsonResponse({'success': False, 'error': 'Connection Type is required'}, status=400)
+            if not connection_size_id:
+                return JsonResponse({'success': False, 'error': 'Connection Size is required'}, status=400)
+
+            # Check if MAT No. already exists
+            if Connection.objects.filter(mat_no=mat_no).exists():
+                return JsonResponse({'success': False, 'error': f'Connection with MAT No. {mat_no} already exists'}, status=400)
+
+            # Create the connection
+            connection = Connection.objects.create(
+                mat_no=mat_no,
+                connection_type_id=connection_type_id,
+                connection_size_id=connection_size_id,
+                special_features=data.get('special_features', ''),
+                can_replace_in_ksa=data.get('can_replace_in_ksa', False),
+                remarks=data.get('remarks', ''),
+                is_active=True
+            )
+
+            return JsonResponse({
+                'success': True,
+                'connection': {
+                    'id': connection.id,
+                    'mat_no': connection.mat_no,
+                    'type': connection.connection_type.code,
+                    'type_name': connection.connection_type.name,
+                    'size': connection.connection_size.size_inches,
+                    'can_replace_in_ksa': connection.can_replace_in_ksa,
+                }
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+class APIBreakerSlotCreateView(LoginRequiredMixin, View):
+    """API endpoint to create a new breaker slot from the design form modal."""
+
+    def post(self, request):
+        import json
+
+        try:
+            data = json.loads(request.body)
+
+            # Validate required fields
+            mat_no = data.get('mat_no', '').strip()
+            slot_width = data.get('slot_width')
+            slot_depth = data.get('slot_depth')
+            material = data.get('material')
+
+            if not mat_no:
+                return JsonResponse({'success': False, 'error': 'MAT No. is required'}, status=400)
+            if not slot_width:
+                return JsonResponse({'success': False, 'error': 'Slot Width is required'}, status=400)
+            if not slot_depth:
+                return JsonResponse({'success': False, 'error': 'Slot Depth is required'}, status=400)
+            if not material:
+                return JsonResponse({'success': False, 'error': 'Material is required'}, status=400)
+
+            # Check if MAT No. already exists
+            if BreakerSlot.objects.filter(mat_no=mat_no).exists():
+                return JsonResponse({'success': False, 'error': f'Breaker Slot with MAT No. {mat_no} already exists'}, status=400)
+
+            # Create the breaker slot
+            breaker_slot = BreakerSlot.objects.create(
+                mat_no=mat_no,
+                slot_width=slot_width,
+                slot_depth=slot_depth,
+                slot_length=data.get('slot_length') or None,
+                material=material,
+                hardness=data.get('hardness', ''),
+                remarks=data.get('remarks', ''),
+                is_active=True
+            )
+
+            # Add compatible sizes if provided
+            compatible_sizes = data.get('compatible_sizes', [])
+            if compatible_sizes:
+                breaker_slot.compatible_sizes.set(compatible_sizes)
+
+            return JsonResponse({
+                'success': True,
+                'breaker_slot': {
+                    'id': breaker_slot.id,
+                    'mat_no': breaker_slot.mat_no,
+                    'slot_width': str(breaker_slot.slot_width),
+                    'slot_depth': str(breaker_slot.slot_depth),
+                    'material': breaker_slot.material,
+                    'material_display': breaker_slot.get_material_display(),
+                }
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)

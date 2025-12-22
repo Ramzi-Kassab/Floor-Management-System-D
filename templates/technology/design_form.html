@@ -453,59 +453,128 @@
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <div class="flex items-center gap-4">
                 <h3 class="text-lg font-medium text-gray-900 dark:text-white">Select Connection</h3>
-                <a href="{% url 'technology:connection_list' %}" target="_blank" class="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">
-                    <i data-lucide="external-link" class="w-4 h-4"></i>
-                    Manage Connections
-                </a>
+                <!-- Tab buttons -->
+                <div class="flex border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                    <button type="button" id="conn-tab-select" class="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white">
+                        Select Existing
+                    </button>
+                    <button type="button" id="conn-tab-create" class="px-4 py-1.5 text-sm font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+                        Quick Create
+                    </button>
+                </div>
             </div>
             <button type="button" id="close-connection-modal" class="text-gray-500 hover:text-gray-700">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search MAT No.</label>
-                    <input type="text" id="conn-search" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Search...">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Type</label>
-                    <select id="conn-filter-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                        <option value="">All Types</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Size</label>
-                    <select id="conn-filter-size" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                        <option value="">All Sizes</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Can Replace in KSA</label>
-                    <select id="conn-filter-ksa" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                        <option value="">All</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
-                    </select>
+
+        <!-- Select Existing Tab Content -->
+        <div id="conn-content-select">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search MAT No.</label>
+                        <input type="text" id="conn-search" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Search...">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Type</label>
+                        <select id="conn-filter-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="">All Types</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Size</label>
+                        <select id="conn-filter-size" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="">All Sizes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Can Replace in KSA</label>
+                        <select id="conn-filter-ksa" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="">All</option>
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
                 </div>
             </div>
+            <div class="flex-1 overflow-auto px-6 py-4" style="max-height: calc(100vh - 300px);">
+                <table class="w-full">
+                    <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Size</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">KSA</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Features</th>
+                            <th class="px-4 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="connection-results" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div class="flex-1 overflow-auto px-6 py-4">
-            <table class="w-full">
-                <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700">
-                    <tr>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Size</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">KSA</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Features</th>
-                        <th class="px-4 py-2"></th>
-                    </tr>
-                </thead>
-                <tbody id="connection-results" class="divide-y divide-gray-200 dark:divide-gray-700">
-                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
-                </tbody>
-            </table>
+
+        <!-- Quick Create Tab Content -->
+        <div id="conn-content-create" class="hidden px-6 py-6">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="info" class="w-5 h-5 text-blue-500 mt-0.5"></i>
+                        <div>
+                            <p class="text-sm text-blue-800 dark:text-blue-200 font-medium">Quick Create Connection</p>
+                            <p class="text-xs text-blue-600 dark:text-blue-300 mt-1">Create a new connection without leaving this page. Your design form data is preserved.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">MAT No. <span class="text-red-500">*</span></label>
+                            <input type="text" id="new-conn-mat-no" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., 1754845">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Connection Type <span class="text-red-500">*</span></label>
+                            <select id="new-conn-type" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">Select Type...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Connection Size <span class="text-red-500">*</span></label>
+                            <select id="new-conn-size" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">Select Size...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Can Replace in KSA</label>
+                            <div class="flex items-center mt-2">
+                                <input type="checkbox" id="new-conn-ksa" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <label for="new-conn-ksa" class="ml-2 text-sm text-gray-600 dark:text-gray-400">Yes, can be replaced in KSA</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Special Features</label>
+                        <textarea id="new-conn-features" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Any special features or modifications"></textarea>
+                    </div>
+                    <div id="conn-create-error" class="hidden bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                        <p class="text-sm text-red-600 dark:text-red-400"></p>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <button type="button" id="conn-create-cancel" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                            Cancel
+                        </button>
+                        <button type="button" id="conn-create-submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            Create & Select
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -517,52 +586,124 @@
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <div class="flex items-center gap-4">
                 <h3 class="text-lg font-medium text-gray-900 dark:text-white">Select Breaker Slot</h3>
-                <a href="{% url 'technology:breaker_slot_list' %}" target="_blank" class="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">
-                    <i data-lucide="external-link" class="w-4 h-4"></i>
-                    Manage Breaker Slots
-                </a>
+                <!-- Tab buttons -->
+                <div class="flex border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                    <button type="button" id="breaker-tab-select" class="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white">
+                        Select Existing
+                    </button>
+                    <button type="button" id="breaker-tab-create" class="px-4 py-1.5 text-sm font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+                        Quick Create
+                    </button>
+                </div>
             </div>
             <button type="button" id="close-breaker-modal" class="text-gray-500 hover:text-gray-700">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search MAT No.</label>
-                    <input type="text" id="breaker-search" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Search...">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Material</label>
-                    <select id="breaker-filter-material" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                        <option value="">All Materials</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Width Range (in)</label>
-                    <div class="flex gap-2">
-                        <input type="number" id="breaker-min-width" class="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Min">
-                        <input type="number" id="breaker-max-width" class="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Max">
+
+        <!-- Select Existing Tab Content -->
+        <div id="breaker-content-select">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search MAT No.</label>
+                        <input type="text" id="breaker-search" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Search...">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Material</label>
+                        <select id="breaker-filter-material" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="">All Materials</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Width Range (in)</label>
+                        <div class="flex gap-2">
+                            <input type="number" id="breaker-min-width" class="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Min">
+                            <input type="number" id="breaker-max-width" class="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Max">
+                        </div>
                     </div>
                 </div>
             </div>
+            <div class="flex-1 overflow-auto px-6 py-4" style="max-height: calc(100vh - 300px);">
+                <table class="w-full">
+                    <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Width (in)</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Depth (in)</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Material</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hardness</th>
+                            <th class="px-4 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="breaker-results" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div class="flex-1 overflow-auto px-6 py-4">
-            <table class="w-full">
-                <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700">
-                    <tr>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Width (in)</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Depth (in)</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Material</th>
-                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hardness</th>
-                        <th class="px-4 py-2"></th>
-                    </tr>
-                </thead>
-                <tbody id="breaker-results" class="divide-y divide-gray-200 dark:divide-gray-700">
-                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
-                </tbody>
-            </table>
+
+        <!-- Quick Create Tab Content -->
+        <div id="breaker-content-create" class="hidden px-6 py-6">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="info" class="w-5 h-5 text-blue-500 mt-0.5"></i>
+                        <div>
+                            <p class="text-sm text-blue-800 dark:text-blue-200 font-medium">Quick Create Breaker Slot</p>
+                            <p class="text-xs text-blue-600 dark:text-blue-300 mt-1">Create a new breaker slot without leaving this page. Your design form data is preserved.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">MAT No. <span class="text-red-500">*</span></label>
+                            <input type="text" id="new-breaker-mat-no" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., BS-001">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Material <span class="text-red-500">*</span></label>
+                            <select id="new-breaker-material" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">Select Material...</option>
+                                <option value="TC">Tungsten Carbide</option>
+                                <option value="NC">Natural Diamond</option>
+                                <option value="PDC">PDC</option>
+                                <option value="TSP">TSP</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slot Width (in) <span class="text-red-500">*</span></label>
+                            <input type="number" step="0.001" min="0" id="new-breaker-width" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., 0.250">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slot Depth (in) <span class="text-red-500">*</span></label>
+                            <input type="number" step="0.001" min="0" id="new-breaker-depth" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., 0.125">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slot Length (in)</label>
+                            <input type="number" step="0.001" min="0" id="new-breaker-length" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Optional">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hardness (HRC)</label>
+                        <input type="text" id="new-breaker-hardness" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., 28-32 HRC">
+                    </div>
+                    <div id="breaker-create-error" class="hidden bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                        <p class="text-sm text-red-600 dark:text-red-400"></p>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <button type="button" id="breaker-create-cancel" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                            Cancel
+                        </button>
+                        <button type="button" id="breaker-create-submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            Create & Select
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -981,6 +1122,267 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize existing selections on page load
     initializeExistingConnection();
     initializeExistingBreakerSlot();
+
+    // =========================================================================
+    // CONNECTION MODAL TABS & QUICK CREATE
+    // =========================================================================
+    const connTabSelect = document.getElementById('conn-tab-select');
+    const connTabCreate = document.getElementById('conn-tab-create');
+    const connContentSelect = document.getElementById('conn-content-select');
+    const connContentCreate = document.getElementById('conn-content-create');
+
+    function switchConnTab(tab) {
+        if (tab === 'select') {
+            connTabSelect.classList.add('bg-blue-600', 'text-white');
+            connTabSelect.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            connTabCreate.classList.remove('bg-blue-600', 'text-white');
+            connTabCreate.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            connContentSelect.classList.remove('hidden');
+            connContentCreate.classList.add('hidden');
+        } else {
+            connTabCreate.classList.add('bg-blue-600', 'text-white');
+            connTabCreate.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            connTabSelect.classList.remove('bg-blue-600', 'text-white');
+            connTabSelect.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            connContentCreate.classList.remove('hidden');
+            connContentSelect.classList.add('hidden');
+            // Populate dropdowns for quick create
+            populateConnCreateDropdowns();
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function populateConnCreateDropdowns() {
+        fetch('{% url "technology:api_connections" %}')
+            .then(r => r.json())
+            .then(data => {
+                if (data.filters) {
+                    const typeSelect = document.getElementById('new-conn-type');
+                    const sizeSelect = document.getElementById('new-conn-size');
+
+                    typeSelect.innerHTML = '<option value="">Select Type...</option>';
+                    data.filters.types.forEach(t => {
+                        typeSelect.innerHTML += `<option value="${t.id}">${t.code} - ${t.name}</option>`;
+                    });
+
+                    sizeSelect.innerHTML = '<option value="">Select Size...</option>';
+                    data.filters.sizes.forEach(s => {
+                        sizeSelect.innerHTML += `<option value="${s.id}">${s.size}</option>`;
+                    });
+                }
+            });
+    }
+
+    function createConnection() {
+        const errorDiv = document.getElementById('conn-create-error');
+        errorDiv.classList.add('hidden');
+
+        const data = {
+            mat_no: document.getElementById('new-conn-mat-no').value,
+            connection_type: document.getElementById('new-conn-type').value,
+            connection_size: document.getElementById('new-conn-size').value,
+            can_replace_in_ksa: document.getElementById('new-conn-ksa').checked,
+            special_features: document.getElementById('new-conn-features').value,
+        };
+
+        fetch('{% url "technology:api_connection_create" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify(data),
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                // Select the newly created connection
+                const c = result.connection;
+                selectConnection(c.id, c.mat_no, c.type_name, c.size);
+                // Clear the form
+                document.getElementById('new-conn-mat-no').value = '';
+                document.getElementById('new-conn-type').value = '';
+                document.getElementById('new-conn-size').value = '';
+                document.getElementById('new-conn-ksa').checked = false;
+                document.getElementById('new-conn-features').value = '';
+                switchConnTab('select');
+            } else {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = result.error || 'Failed to create connection';
+            }
+        })
+        .catch(err => {
+            errorDiv.classList.remove('hidden');
+            errorDiv.querySelector('p').textContent = 'Network error: ' + err.message;
+        });
+    }
+
+    if (connTabSelect) connTabSelect.addEventListener('click', () => switchConnTab('select'));
+    if (connTabCreate) connTabCreate.addEventListener('click', () => switchConnTab('create'));
+    document.getElementById('conn-create-submit')?.addEventListener('click', createConnection);
+    document.getElementById('conn-create-cancel')?.addEventListener('click', () => switchConnTab('select'));
+
+    // =========================================================================
+    // BREAKER SLOT MODAL TABS & QUICK CREATE
+    // =========================================================================
+    const breakerTabSelect = document.getElementById('breaker-tab-select');
+    const breakerTabCreate = document.getElementById('breaker-tab-create');
+    const breakerContentSelect = document.getElementById('breaker-content-select');
+    const breakerContentCreate = document.getElementById('breaker-content-create');
+
+    function switchBreakerTab(tab) {
+        if (tab === 'select') {
+            breakerTabSelect.classList.add('bg-blue-600', 'text-white');
+            breakerTabSelect.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            breakerTabCreate.classList.remove('bg-blue-600', 'text-white');
+            breakerTabCreate.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            breakerContentSelect.classList.remove('hidden');
+            breakerContentCreate.classList.add('hidden');
+        } else {
+            breakerTabCreate.classList.add('bg-blue-600', 'text-white');
+            breakerTabCreate.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            breakerTabSelect.classList.remove('bg-blue-600', 'text-white');
+            breakerTabSelect.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            breakerContentCreate.classList.remove('hidden');
+            breakerContentSelect.classList.add('hidden');
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function createBreakerSlot() {
+        const errorDiv = document.getElementById('breaker-create-error');
+        errorDiv.classList.add('hidden');
+
+        const data = {
+            mat_no: document.getElementById('new-breaker-mat-no').value,
+            material: document.getElementById('new-breaker-material').value,
+            slot_width: document.getElementById('new-breaker-width').value,
+            slot_depth: document.getElementById('new-breaker-depth').value,
+            slot_length: document.getElementById('new-breaker-length').value || null,
+            hardness: document.getElementById('new-breaker-hardness').value,
+        };
+
+        fetch('{% url "technology:api_breaker_slot_create" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify(data),
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                // Select the newly created breaker slot
+                const b = result.breaker_slot;
+                selectBreakerSlot(b.id, b.mat_no, `${b.slot_width}x${b.slot_depth}`, b.material_display);
+                // Clear the form
+                document.getElementById('new-breaker-mat-no').value = '';
+                document.getElementById('new-breaker-material').value = '';
+                document.getElementById('new-breaker-width').value = '';
+                document.getElementById('new-breaker-depth').value = '';
+                document.getElementById('new-breaker-length').value = '';
+                document.getElementById('new-breaker-hardness').value = '';
+                switchBreakerTab('select');
+            } else {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = result.error || 'Failed to create breaker slot';
+            }
+        })
+        .catch(err => {
+            errorDiv.classList.remove('hidden');
+            errorDiv.querySelector('p').textContent = 'Network error: ' + err.message;
+        });
+    }
+
+    if (breakerTabSelect) breakerTabSelect.addEventListener('click', () => switchBreakerTab('select'));
+    if (breakerTabCreate) breakerTabCreate.addEventListener('click', () => switchBreakerTab('create'));
+    document.getElementById('breaker-create-submit')?.addEventListener('click', createBreakerSlot);
+    document.getElementById('breaker-create-cancel')?.addEventListener('click', () => switchBreakerTab('select'));
+
+    // =========================================================================
+    // AUTO-SAVE TO LOCALSTORAGE (Safety Net)
+    // =========================================================================
+    const STORAGE_KEY = 'design_form_autosave_{{ object.pk|default:"new" }}';
+    const form = document.querySelector('form');
+
+    function saveFormToStorage() {
+        const formData = {};
+        const inputs = form.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            if (input.name && input.type !== 'file') {
+                if (input.type === 'checkbox') {
+                    formData[input.name] = input.checked;
+                } else {
+                    formData[input.name] = input.value;
+                }
+            }
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
+    }
+
+    function loadFormFromStorage() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return false;
+
+        try {
+            const formData = JSON.parse(saved);
+            let hasData = false;
+
+            for (const [name, value] of Object.entries(formData)) {
+                const input = form.querySelector(`[name="${name}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = value;
+                    } else if (input.value === '' && value) {
+                        input.value = value;
+                        hasData = true;
+                    }
+                }
+            }
+
+            return hasData;
+        } catch (e) {
+            console.error('Error loading form from storage:', e);
+            return false;
+        }
+    }
+
+    function clearFormStorage() {
+        localStorage.removeItem(STORAGE_KEY);
+    }
+
+    // Auto-save on input changes (debounced)
+    const debouncedSave = debounce(saveFormToStorage, 1000);
+    form.addEventListener('input', debouncedSave);
+    form.addEventListener('change', debouncedSave);
+
+    // Clear storage on successful form submission
+    form.addEventListener('submit', function() {
+        clearFormStorage();
+    });
+
+    // Show restore prompt if we have saved data
+    {% if not object %}
+    const hasRestoredData = loadFormFromStorage();
+    if (hasRestoredData) {
+        // Show a small notification that data was restored
+        const notification = document.createElement('div');
+        notification.className = 'fixed bottom-20 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50';
+        notification.innerHTML = `
+            <i data-lucide="check-circle" class="w-5 h-5"></i>
+            <span>Form data restored from previous session</span>
+            <button type="button" class="ml-2 text-green-200 hover:text-white" onclick="this.parentElement.remove()">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        `;
+        document.body.appendChild(notification);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Auto-hide after 5 seconds
+        setTimeout(() => notification.remove(), 5000);
+    }
+    {% endif %}
 
     // Initialize icons
     if (typeof lucide !== 'undefined') {
