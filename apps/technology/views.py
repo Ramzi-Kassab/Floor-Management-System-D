@@ -14,8 +14,8 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from django.http import JsonResponse
 
-from .forms import BOMForm, BOMLineForm, BitSizeForm, BitTypeForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm
-from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout
+from .forms import BOMForm, BOMLineForm, BitSizeForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm, HDBSTypeForm, SMITypeForm
+from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout, HDBSType, SMIType
 
 
 # =============================================================================
@@ -1518,17 +1518,17 @@ class APIDesignSaveDraftView(LoginRequiredMixin, View):
 
 
 # =============================================================================
-# BIT SIZE CRUD VIEWS
+# BIT SIZE CRUD VIEWS (Simple list of sizes)
 # =============================================================================
 
 
 class BitSizeListView(LoginRequiredMixin, ListView):
-    """List all bit sizes with filtering."""
+    """List all bit sizes - simple list."""
 
     model = BitSize
     template_name = "technology/bit_size_list.html"
     context_object_name = "sizes"
-    paginate_by = 25
+    paginate_by = 50
 
     def get_queryset(self):
         queryset = BitSize.objects.order_by('size_decimal')
@@ -1538,7 +1538,8 @@ class BitSizeListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(
                 Q(code__icontains=search) |
                 Q(size_display__icontains=search) |
-                Q(size_inches__icontains=search)
+                Q(size_inches__icontains=search) |
+                Q(description__icontains=search)
             )
 
         if not self.request.GET.get("show_inactive"):
@@ -1552,22 +1553,6 @@ class BitSizeListView(LoginRequiredMixin, ListView):
         return context
 
 
-class BitSizeDetailView(LoginRequiredMixin, DetailView):
-    """View bit size details including related types and designs."""
-
-    model = BitSize
-    template_name = "technology/bit_size_detail.html"
-    context_object_name = "size"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # Get bit types using this size
-        context["related_types"] = self.object.bit_types.order_by('code')
-        # Get designs using this size
-        context["related_designs"] = Design.objects.filter(size=self.object).select_related('size').order_by('hdbs_type')[:20]
-        return context
-
-
 class BitSizeCreateView(LoginRequiredMixin, CreateView):
     """Create a new bit size."""
 
@@ -1578,12 +1563,12 @@ class BitSizeCreateView(LoginRequiredMixin, CreateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = "Create Bit Size"
-        context["submit_text"] = "Create Size"
+        context["page_title"] = "Add Bit Size"
+        context["submit_text"] = "Add Size"
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"Bit Size {form.instance.size_display} created successfully.")
+        messages.success(self.request, f"Bit Size {form.instance.size_display} added successfully.")
         return super().form_valid(form)
 
 
@@ -1593,14 +1578,12 @@ class BitSizeUpdateView(LoginRequiredMixin, UpdateView):
     model = BitSize
     form_class = BitSizeForm
     template_name = "technology/bit_size_form.html"
-
-    def get_success_url(self):
-        return reverse_lazy("technology:bit_size_detail", kwargs={"pk": self.object.pk})
+    success_url = reverse_lazy("technology:bit_size_list")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Edit Bit Size {self.object.size_display}"
-        context["submit_text"] = "Update Size"
+        context["page_title"] = f"Edit Size {self.object.size_display}"
+        context["submit_text"] = "Save Changes"
         return context
 
     def form_valid(self, form):
@@ -1621,42 +1604,32 @@ class BitSizeDeleteView(LoginRequiredMixin, DeleteView):
 
 
 # =============================================================================
-# BIT TYPE CRUD VIEWS
+# HDBS TYPE CRUD VIEWS (Internal type naming with SMI children)
 # =============================================================================
 
 
-class BitTypeListView(LoginRequiredMixin, ListView):
-    """List all bit types with filtering."""
+class HDBSTypeListView(LoginRequiredMixin, ListView):
+    """List all HDBS types with their SMI names."""
 
-    model = BitType
-    template_name = "technology/bit_type_list.html"
-    context_object_name = "types"
+    model = HDBSType
+    template_name = "technology/hdbs_type_list.html"
+    context_object_name = "hdbs_types"
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = BitType.objects.select_related('size').order_by('category', 'series', 'code')
+        queryset = HDBSType.objects.prefetch_related('smi_types', 'sizes').order_by('hdbs_name')
 
         search = self.request.GET.get("q")
         if search:
             queryset = queryset.filter(
-                Q(code__icontains=search) |
-                Q(name__icontains=search) |
-                Q(smi_name__icontains=search) |
                 Q(hdbs_name__icontains=search) |
-                Q(hdbs_mn__icontains=search)
-            )
-
-        category = self.request.GET.get("category")
-        if category:
-            queryset = queryset.filter(category=category)
-
-        series = self.request.GET.get("series")
-        if series:
-            queryset = queryset.filter(series__icontains=series)
+                Q(description__icontains=search) |
+                Q(smi_types__smi_name__icontains=search)
+            ).distinct()
 
         size = self.request.GET.get("size")
         if size:
-            queryset = queryset.filter(size_id=size)
+            queryset = queryset.filter(sizes__id=size)
 
         if not self.request.GET.get("show_inactive"):
             queryset = queryset.filter(is_active=True)
@@ -1666,77 +1639,254 @@ class BitTypeListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Bit Types (HDBS/SMI)"
-        context["category_choices"] = BitType.Category.choices
         context["sizes"] = BitSize.objects.filter(is_active=True).order_by('size_decimal')
-        # Get unique series for filter dropdown
-        context["series_list"] = BitType.objects.values_list('series', flat=True).distinct().order_by('series')
         return context
 
 
-class BitTypeDetailView(LoginRequiredMixin, DetailView):
-    """View bit type details."""
+class HDBSTypeDetailView(LoginRequiredMixin, DetailView):
+    """View HDBS type details with SMI names and related designs."""
 
-    model = BitType
-    template_name = "technology/bit_type_detail.html"
-    context_object_name = "bit_type"
+    model = HDBSType
+    template_name = "technology/hdbs_type_detail.html"
+    context_object_name = "hdbs_type"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Get designs using this type code (matching hdbs_type or smi_type)
+        # Get SMI types for this HDBS
+        context["smi_types"] = self.object.smi_types.all().order_by('smi_name')
+        # Get designs using this HDBS type name
         context["related_designs"] = Design.objects.filter(
-            Q(hdbs_type__icontains=self.object.code) |
-            Q(smi_type__icontains=self.object.smi_name)
-        ).select_related('size')[:20]
+            Q(hdbs_type__icontains=self.object.hdbs_name)
+        ).select_related('size').order_by('mat_no')[:30]
         return context
 
 
-class BitTypeCreateView(LoginRequiredMixin, CreateView):
-    """Create a new bit type."""
+class HDBSTypeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new HDBS type."""
 
-    model = BitType
-    form_class = BitTypeForm
-    template_name = "technology/bit_type_form.html"
-    success_url = reverse_lazy("technology:bit_type_list")
+    model = HDBSType
+    form_class = HDBSTypeForm
+    template_name = "technology/hdbs_type_form.html"
+    success_url = reverse_lazy("technology:hdbs_type_list")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = "Create Bit Type"
-        context["submit_text"] = "Create Type"
+        context["page_title"] = "Add HDBS Type"
+        context["submit_text"] = "Add Type"
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"Bit Type {form.instance.code} created successfully.")
+        messages.success(self.request, f"HDBS Type {form.instance.hdbs_name} created successfully.")
         return super().form_valid(form)
 
 
-class BitTypeUpdateView(LoginRequiredMixin, UpdateView):
-    """Update an existing bit type."""
+class HDBSTypeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing HDBS type."""
 
-    model = BitType
-    form_class = BitTypeForm
-    template_name = "technology/bit_type_form.html"
+    model = HDBSType
+    form_class = HDBSTypeForm
+    template_name = "technology/hdbs_type_form.html"
 
     def get_success_url(self):
-        return reverse_lazy("technology:bit_type_detail", kwargs={"pk": self.object.pk})
+        return reverse_lazy("technology:hdbs_type_detail", kwargs={"pk": self.object.pk})
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Edit Bit Type {self.object.code}"
-        context["submit_text"] = "Update Type"
+        context["page_title"] = f"Edit HDBS Type {self.object.hdbs_name}"
+        context["submit_text"] = "Save Changes"
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"Bit Type {self.object.code} updated successfully.")
+        messages.success(self.request, f"HDBS Type {self.object.hdbs_name} updated successfully.")
         return super().form_valid(form)
 
 
-class BitTypeDeleteView(LoginRequiredMixin, DeleteView):
-    """Delete a bit type."""
+class HDBSTypeDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete an HDBS type."""
 
-    model = BitType
-    template_name = "technology/bit_type_confirm_delete.html"
-    success_url = reverse_lazy("technology:bit_type_list")
+    model = HDBSType
+    template_name = "technology/hdbs_type_confirm_delete.html"
+    success_url = reverse_lazy("technology:hdbs_type_list")
 
     def form_valid(self, form):
-        messages.success(self.request, f"Bit Type {self.object.code} deleted.")
+        messages.success(self.request, f"HDBS Type {self.object.hdbs_name} deleted.")
         return super().form_valid(form)
+
+
+# =============================================================================
+# SMI TYPE CRUD VIEWS (Client-facing naming linked to HDBS)
+# =============================================================================
+
+
+class SMITypeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new SMI type linked to an HDBS type."""
+
+    model = SMIType
+    form_class = SMITypeForm
+    template_name = "technology/smi_type_form.html"
+
+    def get_initial(self):
+        initial = super().get_initial()
+        # Pre-select HDBS type if provided in URL
+        hdbs_pk = self.kwargs.get('hdbs_pk') or self.request.GET.get('hdbs')
+        if hdbs_pk:
+            initial['hdbs_type'] = hdbs_pk
+        return initial
+
+    def get_success_url(self):
+        return reverse_lazy("technology:hdbs_type_detail", kwargs={"pk": self.object.hdbs_type.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Add SMI Type"
+        context["submit_text"] = "Add SMI Type"
+        hdbs_pk = self.kwargs.get('hdbs_pk') or self.request.GET.get('hdbs')
+        if hdbs_pk:
+            context["hdbs_type"] = get_object_or_404(HDBSType, pk=hdbs_pk)
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"SMI Type {form.instance.smi_name} added successfully.")
+        return super().form_valid(form)
+
+
+class SMITypeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing SMI type."""
+
+    model = SMIType
+    form_class = SMITypeForm
+    template_name = "technology/smi_type_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("technology:hdbs_type_detail", kwargs={"pk": self.object.hdbs_type.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit SMI Type {self.object.smi_name}"
+        context["submit_text"] = "Save Changes"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"SMI Type {self.object.smi_name} updated successfully.")
+        return super().form_valid(form)
+
+
+class SMITypeDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete an SMI type."""
+
+    model = SMIType
+    template_name = "technology/smi_type_confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("technology:hdbs_type_detail", kwargs={"pk": self.object.hdbs_type.pk})
+
+    def form_valid(self, form):
+        messages.success(self.request, f"SMI Type {self.object.smi_name} deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# API VIEWS FOR QUICK CREATE (Types)
+# =============================================================================
+
+
+class APIHDBSTypesView(LoginRequiredMixin, View):
+    """API endpoint to get HDBS types for dropdowns."""
+
+    def get(self, request):
+        hdbs_types = HDBSType.objects.filter(is_active=True).order_by('hdbs_name')
+        data = {
+            'hdbs_types': [
+                {
+                    'id': t.id,
+                    'hdbs_name': t.hdbs_name,
+                    'smi_types': [{'id': s.id, 'smi_name': s.smi_name} for s in t.smi_types.filter(is_active=True)]
+                }
+                for t in hdbs_types
+            ]
+        }
+        return JsonResponse(data)
+
+
+class APIHDBSTypeCreateView(LoginRequiredMixin, View):
+    """API endpoint to quick create an HDBS type."""
+
+    def post(self, request):
+        import json
+        try:
+            data = json.loads(request.body)
+            hdbs_name = data.get('hdbs_name', '').strip()
+
+            if not hdbs_name:
+                return JsonResponse({'success': False, 'error': 'HDBS Name is required'}, status=400)
+
+            if HDBSType.objects.filter(hdbs_name=hdbs_name).exists():
+                return JsonResponse({'success': False, 'error': 'HDBS Type already exists'}, status=400)
+
+            hdbs_type = HDBSType.objects.create(
+                hdbs_name=hdbs_name,
+                description=data.get('description', ''),
+                is_active=True
+            )
+
+            # Add sizes if provided
+            size_ids = data.get('sizes', [])
+            if size_ids:
+                hdbs_type.sizes.set(size_ids)
+
+            return JsonResponse({
+                'success': True,
+                'hdbs_type': {
+                    'id': hdbs_type.id,
+                    'hdbs_name': hdbs_type.hdbs_name,
+                }
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+class APISMITypeCreateView(LoginRequiredMixin, View):
+    """API endpoint to quick create an SMI type."""
+
+    def post(self, request):
+        import json
+        try:
+            data = json.loads(request.body)
+            smi_name = data.get('smi_name', '').strip()
+            hdbs_type_id = data.get('hdbs_type_id')
+
+            if not smi_name:
+                return JsonResponse({'success': False, 'error': 'SMI Name is required'}, status=400)
+
+            if not hdbs_type_id:
+                return JsonResponse({'success': False, 'error': 'HDBS Type is required'}, status=400)
+
+            hdbs_type = get_object_or_404(HDBSType, pk=hdbs_type_id)
+
+            if SMIType.objects.filter(smi_name=smi_name, hdbs_type=hdbs_type).exists():
+                return JsonResponse({'success': False, 'error': 'SMI Type already exists for this HDBS'}, status=400)
+
+            smi_type = SMIType.objects.create(
+                smi_name=smi_name,
+                hdbs_type=hdbs_type,
+                description=data.get('description', ''),
+                is_active=True
+            )
+
+            return JsonResponse({
+                'success': True,
+                'smi_type': {
+                    'id': smi_type.id,
+                    'smi_name': smi_type.smi_name,
+                    'hdbs_type_id': hdbs_type.id,
+                    'hdbs_name': hdbs_type.hdbs_name,
+                }
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)

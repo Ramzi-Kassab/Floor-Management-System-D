@@ -75,12 +75,22 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">HDBS Type <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.hdbs_type }}</div>
+                        <div class="mt-1 flex gap-2">
+                            {{ form.hdbs_type }}
+                            <button type="button" id="btn-pick-hdbs" class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600" title="Pick from existing types or create new">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                            </button>
+                        </div>
                         <p class="mt-1 text-xs text-gray-500">Auto-fills fields below</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMI Type</label>
-                        <div class="mt-1">{{ form.smi_type }}</div>
+                        <div class="mt-1 flex gap-2">
+                            {{ form.smi_type }}
+                            <button type="button" id="btn-pick-smi" class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600" title="Pick from SMI types for selected HDBS">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                            </button>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">IADC Code</label>
@@ -788,6 +798,169 @@
     </div>
 </div>
 
+<!-- Type Picker Modal (HDBS/SMI) -->
+<div id="type-modal" class="fixed inset-0 z-50 hidden">
+    <div class="fixed inset-0 bg-black/50" id="type-modal-backdrop"></div>
+    <div class="fixed inset-4 md:inset-10 lg:inset-20 bg-white dark:bg-gray-800 rounded-lg shadow-xl flex flex-col">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white" id="type-modal-title">Select Type</h3>
+                <!-- Tab buttons -->
+                <div class="flex border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                    <button type="button" id="type-tab-select" class="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white">
+                        Select Existing
+                    </button>
+                    <button type="button" id="type-tab-create" class="px-4 py-1.5 text-sm font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+                        Quick Create
+                    </button>
+                </div>
+            </div>
+            <button type="button" id="close-type-modal" class="text-gray-500 hover:text-gray-700">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Select Existing Tab Content -->
+        <div id="type-content-select">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <div class="flex gap-4">
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search</label>
+                        <input type="text" id="type-search" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Search HDBS or SMI name...">
+                    </div>
+                    <div class="flex items-end">
+                        <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            <input type="checkbox" id="type-show-inactive" class="rounded border-gray-300 text-blue-600">
+                            Show Inactive
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1 overflow-auto px-6 py-4" style="max-height: calc(100vh - 350px);">
+                <table class="w-full">
+                    <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">HDBS Name</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SMI Names</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sizes</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                            <th class="px-4 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="type-results" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Create Tab Content -->
+        <div id="type-content-create" class="hidden px-6 py-6 overflow-auto" style="max-height: calc(100vh - 200px);">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="info" class="w-5 h-5 text-blue-500 mt-0.5"></i>
+                        <div>
+                            <p class="text-sm text-blue-800 dark:text-blue-200 font-medium">Quick Create Type</p>
+                            <p class="text-xs text-blue-600 dark:text-blue-300 mt-1">Create a new HDBS type (internal) and optionally add SMI types (client-facing). Your design form data is preserved.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Create Type Toggle -->
+                <div class="flex gap-4 mb-6">
+                    <button type="button" id="create-hdbs-toggle" class="flex-1 py-3 px-4 border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-purple-700 dark:text-purple-300 font-medium flex items-center justify-center gap-2">
+                        <i data-lucide="tag" class="w-5 h-5"></i>
+                        Create HDBS Type
+                    </button>
+                    <button type="button" id="create-smi-toggle" class="flex-1 py-3 px-4 border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 font-medium flex items-center justify-center gap-2">
+                        <i data-lucide="git-branch" class="w-5 h-5"></i>
+                        Add SMI to Existing
+                    </button>
+                </div>
+
+                <!-- HDBS Create Form -->
+                <div id="hdbs-create-form" class="space-y-4">
+                    <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <i data-lucide="tag" class="w-4 h-4 text-purple-500"></i>
+                            HDBS Type Information
+                        </h4>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">HDBS Name <span class="text-red-500">*</span></label>
+                            <input type="text" id="new-hdbs-name" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., FM2555">
+                            <p class="mt-1 text-xs text-gray-500">Internal Halliburton designation</p>
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                            <textarea id="new-hdbs-description" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Optional notes..."></textarea>
+                        </div>
+                        <div class="mt-4 flex items-center">
+                            <input type="checkbox" id="new-hdbs-active" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
+                            <label for="new-hdbs-active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                        </div>
+                    </div>
+
+                    <!-- Optionally add SMI to new HDBS -->
+                    <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <input type="checkbox" id="add-smi-with-hdbs" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <label for="add-smi-with-hdbs" class="text-sm font-medium text-gray-700 dark:text-gray-300">Also add an SMI Type</label>
+                        </div>
+                        <div id="smi-with-hdbs-fields" class="hidden pl-6 space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMI Name</label>
+                                <input type="text" id="new-hdbs-smi-name" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., FX55">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SMI Create Form (Add to Existing HDBS) -->
+                <div id="smi-create-form" class="hidden space-y-4">
+                    <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <i data-lucide="git-branch" class="w-4 h-4 text-blue-500"></i>
+                            Add SMI Type to Existing HDBS
+                        </h4>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select HDBS Type <span class="text-red-500">*</span></label>
+                            <select id="smi-for-hdbs" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">Select HDBS Type...</option>
+                            </select>
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMI Name <span class="text-red-500">*</span></label>
+                            <input type="text" id="new-smi-name" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., FX55">
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                            <textarea id="new-smi-description" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Optional notes..."></textarea>
+                        </div>
+                        <div class="mt-4 flex items-center">
+                            <input type="checkbox" id="new-smi-active" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
+                            <label for="new-smi-active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="type-create-error" class="hidden bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                    <p class="text-sm text-red-600 dark:text-red-400"></p>
+                </div>
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <button type="button" id="type-create-cancel" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                        Cancel
+                    </button>
+                    <button type="button" id="type-create-submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        Create & Select
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const hdbsInput = document.getElementById('id_hdbs_type');
@@ -1420,6 +1593,330 @@ document.addEventListener('DOMContentLoaded', function() {
     if (breakerTabCreate) breakerTabCreate.addEventListener('click', () => switchBreakerTab('create'));
     document.getElementById('breaker-create-submit')?.addEventListener('click', createBreakerSlot);
     document.getElementById('breaker-create-cancel')?.addEventListener('click', () => switchBreakerTab('select'));
+
+    // =========================================================================
+    // TYPE PICKER MODAL (HDBS/SMI)
+    // =========================================================================
+    const typeModal = document.getElementById('type-modal');
+    const typeBackdrop = document.getElementById('type-modal-backdrop');
+    const typeClose = document.getElementById('close-type-modal');
+    const btnPickHdbs = document.getElementById('btn-pick-hdbs');
+    const btnPickSmi = document.getElementById('btn-pick-smi');
+
+    let typePickerMode = 'hdbs'; // 'hdbs' or 'smi'
+
+    function openTypeModal(mode) {
+        typePickerMode = mode;
+        document.getElementById('type-modal-title').textContent = mode === 'hdbs' ? 'Select HDBS Type' : 'Select SMI Type';
+        typeModal.classList.remove('hidden');
+        loadTypes();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function closeTypeModal() {
+        typeModal.classList.add('hidden');
+    }
+
+    function loadTypes() {
+        const params = new URLSearchParams();
+        const search = document.getElementById('type-search').value;
+        const showInactive = document.getElementById('type-show-inactive').checked;
+
+        if (search) params.append('q', search);
+        if (showInactive) params.append('show_inactive', '1');
+
+        fetch(`{% url "technology:api_hdbs_types" %}?${params.toString()}`)
+            .then(r => r.json())
+            .then(data => {
+                const tbody = document.getElementById('type-results');
+                if (!data.hdbs_types || data.hdbs_types.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No types found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.hdbs_types.map(h => {
+                    const smiNames = h.smi_types.map(s => s.smi_name).join(', ') || '-';
+                    const sizes = h.sizes.map(s => s.display).join(', ') || 'Any';
+                    return `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50" data-hdbs="${h.hdbs_name}">
+                        <td class="px-4 py-3">
+                            <button type="button" class="select-hdbs-btn text-left font-medium text-purple-600 dark:text-purple-400 hover:underline">${h.hdbs_name}</button>
+                            ${h.description ? `<p class="text-xs text-gray-500 mt-0.5">${h.description}</p>` : ''}
+                        </td>
+                        <td class="px-4 py-3">
+                            ${h.smi_types.length > 0 ? h.smi_types.map(s => `
+                                <button type="button" class="select-smi-btn inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800 mr-1 mb-1" data-hdbs="${h.hdbs_name}" data-smi="${s.smi_name}">${s.smi_name}</button>
+                            `).join('') : '<span class="text-gray-400 text-xs">No SMI</span>'}
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">${sizes}</td>
+                        <td class="px-4 py-3">
+                            ${h.is_active
+                                ? '<span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>'
+                                : '<span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>'}
+                        </td>
+                        <td class="px-4 py-3">
+                            <button type="button" class="select-hdbs-btn px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700">Select HDBS</button>
+                        </td>
+                    </tr>
+                `}).join('');
+
+                // Add click handlers
+                tbody.querySelectorAll('.select-hdbs-btn').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const row = this.closest('tr');
+                        selectHdbs(row.dataset.hdbs);
+                    });
+                });
+
+                tbody.querySelectorAll('.select-smi-btn').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        selectSmi(this.dataset.hdbs, this.dataset.smi);
+                    });
+                });
+            })
+            .catch(err => {
+                console.error('Error loading types:', err);
+                document.getElementById('type-results').innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">Error loading types</td></tr>';
+            });
+    }
+
+    function selectHdbs(hdbsName) {
+        if (hdbsInput) {
+            hdbsInput.value = hdbsName;
+            hdbsInput.dispatchEvent(new Event('input'));
+        }
+        closeTypeModal();
+    }
+
+    function selectSmi(hdbsName, smiName) {
+        if (hdbsInput) {
+            hdbsInput.value = hdbsName;
+            hdbsInput.dispatchEvent(new Event('input'));
+        }
+        if (smiInput) {
+            smiInput.value = smiName;
+            smiInput.dispatchEvent(new Event('input'));
+        }
+        closeTypeModal();
+    }
+
+    if (btnPickHdbs) btnPickHdbs.addEventListener('click', () => openTypeModal('hdbs'));
+    if (btnPickSmi) btnPickSmi.addEventListener('click', () => openTypeModal('smi'));
+    if (typeClose) typeClose.addEventListener('click', closeTypeModal);
+    if (typeBackdrop) typeBackdrop.addEventListener('click', closeTypeModal);
+
+    // Type search listener
+    const typeSearch = document.getElementById('type-search');
+    if (typeSearch) {
+        typeSearch.addEventListener('input', debounce(loadTypes, 300));
+    }
+    const typeShowInactive = document.getElementById('type-show-inactive');
+    if (typeShowInactive) {
+        typeShowInactive.addEventListener('change', loadTypes);
+    }
+
+    // =========================================================================
+    // TYPE MODAL TABS & QUICK CREATE
+    // =========================================================================
+    const typeTabSelect = document.getElementById('type-tab-select');
+    const typeTabCreate = document.getElementById('type-tab-create');
+    const typeContentSelect = document.getElementById('type-content-select');
+    const typeContentCreate = document.getElementById('type-content-create');
+
+    function switchTypeTab(tab) {
+        if (tab === 'select') {
+            typeTabSelect.classList.add('bg-blue-600', 'text-white');
+            typeTabSelect.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            typeTabCreate.classList.remove('bg-blue-600', 'text-white');
+            typeTabCreate.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            typeContentSelect.classList.remove('hidden');
+            typeContentCreate.classList.add('hidden');
+        } else {
+            typeTabCreate.classList.add('bg-blue-600', 'text-white');
+            typeTabCreate.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            typeTabSelect.classList.remove('bg-blue-600', 'text-white');
+            typeTabSelect.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            typeContentCreate.classList.remove('hidden');
+            typeContentSelect.classList.add('hidden');
+            populateHdbsDropdown();
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    // Toggle between HDBS and SMI create forms
+    const createHdbsToggle = document.getElementById('create-hdbs-toggle');
+    const createSmiToggle = document.getElementById('create-smi-toggle');
+    const hdbsCreateForm = document.getElementById('hdbs-create-form');
+    const smiCreateForm = document.getElementById('smi-create-form');
+
+    function showHdbsCreateForm() {
+        createHdbsToggle.classList.add('border-purple-500', 'bg-purple-50', 'dark:bg-purple-900/20', 'text-purple-700', 'dark:text-purple-300');
+        createHdbsToggle.classList.remove('border-gray-300', 'dark:border-gray-600', 'bg-white', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+        createSmiToggle.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-700', 'dark:text-blue-300');
+        createSmiToggle.classList.add('border-gray-300', 'dark:border-gray-600', 'bg-white', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+        hdbsCreateForm.classList.remove('hidden');
+        smiCreateForm.classList.add('hidden');
+    }
+
+    function showSmiCreateForm() {
+        createSmiToggle.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-700', 'dark:text-blue-300');
+        createSmiToggle.classList.remove('border-gray-300', 'dark:border-gray-600', 'bg-white', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+        createHdbsToggle.classList.remove('border-purple-500', 'bg-purple-50', 'dark:bg-purple-900/20', 'text-purple-700', 'dark:text-purple-300');
+        createHdbsToggle.classList.add('border-gray-300', 'dark:border-gray-600', 'bg-white', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+        smiCreateForm.classList.remove('hidden');
+        hdbsCreateForm.classList.add('hidden');
+        populateHdbsDropdown();
+    }
+
+    if (createHdbsToggle) createHdbsToggle.addEventListener('click', showHdbsCreateForm);
+    if (createSmiToggle) createSmiToggle.addEventListener('click', showSmiCreateForm);
+
+    // Toggle SMI fields when checkbox is checked
+    const addSmiWithHdbs = document.getElementById('add-smi-with-hdbs');
+    const smiWithHdbsFields = document.getElementById('smi-with-hdbs-fields');
+    if (addSmiWithHdbs) {
+        addSmiWithHdbs.addEventListener('change', function() {
+            if (this.checked) {
+                smiWithHdbsFields.classList.remove('hidden');
+            } else {
+                smiWithHdbsFields.classList.add('hidden');
+            }
+        });
+    }
+
+    function populateHdbsDropdown() {
+        fetch('{% url "technology:api_hdbs_types" %}')
+            .then(r => r.json())
+            .then(data => {
+                const select = document.getElementById('smi-for-hdbs');
+                if (select && data.hdbs_types) {
+                    select.innerHTML = '<option value="">Select HDBS Type...</option>';
+                    data.hdbs_types.forEach(h => {
+                        select.innerHTML += `<option value="${h.id}">${h.hdbs_name}</option>`;
+                    });
+                }
+            });
+    }
+
+    function createType() {
+        const errorDiv = document.getElementById('type-create-error');
+        errorDiv.classList.add('hidden');
+
+        // Check which form is active
+        if (!hdbsCreateForm.classList.contains('hidden')) {
+            // Creating HDBS Type
+            const hdbsName = document.getElementById('new-hdbs-name').value.trim();
+            if (!hdbsName) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'HDBS Name is required';
+                return;
+            }
+
+            const data = {
+                hdbs_name: hdbsName,
+                description: document.getElementById('new-hdbs-description').value,
+                is_active: document.getElementById('new-hdbs-active').checked,
+            };
+
+            // Check if also adding SMI
+            if (addSmiWithHdbs && addSmiWithHdbs.checked) {
+                data.smi_name = document.getElementById('new-hdbs-smi-name').value.trim();
+            }
+
+            fetch('{% url "technology:api_hdbs_type_create" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+                body: JSON.stringify(data),
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    // Fill the form fields
+                    if (hdbsInput) hdbsInput.value = result.hdbs_type.hdbs_name;
+                    if (result.smi_type && smiInput) smiInput.value = result.smi_type.smi_name;
+                    if (hdbsInput) hdbsInput.dispatchEvent(new Event('input'));
+                    // Clear and close
+                    document.getElementById('new-hdbs-name').value = '';
+                    document.getElementById('new-hdbs-description').value = '';
+                    document.getElementById('new-hdbs-smi-name').value = '';
+                    addSmiWithHdbs.checked = false;
+                    smiWithHdbsFields.classList.add('hidden');
+                    closeTypeModal();
+                    loadTypes();
+                } else {
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.querySelector('p').textContent = result.error || 'Failed to create HDBS type';
+                }
+            })
+            .catch(err => {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'Network error: ' + err.message;
+            });
+        } else {
+            // Creating SMI Type
+            const hdbsId = document.getElementById('smi-for-hdbs').value;
+            const smiName = document.getElementById('new-smi-name').value.trim();
+
+            if (!hdbsId) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'Please select an HDBS type';
+                return;
+            }
+            if (!smiName) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'SMI Name is required';
+                return;
+            }
+
+            const data = {
+                hdbs_type_id: hdbsId,
+                smi_name: smiName,
+                description: document.getElementById('new-smi-description').value,
+                is_active: document.getElementById('new-smi-active').checked,
+            };
+
+            fetch('{% url "technology:api_smi_type_create" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+                body: JSON.stringify(data),
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    // Fill the form fields
+                    if (hdbsInput) hdbsInput.value = result.hdbs_name;
+                    if (smiInput) smiInput.value = result.smi_type.smi_name;
+                    if (hdbsInput) hdbsInput.dispatchEvent(new Event('input'));
+                    // Clear and close
+                    document.getElementById('smi-for-hdbs').value = '';
+                    document.getElementById('new-smi-name').value = '';
+                    document.getElementById('new-smi-description').value = '';
+                    closeTypeModal();
+                    loadTypes();
+                } else {
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.querySelector('p').textContent = result.error || 'Failed to create SMI type';
+                }
+            })
+            .catch(err => {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'Network error: ' + err.message;
+            });
+        }
+    }
+
+    if (typeTabSelect) typeTabSelect.addEventListener('click', () => switchTypeTab('select'));
+    if (typeTabCreate) typeTabCreate.addEventListener('click', () => switchTypeTab('create'));
+    document.getElementById('type-create-submit')?.addEventListener('click', createType);
+    document.getElementById('type-create-cancel')?.addEventListener('click', () => switchTypeTab('select'));
 
     // =========================================================================
     // AUTO-SAVE TO LOCALSTORAGE (Safety Net)

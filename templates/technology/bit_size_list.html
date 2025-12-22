@@ -43,26 +43,21 @@
         <table class="w-full text-sm">
             <thead>
                 <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
-                    <th class="px-6 py-3 font-medium">Code</th>
                     <th class="px-6 py-3 font-medium">Size (Decimal)</th>
                     <th class="px-6 py-3 font-medium">Display</th>
                     <th class="px-6 py-3 font-medium">Fraction</th>
+                    <th class="px-6 py-3 font-medium">Description</th>
                     <th class="px-6 py-3 font-medium">Status</th>
-                    <th class="px-6 py-3 font-medium">Types</th>
                     <th class="px-6 py-3 font-medium text-right">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                 {% for size in sizes %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                    <td class="px-6 py-4">
-                        <a href="{% url 'technology:bit_size_detail' size.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium font-mono">
-                            {{ size.code }}
-                        </a>
-                    </td>
-                    <td class="px-6 py-4 text-gray-900 dark:text-white font-mono">{{ size.size_decimal }}"</td>
-                    <td class="px-6 py-4 text-gray-900 dark:text-white font-medium">{{ size.size_display }}</td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white font-mono font-medium">{{ size.size_decimal }}"</td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white">{{ size.size_display }}</td>
                     <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ size.size_inches }}</td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ size.description|default:"-"|truncatewords:10 }}</td>
                     <td class="px-6 py-4">
                         {% if size.is_active %}
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
@@ -70,12 +65,8 @@
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ size.bit_types.count }}</td>
                     <td class="px-6 py-4 text-right">
                         <div class="flex items-center justify-end space-x-2">
-                            <a href="{% url 'technology:bit_size_detail' size.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
-                                <i data-lucide="eye" class="w-4 h-4"></i>
-                            </a>
                             <a href="{% url 'technology:bit_size_update' size.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
                                 <i data-lucide="edit" class="w-4 h-4"></i>
                             </a>

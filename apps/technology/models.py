@@ -30,7 +30,7 @@ from django.db import models
 class BitSize(models.Model):
     """
     Reference table for standard bit sizes.
-    Used by Design and BreakerSlot for size references.
+    Simple list: 8 1/2", 12 1/4", etc.
     """
     code = models.CharField(
         max_length=20,
@@ -50,10 +50,14 @@ class BitSize(models.Model):
         max_length=20,
         help_text="Fraction format (e.g., '8 1/2')"
     )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional remarks or description"
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        db_table = "bit_sizes"  # Keep same table name
+        db_table = "bit_sizes"
         ordering = ["size_decimal"]
         verbose_name = "Bit Size"
         verbose_name_plural = "Bit Sizes"
@@ -62,10 +66,83 @@ class BitSize(models.Model):
         return self.size_display
 
 
+class HDBSType(models.Model):
+    """
+    HDBS Type - Internal Halliburton naming for bit types.
+    One HDBS type can have multiple SMI names (1-to-many).
+    One HDBS type can work with multiple sizes (M2M).
+    """
+    hdbs_name = models.CharField(
+        max_length=50,
+        unique=True,
+        verbose_name="HDBS Name",
+        help_text="Internal HDBS type name (e.g., GT65RHS)"
+    )
+    sizes = models.ManyToManyField(
+        'BitSize',
+        blank=True,
+        related_name="hdbs_types",
+        verbose_name="Compatible Sizes",
+        help_text="Bit sizes this type is available in"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional description or remarks"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "hdbs_types"
+        ordering = ["hdbs_name"]
+        verbose_name = "HDBS Type"
+        verbose_name_plural = "HDBS Types"
+
+    def __str__(self):
+        return self.hdbs_name
+
+
+class SMIType(models.Model):
+    """
+    SMI Type - Client-facing naming for bit types.
+    Linked to HDBS Type (many SMI names can map to one HDBS).
+    """
+    smi_name = models.CharField(
+        max_length=50,
+        verbose_name="SMI Name",
+        help_text="Client-facing type name (e.g., GT65RHs-1)"
+    )
+    hdbs_type = models.ForeignKey(
+        'HDBSType',
+        on_delete=models.CASCADE,
+        related_name="smi_types",
+        verbose_name="HDBS Type",
+        help_text="The internal HDBS type this SMI name maps to"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional description or remarks"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "smi_types"
+        ordering = ["hdbs_type__hdbs_name", "smi_name"]
+        verbose_name = "SMI Type"
+        verbose_name_plural = "SMI Types"
+        unique_together = [["smi_name", "hdbs_type"]]
+
+    def __str__(self):
+        return f"{self.smi_name} ({self.hdbs_type.hdbs_name})"
+
+
 class BitType(models.Model):
     """
-    Reference table for bit product types/models (e.g., GT65RHS).
-    Includes Phase 2 fields for detailed product specifications.
+    DEPRECATED - Legacy reference table for bit product types.
+    Kept for backward compatibility. Use HDBSType and SMIType instead.
     """
     class Category(models.TextChoices):
         FC = "FC", "Fixed Cutter"

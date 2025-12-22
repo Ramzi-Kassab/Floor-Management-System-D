@@ -56,6 +56,12 @@
                         {% if form.size_inches.errors %}<p class="mt-1 text-sm text-red-600">{{ form.size_inches.errors.0 }}</p>{% endif %}
                     </div>
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                    <div class="mt-1">{{ form.description }}</div>
+                    <p class="mt-1 text-xs text-gray-500">Optional notes about this size</p>
+                    {% if form.description.errors %}<p class="mt-1 text-sm text-red-600">{{ form.description.errors.0 }}</p>{% endif %}
+                </div>
             </div>
         </div>
 

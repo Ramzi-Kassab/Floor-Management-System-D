@@ -27,14 +27,14 @@
                 This action cannot be undone.
             </p>
 
-            {% if object.bit_types.exists %}
+            {% if object.hdbs_types.exists %}
             <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
                 <div class="flex gap-3">
                     <i data-lucide="alert-circle" class="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0"></i>
                     <div>
                         <p class="text-sm text-yellow-800 dark:text-yellow-200 font-medium">Warning: This size is in use</p>
                         <p class="text-sm text-yellow-600 dark:text-yellow-300 mt-1">
-                            {{ object.bit_types.count }} bit type(s) are using this size. Deleting it may cause issues.
+                            {{ object.hdbs_types.count }} HDBS type(s) are using this size. Deleting it may cause issues.
                         </p>
                     </div>
                 </div>
