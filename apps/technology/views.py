@@ -1617,7 +1617,7 @@ class HDBSTypeListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = HDBSType.objects.prefetch_related('smi_types', 'sizes').order_by('hdbs_name')
+        queryset = HDBSType.objects.prefetch_related('smi_types', 'smi_types__size', 'sizes').order_by('hdbs_name')
 
         search = self.request.GET.get("q")
         if search:
@@ -1640,6 +1640,33 @@ class HDBSTypeListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Bit Types (HDBS/SMI)"
         context["sizes"] = BitSize.objects.filter(is_active=True).order_by('size_decimal')
+
+        # Build flat rows for the table: each row = {hdbs, size, smi}
+        flat_rows = []
+        for hdbs in context["hdbs_types"]:
+            sizes = list(hdbs.sizes.filter(is_active=True).order_by('size_decimal'))
+            smi_types = list(hdbs.smi_types.select_related('size').all())
+
+            if sizes:
+                for size in sizes:
+                    # Find SMI types for this specific size OR no size (applies to all)
+                    matching_smi = [s for s in smi_types if s.size_id == size.id or s.size_id is None]
+                    if matching_smi:
+                        for smi in matching_smi:
+                            flat_rows.append({'hdbs': hdbs, 'size': size, 'smi': smi})
+                    else:
+                        # No SMI for this size
+                        flat_rows.append({'hdbs': hdbs, 'size': size, 'smi': None})
+            else:
+                # HDBS has no sizes assigned
+                if smi_types:
+                    for smi in smi_types:
+                        flat_rows.append({'hdbs': hdbs, 'size': None, 'smi': smi})
+                else:
+                    # No sizes and no SMI types
+                    flat_rows.append({'hdbs': hdbs, 'size': None, 'smi': None})
+
+        context["flat_rows"] = flat_rows
         return context
 
 
