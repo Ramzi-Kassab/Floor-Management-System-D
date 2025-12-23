@@ -107,4 +107,90 @@
         </div>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const hdbsSelect = document.getElementById('id_hdbs_type');
+    const sizeSelect = document.getElementById('id_size');
+
+    if (!hdbsSelect || !sizeSelect) return;
+
+    // Store all original size options
+    const allSizeOptions = Array.from(sizeSelect.options).map(opt => ({
+        value: opt.value,
+        text: opt.text
+    }));
+
+    function updateSizeOptions(hdbsId) {
+        if (!hdbsId) {
+            // No HDBS selected - show all sizes
+            sizeSelect.innerHTML = '';
+            allSizeOptions.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.text = opt.text;
+                sizeSelect.appendChild(option);
+            });
+            return;
+        }
+
+        // Fetch HDBS type details to get its sizes
+        fetch(`{% url "technology:api_hdbs_types" %}?show_inactive=1`)
+            .then(r => r.json())
+            .then(data => {
+                const hdbs = data.hdbs_types.find(h => h.id == hdbsId);
+                if (!hdbs) return;
+
+                const allowedSizeIds = hdbs.sizes.map(s => s.id.toString());
+
+                // Update size dropdown
+                const currentValue = sizeSelect.value;
+                sizeSelect.innerHTML = '';
+
+                // Add empty option
+                const emptyOpt = document.createElement('option');
+                emptyOpt.value = '';
+                emptyOpt.text = '---------';
+                sizeSelect.appendChild(emptyOpt);
+
+                if (allowedSizeIds.length === 0) {
+                    // HDBS has no sizes - show all sizes
+                    allSizeOptions.forEach(opt => {
+                        if (opt.value) {
+                            const option = document.createElement('option');
+                            option.value = opt.value;
+                            option.text = opt.text;
+                            sizeSelect.appendChild(option);
+                        }
+                    });
+                } else {
+                    // Only show sizes that belong to this HDBS type
+                    allSizeOptions.forEach(opt => {
+                        if (opt.value && allowedSizeIds.includes(opt.value)) {
+                            const option = document.createElement('option');
+                            option.value = opt.value;
+                            option.text = opt.text;
+                            sizeSelect.appendChild(option);
+                        }
+                    });
+                }
+
+                // Restore selection if still valid
+                if (Array.from(sizeSelect.options).some(o => o.value === currentValue)) {
+                    sizeSelect.value = currentValue;
+                }
+            });
+    }
+
+    // Listen for HDBS type changes
+    hdbsSelect.addEventListener('change', function() {
+        updateSizeOptions(this.value);
+    });
+
+    // Initial update if HDBS is pre-selected
+    if (hdbsSelect.value) {
+        updateSizeOptions(hdbsSelect.value);
+    }
+});
+</script>
 {% endblock %}

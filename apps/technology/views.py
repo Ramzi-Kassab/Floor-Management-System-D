@@ -1936,12 +1936,18 @@ class APIHDBSTypesView(LoginRequiredMixin, View):
                 for s in smi_qs.order_by('smi_name')
             ]
 
+            # If size filter is applied, only show that size; otherwise show all sizes
+            if size_id:
+                sizes_list = [{'id': s.id, 'display': s.size_display} for s in t.sizes.filter(is_active=True, id=size_id)]
+            else:
+                sizes_list = [{'id': s.id, 'display': s.size_display} for s in t.sizes.filter(is_active=True)]
+
             data['hdbs_types'].append({
                 'id': t.id,
                 'hdbs_name': t.hdbs_name,
                 'description': t.description or '',
                 'is_active': t.is_active,
-                'sizes': [{'id': s.id, 'display': s.size_display} for s in t.sizes.filter(is_active=True)],
+                'sizes': sizes_list,
                 'smi_types': smi_list
             })
 
