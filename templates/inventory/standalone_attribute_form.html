@@ -29,9 +29,15 @@
                     <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Code <span class="text-red-500">*</span>
                     </label>
+                    {% if object %}
+                    <input type="text" value="{{ object.code }}" disabled
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 font-mono cursor-not-allowed">
+                    <input type="hidden" name="code" value="{{ object.code }}">
+                    {% else %}
                     <input type="text" name="code" id="id_code" value="{{ form.code.value|default:'' }}" required
                            placeholder="size"
                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono">
+                    {% endif %}
                     <p class="mt-1 text-xs text-gray-500">Unique identifier (lowercase, no spaces)</p>
                 </div>
 
@@ -47,12 +53,40 @@
                 </div>
             </div>
 
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Classification -->
+                <div>
+                    <label for="id_classification" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Classification
+                    </label>
+                    {{ form.classification }}
+                    <p class="mt-1 text-xs text-gray-500">Category for organizing attributes</p>
+                </div>
+
+                <!-- Data Type -->
+                <div>
+                    <label for="id_data_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Suggested Data Type
+                    </label>
+                    {{ form.data_type }}
+                    <p class="mt-1 text-xs text-gray-500">Default type when adding to a category</p>
+                </div>
+            </div>
+
             <!-- Description -->
             <div>
                 <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea name="description" id="id_description" rows="2"
-                          placeholder="Optional description of this attribute"
+                          placeholder="Brief description of this attribute"
                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">{{ form.description.value|default:'' }}</textarea>
+            </div>
+
+            <!-- Notes -->
+            <div>
+                <label for="id_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Usage Notes</label>
+                <textarea name="notes" id="id_notes" rows="2"
+                          placeholder="Usage notes or guidance for this attribute"
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">{{ form.notes.value|default:'' }}</textarea>
             </div>
 
             <!-- Is Active -->
@@ -89,4 +123,21 @@
         </form>
     </div>
 </div>
+
+<style>
+    /* Style for Django form widgets */
+    #id_classification, #id_data_type {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        background-color: white;
+        font-size: 0.875rem;
+    }
+    .dark #id_classification, .dark #id_data_type {
+        background-color: rgb(55 65 81);
+        border-color: rgb(75 85 99);
+        color: white;
+    }
+</style>
 {% endblock %}

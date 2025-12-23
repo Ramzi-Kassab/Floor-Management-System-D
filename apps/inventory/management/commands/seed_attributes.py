@@ -1,125 +1,104 @@
 """
-Seed command for Attributes - simple global list of attribute names.
+Seed command for Attributes from comprehensive CSV file.
 
 Usage:
     python manage.py seed_attributes
 """
-
+import csv
+import os
 from django.core.management.base import BaseCommand
 from apps.inventory.models import Attribute
 
 
 class Command(BaseCommand):
-    help = "Seed common attributes (just names, no type/unit/validation)"
+    help = "Seed attributes from comprehensive CSV file"
+
+    # Map CSV data types to model DataType choices
+    DATA_TYPE_MAP = {
+        "text": "text",
+        "decimal": "decimal",
+        "number": "number",
+        "boolean": "boolean",
+        "date": "date",
+        "select": "select",
+        "enum": "enum",
+    }
 
     def handle(self, *args, **options):
-        self.stdout.write("Seeding Attributes (global list)...\n")
+        self.stdout.write("Seeding Attributes from CSV...\n")
 
-        # Common attributes - just code and name
-        # Type, unit, validation are defined when connecting to category
-        attributes = [
-            # Physical dimensions
-            ("size", "Size", "Physical size (could be number or text depending on category)"),
-            ("diameter", "Diameter", "Diameter measurement"),
-            ("length", "Length", "Length measurement"),
-            ("width", "Width", "Width measurement"),
-            ("height", "Height", "Height measurement"),
-            ("thickness", "Thickness", "Thickness measurement"),
-            ("depth", "Depth", "Depth measurement"),
-            ("weight", "Weight", "Weight measurement"),
-            ("volume", "Volume", "Volume measurement"),
+        csv_path = os.path.join(
+            os.path.dirname(__file__),
+            '..', '..', '..', '..',
+            'docs', 'development', 'attributes_comprehensive.csv'
+        )
+        csv_path = os.path.normpath(csv_path)
 
-            # Material properties
-            ("material", "Material", "Material type or composition"),
-            ("grade", "Grade", "Quality grade or classification"),
-            ("hardness", "Hardness", "Hardness rating"),
-            ("density", "Density", "Material density"),
-            ("tensile_strength", "Tensile Strength", "Tensile strength rating"),
-            ("finish", "Finish", "Surface finish"),
-            ("coating", "Coating", "Coating type"),
-
-            # Appearance
-            ("color", "Color", "Color designation"),
-            ("pattern", "Pattern", "Pattern or design"),
-            ("style", "Style", "Style designation"),
-
-            # Technical specifications
-            ("model", "Model", "Model number or designation"),
-            ("series", "Series", "Product series"),
-            ("version", "Version", "Version number"),
-            ("generation", "Generation", "Product generation"),
-            ("capacity", "Capacity", "Capacity measurement"),
-            ("power", "Power", "Power rating"),
-            ("voltage", "Voltage", "Voltage rating"),
-            ("current", "Current", "Current rating"),
-            ("frequency", "Frequency", "Frequency rating"),
-            ("pressure", "Pressure", "Pressure rating"),
-            ("temperature", "Temperature", "Temperature rating"),
-            ("speed", "Speed", "Speed rating (RPM, etc.)"),
-            ("torque", "Torque", "Torque rating"),
-            ("flow_rate", "Flow Rate", "Flow rate measurement"),
-
-            # Thread/connection specs
-            ("thread_type", "Thread Type", "Thread type (API, NPT, etc.)"),
-            ("thread_size", "Thread Size", "Thread size specification"),
-            ("connection_type", "Connection Type", "Connection type"),
-            ("connection_size", "Connection Size", "Connection size"),
-
-            # Bit/cutter specific
-            ("body_od", "Body OD", "Body outer diameter"),
-            ("gauge", "Gauge", "Gauge measurement"),
-            ("tfa", "TFA", "Total Flow Area"),
-            ("blade_count", "Blade Count", "Number of blades"),
-            ("cutter_count", "Cutter Count", "Number of cutters"),
-            ("nozzle_count", "Nozzle Count", "Number of nozzles"),
-            ("nozzle_size", "Nozzle Size", "Nozzle size"),
-            ("jet_count", "Jet Count", "Number of jets"),
-            ("insert_type", "Insert Type", "Type of insert"),
-            ("insert_count", "Insert Count", "Number of inserts"),
-
-            # Classification
-            ("category", "Category", "Category classification"),
-            ("type", "Type", "Type classification"),
-            ("class", "Class", "Class rating"),
-            ("rating", "Rating", "General rating"),
-
-            # Manufacturer info
-            ("manufacturer", "Manufacturer", "Manufacturer name"),
-            ("brand", "Brand", "Brand name"),
-            ("country_of_origin", "Country of Origin", "Manufacturing country"),
-
-            # Certification/compliance
-            ("certification", "Certification", "Certification type"),
-            ("standard", "Standard", "Standard compliance"),
-            ("api_spec", "API Spec", "API specification"),
-
-            # Packaging
-            ("quantity_per_pack", "Quantity per Pack", "Items per package"),
-            ("pack_size", "Pack Size", "Package size"),
-            ("shelf_life", "Shelf Life", "Shelf life duration"),
-
-            # Other common attributes
-            ("tolerance", "Tolerance", "Tolerance specification"),
-            ("accuracy", "Accuracy", "Accuracy rating"),
-            ("resolution", "Resolution", "Resolution specification"),
-            ("range", "Range", "Operating range"),
-            ("efficiency", "Efficiency", "Efficiency rating"),
-        ]
+        if not os.path.exists(csv_path):
+            self.stdout.write(self.style.ERROR(f"CSV file not found: {csv_path}"))
+            return
 
         created_count = 0
-        for code, name, description in attributes:
-            attr, created = Attribute.objects.get_or_create(
-                code=code,
-                defaults={
-                    "name": name,
-                    "description": description,
-                    "is_active": True,
-                }
-            )
-            if created:
-                self.stdout.write(f"  Created: {name}")
-                created_count += 1
-            else:
-                self.stdout.write(f"  Exists: {name}")
+        updated_count = 0
+        classification_counts = {}
 
-        self.stdout.write(self.style.SUCCESS(f"\nTotal attributes: {Attribute.objects.count()} (new: {created_count})"))
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+
+            for row in reader:
+                code = row.get('Attribute Code', '').strip()
+                if not code:
+                    continue  # Skip empty rows
+
+                classification_code = row.get('Classification Code', '').strip()
+                name = row.get('Attribute Name', '').strip()
+                description = row.get('Description', '').strip()
+                data_type = row.get('Data Type', 'text').strip().lower()
+                notes = row.get('Notes', '').strip()
+
+                # Map data type
+                data_type = self.DATA_TYPE_MAP.get(data_type, "text")
+
+                # Validate classification code
+                valid_classifications = [c[0] for c in Attribute.Classification.choices]
+                if classification_code not in valid_classifications:
+                    classification_code = "GEN"
+
+                # Track counts by classification
+                if classification_code not in classification_counts:
+                    classification_counts[classification_code] = 0
+
+                # Create or update the attribute
+                attr, created = Attribute.objects.update_or_create(
+                    code=code,
+                    defaults={
+                        "name": name,
+                        "description": description,
+                        "classification": classification_code,
+                        "data_type": data_type,
+                        "notes": notes,
+                        "is_active": True,
+                    }
+                )
+
+                classification_counts[classification_code] += 1
+
+                if created:
+                    created_count += 1
+                    self.stdout.write(f"  Created: [{classification_code}] {code} - {name}")
+                else:
+                    updated_count += 1
+                    self.stdout.write(f"  Updated: [{classification_code}] {code} - {name}")
+
+        # Print summary by classification
+        self.stdout.write("\n" + "=" * 50)
+        self.stdout.write("Attributes by Classification:")
+        for classification, count in sorted(classification_counts.items()):
+            label = dict(Attribute.Classification.choices).get(classification, classification)
+            self.stdout.write(f"  {classification}: {count} ({label})")
+
+        total = Attribute.objects.count()
+        self.stdout.write("=" * 50)
+        self.stdout.write(self.style.SUCCESS(
+            f"Done! Created: {created_count}, Updated: {updated_count}, Total: {total}"
+        ))

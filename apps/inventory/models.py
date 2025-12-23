@@ -455,12 +455,53 @@ class UnitOfMeasure(models.Model):
     """
 
     class UnitType(models.TextChoices):
+        # Core measurements
         QUANTITY = "QUANTITY", "Quantity (Count)"
         LENGTH = "LENGTH", "Length"
         WEIGHT = "WEIGHT", "Weight/Mass"
         VOLUME = "VOLUME", "Volume"
         AREA = "AREA", "Area"
         TIME = "TIME", "Time"
+        # Mechanical
+        PRESSURE = "PRESSURE", "Pressure"
+        TEMPERATURE = "TEMPERATURE", "Temperature"
+        ROTATIONAL_SPEED = "ROTATIONAL_SPEED", "Rotational Speed"
+        TORQUE = "TORQUE", "Torque"
+        POWER = "POWER", "Power"
+        FORCE = "FORCE", "Force"
+        ENERGY = "ENERGY", "Energy"
+        # Electrical
+        VOLTAGE = "VOLTAGE", "Voltage"
+        CURRENT = "CURRENT", "Current"
+        RESISTANCE = "RESISTANCE", "Resistance"
+        FREQUENCY = "FREQUENCY", "Frequency"
+        # Flow & Speed
+        FLOW_RATE = "FLOW_RATE", "Flow Rate"
+        SPEED = "SPEED", "Speed"
+        # Material Properties
+        HARDNESS = "HARDNESS", "Hardness"
+        STRESS = "STRESS", "Stress/Strength"
+        DENSITY = "DENSITY", "Density"
+        VISCOSITY = "VISCOSITY", "Viscosity"
+        # Ratios & Concentrations
+        RATIO = "RATIO", "Ratio/Percentage"
+        CONCENTRATION = "CONCENTRATION", "Concentration"
+        # Angular
+        ANGLE = "ANGLE", "Angle"
+        # Specifications
+        THREAD_SPEC = "THREAD_SPEC", "Thread Specification"
+        WIRE_SPEC = "WIRE_SPEC", "Wire Specification"
+        SURFACE_FINISH = "SURFACE_FINISH", "Surface Finish"
+        ABRASIVE_SPEC = "ABRASIVE_SPEC", "Abrasive Specification"
+        PARTICLE_SIZE = "PARTICLE_SIZE", "Particle Size"
+        # Environmental
+        CHEMICAL = "CHEMICAL", "Chemical Property"
+        SOUND = "SOUND", "Sound/Noise"
+        ILLUMINATION = "ILLUMINATION", "Illumination"
+        LUMINOUS_FLUX = "LUMINOUS_FLUX", "Luminous Flux"
+        # Packaging
+        PACKAGING = "PACKAGING", "Packaging"
+        # Other
         OTHER = "OTHER", "Other"
 
     code = models.CharField(max_length=10, unique=True, help_text="Short code (EA, KG, M, etc.)")
@@ -596,6 +637,32 @@ class Attribute(models.Model):
     connecting an attribute to a category via CategoryAttribute.
     """
 
+    class DataType(models.TextChoices):
+        TEXT = "text", "Text"
+        NUMBER = "number", "Number"
+        DECIMAL = "decimal", "Decimal"
+        BOOLEAN = "boolean", "Yes/No"
+        DATE = "date", "Date"
+        SELECT = "select", "Select (Dropdown)"
+        ENUM = "enum", "Enum"
+
+    class Classification(models.TextChoices):
+        PHYS = "PHYS", "Physical Dimensions"
+        TECH = "TECH", "Technical Specifications"
+        CONN = "CONN", "Connection & Thread"
+        MATL = "MATL", "Material & Composition"
+        IADC = "IADC", "IADC & Drilling Specifications"
+        OPER = "OPER", "Operational Parameters"
+        IDEN = "IDEN", "Identification & Commercial"
+        QUAL = "QUAL", "Quality & Compliance"
+        STOR = "STOR", "Storage & Logistics"
+        SAFE = "SAFE", "Safety & PPE"
+        TOOL = "TOOL", "Tools & Equipment"
+        CONS = "CONS", "Consumables"
+        ELEC = "ELEC", "Electrical Components"
+        FAST = "FAST", "Fasteners"
+        GEN = "GEN", "General Attributes"
+
     code = models.CharField(
         max_length=50,
         unique=True,
@@ -603,6 +670,26 @@ class Attribute(models.Model):
     )
     name = models.CharField(max_length=100, help_text="Display name (e.g., Size, Color, Material)")
     description = models.TextField(blank=True, help_text="Optional description of this attribute")
+
+    # Classification for organizing attributes
+    classification = models.CharField(
+        max_length=10,
+        choices=Classification.choices,
+        default=Classification.GEN,
+        help_text="Attribute classification category"
+    )
+
+    # Suggested data type (used as default when adding to CategoryAttribute)
+    data_type = models.CharField(
+        max_length=20,
+        choices=DataType.choices,
+        default=DataType.TEXT,
+        help_text="Suggested data type for this attribute"
+    )
+
+    # Notes for usage guidance
+    notes = models.TextField(blank=True, help_text="Usage notes or guidance for this attribute")
+
     is_active = models.BooleanField(default=True)
 
     # Audit
@@ -611,7 +698,7 @@ class Attribute(models.Model):
 
     class Meta:
         db_table = "attributes"
-        ordering = ["name"]
+        ordering = ["classification", "name"]
         verbose_name = "Attribute"
         verbose_name_plural = "Attributes"
 

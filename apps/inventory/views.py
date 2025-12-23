@@ -813,12 +813,19 @@ class AttributeListView(LoginRequiredMixin, ListView):
                 Q(description__icontains=search)
             )
 
-        return queryset.order_by("code")
+        # Classification filter
+        classification = self.request.GET.get("classification", "").strip()
+        if classification:
+            queryset = queryset.filter(classification=classification)
+
+        return queryset.order_by("classification", "name")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Attributes"
         context["search_query"] = self.request.GET.get("q", "")
+        context["selected_classification"] = self.request.GET.get("classification", "")
+        context["classification_choices"] = Attribute.Classification.choices
         return context
 
 
@@ -827,7 +834,7 @@ class StandaloneAttributeCreateView(LoginRequiredMixin, CreateView):
 
     model = Attribute
     template_name = "inventory/standalone_attribute_form.html"
-    fields = ["code", "name", "description", "is_active"]
+    fields = ["code", "name", "classification", "data_type", "description", "notes", "is_active"]
 
     def form_valid(self, form):
         messages.success(self.request, f"Attribute '{form.instance.name}' created with code {form.instance.code}.")
@@ -848,7 +855,7 @@ class StandaloneAttributeUpdateView(LoginRequiredMixin, UpdateView):
 
     model = Attribute
     template_name = "inventory/standalone_attribute_form.html"
-    fields = ["name", "description", "is_active"]
+    fields = ["name", "classification", "data_type", "description", "notes", "is_active"]
 
     def form_valid(self, form):
         messages.success(self.request, f"Attribute '{form.instance.name}' updated.")

@@ -29,19 +29,28 @@
         </div>
     </div>
 
-    <!-- Search -->
+    <!-- Search & Filter -->
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <form method="get" class="flex gap-4 items-end">
-            <div class="flex-1">
+        <form method="get" class="flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-[200px]">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
                 <input type="text" name="q" value="{{ search_query }}" placeholder="Search by code or name..."
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                        autocomplete="off">
             </div>
+            <div class="w-48">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classification</label>
+                <select name="classification" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <option value="">All Classifications</option>
+                    {% for value, label in classification_choices %}
+                    <option value="{{ value }}" {% if selected_classification == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
                 <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Search
             </button>
-            {% if search_query %}
+            {% if search_query or selected_classification %}
             <a href="{% url 'inventory:attribute_list' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
                 Clear
             </a>
@@ -57,7 +66,8 @@
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Code</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Classification</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Used In</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
@@ -69,11 +79,16 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                             <code class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-sm font-mono">{{ attr.code }}</code>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white font-medium">
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white font-medium" title="{{ attr.description }}">
                             {{ attr.name }}
                         </td>
-                        <td class="px-6 py-4 text-gray-600 dark:text-gray-400 text-sm">
-                            {{ attr.description|default:"-"|truncatewords:10 }}
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                {{ attr.classification }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400 text-sm">
+                            {{ attr.get_data_type_display }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center">
                             {% if attr.is_active %}
@@ -102,7 +117,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="px-6 py-12 text-center">
+                        <td colspan="7" class="px-6 py-12 text-center">
                             <div class="flex flex-col items-center">
                                 <i data-lucide="tag" class="w-12 h-12 text-gray-300 dark:text-gray-600 mb-4"></i>
                                 <p class="text-gray-500 dark:text-gray-400 mb-2">No attributes found</p>
