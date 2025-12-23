@@ -1,6 +1,10 @@
 """
 Seed command for Units of Measure.
 Creates standard units from the comprehensive CSV file.
+
+Usage:
+    python manage.py seed_units           # Add/update only
+    python manage.py seed_units --replace # Replace all (delete units not in CSV)
 """
 import csv
 import os
@@ -64,8 +68,20 @@ class Command(BaseCommand):
         "COIL", "BUNDLE", "SET", "PAIR", "DOZEN"
     }
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--replace',
+            action='store_true',
+            help='Replace mode: delete units not in CSV file',
+        )
+
     def handle(self, *args, **options):
-        self.stdout.write("Seeding Units of Measure from CSV...")
+        replace_mode = options.get('replace', False)
+
+        if replace_mode:
+            self.stdout.write(self.style.WARNING("Running in REPLACE mode - units not in CSV will be deleted"))
+        else:
+            self.stdout.write("Seeding Units of Measure from CSV (add/update only)...")
 
         csv_path = os.path.join(
             os.path.dirname(__file__),
@@ -80,6 +96,7 @@ class Command(BaseCommand):
 
         created_count = 0
         updated_count = 0
+        csv_codes = set()
 
         with open(csv_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
@@ -89,6 +106,7 @@ class Command(BaseCommand):
                 if not code:
                     continue  # Skip empty rows
 
+                csv_codes.add(code)
                 name = row.get('Unit Name', '').strip()
                 symbol = row.get('Unit Symbol', '').strip()
                 category = row.get('Unit Category', '').strip()
@@ -128,7 +146,18 @@ class Command(BaseCommand):
                     updated_count += 1
                     self.stdout.write(f"  Updated: {code} - {name} [{unit_type}]")
 
+        # In replace mode, delete units not in CSV
+        deleted_count = 0
+        if replace_mode:
+            units_to_delete = UnitOfMeasure.objects.exclude(code__in=csv_codes)
+            deleted_count = units_to_delete.count()
+            if deleted_count > 0:
+                self.stdout.write(self.style.WARNING(f"\nDeleting {deleted_count} units not in CSV:"))
+                for unit in units_to_delete:
+                    self.stdout.write(f"  Deleted: {unit.code} - {unit.name}")
+                units_to_delete.delete()
+
         total = UnitOfMeasure.objects.count()
         self.stdout.write(self.style.SUCCESS(
-            f"\nDone! Created: {created_count}, Updated: {updated_count}, Total: {total}"
+            f"\nDone! Created: {created_count}, Updated: {updated_count}, Deleted: {deleted_count}, Total: {total}"
         ))
