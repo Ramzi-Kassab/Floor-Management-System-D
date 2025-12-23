@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            {% if phase == 'select' %}
+            Select attributes to add to this category
+            {% else %}
+            Configure how each attribute will be used in this category
+            {% endif %}
+        </p>
+    </div>
+    <a href="{% url 'inventory:category_detail' category.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Category
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if phase == 'select' %}
+<!-- ============================================== -->
+<!-- PHASE 1: ATTRIBUTE SELECTION                   -->
+<!-- ============================================== -->
+<div x-data="attributeSelector()" class="space-y-4">
+    <form method="post" id="selectionForm">
+        {% csrf_token %}
+        <input type="hidden" name="category" value="{{ category.pk }}">
+        <input type="hidden" name="phase" value="select">
+
+        <!-- Search and Filter Bar -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-4">
+            <div class="flex flex-wrap gap-4 items-end">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
+                    <input type="text" x-model="searchQuery" @input="filterAttributes()"
+                           placeholder="Search by code or name..."
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div class="w-48">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classification</label>
+                    <select x-model="classificationFilter" @change="filterAttributes()"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option value="">All Classifications</option>
+                        {% for value, label in classifications %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" @click="selectAllVisible()" class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+                        Select Visible
+                    </button>
+                    <button type="button" @click="clearSelection()" class="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800">
+                        Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Selection Summary -->
+            <div class="mt-3 flex items-center justify-between text-sm">
+                <span class="text-gray-500 dark:text-gray-400">
+                    Showing <span x-text="visibleCount"></span> of {{ attributes|length }} attributes
+                </span>
+                <span class="font-medium text-primary-600 dark:text-primary-400">
+                    <span x-text="selectedCount"></span> selected
+                </span>
+            </div>
+        </div>
+
+        <!-- Attributes Table -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                        <tr>
+                            <th class="px-4 py-3 text-left">
+                                <input type="checkbox" @click="toggleAll($event)" x-ref="selectAllCheckbox"
+                                       class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500">
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Code</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Classification</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Suggested Type</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for attr in attributes %}
+                        <tr x-show="isVisible('{{ attr.code }}', '{{ attr.name }}', '{{ attr.classification }}')"
+                            x-transition
+                            class="hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                            data-code="{{ attr.code }}"
+                            data-name="{{ attr.name }}"
+                            data-classification="{{ attr.classification }}">
+                            <td class="px-4 py-3">
+                                <input type="checkbox" name="selected_attributes" value="{{ attr.id }}"
+                                       @change="updateCount()"
+                                       class="attr-checkbox rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500">
+                            </td>
+                            <td class="px-4 py-3">
+                                <code class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">{{ attr.code }}</code>
+                            </td>
+                            <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ attr.name }}</td>
+                            <td class="px-4 py-3">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                    {{ attr.classification }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
+                                {{ attr.get_data_type_display }}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                No available attributes. All attributes are already linked to this category.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex justify-end space-x-3 mt-6">
+            <a href="{% url 'inventory:category_detail' category.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">
+                Cancel
+            </a>
+            <button type="submit" :disabled="selectedCount === 0"
+                    class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                Configure Selected (<span x-text="selectedCount"></span>)
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+function attributeSelector() {
+    return {
+        searchQuery: '',
+        classificationFilter: '',
+        selectedCount: 0,
+        visibleCount: {{ attributes|length }},
+
+        isVisible(code, name, classification) {
+            const search = this.searchQuery.toLowerCase();
+            const matchesSearch = !search ||
+                code.toLowerCase().includes(search) ||
+                name.toLowerCase().includes(search);
+            const matchesClass = !this.classificationFilter ||
+                classification === this.classificationFilter;
+            return matchesSearch && matchesClass;
+        },
+
+        filterAttributes() {
+            this.$nextTick(() => {
+                const rows = document.querySelectorAll('tbody tr');
+                let count = 0;
+                rows.forEach(row => {
+                    if (row.style.display !== 'none' && !row.querySelector('td[colspan]')) {
+                        count++;
+                    }
+                });
+                this.visibleCount = count;
+            });
+        },
+
+        updateCount() {
+            this.selectedCount = document.querySelectorAll('.attr-checkbox:checked').length;
+        },
+
+        selectAllVisible() {
+            document.querySelectorAll('tbody tr').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const checkbox = row.querySelector('.attr-checkbox');
+                    if (checkbox) checkbox.checked = true;
+                }
+            });
+            this.updateCount();
+        },
+
+        clearSelection() {
+            document.querySelectorAll('.attr-checkbox').forEach(cb => cb.checked = false);
+            this.updateCount();
+        },
+
+        toggleAll(event) {
+            const checked = event.target.checked;
+            document.querySelectorAll('tbody tr').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const checkbox = row.querySelector('.attr-checkbox');
+                    if (checkbox) checkbox.checked = checked;
+                }
+            });
+            this.updateCount();
+        }
+    }
+}
+</script>
+
+{% else %}
+<!-- ============================================== -->
+<!-- PHASE 2: ATTRIBUTE CONFIGURATION               -->
+<!-- ============================================== -->
+<div x-data="attributeConfigurator()" class="space-y-4">
+    <form method="post" id="configForm">
+        {% csrf_token %}
+        <input type="hidden" name="category" value="{{ category.pk }}">
+        <input type="hidden" name="phase" value="configure">
+
+        <!-- Info Card -->
+        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+            <div class="flex items-start gap-3">
+                <i data-lucide="info" class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5"></i>
+                <div class="text-sm text-blue-800 dark:text-blue-200">
+                    <p class="font-medium mb-1">Configure {{ selected_attributes|length }} Attributes</p>
+                    <p>Set the type, unit, validation rules, and display options for each attribute. Fields marked with * apply only to specific types.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Table -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Attribute</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type *</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Unit</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Min</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Max</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Options (for SELECT/TEXT)</th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Req</th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Order</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for attr in selected_attributes %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50" x-data="{ attrType: '{{ attr.data_type }}' }">
+                            <input type="hidden" name="attribute_id" value="{{ attr.id }}">
+
+                            <!-- Attribute Name -->
+                            <td class="px-3 py-3">
+                                <div class="font-medium text-gray-900 dark:text-white">{{ attr.name }}</div>
+                                <code class="text-xs text-gray-500">{{ attr.code }}</code>
+                            </td>
+
+                            <!-- Type -->
+                            <td class="px-3 py-3">
+                                <select name="type_{{ attr.id }}" x-model="attrType"
+                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                    {% for value, label in attribute_types %}
+                                    <option value="{{ value }}" {% if attr.data_type == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+
+                            <!-- Unit (for NUMBER) -->
+                            <td class="px-3 py-3">
+                                <select name="unit_{{ attr.id }}" :disabled="attrType !== 'NUMBER'"
+                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
+                                    <option value="">-</option>
+                                    {% regroup units by get_unit_type_display as unit_groups %}
+                                    {% for group in unit_groups %}
+                                    <optgroup label="{{ group.grouper }}">
+                                        {% for unit in group.list %}
+                                        <option value="{{ unit.id }}">{{ unit.code }} - {{ unit.name }}</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% endfor %}
+                                </select>
+                            </td>
+
+                            <!-- Min Value -->
+                            <td class="px-3 py-3">
+                                <input type="number" name="min_{{ attr.id }}" step="any"
+                                       :disabled="attrType !== 'NUMBER'"
+                                       placeholder="-"
+                                       class="w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
+                            </td>
+
+                            <!-- Max Value -->
+                            <td class="px-3 py-3">
+                                <input type="number" name="max_{{ attr.id }}" step="any"
+                                       :disabled="attrType !== 'NUMBER'"
+                                       placeholder="-"
+                                       class="w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
+                            </td>
+
+                            <!-- Options (for SELECT/TEXT) -->
+                            <td class="px-3 py-3">
+                                <input type="text" name="options_{{ attr.id }}"
+                                       :disabled="attrType === 'NUMBER' || attrType === 'BOOLEAN' || attrType === 'DATE'"
+                                       placeholder="Option1, Option2, ..."
+                                       class="w-40 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
+                            </td>
+
+                            <!-- Required -->
+                            <td class="px-3 py-3 text-center">
+                                <input type="checkbox" name="required_{{ attr.id }}"
+                                       class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500">
+                            </td>
+
+                            <!-- Use in Name -->
+                            <td class="px-3 py-3 text-center">
+                                <input type="checkbox" name="in_name_{{ attr.id }}"
+                                       class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500">
+                            </td>
+
+                            <!-- Display Order -->
+                            <td class="px-3 py-3 text-center">
+                                <input type="number" name="order_{{ attr.id }}" value="{{ forloop.counter0 }}"
+                                       class="w-16 px-2 py-1.5 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mt-4 text-sm">
+            <p class="font-medium text-gray-700 dark:text-gray-300 mb-2">Column Guide:</p>
+            <ul class="grid grid-cols-2 md:grid-cols-3 gap-2 text-gray-600 dark:text-gray-400">
+                <li><strong>Type:</strong> How the value is entered (text, number, dropdown, etc.)</li>
+                <li><strong>Unit:</strong> For NUMBER type only (mm, kg, psi, etc.)</li>
+                <li><strong>Min/Max:</strong> For NUMBER type validation</li>
+                <li><strong>Options:</strong> For SELECT type (comma-separated values)</li>
+                <li><strong>Req:</strong> Must have a value when creating items</li>
+                <li><strong>Name:</strong> Include in auto-generated item name</li>
+            </ul>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex justify-between mt-6">
+            <a href="{% url 'inventory:category_attribute_bulk_create' %}?category={{ category.pk }}"
+               class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 inline-flex items-center">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Selection
+            </a>
+            <div class="space-x-3">
+                <a href="{% url 'inventory:category_detail' category.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">
+                    Cancel
+                </a>
+                <button type="submit" class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                    Save {{ selected_attributes|length }} Attributes
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+function attributeConfigurator() {
+    return {
+        // Can add interactive features here if needed
+    }
+}
+</script>
+{% endif %}
+{% endblock %}

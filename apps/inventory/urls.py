@@ -22,6 +22,7 @@ urlpatterns = [
     # Category Attributes (link attribute to category with type/unit/validation)
     path("category-attributes/", views.CategoryAttributeListView.as_view(), name="category_attribute_list"),
     path("category-attributes/create/", views.CategoryAttributeCreateView.as_view(), name="category_attribute_create"),
+    path("category-attributes/bulk-create/", views.CategoryAttributeBulkCreateView.as_view(), name="category_attribute_bulk_create"),
     path("category-attributes/<int:pk>/edit/", views.CategoryAttributeUpdateView.as_view(), name="category_attribute_update"),
     path("category-attributes/<int:pk>/delete/", views.CategoryAttributeDeleteView.as_view(), name="category_attribute_delete"),
     # Locations

@@ -91,9 +91,14 @@
                     <i data-lucide="sliders" class="w-5 h-5 inline mr-2 text-gray-400"></i>
                     Category Attributes
                 </h3>
-                <a href="{% url 'inventory:category_attribute_create' %}?category={{ category.pk }}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
-                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add
-                </a>
+                <div class="flex items-center gap-2">
+                    <a href="{% url 'inventory:category_attribute_bulk_create' %}?category={{ category.pk }}" class="inline-flex items-center px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700">
+                        <i data-lucide="layers" class="w-4 h-4 mr-1"></i>Bulk Add
+                    </a>
+                    <a href="{% url 'inventory:category_attribute_create' %}?category={{ category.pk }}" class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add Single
+                    </a>
+                </div>
             </div>
 
             {% if inherited_attributes %}

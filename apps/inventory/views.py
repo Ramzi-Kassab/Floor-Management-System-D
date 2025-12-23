@@ -8,7 +8,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import F, Q, Sum
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView, View
@@ -1019,6 +1019,133 @@ class CategoryAttributeDeleteView(LoginRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Remove Attribute from Category"
         return context
+
+
+class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
+    """
+    Bulk add attributes to a category with a two-phase form:
+    Phase 1: Select attributes from a filterable table
+    Phase 2: Configure each selected attribute (type, unit, validation, etc.)
+    """
+    template_name = "inventory/category_attribute_bulk_form.html"
+
+    def get_category(self):
+        category_pk = self.request.GET.get("category") or self.request.POST.get("category")
+        if category_pk:
+            return get_object_or_404(InventoryCategory, pk=category_pk)
+        return None
+
+    def get(self, request):
+        category = self.get_category()
+        if not category:
+            messages.error(request, "Please select a category first.")
+            return redirect("inventory:category_list")
+
+        # Get existing attribute IDs for this category
+        existing_attr_ids = set(
+            CategoryAttribute.objects.filter(category=category)
+            .values_list("attribute_id", flat=True)
+        )
+
+        # Get all available attributes (excluding already linked ones)
+        attributes = Attribute.objects.filter(is_active=True).exclude(
+            id__in=existing_attr_ids
+        ).order_by("classification", "name")
+
+        context = {
+            "category": category,
+            "attributes": attributes,
+            "classifications": Attribute.Classification.choices,
+            "attribute_types": CategoryAttribute.AttributeType.choices,
+            "units": UnitOfMeasure.objects.filter(is_active=True).order_by("unit_type", "name"),
+            "page_title": f"Bulk Add Attributes to {category.name}",
+            "phase": "select",  # or "configure"
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request):
+        category = self.get_category()
+        if not category:
+            messages.error(request, "Category not found.")
+            return redirect("inventory:category_list")
+
+        phase = request.POST.get("phase", "select")
+
+        if phase == "select":
+            # Phase 1: User selected attributes, show configuration form
+            selected_ids = request.POST.getlist("selected_attributes")
+            if not selected_ids:
+                messages.warning(request, "Please select at least one attribute.")
+                return redirect(f"{request.path}?category={category.pk}")
+
+            attributes = Attribute.objects.filter(id__in=selected_ids, is_active=True)
+
+            context = {
+                "category": category,
+                "selected_attributes": attributes,
+                "attribute_types": CategoryAttribute.AttributeType.choices,
+                "units": UnitOfMeasure.objects.filter(is_active=True).order_by("unit_type", "name"),
+                "page_title": f"Configure Attributes for {category.name}",
+                "phase": "configure",
+            }
+            return render(request, self.template_name, context)
+
+        elif phase == "configure":
+            # Phase 2: Save all configurations
+            attribute_ids = request.POST.getlist("attribute_id")
+            created_count = 0
+            errors = []
+
+            for attr_id in attribute_ids:
+                try:
+                    attribute = Attribute.objects.get(id=attr_id)
+
+                    # Get configuration values for this attribute
+                    attr_type = request.POST.get(f"type_{attr_id}", "TEXT")
+                    unit_id = request.POST.get(f"unit_{attr_id}") or None
+                    min_val = request.POST.get(f"min_{attr_id}") or None
+                    max_val = request.POST.get(f"max_{attr_id}") or None
+                    options = request.POST.get(f"options_{attr_id}") or None
+                    is_required = request.POST.get(f"required_{attr_id}") == "on"
+                    is_used_in_name = request.POST.get(f"in_name_{attr_id}") == "on"
+                    display_order = request.POST.get(f"order_{attr_id}") or 0
+
+                    # Parse options if provided
+                    if options:
+                        try:
+                            import json
+                            options = json.loads(options)
+                        except json.JSONDecodeError:
+                            # Try comma-separated values
+                            options = [o.strip() for o in options.split(",") if o.strip()]
+
+                    # Create CategoryAttribute
+                    CategoryAttribute.objects.create(
+                        category=category,
+                        attribute=attribute,
+                        attribute_type=attr_type,
+                        unit_id=unit_id if unit_id else None,
+                        min_value=min_val if min_val else None,
+                        max_value=max_val if max_val else None,
+                        options=options,
+                        is_required=is_required,
+                        is_used_in_name=is_used_in_name,
+                        display_order=int(display_order),
+                    )
+                    created_count += 1
+
+                except Exception as e:
+                    errors.append(f"Error adding {attr_id}: {str(e)}")
+
+            if created_count > 0:
+                messages.success(request, f"Added {created_count} attributes to {category.name}.")
+            if errors:
+                for error in errors:
+                    messages.error(request, error)
+
+            return redirect("inventory:category_detail", pk=category.pk)
+
+        return redirect(f"{request.path}?category={category.pk}")
 
 
 # =============================================================================
