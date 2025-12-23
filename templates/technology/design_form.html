@@ -847,8 +847,8 @@
                 <table class="w-full">
                     <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700">
                         <tr>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">HDBS Name</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SMI Names</th>
+                            <th id="type-col1-header" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">HDBS Name</th>
+                            <th id="type-col2-header" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SMI Names</th>
                             <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sizes</th>
                             <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
                             <th class="px-4 py-2"></th>
@@ -1055,7 +1055,18 @@ document.addEventListener('DOMContentLoaded', function() {
         smiInput.addEventListener('blur', updateDescription);
     }
     if (sizeSelect) {
-        sizeSelect.addEventListener('change', updateDescription);
+        sizeSelect.addEventListener('change', function() {
+            updateDescription();
+            // Clear HDBS and SMI type fields when size changes
+            if (hdbsInput) {
+                hdbsInput.value = '';
+                hdbsInput.dispatchEvent(new Event('input'));
+            }
+            if (smiInput) {
+                smiInput.value = '';
+                smiInput.dispatchEvent(new Event('input'));
+            }
+        });
     }
     if (matNoInput) {
         matNoInput.addEventListener('input', updateDescription);
@@ -1615,6 +1626,16 @@ document.addEventListener('DOMContentLoaded', function() {
     function openTypeModal(mode) {
         typePickerMode = mode;
         document.getElementById('type-modal-title').textContent = mode === 'hdbs' ? 'Select HDBS Type' : 'Select SMI Type';
+        // Update table headers based on mode
+        const col1Header = document.getElementById('type-col1-header');
+        const col2Header = document.getElementById('type-col2-header');
+        if (mode === 'hdbs') {
+            if (col1Header) col1Header.textContent = 'HDBS Name';
+            if (col2Header) col2Header.textContent = 'SMI Names';
+        } else {
+            if (col1Header) col1Header.textContent = 'HDBS Type';
+            if (col2Header) col2Header.textContent = 'SMI Name';
+        }
         typeModal.classList.remove('hidden');
         loadTypes();
         if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -1630,6 +1651,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const showInactive = document.getElementById('type-show-inactive').checked;
         const sizeSelect = document.getElementById('id_size');
         const selectedSize = sizeSelect ? sizeSelect.value : '';
+        const currentHdbs = hdbsInput ? hdbsInput.value : '';
 
         // Show/hide size filter indicator
         const sizeFilterInfo = document.getElementById('type-size-filter-info');
@@ -1657,47 +1679,80 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
 
-                tbody.innerHTML = data.hdbs_types.map(h => {
-                    const smiNames = h.smi_types.map(s => s.smi_name).join(', ') || '-';
-                    const sizes = h.sizes.map(s => s.display).join(', ') || 'Any';
-                    return `
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50" data-hdbs="${h.hdbs_name}">
-                        <td class="px-4 py-3">
-                            <button type="button" class="select-hdbs-btn text-left font-medium text-purple-600 dark:text-purple-400 hover:underline">${h.hdbs_name}</button>
-                            ${h.description ? `<p class="text-xs text-gray-500 mt-0.5">${h.description}</p>` : ''}
-                        </td>
-                        <td class="px-4 py-3">
-                            ${h.smi_types.length > 0 ? h.smi_types.map(s => `
-                                <button type="button" class="select-smi-btn inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800 mr-1 mb-1" data-hdbs="${h.hdbs_name}" data-smi="${s.smi_name}">${s.smi_name}</button>
-                            `).join('') : '<span class="text-gray-400 text-xs">No SMI</span>'}
-                        </td>
-                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">${sizes}</td>
-                        <td class="px-4 py-3">
-                            ${h.is_active
-                                ? '<span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>'
-                                : '<span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>'}
-                        </td>
-                        <td class="px-4 py-3">
-                            <button type="button" class="select-hdbs-btn px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700">Select HDBS</button>
-                        </td>
-                    </tr>
-                `}).join('');
+                if (typePickerMode === 'hdbs') {
+                    // HDBS mode - show HDBS types with Select button, SMI as info only
+                    tbody.innerHTML = data.hdbs_types.map(h => {
+                        const smiNames = h.smi_types.map(s => s.smi_name).join(', ') || '-';
+                        const sizes = h.sizes.map(s => s.display).join(', ') || 'Any';
+                        return `
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50" data-hdbs="${h.hdbs_name}">
+                            <td class="px-4 py-3">
+                                <span class="font-medium text-purple-600 dark:text-purple-400">${h.hdbs_name}</span>
+                                ${h.description ? `<p class="text-xs text-gray-500 mt-0.5">${h.description}</p>` : ''}
+                            </td>
+                            <td class="px-4 py-3 text-gray-500 text-sm">${smiNames}</td>
+                            <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">${sizes}</td>
+                            <td class="px-4 py-3">
+                                ${h.is_active
+                                    ? '<span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>'
+                                    : '<span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>'}
+                            </td>
+                            <td class="px-4 py-3">
+                                <button type="button" class="select-hdbs-btn px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700">Select</button>
+                            </td>
+                        </tr>
+                    `}).join('');
 
-                // Add click handlers
-                tbody.querySelectorAll('.select-hdbs-btn').forEach(btn => {
-                    btn.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        const row = this.closest('tr');
-                        selectHdbs(row.dataset.hdbs);
+                    // Add click handlers for HDBS selection
+                    tbody.querySelectorAll('.select-hdbs-btn').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            const row = this.closest('tr');
+                            selectHdbs(row.dataset.hdbs);
+                        });
                     });
-                });
+                } else {
+                    // SMI mode - show SMI types with Select buttons, filter by current HDBS if set
+                    let filteredTypes = data.hdbs_types;
+                    if (currentHdbs) {
+                        filteredTypes = data.hdbs_types.filter(h => h.hdbs_name === currentHdbs);
+                    }
 
-                tbody.querySelectorAll('.select-smi-btn').forEach(btn => {
-                    btn.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        selectSmi(this.dataset.hdbs, this.dataset.smi);
+                    if (filteredTypes.length === 0 || filteredTypes.every(h => h.smi_types.length === 0)) {
+                        tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                            ${currentHdbs ? `No SMI types found for ${currentHdbs}` : 'Select an HDBS type first, or search for SMI types'}
+                        </td></tr>`;
+                        return;
+                    }
+
+                    tbody.innerHTML = filteredTypes.flatMap(h =>
+                        h.smi_types.map(s => `
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                <td class="px-4 py-3 text-gray-500 text-sm">${h.hdbs_name}</td>
+                                <td class="px-4 py-3">
+                                    <span class="font-medium text-blue-600 dark:text-blue-400">${s.smi_name}</span>
+                                </td>
+                                <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">${h.sizes.map(sz => sz.display).join(', ') || 'Any'}</td>
+                                <td class="px-4 py-3">
+                                    ${s.is_active
+                                        ? '<span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>'
+                                        : '<span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>'}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <button type="button" class="select-smi-btn px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700" data-hdbs="${h.hdbs_name}" data-smi="${s.smi_name}">Select</button>
+                                </td>
+                            </tr>
+                        `)
+                    ).join('');
+
+                    // Add click handlers for SMI selection
+                    tbody.querySelectorAll('.select-smi-btn').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            selectSmi(this.dataset.hdbs, this.dataset.smi);
+                        });
                     });
-                });
+                }
             })
             .catch(err => {
                 console.error('Error loading types:', err);
