@@ -263,6 +263,85 @@ def count_apps():
 
     return True
 
+
+def check_seed_data():
+    """Check if seed data needs to be applied."""
+    print_header("Seed Data Status")
+
+    # Define seed data sources and their expected counts
+    # Format: (name, csv_path, model_import, seed_command)
+    seed_checks = [
+        {
+            'name': 'Units of Measure',
+            'csv_path': 'docs/development/units_comprehensive.csv',
+            'count_cmd': "from apps.inventory.models import UnitOfMeasure; print(UnitOfMeasure.objects.count())",
+            'seed_cmd': 'python manage.py seed_units',
+        },
+        {
+            'name': 'Attributes',
+            'csv_path': 'docs/development/attributes_comprehensive.csv',
+            'count_cmd': "from apps.inventory.models import Attribute; print(Attribute.objects.count())",
+            'seed_cmd': 'python manage.py seed_attributes',
+        },
+    ]
+
+    all_passed = True
+    seeds_to_run = []
+
+    for seed in seed_checks:
+        csv_path = PROJECT_ROOT / seed['csv_path']
+
+        # Check if CSV exists
+        if not csv_path.exists():
+            print(f"  {YELLOW}⚠{RESET} {seed['name']}: CSV not found, skipping")
+            continue
+
+        # Count CSV rows (excluding header)
+        try:
+            with open(csv_path, 'r') as f:
+                # Count non-empty lines minus header
+                lines = [l for l in f.readlines() if l.strip()]
+                csv_count = len(lines) - 1  # Subtract header row
+        except Exception as e:
+            print(f"  {RED}✗{RESET} {seed['name']}: Error reading CSV - {e}")
+            all_passed = False
+            continue
+
+        # Get current database count
+        code, out, err = run_command(f'python -c "import django; django.setup(); {seed["count_cmd"]}"')
+        try:
+            db_count = int(out.strip())
+        except ValueError:
+            print(f"  {RED}✗{RESET} {seed['name']}: Error getting DB count")
+            all_passed = False
+            continue
+
+        # Compare counts
+        if db_count >= csv_count:
+            print(f"  {GREEN}✓{RESET} {seed['name']}: {db_count} records (CSV has {csv_count})")
+        else:
+            missing = csv_count - db_count
+            print(f"  {YELLOW}⚠{RESET} {seed['name']}: {db_count}/{csv_count} records ({missing} missing)")
+            seeds_to_run.append(seed)
+            all_passed = False
+
+    # Offer to run missing seeds
+    if seeds_to_run:
+        print()
+        if ask_yes_no(f"Apply {len(seeds_to_run)} pending seed(s) now?"):
+            print()
+            for seed in seeds_to_run:
+                print(f"  Running: {seed['seed_cmd']}")
+                code = run_interactive(seed['seed_cmd'])
+                if code == 0:
+                    print(f"  {GREEN}✓{RESET} {seed['name']} seeded successfully\n")
+                else:
+                    print(f"  {RED}✗{RESET} {seed['name']} seed failed\n")
+            return True  # Consider passed after running
+        return False
+
+    return all_passed
+
 def offer_run_server():
     """Offer to run the development server."""
     print()
@@ -287,6 +366,7 @@ def main():
     results.append(("Database", check_database()))
     results.append(("Migrations Applied", check_migrations()))
     results.append(("Pending Changes", check_pending_migrations()))
+    results.append(("Seed Data", check_seed_data()))
     results.append(("System Check", check_system()))
     results.append(("Model Locations", check_model_locations()))
     results.append(("Migration Conflicts", check_migration_conflicts()))
