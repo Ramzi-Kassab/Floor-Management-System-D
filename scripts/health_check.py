@@ -266,20 +266,23 @@ def count_apps():
 
 def check_seed_data():
     """Check if seed data needs to be applied."""
+    import csv
     print_header("Seed Data Status")
 
     # Define seed data sources and their expected counts
-    # Format: (name, csv_path, model_import, seed_command)
+    # code_column is used to count unique codes in CSV
     seed_checks = [
         {
             'name': 'Units of Measure',
             'csv_path': 'docs/development/units_comprehensive.csv',
+            'code_column': 'Unit Code',
             'count_cmd': "from apps.inventory.models import UnitOfMeasure; print(UnitOfMeasure.objects.count())",
             'seed_cmd': 'python manage.py seed_units',
         },
         {
             'name': 'Attributes',
             'csv_path': 'docs/development/attributes_comprehensive.csv',
+            'code_column': 'Attribute Code',
             'count_cmd': "from apps.inventory.models import Attribute; print(Attribute.objects.count())",
             'seed_cmd': 'python manage.py seed_attributes',
         },
@@ -296,12 +299,16 @@ def check_seed_data():
             print(f"  {YELLOW}⚠{RESET} {seed['name']}: CSV not found, skipping")
             continue
 
-        # Count CSV rows (excluding header)
+        # Count unique codes in CSV (handles duplicates correctly)
         try:
-            with open(csv_path, 'r') as f:
-                # Count non-empty lines minus header
-                lines = [l for l in f.readlines() if l.strip()]
-                csv_count = len(lines) - 1  # Subtract header row
+            with open(csv_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                codes = set()
+                for row in reader:
+                    code = row.get(seed['code_column'], '').strip()
+                    if code:
+                        codes.add(code)
+                csv_count = len(codes)
         except Exception as e:
             print(f"  {RED}✗{RESET} {seed['name']}: Error reading CSV - {e}")
             all_passed = False
