@@ -1721,16 +1721,22 @@ class HDBSTypeCreateView(LoginRequiredMixin, CreateView):
     model = HDBSType
     form_class = HDBSTypeForm
     template_name = "technology/hdbs_type_form.html"
-    success_url = reverse_lazy("technology:hdbs_type_list")
+
+    def get_success_url(self):
+        # If coming from design form, stay on page with success message
+        if self.request.GET.get('from') == 'design':
+            return f"{reverse_lazy('technology:hdbs_type_create')}?from=design&created=1"
+        return reverse_lazy("technology:hdbs_type_list")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Add HDBS Type"
         context["submit_text"] = "Add Type"
+        context["just_created"] = self.request.GET.get('created') == '1'
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"HDBS Type {form.instance.hdbs_name} created successfully.")
+        messages.success(self.request, f"HDBS Type {form.instance.hdbs_name} created successfully. You can now close this tab and return to your Design form.")
         return super().form_valid(form)
 
 
@@ -1835,16 +1841,23 @@ class SMITypeCreateStandaloneView(LoginRequiredMixin, CreateView):
     template_name = "technology/smi_type_form.html"
 
     def get_success_url(self):
+        # If coming from design form, stay on page with success message
+        if self.request.GET.get('from') == 'design':
+            return f"{reverse_lazy('technology:smi_type_create_standalone')}?from=design&created=1"
         return reverse_lazy("technology:hdbs_type_list")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Add SMI Type"
         context["submit_text"] = "Add SMI Type"
+        context["just_created"] = self.request.GET.get('created') == '1'
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"SMI Type {form.instance.smi_name} added successfully.")
+        if self.request.GET.get('from') == 'design':
+            messages.success(self.request, f"SMI Type {form.instance.smi_name} added successfully. You can now close this tab and return to your Design form.")
+        else:
+            messages.success(self.request, f"SMI Type {form.instance.smi_name} added successfully.")
         return super().form_valid(form)
 
 

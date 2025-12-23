@@ -2293,11 +2293,11 @@ document.addEventListener('DOMContentLoaded', function() {
         createBtn.addEventListener('click', function() {
             closeDialog();
             if (typeKind === 'HDBS') {
-                // Open HDBS create page in new tab
-                window.open('{% url "technology:hdbs_type_create" %}', '_blank');
+                // Open HDBS create page in new tab with return flag
+                window.open('{% url "technology:hdbs_type_create" %}?from=design', '_blank');
             } else {
-                // Open SMI create page - if HDBS is known, pass it
-                let url = '{% url "technology:smi_type_create_standalone" %}';
+                // Open SMI create page with return flag
+                let url = '{% url "technology:smi_type_create_standalone" %}?from=design';
                 window.open(url, '_blank');
             }
             // Clear the field since they're creating new
