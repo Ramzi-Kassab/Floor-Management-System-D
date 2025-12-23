@@ -1,6 +1,6 @@
 """
 Seed command for Units of Measure.
-Creates standard units from the comprehensive CSV file.
+Creates standard units from the comprehensive CSV file with full conversion support.
 
 Usage:
     python manage.py seed_units           # Add/update only
@@ -8,12 +8,13 @@ Usage:
 """
 import csv
 import os
+from decimal import Decimal, InvalidOperation
 from django.core.management.base import BaseCommand
 from apps.inventory.models import UnitOfMeasure
 
 
 class Command(BaseCommand):
-    help = "Seed units of measure from CSV file"
+    help = "Seed units of measure from CSV file with conversion data"
 
     # Map CSV categories to model UnitType choices
     CATEGORY_MAP = {
@@ -55,17 +56,10 @@ class Command(BaseCommand):
         "Force": "FORCE",
     }
 
-    # SI base units per category
-    SI_BASE_UNITS = {
-        "M", "KG", "L", "EA", "M2", "HR", "SEC", "K", "A", "V",
-        "OHM", "HZ", "NEWTON", "JOULE", "W", "PA_S", "RAD", "LUX",
-        "LUMEN", "DEG", "PERCENT", "G_CM3", "CP"
-    }
-
-    # Packaging units
+    # Packaging units (variable conversion per item)
     PACKAGING_UNITS = {
         "BOX", "BAG", "DRUM", "PALLET", "ROLL", "SPOOL", "REEL",
-        "COIL", "BUNDLE", "SET", "PAIR", "DOZEN"
+        "COIL", "BUNDLE", "SET"
     }
 
     def add_arguments(self, parser):
@@ -81,7 +75,7 @@ class Command(BaseCommand):
         if replace_mode:
             self.stdout.write(self.style.WARNING("Running in REPLACE mode - units not in CSV will be deleted"))
         else:
-            self.stdout.write("Seeding Units of Measure from CSV (add/update only)...")
+            self.stdout.write("Seeding Units of Measure from CSV...")
 
         csv_path = os.path.join(
             os.path.dirname(__file__),
@@ -94,57 +88,105 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"CSV file not found: {csv_path}"))
             return
 
-        created_count = 0
-        updated_count = 0
-        csv_codes = set()
-
+        # Read all rows from CSV
+        rows = []
         with open(csv_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
-
             for row in reader:
                 code = row.get('Unit Code', '').strip()
-                if not code:
-                    continue  # Skip empty rows
+                if code:  # Skip empty rows
+                    rows.append(row)
 
-                csv_codes.add(code)
-                name = row.get('Unit Name', '').strip()
-                symbol = row.get('Unit Symbol', '').strip()
-                category = row.get('Unit Category', '').strip()
-                description = row.get('Description', '').strip()
-                conversion_notes = row.get('Conversion Notes', '').strip()
+        csv_codes = {row['Unit Code'].strip() for row in rows}
 
-                # Map category to unit_type
-                unit_type = self.CATEGORY_MAP.get(category, "OTHER")
+        # PASS 1: Create/update all units (without base_unit references)
+        self.stdout.write("\n--- Pass 1: Creating/updating units ---")
+        created_count = 0
+        updated_count = 0
 
-                # Determine if SI base or packaging
-                is_si_base = code in self.SI_BASE_UNITS
-                is_packaging = code in self.PACKAGING_UNITS
+        for row in rows:
+            code = row.get('Unit Code', '').strip()
+            name = row.get('Unit Name', '').strip()
+            symbol = row.get('Unit Symbol', '').strip()
+            category = row.get('Unit Category', '').strip()
+            description = row.get('Description', '').strip()
+            conversion_notes = row.get('Conversion Notes', '').strip()
+            base_unit_code = row.get('Base Unit', '').strip()
 
-                # Build description
-                full_description = description
-                if conversion_notes:
-                    full_description = f"{description}. {conversion_notes}" if description else conversion_notes
+            # Parse conversion factor
+            conv_factor_str = row.get('Conversion Factor', '').strip()
+            try:
+                conversion_factor = Decimal(conv_factor_str) if conv_factor_str else Decimal('1')
+            except InvalidOperation:
+                conversion_factor = Decimal('1')
 
-                # Create or update the unit
-                unit, created = UnitOfMeasure.objects.update_or_create(
-                    code=code,
-                    defaults={
-                        "name": name,
-                        "unit_type": unit_type,
-                        "symbol": symbol,
-                        "is_si_base": is_si_base,
-                        "is_packaging": is_packaging,
-                        "description": full_description,
-                        "is_active": True,
-                    }
-                )
+            # Map category to unit_type
+            unit_type = self.CATEGORY_MAP.get(category, "OTHER")
 
-                if created:
-                    created_count += 1
-                    self.stdout.write(f"  Created: {code} - {name} [{unit_type}]")
+            # Determine if SI base (no base_unit means it's a base unit)
+            is_si_base = not base_unit_code and conversion_factor == Decimal('1')
+            is_packaging = code in self.PACKAGING_UNITS
+
+            # Build description
+            full_description = description
+            if conversion_notes:
+                full_description = f"{description}. {conversion_notes}" if description else conversion_notes
+
+            # Create or update the unit (without base_unit for now)
+            unit, created = UnitOfMeasure.objects.update_or_create(
+                code=code,
+                defaults={
+                    "name": name,
+                    "unit_type": unit_type,
+                    "symbol": symbol,
+                    "is_si_base": is_si_base,
+                    "is_packaging": is_packaging,
+                    "conversion_factor": conversion_factor,
+                    "description": full_description,
+                    "is_active": True,
+                }
+            )
+
+            if created:
+                created_count += 1
+                self.stdout.write(f"  + {code} - {name} [{unit_type}]")
+            else:
+                updated_count += 1
+
+        self.stdout.write(f"  Created: {created_count}, Updated: {updated_count}")
+
+        # PASS 2: Set base_unit references
+        self.stdout.write("\n--- Pass 2: Setting base unit references ---")
+        ref_count = 0
+        ref_errors = []
+
+        for row in rows:
+            code = row.get('Unit Code', '').strip()
+            base_unit_code = row.get('Base Unit', '').strip()
+
+            if not base_unit_code:
+                continue  # No base unit to set
+
+            try:
+                unit = UnitOfMeasure.objects.get(code=code)
+                base_unit = UnitOfMeasure.objects.filter(code=base_unit_code).first()
+
+                if base_unit:
+                    unit.base_unit = base_unit
+                    unit.save(update_fields=['base_unit'])
+                    ref_count += 1
+                    self.stdout.write(f"  {code} -> {base_unit_code}")
                 else:
-                    updated_count += 1
-                    self.stdout.write(f"  Updated: {code} - {name} [{unit_type}]")
+                    ref_errors.append(f"{code} references unknown base unit: {base_unit_code}")
+            except UnitOfMeasure.DoesNotExist:
+                ref_errors.append(f"Unit not found: {code}")
+
+        self.stdout.write(f"  Set {ref_count} base unit references")
+
+        if ref_errors:
+            self.stdout.write(self.style.WARNING("\n  Warnings:"))
+            for err in ref_errors:
+                self.stdout.write(self.style.WARNING(f"    - {err}"))
 
         # In replace mode, delete units not in CSV
         deleted_count = 0
@@ -152,12 +194,20 @@ class Command(BaseCommand):
             units_to_delete = UnitOfMeasure.objects.exclude(code__in=csv_codes)
             deleted_count = units_to_delete.count()
             if deleted_count > 0:
-                self.stdout.write(self.style.WARNING(f"\nDeleting {deleted_count} units not in CSV:"))
+                self.stdout.write(self.style.WARNING(f"\n--- Deleting {deleted_count} units not in CSV ---"))
                 for unit in units_to_delete:
-                    self.stdout.write(f"  Deleted: {unit.code} - {unit.name}")
+                    self.stdout.write(f"  - {unit.code} - {unit.name}")
                 units_to_delete.delete()
 
+        # Summary
         total = UnitOfMeasure.objects.count()
-        self.stdout.write(self.style.SUCCESS(
-            f"\nDone! Created: {created_count}, Updated: {updated_count}, Deleted: {deleted_count}, Total: {total}"
-        ))
+        with_base = UnitOfMeasure.objects.filter(base_unit__isnull=False).count()
+
+        self.stdout.write(self.style.SUCCESS(f"""
+=== Summary ===
+Created: {created_count}
+Updated: {updated_count}
+Deleted: {deleted_count}
+Total units: {total}
+With conversions: {with_base}
+"""))

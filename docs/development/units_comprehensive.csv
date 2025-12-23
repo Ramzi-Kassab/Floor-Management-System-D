@@ -1,179 +1,179 @@
-Unit Code,Unit Name,Unit Symbol,Unit Category,Description,Conversion Notes
-MM,Millimeter,mm,Length,Metric length unit,Base metric unit
-CM,Centimeter,cm,Length,Metric length unit,10 mm
-M,Meter,m,Length,Metric length unit,1000 mm
-KM,Kilometer,km,Length,Metric length unit,1000 m
-IN,Inch,in,Length,Imperial length unit,25.4 mm
-FT,Foot,ft,Length,Imperial length unit,12 inches = 304.8 mm
-YD,Yard,yd,Length,Imperial length unit,3 feet
-MI,Mile,mi,Length,Imperial length unit,5280 feet
-MIL,Mil,mil,Length,Thousandth of an inch,0.001 inch = 0.0254 mm
-MICRON,Micrometer,μm,Length,Metric length unit,0.001 mm
+Unit Code,Unit Name,Unit Symbol,Unit Category,Description,Base Unit,Conversion Factor,Conversion Notes
+MM,Millimeter,mm,Length,Metric length unit,M,0.001,Base metric unit
+CM,Centimeter,cm,Length,Metric length unit,M,0.01,10 mm
+M,Meter,m,Length,Metric length unit,,1,SI Base unit
+KM,Kilometer,km,Length,Metric length unit,M,1000,1000 m
+IN,Inch,in,Length,Imperial length unit,M,0.0254,25.4 mm
+FT,Foot,ft,Length,Imperial length unit,M,0.3048,12 inches = 304.8 mm
+YD,Yard,yd,Length,Imperial length unit,M,0.9144,3 feet
+MI,Mile,mi,Length,Imperial length unit,M,1609.344,5280 feet
+MIL,Mil,mil,Length,Thousandth of an inch,M,0.0000254,0.001 inch = 0.0254 mm
+MICRON,Micrometer,μm,Length,Metric length unit,M,0.000001,0.001 mm
 
-G,Gram,g,Weight/Mass,Metric weight unit,Base metric unit
-KG,Kilogram,kg,Weight/Mass,Metric weight unit,1000 g
-TON,Metric Ton,t,Weight/Mass,Metric weight unit,1000 kg
-OZ,Ounce,oz,Weight/Mass,Imperial weight unit,28.35 g
-LB,Pound,lb,Weight/Mass,Imperial weight unit,16 oz = 453.59 g
-TON_US,US Ton,ton,Weight/Mass,Imperial weight unit,2000 lb
-KLBS,Kilo Pounds,klbs,Weight/Mass,Imperial weight unit,1000 lb
+G,Gram,g,Weight/Mass,Metric weight unit,KG,0.001,Base metric unit
+KG,Kilogram,kg,Weight/Mass,Metric weight unit,,1,SI Base unit
+TON,Metric Ton,t,Weight/Mass,Metric weight unit,KG,1000,1000 kg
+OZ,Ounce,oz,Weight/Mass,Imperial weight unit,KG,0.02835,28.35 g
+LB,Pound,lb,Weight/Mass,Imperial weight unit,KG,0.45359,16 oz = 453.59 g
+TON_US,US Ton,ton,Weight/Mass,Imperial weight unit,KG,907.185,2000 lb
+KLBS,Kilo Pounds,klbs,Weight/Mass,Imperial weight unit,KG,453.592,1000 lb
 
-ML,Milliliter,ml,Volume,Metric volume unit,Base metric unit
-L,Liter,L,Volume,Metric volume unit,1000 ml
-M3,Cubic Meter,m³,Volume,Metric volume unit,1000 L
-CC,Cubic Centimeter,cc,Volume,Metric volume unit,Same as ml
-CM3,Cubic Centimeter,cm³,Volume,Metric volume unit,Same as ml
-FLOZ,Fluid Ounce,fl oz,Volume,Imperial volume unit,29.57 ml
-PT,Pint,pt,Volume,Imperial volume unit,16 fl oz
-QT,Quart,qt,Volume,Imperial volume unit,2 pints
-GAL,Gallon,gal,Volume,Imperial volume unit,4 quarts = 3.785 L
-BBL,Barrel,bbl,Volume,Oil & Gas volume unit,42 US gallons = 159 L
-FT3,Cubic Foot,ft³,Volume,Imperial volume unit,28.32 L
-IN3,Cubic Inch,in³,Volume,Imperial volume unit,16.39 cm³
+ML,Milliliter,ml,Volume,Metric volume unit,L,0.001,Base metric unit
+L,Liter,L,Volume,Metric volume unit,,1,SI Base unit
+M3,Cubic Meter,m³,Volume,Metric volume unit,L,1000,1000 L
+CC,Cubic Centimeter,cc,Volume,Metric volume unit,L,0.001,Same as ml
+CM3,Cubic Centimeter,cm³,Volume,Metric volume unit,L,0.001,Same as ml
+FLOZ,Fluid Ounce,fl oz,Volume,Imperial volume unit,L,0.02957,29.57 ml
+PT,Pint,pt,Volume,Imperial volume unit,L,0.4732,16 fl oz
+QT,Quart,qt,Volume,Imperial volume unit,L,0.9464,2 pints
+GAL,Gallon,gal,Volume,Imperial volume unit,L,3.785,4 quarts = 3.785 L
+BBL,Barrel,bbl,Volume,Oil & Gas volume unit,L,159,42 US gallons = 159 L
+FT3,Cubic Foot,ft³,Volume,Imperial volume unit,L,28.32,28.32 L
+IN3,Cubic Inch,in³,Volume,Imperial volume unit,L,0.01639,16.39 cm³
 
-SQ_MM,Square Millimeter,mm²,Area,Metric area unit,
-SQ_CM,Square Centimeter,cm²,Area,Metric area unit,
-SQ_M,Square Meter,m²,Area,Metric area unit,
-SQ_IN,Square Inch,in²,Area,Imperial area unit,645.16 mm²
-SQ_FT,Square Foot,ft²,Area,Imperial area unit,144 sq in
+SQ_MM,Square Millimeter,mm²,Area,Metric area unit,SQ_M,0.000001,
+SQ_CM,Square Centimeter,cm²,Area,Metric area unit,SQ_M,0.0001,
+SQ_M,Square Meter,m²,Area,Metric area unit,,1,SI Base unit
+SQ_IN,Square Inch,in²,Area,Imperial area unit,SQ_M,0.00064516,645.16 mm²
+SQ_FT,Square Foot,ft²,Area,Imperial area unit,SQ_M,0.0929,144 sq in
 
-PSI,Pounds per Square Inch,PSI,Pressure,Imperial pressure unit,Common in drilling
-KPA,Kilopascal,kPa,Pressure,Metric pressure unit,SI unit
-MPA,Megapascal,MPa,Pressure,Metric pressure unit,1000 kPa
-BAR,Bar,bar,Pressure,Metric pressure unit,100 kPa ≈ 14.5 PSI
-ATM,Atmosphere,atm,Pressure,Pressure unit,Standard atmospheric pressure
-TORR,Torr,torr,Pressure,Pressure unit,1/760 atm
+PSI,Pounds per Square Inch,PSI,Pressure,Imperial pressure unit,KPA,6.895,Common in drilling
+KPA,Kilopascal,kPa,Pressure,Metric pressure unit,,1,SI unit
+MPA,Megapascal,MPa,Pressure,Metric pressure unit,KPA,1000,1000 kPa
+BAR,Bar,bar,Pressure,Metric pressure unit,KPA,100,100 kPa ≈ 14.5 PSI
+ATM,Atmosphere,atm,Pressure,Pressure unit,KPA,101.325,Standard atmospheric pressure
+TORR,Torr,torr,Pressure,Pressure unit,KPA,0.13332,1/760 atm
 
-C,Celsius,°C,Temperature,Metric temperature unit,Standard metric
-F,Fahrenheit,°F,Temperature,Imperial temperature unit,Common in USA
-K,Kelvin,K,Temperature,Absolute temperature unit,Scientific standard
+C,Celsius,°C,Temperature,Metric temperature unit,,1,Standard metric (non-linear)
+F,Fahrenheit,°F,Temperature,Imperial temperature unit,,1,Common in USA (non-linear)
+K,Kelvin,K,Temperature,Absolute temperature unit,,1,Scientific standard (non-linear)
 
-RPM,Revolutions per Minute,RPM,Rotational Speed,Angular velocity unit,Drilling equipment
-RPS,Revolutions per Second,RPS,Rotational Speed,Angular velocity unit,
+RPM,Revolutions per Minute,RPM,Rotational Speed,Angular velocity unit,,1,Drilling equipment
+RPS,Revolutions per Second,RPS,Rotational Speed,Angular velocity unit,RPM,60,60 RPM
 
-FT-LB,Foot-Pound,ft-lb,Torque,Imperial torque unit,Common in drilling
-IN-LB,Inch-Pound,in-lb,Torque,Imperial torque unit,1/12 ft-lb
-NM,Newton Meter,N⋅m,Torque,Metric torque unit,SI unit
-KGF-M,Kilogram-force Meter,kgf⋅m,Torque,Metric torque unit,9.807 N⋅m
+FT-LB,Foot-Pound,ft-lb,Torque,Imperial torque unit,NM,1.3558,Common in drilling
+IN-LB,Inch-Pound,in-lb,Torque,Imperial torque unit,NM,0.113,1/12 ft-lb
+NM,Newton Meter,N⋅m,Torque,Metric torque unit,,1,SI unit
+KGF-M,Kilogram-force Meter,kgf⋅m,Torque,Metric torque unit,NM,9.807,9.807 N⋅m
 
-HP,Horsepower,HP,Power,Imperial power unit,Common for engines
-KW,Kilowatt,kW,Power,Metric power unit,SI unit = 1.34 HP
-W,Watt,W,Power,Metric power unit,Base SI unit
-BTU,British Thermal Unit,BTU/hr,Power,Imperial power unit,Heat energy rate
+HP,Horsepower,HP,Power,Imperial power unit,W,745.7,Common for engines
+KW,Kilowatt,kW,Power,Metric power unit,W,1000,SI unit = 1.34 HP
+W,Watt,W,Power,Metric power unit,,1,Base SI unit
+BTU,British Thermal Unit,BTU/hr,Power,Imperial power unit,W,0.293,Heat energy rate
 
-V,Volt,V,Voltage,Electrical potential,Standard electrical unit
-KV,Kilovolt,kV,Voltage,Electrical potential,1000 V
-MV,Millivolt,mV,Voltage,Electrical potential,0.001 V
+V,Volt,V,Voltage,Electrical potential,,1,Standard electrical unit
+KV,Kilovolt,kV,Voltage,Electrical potential,V,1000,1000 V
+MV,Millivolt,mV,Voltage,Electrical potential,V,0.001,0.001 V
 
-A,Ampere,A,Current,Electrical current,Standard electrical unit
-MA,Milliampere,mA,Current,Electrical current,0.001 A
-KA,Kiloampere,kA,Current,Electrical current,1000 A
+A,Ampere,A,Current,Electrical current,,1,Standard electrical unit
+MA,Milliampere,mA,Current,Electrical current,A,0.001,0.001 A
+KA,Kiloampere,kA,Current,Electrical current,A,1000,1000 A
 
-OHM,Ohm,Ω,Resistance,Electrical resistance,Standard electrical unit
-KOHM,Kilohm,kΩ,Resistance,Electrical resistance,1000 Ω
-MOHM,Megohm,MΩ,Resistance,Electrical resistance,1000000 Ω
+OHM,Ohm,Ω,Resistance,Electrical resistance,,1,Standard electrical unit
+KOHM,Kilohm,kΩ,Resistance,Electrical resistance,OHM,1000,1000 Ω
+MOHM,Megohm,MΩ,Resistance,Electrical resistance,OHM,1000000,1000000 Ω
 
-HZ,Hertz,Hz,Frequency,Frequency unit,Cycles per second
-KHZ,Kilohertz,kHz,Frequency,Frequency unit,1000 Hz
-MHZ,Megahertz,MHz,Frequency,Frequency unit,1000 kHz
+HZ,Hertz,Hz,Frequency,Frequency unit,,1,Cycles per second
+KHZ,Kilohertz,kHz,Frequency,Frequency unit,HZ,1000,1000 Hz
+MHZ,Megahertz,MHz,Frequency,Frequency unit,HZ,1000000,1000 kHz
 
-GPM,Gallons per Minute,GPM,Flow Rate,Volume flow rate,Common in drilling
-LPM,Liters per Minute,L/min,Flow Rate,Volume flow rate,Metric flow
-CFM,Cubic Feet per Minute,CFM,Flow Rate,Volume flow rate,Air flow
-M3_HR,Cubic Meters per Hour,m³/hr,Flow Rate,Volume flow rate,
+GPM,Gallons per Minute,GPM,Flow Rate,Volume flow rate,LPM,3.785,Common in drilling
+LPM,Liters per Minute,L/min,Flow Rate,Volume flow rate,,1,Metric flow
+CFM,Cubic Feet per Minute,CFM,Flow Rate,Volume flow rate,LPM,28.32,Air flow
+M3_HR,Cubic Meters per Hour,m³/hr,Flow Rate,Volume flow rate,LPM,16.667,
 
-DEG,Degree,°,Angle,Angular measurement,360° = full circle
-RAD,Radian,rad,Angle,Angular measurement,2π rad = full circle
-ARCMIN,Arc Minute,',Angle,Angular measurement,1/60 degree
-ARCSEC,Arc Second,'',Angle,Angular measurement,1/60 arc minute
+DEG,Degree,°,Angle,Angular measurement,,1,360° = full circle
+RAD,Radian,rad,Angle,Angular measurement,DEG,57.2958,2π rad = full circle
+ARCMIN,Arc Minute,',Angle,Angular measurement,DEG,0.01667,1/60 degree
+ARCSEC,Arc Second,'',Angle,Angular measurement,DEG,0.000278,1/60 arc minute
 
-FPM,Feet per Minute,ft/min,Speed,Linear speed,Drilling rate
-FPS,Feet per Second,ft/s,Speed,Linear speed,
-MPH,Miles per Hour,mph,Speed,Linear speed,
-KPH,Kilometers per Hour,km/h,Speed,Linear speed,
-M_S,Meters per Second,m/s,Speed,Linear speed,SI unit
+FPM,Feet per Minute,ft/min,Speed,Linear speed,M_S,0.00508,Drilling rate
+FPS,Feet per Second,ft/s,Speed,Linear speed,M_S,0.3048,
+MPH,Miles per Hour,mph,Speed,Linear speed,M_S,0.44704,
+KPH,Kilometers per Hour,km/h,Speed,Linear speed,M_S,0.27778,
+M_S,Meters per Second,m/s,Speed,Linear speed,,1,SI unit
 
-HRC,Rockwell C Hardness,HRC,Hardness,Hardness scale,Common for steel
-HRB,Rockwell B Hardness,HRB,Hardness,Hardness scale,Common for softer materials
-HB,Brinell Hardness,HB,Hardness,Hardness scale,Alternative scale
-HV,Vickers Hardness,HV,Hardness,Hardness scale,Alternative scale
-SHORE_A,Shore A Hardness,Shore A,Hardness,Hardness scale,For elastomers
-SHORE_D,Shore D Hardness,Shore D,Hardness,Hardness scale,For harder plastics
+HRC,Rockwell C Hardness,HRC,Hardness,Hardness scale,,1,Common for steel (non-linear)
+HRB,Rockwell B Hardness,HRB,Hardness,Hardness scale,,1,Common for softer materials (non-linear)
+HB,Brinell Hardness,HB,Hardness,Hardness scale,,1,Alternative scale (non-linear)
+HV,Vickers Hardness,HV,Hardness,Hardness scale,,1,Alternative scale (non-linear)
+SHORE_A,Shore A Hardness,Shore A,Hardness,Hardness scale,,1,For elastomers (non-linear)
+SHORE_D,Shore D Hardness,Shore D,Hardness,Hardness scale,,1,For harder plastics (non-linear)
 
-KSI,Kilopounds per Square Inch,ksi,Stress/Strength,Stress measurement,1000 PSI
-MPA_STRESS,Megapascal,MPa,Stress/Strength,Stress measurement,SI unit
-GPA,Gigapascal,GPa,Stress/Strength,Stress measurement,1000 MPa
+KSI,Kilopounds per Square Inch,ksi,Stress/Strength,Stress measurement,MPA_STRESS,6.895,1000 PSI
+MPA_STRESS,Megapascal,MPa,Stress/Strength,Stress measurement,,1,SI unit
+GPA,Gigapascal,GPa,Stress/Strength,Stress measurement,MPA_STRESS,1000,1000 MPa
 
-PERCENT,Percent,%,Ratio/Percentage,Percentage measurement,
-PPM,Parts per Million,ppm,Concentration,Concentration unit,
-PPB,Parts per Billion,ppb,Concentration,Concentration unit,
+PERCENT,Percent,%,Ratio/Percentage,Percentage measurement,,1,
+PPM,Parts per Million,ppm,Concentration,Concentration unit,,1,
+PPB,Parts per Billion,ppb,Concentration,Concentration unit,PPM,0.001,
 
-G_CM3,Grams per Cubic Centimeter,g/cm³,Density,Density measurement,Water = 1
-KG_M3,Kilograms per Cubic Meter,kg/m³,Density,Density measurement,1000 kg/m³ = 1 g/cm³
-LB_FT3,Pounds per Cubic Foot,lb/ft³,Density,Density measurement,
-PPG,Pounds per Gallon,ppg,Density,Density measurement,Common in drilling fluids
-SG,Specific Gravity,SG,Density,Relative density,Relative to water
+G_CM3,Grams per Cubic Centimeter,g/cm³,Density,Density measurement,,1,Water = 1
+KG_M3,Kilograms per Cubic Meter,kg/m³,Density,Density measurement,G_CM3,0.001,1000 kg/m³ = 1 g/cm³
+LB_FT3,Pounds per Cubic Foot,lb/ft³,Density,Density measurement,G_CM3,0.016,
+PPG,Pounds per Gallon,ppg,Density,Density measurement,G_CM3,0.1198,Common in drilling fluids
+SG,Specific Gravity,SG,Density,Relative density,G_CM3,1,Relative to water
 
-CP,Centipoise,cP,Viscosity,Dynamic viscosity,Common for fluids
-PA_S,Pascal Second,Pa⋅s,Viscosity,Dynamic viscosity,SI unit
-CST,Centistoke,cSt,Viscosity,Kinematic viscosity,
-MM2_S,Square Millimeter per Second,mm²/s,Viscosity,Kinematic viscosity,Same as cSt
-SSU,Saybolt Universal Seconds,SSU,Viscosity,Viscosity measurement,Alternative scale
+CP,Centipoise,cP,Viscosity,Dynamic viscosity,PA_S,0.001,Common for fluids
+PA_S,Pascal Second,Pa⋅s,Viscosity,Dynamic viscosity,,1,SI unit
+CST,Centistoke,cSt,Viscosity,Kinematic viscosity,,1,
+MM2_S,Square Millimeter per Second,mm²/s,Viscosity,Kinematic viscosity,CST,1,Same as cSt
+SSU,Saybolt Universal Seconds,SSU,Viscosity,Viscosity measurement,,1,Alternative scale (non-linear)
 
-EA,Each,ea,Quantity,Unit count,Individual item
-PC,Piece,pc,Quantity,Unit count,Individual item
-PAIR,Pair,pair,Quantity,Unit count,Two items
-SET,Set,set,Quantity,Unit count,Group of items
-DOZEN,Dozen,doz,Quantity,Unit count,12 items
-BOX,Box,box,Packaging,Packaging unit,
-BAG,Bag,bag,Packaging,Packaging unit,
-DRUM,Drum,drum,Packaging,Packaging unit,Typically 55 gallons
-PALLET,Pallet,pallet,Packaging,Packaging unit,
-ROLL,Roll,roll,Packaging,Packaging unit,For materials on rolls
-SPOOL,Spool,spool,Packaging,Packaging unit,For wire/cable
-REEL,Reel,reel,Packaging,Packaging unit,For wire/cable
-COIL,Coil,coil,Packaging,Packaging unit,For coiled materials
-BUNDLE,Bundle,bundle,Packaging,Packaging unit,For bundled items
+EA,Each,ea,Quantity,Unit count,,1,Individual item
+PC,Piece,pc,Quantity,Unit count,EA,1,Individual item
+PAIR,Pair,pair,Quantity,Unit count,EA,2,Two items
+SET,Set,set,Quantity,Unit count,,1,Group of items (variable)
+DOZEN,Dozen,doz,Quantity,Unit count,EA,12,12 items
+BOX,Box,box,Packaging,Packaging unit,,1,Variable per item
+BAG,Bag,bag,Packaging,Packaging unit,,1,Variable per item
+DRUM,Drum,drum,Packaging,Packaging unit,,1,Typically 55 gallons (variable)
+PALLET,Pallet,pallet,Packaging,Packaging unit,,1,Variable per item
+ROLL,Roll,roll,Packaging,Packaging unit,,1,For materials on rolls (variable)
+SPOOL,Spool,spool,Packaging,Packaging unit,,1,For wire/cable (variable)
+REEL,Reel,reel,Packaging,Packaging unit,,1,For wire/cable (variable)
+COIL,Coil,coil,Packaging,Packaging unit,,1,For coiled materials (variable)
+BUNDLE,Bundle,bundle,Packaging,Packaging unit,,1,For bundled items (variable)
 
-HR,Hour,hr,Time,Time duration,
-MIN,Minute,min,Time,Time duration,60 minutes = 1 hour
-SEC,Second,s,Time,Time duration,60 seconds = 1 minute
-DAY,Day,day,Time,Time duration,24 hours
-WK,Week,wk,Time,Time duration,7 days
-MO,Month,mo,Time,Time duration,Approximately 30 days
-YR,Year,yr,Time,Time duration,365 days
+HR,Hour,hr,Time,Time duration,SEC,3600,
+MIN,Minute,min,Time,Time duration,SEC,60,60 minutes = 1 hour
+SEC,Second,s,Time,Time duration,,1,60 seconds = 1 minute
+DAY,Day,day,Time,Time duration,SEC,86400,24 hours
+WK,Week,wk,Time,Time duration,SEC,604800,7 days
+MO,Month,mo,Time,Time duration,SEC,2592000,Approximately 30 days
+YR,Year,yr,Time,Time duration,SEC,31536000,365 days
 
-TPI,Threads per Inch,TPI,Thread Specification,Thread density,US thread standard
-PITCH_MM,Thread Pitch,mm,Thread Specification,Thread pitch,Metric thread standard
+TPI,Threads per Inch,TPI,Thread Specification,Thread density,,1,US thread standard (non-linear)
+PITCH_MM,Thread Pitch,mm,Thread Specification,Thread pitch,,1,Metric thread standard (non-linear)
 
-AWG,American Wire Gauge,AWG,Wire Specification,Wire size standard,US wire sizing
-SWG,Standard Wire Gauge,SWG,Wire Specification,Wire size standard,British wire sizing
-BWG,Birmingham Wire Gauge,BWG,Wire Specification,Wire size standard,Alternative wire sizing
+AWG,American Wire Gauge,AWG,Wire Specification,Wire size standard,,1,US wire sizing (non-linear)
+SWG,Standard Wire Gauge,SWG,Wire Specification,Wire size standard,,1,British wire sizing (non-linear)
+BWG,Birmingham Wire Gauge,BWG,Wire Specification,Wire size standard,,1,Alternative wire sizing (non-linear)
 
-RA,Ra Surface Roughness,Ra,Surface Finish,Surface roughness,Average roughness
-RZ,Rz Surface Roughness,Rz,Surface Finish,Surface roughness,Peak-to-valley roughness
-RMS,RMS Surface Roughness,RMS,Surface Finish,Surface roughness,Root mean square
+RA,Ra Surface Roughness,Ra,Surface Finish,Surface roughness,,1,Average roughness
+RZ,Rz Surface Roughness,Rz,Surface Finish,Surface roughness,,1,Peak-to-valley roughness
+RMS,RMS Surface Roughness,RMS,Surface Finish,Surface roughness,,1,Root mean square
 
-GRIT,Grit Number,grit,Abrasive Specification,Abrasive particle size,Sandpaper/grinding
-MESH,Mesh Number,mesh,Particle Size,Screen mesh size,Filter/sieve specification
+GRIT,Grit Number,grit,Abrasive Specification,Abrasive particle size,,1,Sandpaper/grinding (non-linear)
+MESH,Mesh Number,mesh,Particle Size,Screen mesh size,,1,Filter/sieve specification (non-linear)
 
-PH,pH,pH,Chemical Property,Acidity/alkalinity,0-14 scale
+PH,pH,pH,Chemical Property,Acidity/alkalinity,,1,0-14 scale (non-linear)
 
-DB,Decibel,dB,Sound/Noise,Sound level measurement,Logarithmic scale
-DBA,A-weighted Decibel,dB(A),Sound/Noise,Sound level measurement,Human hearing weighted
+DB,Decibel,dB,Sound/Noise,Sound level measurement,,1,Logarithmic scale (non-linear)
+DBA,A-weighted Decibel,dB(A),Sound/Noise,Sound level measurement,,1,Human hearing weighted (non-linear)
 
-LUX,Lux,lx,Illumination,Light intensity,Lumens per square meter
-LUMEN,Lumen,lm,Luminous Flux,Light output,Light source output
+LUX,Lux,lx,Illumination,Light intensity,,1,Lumens per square meter
+LUMEN,Lumen,lm,Luminous Flux,Light output,,1,Light source output
 
-JOULE,Joule,J,Energy,Energy measurement,SI unit
-KJ,Kilojoule,kJ,Energy,Energy measurement,1000 J
-MJ,Megajoule,MJ,Energy,Energy measurement,1000 kJ
-CAL,Calorie,cal,Energy,Energy measurement,4.184 J
-KCAL,Kilocalorie,kcal,Energy,Energy measurement,1000 cal
-BTU_ENERGY,British Thermal Unit,BTU,Energy,Energy measurement,1055 J
+JOULE,Joule,J,Energy,Energy measurement,,1,SI unit
+KJ,Kilojoule,kJ,Energy,Energy measurement,JOULE,1000,1000 J
+MJ,Megajoule,MJ,Energy,Energy measurement,JOULE,1000000,1000 kJ
+CAL,Calorie,cal,Energy,Energy measurement,JOULE,4.184,4.184 J
+KCAL,Kilocalorie,kcal,Energy,Energy measurement,JOULE,4184,1000 cal
+BTU_ENERGY,British Thermal Unit,BTU,Energy,Energy measurement,JOULE,1055,1055 J
 
-NEWTON,Newton,N,Force,Force measurement,SI unit
-KN,Kilonewton,kN,Force,Force measurement,1000 N
-LBF,Pound-force,lbf,Force,Force measurement,4.448 N
-KIP,Kip,kip,Force,Force measurement,1000 lbf
-DYNE,Dyne,dyn,Force,Force measurement,10 micronewtons
+NEWTON,Newton,N,Force,Force measurement,,1,SI unit
+KN,Kilonewton,kN,Force,Force measurement,NEWTON,1000,1000 N
+LBF,Pound-force,lbf,Force,Force measurement,NEWTON,4.448,4.448 N
+KIP,Kip,kip,Force,Force measurement,NEWTON,4448,1000 lbf
+DYNE,Dyne,dyn,Force,Force measurement,NEWTON,0.00001,10 micronewtons

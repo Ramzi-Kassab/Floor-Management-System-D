@@ -558,6 +558,71 @@ class UnitOfMeasure(models.Model):
             raise ValueError("Packaging units require item-specific conversion. Use ItemUOMConversion.")
         return Decimal(str(quantity)) * self.conversion_factor
 
+    def convert_from_base(self, quantity):
+        """Convert quantity from base unit to this unit."""
+        from decimal import Decimal
+        if self.is_si_base or self.conversion_factor == 0:
+            return Decimal(str(quantity))
+        if self.is_packaging:
+            raise ValueError("Packaging units require item-specific conversion.")
+        return Decimal(str(quantity)) / self.conversion_factor
+
+    def convert_to(self, quantity, target_unit):
+        """
+        Convert quantity from this unit to target unit.
+        Both units must have the same base unit (same unit_type).
+
+        Example:
+            inches = UnitOfMeasure.objects.get(code='IN')
+            feet = UnitOfMeasure.objects.get(code='FT')
+            result = inches.convert_to(12, feet)  # Returns 1.0
+        """
+        from decimal import Decimal
+
+        if self.is_packaging or target_unit.is_packaging:
+            raise ValueError("Packaging units require item-specific conversion.")
+
+        # Same unit - no conversion needed
+        if self.pk == target_unit.pk:
+            return Decimal(str(quantity))
+
+        # Get base units
+        self_base = self.base_unit or self
+        target_base = target_unit.base_unit or target_unit
+
+        # Must have same base unit
+        if self_base.pk != target_base.pk:
+            raise ValueError(
+                f"Cannot convert between {self.code} and {target_unit.code}: "
+                f"different base units ({self_base.code} vs {target_base.code})"
+            )
+
+        # Convert: source -> base -> target
+        base_quantity = self.convert_to_base(quantity)
+        return target_unit.convert_from_base(base_quantity)
+
+    def get_compatible_units(self):
+        """Get all units that can be converted to/from this unit."""
+        base = self.base_unit or self
+        return UnitOfMeasure.objects.filter(
+            models.Q(pk=base.pk) | models.Q(base_unit=base)
+        ).exclude(is_packaging=True).order_by('code')
+
+    def format_value(self, quantity, precision=2):
+        """Format a quantity with this unit's symbol."""
+        from decimal import Decimal
+        val = Decimal(str(quantity))
+        symbol = self.symbol or self.code
+        return f"{val:.{precision}f} {symbol}"
+
+    @classmethod
+    def get_base_unit_for_type(cls, unit_type):
+        """Get the SI base unit for a given unit type."""
+        return cls.objects.filter(
+            unit_type=unit_type,
+            is_si_base=True
+        ).first()
+
 
 class InventoryCategory(models.Model):
     """
