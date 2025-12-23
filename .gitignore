@@ -27,3 +27,7 @@ venv/
 db_test.sqlite3
 .coverage
 htmlcov/
+
+# Generated/backup files
+backups/
+staticfiles/
