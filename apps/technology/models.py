@@ -106,7 +106,8 @@ class HDBSType(models.Model):
 class SMIType(models.Model):
     """
     SMI Type - Client-facing naming for bit types.
-    Linked to HDBS Type (many SMI names can map to one HDBS).
+    Linked to HDBS Type and optionally to a specific Size.
+    Different sizes of the same HDBS type can have different SMI names.
     """
     smi_name = models.CharField(
         max_length=50,
@@ -120,6 +121,15 @@ class SMIType(models.Model):
         verbose_name="HDBS Type",
         help_text="The internal HDBS type this SMI name maps to"
     )
+    size = models.ForeignKey(
+        'BitSize',
+        on_delete=models.CASCADE,
+        related_name="smi_types",
+        verbose_name="Size",
+        null=True,
+        blank=True,
+        help_text="Specific size for this SMI name (leave blank for all sizes)"
+    )
     description = models.TextField(
         blank=True,
         help_text="Optional description or remarks"
@@ -130,12 +140,15 @@ class SMIType(models.Model):
 
     class Meta:
         db_table = "smi_types"
-        ordering = ["hdbs_type__hdbs_name", "smi_name"]
+        ordering = ["hdbs_type__hdbs_name", "size__size_decimal", "smi_name"]
         verbose_name = "SMI Type"
         verbose_name_plural = "SMI Types"
-        unique_together = [["smi_name", "hdbs_type"]]
+        # Same SMI name can exist for same HDBS but different sizes
+        unique_together = [["smi_name", "hdbs_type", "size"]]
 
     def __str__(self):
+        if self.size:
+            return f"{self.smi_name} ({self.hdbs_type.hdbs_name} - {self.size.size_display})"
         return f"{self.smi_name} ({self.hdbs_type.hdbs_name})"
 
 

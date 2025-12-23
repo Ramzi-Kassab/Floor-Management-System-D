@@ -6,11 +6,14 @@
 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Bit Types (HDBS/SMI)</h1>
-        <p class="text-gray-600 dark:text-gray-400">Manage HDBS types (internal) and SMI types (client-facing)</p>
+        <p class="text-gray-600 dark:text-gray-400">Manage HDBS types (internal) and SMI types (client-facing) per size</p>
     </div>
-    <div class="mt-4 md:mt-0">
-        <a href="{% url 'technology:hdbs_type_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+    <div class="mt-4 md:mt-0 flex gap-2">
+        <a href="{% url 'technology:hdbs_type_create' %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New HDBS Type
+        </a>
+        <a href="{% url 'technology:smi_type_create_standalone' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New SMI Type
         </a>
     </div>
 </div>
@@ -23,7 +26,7 @@
         <div class="flex-1">
             <div class="relative">
                 <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search HDBS name, SMI name, description..."
+                <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search HDBS name, SMI name..."
                        class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
             </div>
         </div>
@@ -46,89 +49,131 @@
     </form>
 </div>
 
-<!-- Types List -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+<!-- Types List - Card Style -->
+<div class="space-y-4">
     {% if hdbs_types %}
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
-                    <th class="px-6 py-3 font-medium">HDBS Name (Internal)</th>
-                    <th class="px-6 py-3 font-medium">SMI Names (Client)</th>
-                    <th class="px-6 py-3 font-medium">Sizes</th>
-                    <th class="px-6 py-3 font-medium">Status</th>
-                    <th class="px-6 py-3 font-medium text-right">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                {% for hdbs in hdbs_types %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                    <td class="px-6 py-4">
-                        <a href="{% url 'technology:hdbs_type_detail' hdbs.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+    {% for hdbs in hdbs_types %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <!-- HDBS Header -->
+        <div class="px-6 py-4 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-100 dark:border-purple-800">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <span class="inline-flex items-center px-3 py-1 rounded-lg text-sm font-bold bg-purple-600 text-white">
+                        HDBS
+                    </span>
+                    <div>
+                        <a href="{% url 'technology:hdbs_type_detail' hdbs.pk %}" class="text-lg font-semibold text-gray-900 dark:text-white hover:text-purple-600">
                             {{ hdbs.hdbs_name }}
                         </a>
                         {% if hdbs.description %}
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ hdbs.description|truncatewords:8 }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ hdbs.description|truncatewords:12 }}</p>
                         {% endif %}
-                    </td>
-                    <td class="px-6 py-4">
-                        {% if hdbs.smi_types.all %}
-                        <div class="flex flex-wrap gap-1">
-                            {% for smi in hdbs.smi_types.all %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                {{ smi.smi_name }}
-                            </span>
-                            {% endfor %}
-                        </div>
-                        {% else %}
-                        <span class="text-gray-400 text-xs">No SMI types</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4">
-                        {% if hdbs.sizes.all %}
-                        <div class="flex flex-wrap gap-1">
-                            {% for size in hdbs.sizes.all %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                    </div>
+                    {% if not hdbs.is_active %}
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400">Inactive</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="{% url 'technology:smi_type_create' hdbs_pk=hdbs.pk %}"
+                       class="inline-flex items-center px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 border border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Add SMI Type">
+                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add SMI
+                    </a>
+                    <a href="{% url 'technology:hdbs_type_update' hdbs.pk %}" class="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded" title="Edit HDBS">
+                        <i data-lucide="edit" class="w-4 h-4"></i>
+                    </a>
+                    <a href="{% url 'technology:hdbs_type_delete' hdbs.pk %}" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded" title="Delete HDBS">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sizes and SMI Types Table -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/30">
+                        <th class="px-6 py-2 font-medium w-32">Size</th>
+                        <th class="px-6 py-2 font-medium">SMI Types (Client-Facing)</th>
+                        <th class="px-6 py-2 font-medium text-right w-24">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    {% for size in hdbs.sizes.all %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-6 py-3">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
                                 {{ size.size_display }}
                             </span>
-                            {% endfor %}
-                        </div>
-                        {% else %}
-                        <span class="text-gray-400 text-xs">Any size</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4">
-                        {% if hdbs.is_active %}
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
-                        {% else %}
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4 text-right">
-                        <div class="flex items-center justify-end space-x-2">
-                            <a href="{% url 'technology:hdbs_type_detail' hdbs.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
-                                <i data-lucide="eye" class="w-4 h-4"></i>
+                        </td>
+                        <td class="px-6 py-3">
+                            <div class="flex flex-wrap gap-1">
+                                {% for smi in hdbs.smi_types.all %}
+                                {% if smi.size_id == size.id or smi.size_id is None %}
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 group">
+                                    {{ smi.smi_name }}
+                                    {% if smi.size_id is None %}<span class="text-blue-500 text-xs">(all)</span>{% endif %}
+                                    <a href="{% url 'technology:smi_type_update' smi.pk %}" class="opacity-50 group-hover:opacity-100 hover:text-blue-600" title="Edit SMI">
+                                        <i data-lucide="edit-2" class="w-3 h-3"></i>
+                                    </a>
+                                    <a href="{% url 'technology:smi_type_delete' smi.pk %}" class="opacity-50 group-hover:opacity-100 hover:text-red-600" title="Delete SMI">
+                                        <i data-lucide="x" class="w-3 h-3"></i>
+                                    </a>
+                                </span>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-3 text-right">
+                            <a href="{% url 'technology:smi_type_create' hdbs_pk=hdbs.pk %}?size={{ size.pk }}"
+                               class="inline-flex items-center px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded" title="Add SMI for {{ size.size_display }}">
+                                <i data-lucide="plus" class="w-3 h-3 mr-1"></i>Add SMI
                             </a>
-                            <a href="{% url 'technology:hdbs_type_update' hdbs.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
-                                <i data-lucide="edit" class="w-4 h-4"></i>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <!-- No sizes assigned -->
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-6 py-3">
+                            <span class="text-gray-400 italic text-sm">Any size</span>
+                        </td>
+                        <td class="px-6 py-3">
+                            <div class="flex flex-wrap gap-1">
+                                {% for smi in hdbs.smi_types.all %}
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 group">
+                                    {{ smi.smi_name }}
+                                    <a href="{% url 'technology:smi_type_update' smi.pk %}" class="opacity-50 group-hover:opacity-100 hover:text-blue-600" title="Edit SMI">
+                                        <i data-lucide="edit-2" class="w-3 h-3"></i>
+                                    </a>
+                                    <a href="{% url 'technology:smi_type_delete' smi.pk %}" class="opacity-50 group-hover:opacity-100 hover:text-red-600" title="Delete SMI">
+                                        <i data-lucide="x" class="w-3 h-3"></i>
+                                    </a>
+                                </span>
+                                {% empty %}
+                                <span class="text-gray-400 italic text-sm">No SMI types defined yet</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-3 text-right">
+                            <a href="{% url 'technology:smi_type_create' hdbs_pk=hdbs.pk %}"
+                               class="inline-flex items-center px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded">
+                                <i data-lucide="plus" class="w-3 h-3 mr-1"></i>Add SMI
                             </a>
-                            <a href="{% url 'technology:hdbs_type_delete' hdbs.pk %}" class="p-1 text-gray-400 hover:text-red-600" title="Delete">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                            </a>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
+    {% endfor %}
 
     <!-- Pagination -->
     {% if page_obj.has_other_pages %}
-    <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm px-6 py-4">
         <div class="flex items-center justify-between">
             <p class="text-sm text-gray-600 dark:text-gray-400">
-                Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} types
+                Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} HDBS types
             </p>
             <div class="flex gap-2">
                 {% if page_obj.has_previous %}
@@ -144,11 +189,11 @@
     </div>
     {% endif %}
     {% else %}
-    <div class="text-center py-16">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm text-center py-16">
         <i data-lucide="layers" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No HDBS types found</h3>
         <p class="text-gray-500 dark:text-gray-400 mb-4">Create your first HDBS type to get started</p>
-        <a href="{% url 'technology:hdbs_type_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <a href="{% url 'technology:hdbs_type_create' %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create HDBS Type
         </a>
     </div>
@@ -156,7 +201,17 @@
 </div>
 
 <!-- Legend -->
-<div class="mt-4 text-sm text-gray-500 dark:text-gray-400">
-    <p><strong>HDBS:</strong> Internal Halliburton naming | <strong>SMI:</strong> Client-facing naming</p>
+<div class="mt-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Understanding HDBS & SMI</h4>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div class="flex items-start gap-2">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-purple-600 text-white">HDBS</span>
+            <span class="text-gray-600 dark:text-gray-400">Internal Halliburton designation (e.g., FM2555)</span>
+        </div>
+        <div class="flex items-start gap-2">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">SMI</span>
+            <span class="text-gray-600 dark:text-gray-400">Client-facing name - can vary per size (e.g., FX55)</span>
+        </div>
+    </div>
 </div>
 {% endblock %}

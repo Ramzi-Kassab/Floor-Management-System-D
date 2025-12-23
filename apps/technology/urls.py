@@ -54,6 +54,7 @@ urlpatterns = [
     path("types/<int:pk>/edit/", views.HDBSTypeUpdateView.as_view(), name="hdbs_type_update"),
     path("types/<int:pk>/delete/", views.HDBSTypeDeleteView.as_view(), name="hdbs_type_delete"),
     # SMI Types (Client-facing naming)
+    path("smi/create/", views.SMITypeCreateStandaloneView.as_view(), name="smi_type_create_standalone"),
     path("types/<int:hdbs_pk>/smi/create/", views.SMITypeCreateView.as_view(), name="smi_type_create"),
     path("smi/<int:pk>/edit/", views.SMITypeUpdateView.as_view(), name="smi_type_update"),
     path("smi/<int:pk>/delete/", views.SMITypeDeleteView.as_view(), name="smi_type_delete"),

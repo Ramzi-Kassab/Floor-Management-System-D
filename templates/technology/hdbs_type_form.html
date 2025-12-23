@@ -35,9 +35,16 @@
                     {% if form.hdbs_name.errors %}<p class="mt-1 text-sm text-red-600">{{ form.hdbs_name.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Applicable Sizes</label>
-                    <div class="mt-1">{{ form.sizes }}</div>
-                    <p class="mt-1 text-xs text-gray-500">Select sizes this type can be used with (leave empty for any size)</p>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Applicable Sizes</label>
+                    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                        {% for checkbox in form.sizes %}
+                        <label class="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer has-[:checked]:bg-purple-50 has-[:checked]:border-purple-300 dark:has-[:checked]:bg-purple-900/30 dark:has-[:checked]:border-purple-600">
+                            {{ checkbox.tag }}
+                            <span class="text-sm text-gray-700 dark:text-gray-300">{{ checkbox.choice_label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    <p class="mt-2 text-xs text-gray-500">Select sizes this type can be used with (leave empty for any size)</p>
                     {% if form.sizes.errors %}<p class="mt-1 text-sm text-red-600">{{ form.sizes.errors.0 }}</p>{% endif %}
                 </div>
                 <div>

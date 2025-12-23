@@ -1731,10 +1731,14 @@ class SMITypeCreateView(LoginRequiredMixin, CreateView):
         hdbs_pk = self.kwargs.get('hdbs_pk') or self.request.GET.get('hdbs')
         if hdbs_pk:
             initial['hdbs_type'] = hdbs_pk
+        # Pre-select size if provided in query string
+        size_pk = self.request.GET.get('size')
+        if size_pk:
+            initial['size'] = size_pk
         return initial
 
     def get_success_url(self):
-        return reverse_lazy("technology:hdbs_type_detail", kwargs={"pk": self.object.hdbs_type.pk})
+        return reverse_lazy("technology:hdbs_type_list")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1743,6 +1747,27 @@ class SMITypeCreateView(LoginRequiredMixin, CreateView):
         hdbs_pk = self.kwargs.get('hdbs_pk') or self.request.GET.get('hdbs')
         if hdbs_pk:
             context["hdbs_type"] = get_object_or_404(HDBSType, pk=hdbs_pk)
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"SMI Type {form.instance.smi_name} added successfully.")
+        return super().form_valid(form)
+
+
+class SMITypeCreateStandaloneView(LoginRequiredMixin, CreateView):
+    """Create a new SMI type without pre-selected HDBS."""
+
+    model = SMIType
+    form_class = SMITypeForm
+    template_name = "technology/smi_type_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("technology:hdbs_type_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Add SMI Type"
+        context["submit_text"] = "Add SMI Type"
         return context
 
     def form_valid(self, form):

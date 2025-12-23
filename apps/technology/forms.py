@@ -393,6 +393,8 @@ class HDBSTypeForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["sizes"].required = False
         self.fields["description"].required = False
+        # Only show active sizes
+        self.fields["sizes"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")
 
 
 class SMITypeForm(forms.ModelForm):
@@ -403,18 +405,21 @@ class SMITypeForm(forms.ModelForm):
         fields = [
             "smi_name",
             "hdbs_type",
+            "size",
             "description",
             "is_active",
         ]
         widgets = {
             "smi_name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHs-1"}),
             "hdbs_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "size": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2, "placeholder": "Optional description"}),
             "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
         }
         labels = {
             "smi_name": "SMI Name (Client-Facing)",
             "hdbs_type": "HDBS Type",
+            "size": "Size",
             "description": "Description",
             "is_active": "Active",
         }
@@ -422,3 +427,6 @@ class SMITypeForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["description"].required = False
+        self.fields["size"].required = False
+        # Only show active sizes
+        self.fields["size"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")

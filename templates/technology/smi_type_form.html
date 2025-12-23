@@ -34,17 +34,25 @@
                 </h3>
             </div>
             <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">HDBS Type <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.hdbs_type }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Internal HDBS type</p>
+                        {% if form.hdbs_type.errors %}<p class="mt-1 text-sm text-red-600">{{ form.hdbs_type.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Size</label>
+                        <div class="mt-1">{{ form.size }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Specific size (or leave blank for all)</p>
+                        {% if form.size.errors %}<p class="mt-1 text-sm text-red-600">{{ form.size.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMI Name <span class="text-red-500">*</span></label>
                     <div class="mt-1">{{ form.smi_name }}</div>
                     <p class="mt-1 text-xs text-gray-500">Client-facing name (e.g., FX55)</p>
                     {% if form.smi_name.errors %}<p class="mt-1 text-sm text-red-600">{{ form.smi_name.errors.0 }}</p>{% endif %}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">HDBS Type <span class="text-red-500">*</span></label>
-                    <div class="mt-1">{{ form.hdbs_type }}</div>
-                    <p class="mt-1 text-xs text-gray-500">The internal HDBS type this SMI name maps to</p>
-                    {% if form.hdbs_type.errors %}<p class="mt-1 text-sm text-red-600">{{ form.hdbs_type.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
