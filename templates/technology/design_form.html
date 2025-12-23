@@ -823,6 +823,13 @@
         <!-- Select Existing Tab Content -->
         <div id="type-content-select">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <!-- Size filter indicator -->
+                <div id="type-size-filter-info" class="hidden mb-3 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <div class="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-200">
+                        <i data-lucide="filter" class="w-4 h-4"></i>
+                        <span>Showing types for size: <strong id="type-size-filter-value"></strong></span>
+                    </div>
+                </div>
                 <div class="flex gap-4">
                     <div class="flex-1">
                         <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search</label>
@@ -1621,9 +1628,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const params = new URLSearchParams();
         const search = document.getElementById('type-search').value;
         const showInactive = document.getElementById('type-show-inactive').checked;
+        const sizeSelect = document.getElementById('id_size');
+        const selectedSize = sizeSelect ? sizeSelect.value : '';
+
+        // Show/hide size filter indicator
+        const sizeFilterInfo = document.getElementById('type-size-filter-info');
+        const sizeFilterValue = document.getElementById('type-size-filter-value');
+        if (selectedSize && sizeSelect) {
+            const selectedOption = sizeSelect.options[sizeSelect.selectedIndex];
+            if (sizeFilterInfo && sizeFilterValue) {
+                sizeFilterValue.textContent = selectedOption.text;
+                sizeFilterInfo.classList.remove('hidden');
+            }
+        } else if (sizeFilterInfo) {
+            sizeFilterInfo.classList.add('hidden');
+        }
 
         if (search) params.append('q', search);
         if (showInactive) params.append('show_inactive', '1');
+        if (selectedSize) params.append('size', selectedSize);
 
         fetch(`{% url "technology:api_hdbs_types" %}?${params.toString()}`)
             .then(r => r.json())

@@ -1653,7 +1653,34 @@ class HDBSTypeDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # Get SMI types for this HDBS
-        context["smi_types"] = self.object.smi_types.all().order_by('smi_name')
+        smi_types = self.object.smi_types.select_related('size').order_by('size__size_decimal', 'smi_name')
+        context["smi_types"] = smi_types
+
+        # Build flat table rows: each row = (size, smi)
+        # If HDBS has sizes, show one row per size with matching SMI types
+        # SMI types with size=None apply to all sizes
+        type_size_smi_rows = []
+        sizes = self.object.sizes.filter(is_active=True).order_by('size_decimal')
+
+        if sizes.exists():
+            for size in sizes:
+                # Find SMI types for this specific size OR no size (applies to all)
+                size_smi_types = [s for s in smi_types if s.size_id == size.id or s.size_id is None]
+                if size_smi_types:
+                    for smi in size_smi_types:
+                        type_size_smi_rows.append({'size': size, 'smi': smi})
+                else:
+                    # No SMI for this size - show row with empty SMI
+                    type_size_smi_rows.append({'size': size, 'smi': None})
+        else:
+            # HDBS has no sizes assigned - show all SMI types without size
+            for smi in smi_types:
+                type_size_smi_rows.append({'size': None, 'smi': smi})
+            if not smi_types:
+                type_size_smi_rows.append({'size': None, 'smi': None})
+
+        context["type_size_smi_rows"] = type_size_smi_rows
+
         # Get designs using this HDBS type name
         context["related_designs"] = Design.objects.filter(
             Q(hdbs_type__icontains=self.object.hdbs_name)
@@ -1725,6 +1752,25 @@ class SMITypeCreateView(LoginRequiredMixin, CreateView):
     form_class = SMITypeForm
     template_name = "technology/smi_type_form.html"
 
+    def get_hdbs_type(self):
+        """Get the HDBS type from URL or query param."""
+        hdbs_pk = self.kwargs.get('hdbs_pk') or self.request.GET.get('hdbs')
+        if hdbs_pk:
+            return get_object_or_404(HDBSType, pk=hdbs_pk)
+        return None
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        hdbs_type = self.get_hdbs_type()
+        if hdbs_type:
+            # Only show sizes that belong to this HDBS type
+            if hdbs_type.sizes.exists():
+                form.fields['size'].queryset = hdbs_type.sizes.filter(is_active=True).order_by('size_decimal')
+            else:
+                # If HDBS has no sizes, show all active sizes
+                form.fields['size'].queryset = BitSize.objects.filter(is_active=True).order_by('size_decimal')
+        return form
+
     def get_initial(self):
         initial = super().get_initial()
         # Pre-select HDBS type if provided in URL
@@ -1744,9 +1790,9 @@ class SMITypeCreateView(LoginRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Add SMI Type"
         context["submit_text"] = "Add SMI Type"
-        hdbs_pk = self.kwargs.get('hdbs_pk') or self.request.GET.get('hdbs')
-        if hdbs_pk:
-            context["hdbs_type"] = get_object_or_404(HDBSType, pk=hdbs_pk)
+        hdbs_type = self.get_hdbs_type()
+        if hdbs_type:
+            context["hdbs_type"] = hdbs_type
         return context
 
     def form_valid(self, form):
@@ -1830,29 +1876,48 @@ class APIHDBSTypesView(LoginRequiredMixin, View):
         q = request.GET.get('q', '').strip()
         if q:
             hdbs_types = hdbs_types.filter(
-                models.Q(hdbs_name__icontains=q) |
-                models.Q(description__icontains=q) |
-                models.Q(smi_types__smi_name__icontains=q)
+                Q(hdbs_name__icontains=q) |
+                Q(description__icontains=q) |
+                Q(smi_types__smi_name__icontains=q)
             ).distinct()
 
-        hdbs_types = hdbs_types.order_by('hdbs_name')
+        # Filter by size - show only HDBS types that have this size selected
+        # OR have no sizes (meaning they apply to all sizes)
+        size_id = request.GET.get('size', '').strip()
+        if size_id:
+            hdbs_types = hdbs_types.filter(
+                Q(sizes__id=size_id) | Q(sizes__isnull=True)
+            ).distinct()
 
-        data = {
-            'hdbs_types': [
-                {
-                    'id': t.id,
-                    'hdbs_name': t.hdbs_name,
-                    'description': t.description or '',
-                    'is_active': t.is_active,
-                    'sizes': [{'id': s.id, 'display': s.size_display} for s in t.sizes.filter(is_active=True)],
-                    'smi_types': [
-                        {'id': s.id, 'smi_name': s.smi_name, 'is_active': s.is_active}
-                        for s in (t.smi_types.all() if show_inactive else t.smi_types.filter(is_active=True))
-                    ]
-                }
-                for t in hdbs_types
+        hdbs_types = hdbs_types.prefetch_related('sizes', 'smi_types').order_by('hdbs_name')
+
+        # Build response with SMI types filtered by size if provided
+        data = {'hdbs_types': []}
+        for t in hdbs_types:
+            # Get SMI types, optionally filtered by size
+            if show_inactive:
+                smi_qs = t.smi_types.all()
+            else:
+                smi_qs = t.smi_types.filter(is_active=True)
+
+            # If size is specified, filter SMI types to those matching the size or with no size
+            if size_id:
+                smi_qs = smi_qs.filter(Q(size_id=size_id) | Q(size__isnull=True))
+
+            smi_list = [
+                {'id': s.id, 'smi_name': s.smi_name, 'is_active': s.is_active, 'size_id': s.size_id}
+                for s in smi_qs.order_by('smi_name')
             ]
-        }
+
+            data['hdbs_types'].append({
+                'id': t.id,
+                'hdbs_name': t.hdbs_name,
+                'description': t.description or '',
+                'is_active': t.is_active,
+                'sizes': [{'id': s.id, 'display': s.size_display} for s in t.sizes.filter(is_active=True)],
+                'smi_types': smi_list
+            })
+
         return JsonResponse(data)
 
 

@@ -9,8 +9,16 @@
             <i data-lucide="arrow-left" class="w-5 h-5"></i>
         </a>
         <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ hdbs_type.hdbs_name }}</h1>
-            <p class="text-gray-600 dark:text-gray-400">HDBS Type (Internal Naming)</p>
+            <div class="flex items-center gap-3">
+                <span class="inline-flex items-center px-3 py-1 rounded-lg text-sm font-bold bg-purple-600 text-white">HDBS</span>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ hdbs_type.hdbs_name }}</h1>
+                {% if not hdbs_type.is_active %}
+                <span class="px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600">Inactive</span>
+                {% endif %}
+            </div>
+            {% if hdbs_type.description %}
+            <p class="text-gray-600 dark:text-gray-400 mt-1">{{ hdbs_type.description }}</p>
+            {% endif %}
         </div>
     </div>
     <div class="mt-4 md:mt-0 flex gap-2">
@@ -28,215 +36,167 @@
 {% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Main Details -->
-    <div class="lg:col-span-2 space-y-6">
-        <!-- HDBS Information -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="tag" class="w-5 h-5"></i>
-                    HDBS Type Information
-                </h3>
-            </div>
-            <div class="px-6 py-4">
-                <dl class="grid grid-cols-2 gap-4">
-                    <div class="col-span-2 bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
-                        <dt class="text-sm text-purple-600 dark:text-purple-400 font-medium">HDBS Name (Internal)</dt>
-                        <dd class="text-2xl font-bold text-purple-900 dark:text-purple-200 mt-1">{{ hdbs_type.hdbs_name }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm text-gray-500 dark:text-gray-400">Status</dt>
-                        <dd class="mt-1">
-                            {% if hdbs_type.is_active %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
-                            {% else %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
-                            {% endif %}
-                        </dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm text-gray-500 dark:text-gray-400">Applicable Sizes</dt>
-                        <dd class="mt-1">
-                            {% if hdbs_type.sizes.all %}
-                            <div class="flex flex-wrap gap-1">
-                                {% for size in hdbs_type.sizes.all %}
-                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                                    {{ size.size_display }}
-                                </span>
-                                {% endfor %}
-                            </div>
-                            {% else %}
-                            <span class="text-gray-400">Any size</span>
-                            {% endif %}
-                        </dd>
-                    </div>
-                    {% if hdbs_type.description %}
-                    <div class="col-span-2">
-                        <dt class="text-sm text-gray-500 dark:text-gray-400">Description</dt>
-                        <dd class="mt-1 text-gray-900 dark:text-white">{{ hdbs_type.description }}</dd>
-                    </div>
-                    {% endif %}
-                </dl>
-            </div>
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div class="text-sm text-gray-500 dark:text-gray-400">Sizes</div>
+        <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ hdbs_type.sizes.count }}</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div class="text-sm text-gray-500 dark:text-gray-400">SMI Types</div>
+        <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ smi_types.count }}</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div class="text-sm text-gray-500 dark:text-gray-400">Related Designs</div>
+        <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ related_designs.count }}</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div class="text-sm text-gray-500 dark:text-gray-400">Status</div>
+        <div class="mt-1">
+            {% if hdbs_type.is_active %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+            {% else %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
+            {% endif %}
         </div>
+    </div>
+</div>
 
-        <!-- SMI Types -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="git-branch" class="w-5 h-5"></i>
-                    SMI Types (Client-Facing)
-                    <span class="ml-2 px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 rounded-full text-blue-800 dark:text-blue-200">{{ smi_types.count }}</span>
-                </h3>
-                <a href="{% url 'technology:smi_type_create' hdbs_pk=hdbs_type.pk %}" class="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">
-                    <i data-lucide="plus" class="w-4 h-4"></i>Add
-                </a>
-            </div>
-            <div class="px-6 py-4">
-                {% if smi_types %}
-                <div class="space-y-3">
-                    {% for smi in smi_types %}
-                    <div class="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <div>
-                            <span class="font-medium text-blue-900 dark:text-blue-200">{{ smi.smi_name }}</span>
-                            {% if smi.description %}
-                            <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">{{ smi.description }}</p>
+<!-- Size/SMI Table -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+            <i data-lucide="table" class="w-5 h-5"></i>
+            Sizes &amp; SMI Types
+        </h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">HDBS Type</th>
+                    <th class="px-6 py-3 font-medium">Size</th>
+                    <th class="px-6 py-3 font-medium">SMI Type (Client)</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for row in type_size_smi_rows %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-3">
+                        <span class="font-medium text-purple-600 dark:text-purple-400">{{ hdbs_type.hdbs_name }}</span>
+                    </td>
+                    <td class="px-6 py-3">
+                        {% if row.size %}
+                        <span class="inline-flex items-center px-2.5 py-1 rounded text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                            {{ row.size.size_display }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400 italic">All sizes</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-3">
+                        {% if row.smi %}
+                        <span class="inline-flex items-center px-2.5 py-1 rounded text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            {{ row.smi.smi_name }}
+                        </span>
+                        {% if row.smi.description %}
+                        <p class="text-xs text-gray-500 mt-1">{{ row.smi.description|truncatewords:8 }}</p>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-gray-400 italic">No SMI defined</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-3">
+                        {% if row.smi %}
+                            {% if row.smi.is_active %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
                             {% endif %}
-                            {% if not smi.is_active %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 mt-1">Inactive</span>
-                            {% endif %}
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <a href="{% url 'technology:smi_type_update' smi.pk %}" class="p-1 text-blue-600 hover:text-blue-800" title="Edit">
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-3 text-right">
+                        {% if row.smi %}
+                        <div class="flex items-center justify-end gap-2">
+                            <a href="{% url 'technology:smi_type_update' row.smi.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit SMI">
                                 <i data-lucide="edit" class="w-4 h-4"></i>
                             </a>
-                            <a href="{% url 'technology:smi_type_delete' smi.pk %}" class="p-1 text-red-600 hover:text-red-800" title="Delete">
+                            <a href="{% url 'technology:smi_type_delete' row.smi.pk %}" class="p-1 text-gray-400 hover:text-red-600" title="Delete SMI">
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </a>
                         </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="text-center py-8">
-                    <i data-lucide="git-branch" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3"></i>
-                    <p class="text-gray-500 dark:text-gray-400 mb-3">No SMI types linked yet</p>
-                    <a href="{% url 'technology:smi_type_create' hdbs_pk=hdbs_type.pk %}" class="inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
-                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add SMI Type
-                    </a>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Related Designs -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="cpu" class="w-5 h-5"></i>
-                    Related Designs
-                    <span class="ml-2 px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded-full">{{ related_designs.count }}</span>
-                </h3>
-            </div>
-            <div class="px-6 py-4">
-                {% if related_designs %}
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="text-left text-gray-500 dark:text-gray-400">
-                                <th class="pb-2 font-medium">MAT No.</th>
-                                <th class="pb-2 font-medium">SMI Type</th>
-                                <th class="pb-2 font-medium">Size</th>
-                                <th class="pb-2 font-medium">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                            {% for design in related_designs %}
-                            <tr>
-                                <td class="py-2">
-                                    <a href="{% url 'technology:design_detail' design.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">{{ design.mat_no }}</a>
-                                </td>
-                                <td class="py-2 text-gray-600 dark:text-gray-400">{{ design.smi_type|default:"-" }}</td>
-                                <td class="py-2 text-gray-600 dark:text-gray-400">{{ design.size.size_display|default:"-" }}</td>
-                                <td class="py-2">
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                                        {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
-                                        {% elif design.status == 'DRAFT' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
-                                        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
-                                        {{ design.get_status_display }}
-                                    </span>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-gray-500 dark:text-gray-400 text-center py-4">No designs are using this type yet.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- Sidebar -->
-    <div class="space-y-6">
-        <!-- Quick Info -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Quick Info</h3>
-            </div>
-            <div class="px-6 py-4">
-                <dl class="space-y-3 text-sm">
-                    <div>
-                        <dt class="text-gray-500 dark:text-gray-400">SMI Types</dt>
-                        <dd class="text-2xl font-bold text-gray-900 dark:text-white">{{ smi_types.count }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-gray-500 dark:text-gray-400">Related Designs</dt>
-                        <dd class="text-2xl font-bold text-gray-900 dark:text-white">{{ related_designs.count }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-gray-500 dark:text-gray-400">Created</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ hdbs_type.created_at|date:"M d, Y" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-gray-500 dark:text-gray-400">Last Updated</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ hdbs_type.updated_at|date:"M d, Y" }}</dd>
-                    </div>
-                </dl>
-            </div>
-        </div>
-
-        <!-- HDBS to SMI Mapping -->
-        <div class="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg shadow p-6">
-            <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
-                <i data-lucide="git-compare" class="w-4 h-4"></i>
-                HDBS → SMI Mapping
-            </h4>
-            <div class="space-y-3">
-                <div class="flex items-center gap-2">
-                    <span class="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded">HDBS</span>
-                    <span class="font-mono text-gray-900 dark:text-white font-medium">{{ hdbs_type.hdbs_name }}</span>
-                </div>
-                <div class="flex justify-center">
-                    <i data-lucide="arrow-down" class="w-4 h-4 text-gray-400"></i>
-                </div>
-                {% if smi_types %}
-                {% for smi in smi_types %}
-                <div class="flex items-center gap-2">
-                    <span class="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 rounded">SMI</span>
-                    <span class="font-mono text-gray-900 dark:text-white">{{ smi.smi_name }}</span>
-                </div>
+                        {% else %}
+                        <a href="{% url 'technology:smi_type_create' hdbs_pk=hdbs_type.pk %}{% if row.size %}?size={{ row.size.pk }}{% endif %}"
+                           class="inline-flex items-center px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded">
+                            <i data-lucide="plus" class="w-3 h-3 mr-1"></i>Add SMI
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                        <p class="mb-3">No sizes or SMI types defined yet.</p>
+                        <a href="{% url 'technology:smi_type_create' hdbs_pk=hdbs_type.pk %}" class="inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                            <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add SMI Type
+                        </a>
+                    </td>
+                </tr>
                 {% endfor %}
-                {% else %}
-                <div class="flex items-center gap-2">
-                    <span class="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">SMI</span>
-                    <span class="text-gray-400 italic">Not set</span>
-                </div>
-                {% endif %}
-            </div>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Related Designs -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+            <i data-lucide="cpu" class="w-5 h-5"></i>
+            Related Designs
+            <span class="ml-2 px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded-full">{{ related_designs.count }}</span>
+        </h3>
+    </div>
+    <div class="overflow-x-auto">
+        {% if related_designs %}
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">MAT No.</th>
+                    <th class="px-6 py-3 font-medium">SMI Type</th>
+                    <th class="px-6 py-3 font-medium">Size</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for design in related_designs %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-3">
+                        <a href="{% url 'technology:design_detail' design.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">{{ design.mat_no }}</a>
+                    </td>
+                    <td class="px-6 py-3 text-gray-600 dark:text-gray-400">{{ design.smi_type|default:"-" }}</td>
+                    <td class="px-6 py-3 text-gray-600 dark:text-gray-400">{{ design.size.size_display|default:"-" }}</td>
+                    <td class="px-6 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                            {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                            {% elif design.status == 'DRAFT' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                            {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                            {{ design.get_status_display }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="px-6 py-8 text-center text-gray-500">
+            No designs are using this HDBS type yet.
         </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
