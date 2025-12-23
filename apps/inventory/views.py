@@ -799,6 +799,7 @@ class AttributeListView(LoginRequiredMixin, ListView):
     model = Attribute
     template_name = "inventory/attribute_list.html"
     context_object_name = "attributes"
+    paginate_by = 50
 
     def get_queryset(self):
         queryset = Attribute.objects.all()
@@ -1218,6 +1219,7 @@ class UnitOfMeasureListView(LoginRequiredMixin, ListView):
     model = UnitOfMeasure
     template_name = "inventory/uom_list.html"
     context_object_name = "units"
+    paginate_by = 50
 
     def get_queryset(self):
         queryset = UnitOfMeasure.objects.select_related("base_unit")
