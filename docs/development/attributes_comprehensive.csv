@@ -1,0 +1,364 @@
+Classification Code,Classification Name,Attribute Code,Attribute Name,Description,Data Type,Notes
+PHYS,Physical Dimensions,diameter,Diameter,Diameter measurement,decimal,Core dimension for cylindrical items
+PHYS,Physical Dimensions,outer_diameter,Outer Diameter,Outer diameter measurement,decimal,For hollow items
+PHYS,Physical Dimensions,inner_diameter,Inner Diameter,Inner diameter measurement,decimal,For hollow items
+PHYS,Physical Dimensions,body_od,Body OD,Body outer diameter,decimal,Drill tool body specification
+PHYS,Physical Dimensions,length,Length,Length measurement,decimal,Overall length
+PHYS,Physical Dimensions,overall_length,Overall Length,Total overall length including attachments,decimal,Complete assembly length
+PHYS,Physical Dimensions,working_length,Working Length,Effective working length,decimal,Usable length
+PHYS,Physical Dimensions,width,Width,Width measurement,decimal,
+PHYS,Physical Dimensions,height,Height,Height measurement,decimal,
+PHYS,Physical Dimensions,depth,Depth,Depth measurement,decimal,
+PHYS,Physical Dimensions,thickness,Thickness,Thickness measurement,decimal,Wall thickness or material thickness
+PHYS,Physical Dimensions,wall_thickness,Wall Thickness,Wall thickness for tubes/pipes,decimal,
+PHYS,Physical Dimensions,weight,Weight,Weight measurement,decimal,Item weight
+PHYS,Physical Dimensions,net_weight,Net Weight,Net weight without packaging,decimal,
+PHYS,Physical Dimensions,gross_weight,Gross Weight,Total weight with packaging,decimal,
+PHYS,Physical Dimensions,volume,Volume,Volume measurement,decimal,
+PHYS,Physical Dimensions,capacity,Capacity,Capacity or holding volume,decimal,For containers
+PHYS,Physical Dimensions,gauge,Gauge,Gauge measurement,text,For wire/sheet materials
+PHYS,Physical Dimensions,size,Size,Physical size designation,text,Can be numeric or text based on item
+PHYS,Physical Dimensions,bore,Bore,Bore diameter,decimal,Internal hole diameter
+PHYS,Physical Dimensions,stroke,Stroke,Stroke length,decimal,For pistons/cylinders
+PHYS,Physical Dimensions,pitch,Pitch,Pitch measurement,decimal,For gears/threads
+PHYS,Physical Dimensions,radius,Radius,Radius measurement,decimal,
+PHYS,Physical Dimensions,circumference,Circumference,Circumference measurement,decimal,
+
+TECH,Technical Specifications,tfa,TFA,Total Flow Area,decimal,Critical for bits
+TECH,Technical Specifications,pressure_rating,Pressure Rating,Maximum pressure rating,decimal,Operating pressure
+TECH,Technical Specifications,working_pressure,Working Pressure,Normal working pressure,decimal,
+TECH,Technical Specifications,test_pressure,Test Pressure,Hydrostatic test pressure,decimal,
+TECH,Technical Specifications,burst_pressure,Burst Pressure,Maximum burst pressure,decimal,
+TECH,Technical Specifications,flow_rate,Flow Rate,Flow rate measurement,decimal,
+TECH,Technical Specifications,max_flow_rate,Maximum Flow Rate,Maximum flow capacity,decimal,
+TECH,Technical Specifications,torque_rating,Torque Rating,Maximum torque rating,decimal,
+TECH,Technical Specifications,torque,Torque,Torque specification,decimal,
+TECH,Technical Specifications,max_torque,Maximum Torque,Maximum torque limit,decimal,
+TECH,Technical Specifications,breakout_torque,Breakout Torque,Torque required for breakout,decimal,
+TECH,Technical Specifications,makeup_torque,Makeup Torque,Recommended makeup torque,decimal,
+TECH,Technical Specifications,speed_rating,Speed Rating,Maximum speed rating,decimal,
+TECH,Technical Specifications,rpm,RPM,Revolutions per minute,number,Rotation speed
+TECH,Technical Specifications,max_rpm,Maximum RPM,Maximum rotational speed,number,
+TECH,Technical Specifications,min_rpm,Minimum RPM,Minimum rotational speed,number,
+TECH,Technical Specifications,power_rating,Power Rating,Power rating specification,decimal,
+TECH,Technical Specifications,power,Power,Power specification,decimal,
+TECH,Technical Specifications,horsepower,Horsepower,Horsepower rating,decimal,
+TECH,Technical Specifications,voltage_rating,Voltage Rating,Voltage rating,number,
+TECH,Technical Specifications,voltage,Voltage,Voltage specification,number,
+TECH,Technical Specifications,current_rating,Current Rating,Current rating,decimal,
+TECH,Technical Specifications,current,Current,Current specification,decimal,
+TECH,Technical Specifications,amperage,Amperage,Amperage rating,decimal,
+TECH,Technical Specifications,frequency,Frequency,Frequency rating,number,
+TECH,Technical Specifications,temperature_rating,Temperature Rating,Maximum temperature rating,decimal,
+TECH,Technical Specifications,operating_temperature,Operating Temperature,Normal operating temperature,decimal,
+TECH,Technical Specifications,max_temperature,Maximum Temperature,Maximum temperature limit,decimal,
+TECH,Technical Specifications,min_temperature,Minimum Temperature,Minimum temperature limit,decimal,
+TECH,Technical Specifications,temperature_range,Temperature Range,Operating temperature range,text,Min to Max range
+TECH,Technical Specifications,efficiency,Efficiency,Efficiency rating,decimal,Performance efficiency
+TECH,Technical Specifications,accuracy,Accuracy,Accuracy rating,decimal,Measurement accuracy
+TECH,Technical Specifications,precision,Precision,Precision specification,text,
+TECH,Technical Specifications,resolution,Resolution,Resolution specification,text,For measuring devices
+TECH,Technical Specifications,tolerance,Tolerance,Tolerance specification,text,Manufacturing tolerance
+TECH,Technical Specifications,load_capacity,Load Capacity,Maximum load capacity,decimal,
+TECH,Technical Specifications,lifting_capacity,Lifting Capacity,Maximum lifting capacity,decimal,
+TECH,Technical Specifications,pulling_force,Pulling Force,Maximum pulling force,decimal,
+TECH,Technical Specifications,compression_strength,Compression Strength,Compression strength rating,decimal,
+
+CONN,Connection & Thread,connection_type,Connection Type,Connection type specification,select,Thread standard type
+CONN,Connection & Thread,connection_size,Connection Size,Connection size specification,text,Connection dimension
+CONN,Connection & Thread,thread_type,Thread Type,Thread type specification,select,API/NPT/BSP/Metric
+CONN,Connection & Thread,thread_size,Thread Size,Thread size specification,text,Thread dimension
+CONN,Connection & Thread,thread_pitch,Thread Pitch,Thread pitch specification,text,Threads per unit
+CONN,Connection & Thread,thread_form,Thread Form,Thread form specification,text,V-thread/square/etc
+CONN,Connection & Thread,tpi,TPI,Threads per inch,number,Thread density
+CONN,Connection & Thread,pin_type,Pin Type,Pin connection type,text,Male connection
+CONN,Connection & Thread,box_type,Box Type,Box connection type,text,Female connection
+CONN,Connection & Thread,coupling_type,Coupling Type,Type of coupling,text,
+CONN,Connection & Thread,flange_type,Flange Type,Flange specification,text,
+CONN,Connection & Thread,flange_rating,Flange Rating,Flange pressure rating,text,
+CONN,Connection & Thread,seal_type,Seal Type,Type of seal,text,
+CONN,Connection & Thread,gasket_type,Gasket Type,Required gasket type,text,
+
+MATL,Material & Composition,material,Material,Base material type or composition,text,Primary material
+MATL,Material & Composition,material_grade,Material Grade,Material quality grade or specification,text,
+MATL,Material & Composition,grade,Grade,Quality grade classification,text,
+MATL,Material & Composition,alloy,Alloy,Alloy specification,text,
+MATL,Material & Composition,alloy_composition,Alloy Composition,Detailed alloy composition,text,
+MATL,Material & Composition,carbon_content,Carbon Content,Carbon content percentage,decimal,
+MATL,Material & Composition,hardness,Hardness,Hardness rating,text,Can be HRC/HB/HV
+MATL,Material & Composition,hardness_value,Hardness Value,Numeric hardness value,decimal,
+MATL,Material & Composition,hardness_scale,Hardness Scale,Hardness measurement scale,text,Rockwell/Brinell/Vickers
+MATL,Material & Composition,tensile_strength,Tensile Strength,Tensile strength rating,decimal,
+MATL,Material & Composition,yield_strength,Yield Strength,Yield strength rating,decimal,
+MATL,Material & Composition,elongation,Elongation,Elongation percentage,decimal,
+MATL,Material & Composition,density,Density,Material density,decimal,
+MATL,Material & Composition,specific_gravity,Specific Gravity,Specific gravity rating,decimal,
+MATL,Material & Composition,coating,Coating,Coating type or specification,text,Surface coating
+MATL,Material & Composition,coating_thickness,Coating Thickness,Thickness of coating,decimal,
+MATL,Material & Composition,plating,Plating,Plating type,text,
+MATL,Material & Composition,finish,Finish,Surface finish specification,text,
+MATL,Material & Composition,surface_finish,Surface Finish,Surface finish rating,text,Ra value
+MATL,Material & Composition,surface_treatment,Surface Treatment,Surface treatment method,text,
+MATL,Material & Composition,heat_treatment,Heat Treatment,Heat treatment specification,text,
+MATL,Material & Composition,color,Color,Color designation,text,
+MATL,Material & Composition,corrosion_resistance,Corrosion Resistance,Corrosion resistance rating,text,
+MATL,Material & Composition,chemical_resistance,Chemical Resistance,Chemical resistance specification,text,
+
+IADC,IADC & Drilling Specifications,iadc_code,IADC Code,IADC classification code,text,Industry standard code
+IADC,IADC & Drilling Specifications,iadc_series,IADC Series,IADC series classification,text,
+IADC,IADC & Drilling Specifications,formation_type,Formation Type,Target formation type,select,Soft/Medium/Hard/Very Hard
+IADC,IADC & Drilling Specifications,formation_hardness,Formation Hardness,Formation hardness classification,text,
+IADC,IADC & Drilling Specifications,bit_type,Bit Type,Type of drill bit,select,
+IADC,IADC & Drilling Specifications,bit_class,Bit Class,Bit classification,select,Roller Cone/PDC/Diamond
+IADC,IADC & Drilling Specifications,bit_size,Bit Size,Drill bit size,decimal,
+IADC,IADC & Drilling Specifications,blade_count,Blade Count,Number of blades,number,
+IADC,IADC & Drilling Specifications,blade_type,Blade Type,Type of blade,text,
+IADC,IADC & Drilling Specifications,cutter_count,Cutter Count,Number of cutters,number,
+IADC,IADC & Drilling Specifications,cutter_type,Cutter Type,Type of cutter,text,
+IADC,IADC & Drilling Specifications,cutter_size,Cutter Size,Cutter size specification,decimal,
+IADC,IADC & Drilling Specifications,cutter_shape,Cutter Shape,Cutter shape/geometry,select,Round/Oval/Conical
+IADC,IADC & Drilling Specifications,cutter_grade,Cutter Grade,PDC cutter grade,text,
+IADC,IADC & Drilling Specifications,rotatability,Rotatability,Cutter rotation capability,enum,0=Not/1=Single/2=Double
+IADC,IADC & Drilling Specifications,insert_count,Insert Count,Number of inserts,number,
+IADC,IADC & Drilling Specifications,insert_type,Insert Type,Type of insert,select,Milled Tooth/TCI/PDC
+IADC,IADC & Drilling Specifications,insert_shape,Insert Shape,Insert shape specification,text,
+IADC,IADC & Drilling Specifications,jet_count,Jet Count,Number of jets,number,
+IADC,IADC & Drilling Specifications,jet_size,Jet Size,Jet size specification,text,
+IADC,IADC & Drilling Specifications,nozzle_count,Nozzle Count,Number of nozzles,number,
+IADC,IADC & Drilling Specifications,nozzle_size,Nozzle Size,Nozzle size specification,text,
+IADC,IADC & Drilling Specifications,nozzle_type,Nozzle Type,Type of nozzle,text,
+IADC,IADC & Drilling Specifications,back_rake,Back Rake,Back rake angle,decimal,
+IADC,IADC & Drilling Specifications,side_rake,Side Rake,Side rake angle,decimal,
+IADC,IADC & Drilling Specifications,cone_offset,Cone Offset,Cone offset specification,decimal,
+IADC,IADC & Drilling Specifications,gauge_length,Gauge Length,Length of gauge section,decimal,
+IADC,IADC & Drilling Specifications,bearing_type,Bearing Type,Type of bearing,text,
+IADC,IADC & Drilling Specifications,seal_type_bit,Bit Seal Type,Seal type for drill bit,text,
+IADC,IADC & Drilling Specifications,hydraulics_type,Hydraulics Type,Hydraulic system type,text,
+
+OPER,Operational Parameters,max_wob,Maximum WOB,Maximum weight on bit,decimal,
+OPER,Operational Parameters,recommended_wob,Recommended WOB,Recommended weight on bit range,text,
+OPER,Operational Parameters,max_differential_pressure,Maximum Differential Pressure,Maximum differential pressure,decimal,
+OPER,Operational Parameters,recommended_pressure,Recommended Pressure,Recommended operating pressure,decimal,
+OPER,Operational Parameters,operating_hours,Operating Hours,Expected operating hours,number,Service life
+OPER,Operational Parameters,service_life,Service Life,Expected service life,number,
+OPER,Operational Parameters,run_hours,Run Hours,Operating run hours,number,
+OPER,Operational Parameters,cycle_time,Cycle Time,Operating cycle time,number,
+OPER,Operational Parameters,duty_cycle,Duty Cycle,Duty cycle rating,text,
+OPER,Operational Parameters,range,Range,Operating range specification,text,
+OPER,Operational Parameters,operating_range,Operating Range,Operational range limits,text,
+OPER,Operational Parameters,rop,ROP,Rate of penetration,decimal,Drilling speed
+OPER,Operational Parameters,recommended_rop,Recommended ROP,Recommended rate of penetration,text,
+OPER,Operational Parameters,wear_rate,Wear Rate,Expected wear rate,text,
+
+IDEN,Identification & Commercial,manufacturer,Manufacturer,Manufacturer name,text,OEM identification
+IDEN,Identification & Commercial,brand,Brand,Brand name,text,
+IDEN,Identification & Commercial,model,Model,Model number or designation,text,
+IDEN,Identification & Commercial,series,Series,Product series,text,
+IDEN,Identification & Commercial,generation,Generation,Product generation,text,
+IDEN,Identification & Commercial,version,Version,Version number,text,
+IDEN,Identification & Commercial,revision,Revision,Revision number,text,
+IDEN,Identification & Commercial,part_number,Part Number,Manufacturer part number,text,MPN
+IDEN,Identification & Commercial,oem_part_number,OEM Part Number,Original equipment manufacturer part number,text,
+IDEN,Identification & Commercial,catalog_number,Catalog Number,Catalog reference number,text,
+IDEN,Identification & Commercial,item_number,Item Number,Item reference number,text,
+IDEN,Identification & Commercial,hdbs_code,HDBS Code,Halliburton database system code,text,Internal reference
+IDEN,Identification & Commercial,smi_name,SMI Name,Customer-facing SMI name,text,Customer reference
+IDEN,Identification & Commercial,trade_name,Trade Name,Trade or commercial name,text,
+IDEN,Identification & Commercial,product_name,Product Name,Product name,text,
+IDEN,Identification & Commercial,country_of_origin,Country of Origin,Manufacturing country,text,
+IDEN,Identification & Commercial,made_in,Made In,Country of manufacture,text,
+IDEN,Identification & Commercial,supplier_code,Supplier Code,Supplier identification code,text,
+IDEN,Identification & Commercial,vendor_code,Vendor Code,Vendor identification code,text,
+
+QUAL,Quality & Compliance,certification,Certification,Certification type,text,
+QUAL,Quality & Compliance,certification_number,Certification Number,Certification reference number,text,
+QUAL,Quality & Compliance,standard,Standard,Standard compliance,text,Industry standard
+QUAL,Quality & Compliance,api_spec,API Spec,API specification,text,API compliance
+QUAL,Quality & Compliance,api_monogram,API Monogram,API monogram certification,boolean,
+QUAL,Quality & Compliance,iso_standard,ISO Standard,ISO standard compliance,text,
+QUAL,Quality & Compliance,iso_certification,ISO Certification,ISO certification reference,text,
+QUAL,Quality & Compliance,astm_standard,ASTM Standard,ASTM standard specification,text,
+QUAL,Quality & Compliance,din_standard,DIN Standard,DIN standard specification,text,
+QUAL,Quality & Compliance,quality_grade,Quality Grade,Quality grade classification,select,Premium/Standard/Economy
+QUAL,Quality & Compliance,inspection_level,Inspection Level,Required inspection level,select,Level I/II/III
+QUAL,Quality & Compliance,inspection_certificate,Inspection Certificate,Inspection certificate type,text,
+QUAL,Quality & Compliance,test_certificate,Test Certificate,Test certificate requirement,text,
+QUAL,Quality & Compliance,traceability,Traceability,Traceability requirement,boolean,
+QUAL,Quality & Compliance,traceability_code,Traceability Code,Item traceability code,text,
+QUAL,Quality & Compliance,mil_spec,MIL Spec,Military specification,text,
+QUAL,Quality & Compliance,compliance,Compliance,Compliance requirement,text,
+
+STOR,Storage & Logistics,shelf_life,Shelf Life,Shelf life duration,number,Time until expiration
+STOR,Storage & Logistics,expiry_date,Expiry Date,Expiration date tracking,date,
+STOR,Storage & Logistics,storage_temp,Storage Temperature,Storage temperature requirement,text,
+STOR,Storage & Logistics,min_storage_temp,Minimum Storage Temperature,Minimum storage temperature,decimal,
+STOR,Storage & Logistics,max_storage_temp,Maximum Storage Temperature,Maximum storage temperature,decimal,
+STOR,Storage & Logistics,storage_humidity,Storage Humidity,Storage humidity requirement,text,
+STOR,Storage & Logistics,storage_conditions,Storage Conditions,Special storage conditions,text,
+STOR,Storage & Logistics,hazmat_class,Hazmat Class,Hazardous material classification,text,
+STOR,Storage & Logistics,un_number,UN Number,UN hazmat identification number,text,
+STOR,Storage & Logistics,dot_class,DOT Class,Department of Transportation class,text,
+STOR,Storage & Logistics,msds_required,MSDS Required,Material safety data sheet required,boolean,
+STOR,Storage & Logistics,sds_available,SDS Available,Safety data sheet available,boolean,
+STOR,Storage & Logistics,fragile,Fragile,Fragile handling required,boolean,
+STOR,Storage & Logistics,stackable,Stackable,Stackable for storage,boolean,
+STOR,Storage & Logistics,stack_limit,Stack Limit,Maximum stacking height,number,
+STOR,Storage & Logistics,orientation,Orientation,Required storage orientation,text,
+STOR,Storage & Logistics,packaging_type,Packaging Type,Type of packaging,select,Box/Crate/Pallet/Drum
+STOR,Storage & Logistics,package_quantity,Package Quantity,Items per package,number,
+STOR,Storage & Logistics,pallet_quantity,Pallet Quantity,Items per pallet,number,
+STOR,Storage & Logistics,handling_instructions,Handling Instructions,Special handling instructions,text,
+STOR,Storage & Logistics,reorder_point,Reorder Point,Inventory reorder point,number,
+STOR,Storage & Logistics,minimum_order,Minimum Order,Minimum order quantity,number,
+STOR,Storage & Logistics,lead_time,Lead Time,Procurement lead time,number,Days
+
+SAFE,Safety & PPE,ppe_category,PPE Category,Personal protective equipment category,select,Head/Eye/Hand/Foot/Body
+SAFE,Safety & PPE,protection_type,Protection Type,Type of protection provided,text,
+SAFE,Safety & PPE,protection_level,Protection Level,Level of protection,select,Basic/Enhanced/Maximum
+SAFE,Safety & PPE,safety_rating,Safety Rating,Overall safety rating,text,
+SAFE,Safety & PPE,size_type,Size Type,Size classification system,select,Numeric/Alpha/One Size
+SAFE,Safety & PPE,ansi_rating,ANSI Rating,ANSI safety standard rating,text,
+SAFE,Safety & PPE,ansi_class,ANSI Class,ANSI classification,text,
+SAFE,Safety & PPE,en_standard,EN Standard,European safety standard,text,
+SAFE,Safety & PPE,csa_rating,CSA Rating,Canadian Standards Association rating,text,
+SAFE,Safety & PPE,impact_rating,Impact Rating,Impact resistance rating,text,
+SAFE,Safety & PPE,penetration_rating,Penetration Rating,Penetration resistance rating,text,
+SAFE,Safety & PPE,visibility_class,Visibility Class,High visibility classification,select,Class 1/2/3
+SAFE,Safety & PPE,reflective_material,Reflective Material,Reflective material specification,text,
+SAFE,Safety & PPE,flame_resistant,Flame Resistant,Flame resistance capability,boolean,
+SAFE,Safety & PPE,arc_rating,Arc Rating,Arc flash protection rating,text,
+SAFE,Safety & PPE,cut_level,Cut Level,Cut resistance level,select,A1 through A9
+SAFE,Safety & PPE,puncture_resistance,Puncture Resistance,Puncture resistance level,select,Level 1-5
+SAFE,Safety & PPE,abrasion_resistance,Abrasion Resistance,Abrasion resistance level,select,
+SAFE,Safety & PPE,chemical_resistance,Chemical Resistance,Chemical resistance capability,text,
+SAFE,Safety & PPE,heat_resistance,Heat Resistance,Heat resistance rating,text,
+SAFE,Safety & PPE,cold_resistance,Cold Resistance,Cold resistance rating,text,
+SAFE,Safety & PPE,insulation_class,Insulation Class,Electrical insulation class,text,
+SAFE,Safety & PPE,dielectric_rating,Dielectric Rating,Dielectric protection rating,text,
+SAFE,Safety & PPE,slip_resistance,Slip Resistance,Slip resistance rating,text,For footwear
+SAFE,Safety & PPE,toe_protection,Toe Protection,Toe protection type,text,Steel/Composite/None
+
+TOOL,Tools & Equipment,tool_type,Tool Type,Type of tool,select,Hand/Power/Pneumatic/Hydraulic
+TOOL,Tools & Equipment,tool_class,Tool Class,Tool classification,text,
+TOOL,Tools & Equipment,drive_size,Drive Size,Drive size specification,text,Socket/wrench drive
+TOOL,Tools & Equipment,drive_type,Drive Type,Type of drive mechanism,text,
+TOOL,Tools & Equipment,chuck_size,Chuck Size,Chuck size specification,text,For drills
+TOOL,Tools & Equipment,chuck_type,Chuck Type,Chuck type specification,text,Keyed/Keyless
+TOOL,Tools & Equipment,blade_type,Blade Type,Blade type specification,text,For cutting tools
+TOOL,Tools & Equipment,blade_length,Blade Length,Length of blade,decimal,
+TOOL,Tools & Equipment,teeth_count,Teeth Count,Number of teeth,number,For saws/blades
+TOOL,Tools & Equipment,teeth_pitch,Teeth Pitch,Tooth pitch specification,text,
+TOOL,Tools & Equipment,cordless,Cordless,Battery-powered capability,boolean,
+TOOL,Tools & Equipment,corded,Corded,Requires electrical outlet,boolean,
+TOOL,Tools & Equipment,battery_voltage,Battery Voltage,Battery voltage rating,number,For cordless tools
+TOOL,Tools & Equipment,battery_capacity,Battery Capacity,Battery capacity rating,decimal,Ah rating
+TOOL,Tools & Equipment,battery_type,Battery Type,Type of battery,text,Li-ion/NiCd/NiMH
+TOOL,Tools & Equipment,battery_included,Battery Included,Battery included with tool,boolean,
+TOOL,Tools & Equipment,charger_included,Charger Included,Charger included with tool,boolean,
+TOOL,Tools & Equipment,cord_length,Cord Length,Power cord length,decimal,
+TOOL,Tools & Equipment,hose_length,Hose Length,Air/hydraulic hose length,decimal,
+TOOL,Tools & Equipment,air_consumption,Air Consumption,Air consumption rate,decimal,For pneumatic tools
+TOOL,Tools & Equipment,working_pressure_tool,Working Pressure,Required working pressure,decimal,For pneumatic/hydraulic
+TOOL,Tools & Equipment,oil_capacity,Oil Capacity,Oil reservoir capacity,decimal,
+TOOL,Tools & Equipment,stroke_length,Stroke Length,Stroke length specification,decimal,
+TOOL,Tools & Equipment,capacity_range,Capacity Range,Tool capacity range,text,
+TOOL,Tools & Equipment,jaw_capacity,Jaw Capacity,Maximum jaw opening,decimal,For wrenches/clamps
+TOOL,Tools & Equipment,throat_depth,Throat Depth,Throat depth specification,decimal,For clamps
+
+CONS,Consumables,consumable_type,Consumable Type,Type of consumable,select,Chemical/Lubricant/Abrasive
+CONS,Consumables,consumable_class,Consumable Class,Consumable classification,text,
+CONS,Consumables,viscosity,Viscosity,Viscosity rating,text,
+CONS,Consumables,viscosity_grade,Viscosity Grade,Viscosity grade specification,text,SAE/ISO grade
+CONS,Consumables,viscosity_index,Viscosity Index,Viscosity index number,number,
+CONS,Consumables,flash_point,Flash Point,Flash point temperature,decimal,Safety specification
+CONS,Consumables,fire_point,Fire Point,Fire point temperature,decimal,
+CONS,Consumables,boiling_point,Boiling Point,Boiling point temperature,decimal,
+CONS,Consumables,melting_point,Melting Point,Melting point temperature,decimal,
+CONS,Consumables,pour_point,Pour Point,Pour point temperature,decimal,
+CONS,Consumables,concentration,Concentration,Concentration level,decimal,For solutions
+CONS,Consumables,purity,Purity,Purity percentage,decimal,
+CONS,Consumables,ph_level,pH Level,pH level measurement,decimal,Acidity/alkalinity
+CONS,Consumables,grit_size,Grit Size,Abrasive grit size,text,
+CONS,Consumables,mesh_size,Mesh Size,Mesh size specification,text,
+CONS,Consumables,particle_size,Particle Size,Particle size specification,text,
+CONS,Consumables,adhesive_type,Adhesive Type,Type of adhesive,text,
+CONS,Consumables,cure_time,Cure Time,Curing or drying time,text,
+CONS,Consumables,pot_life,Pot Life,Working time before curing,text,
+CONS,Consumables,application_method,Application Method,Method of application,text,
+CONS,Consumables,coverage_rate,Coverage Rate,Coverage per unit area or volume,text,
+CONS,Consumables,dilution_ratio,Dilution Ratio,Recommended dilution ratio,text,
+CONS,Consumables,mix_ratio,Mix Ratio,Mixing ratio for multi-part products,text,
+CONS,Consumables,solubility,Solubility,Solubility specification,text,
+CONS,Consumables,solvent_type,Solvent Type,Type of solvent,text,
+CONS,Consumables,evaporation_rate,Evaporation Rate,Evaporation rate specification,text,
+CONS,Consumables,odor,Odor,Odor characteristic,text,
+CONS,Consumables,appearance,Appearance,Physical appearance,text,Clear/Amber/etc
+CONS,Consumables,form,Form,Physical form,select,Liquid/Solid/Gas/Paste
+
+ELEC,Electrical Components,wire_gauge,Wire Gauge,Wire gauge specification,text,AWG rating
+ELEC,Electrical Components,wire_size,Wire Size,Wire size specification,text,
+ELEC,Electrical Components,conductor_count,Conductor Count,Number of conductors,number,
+ELEC,Electrical Components,conductor_material,Conductor Material,Conductor material type,text,Copper/Aluminum
+ELEC,Electrical Components,conductor_size,Conductor Size,Conductor size specification,text,
+ELEC,Electrical Components,insulation_type,Insulation Type,Type of insulation,text,
+ELEC,Electrical Components,insulation_rating,Insulation Rating,Insulation voltage rating,number,
+ELEC,Electrical Components,jacket_material,Jacket Material,Outer jacket material,text,
+ELEC,Electrical Components,shielding_type,Shielding Type,Type of shielding,text,Braided/Foil
+ELEC,Electrical Components,max_amperage,Maximum Amperage,Maximum current capacity,decimal,
+ELEC,Electrical Components,ampacity,Ampacity,Current carrying capacity,decimal,
+ELEC,Electrical Components,resistance,Resistance,Electrical resistance,decimal,
+ELEC,Electrical Components,impedance,Impedance,Electrical impedance,decimal,
+ELEC,Electrical Components,capacitance,Capacitance,Capacitance rating,decimal,
+ELEC,Electrical Components,inductance,Inductance,Inductance rating,decimal,
+ELEC,Electrical Components,phase,Phase,Electrical phase,select,Single/Three
+ELEC,Electrical Components,poles,Poles,Number of poles,number,
+ELEC,Electrical Components,plug_type,Plug Type,Electrical plug type,text,
+ELEC,Electrical Components,socket_type,Socket Type,Socket type specification,text,
+ELEC,Electrical Components,connector_type,Connector Type,Type of connector,text,
+ELEC,Electrical Components,terminal_type,Terminal Type,Terminal connection type,text,
+ELEC,Electrical Components,ip_rating,IP Rating,Ingress protection rating,text,Weatherproof rating
+ELEC,Electrical Components,nema_rating,NEMA Rating,NEMA enclosure rating,text,
+
+FAST,Fasteners,fastener_type,Fastener Type,Type of fastener,select,Bolt/Screw/Nut/Washer
+FAST,Fasteners,fastener_class,Fastener Class,Fastener strength class,text,Grade specification
+FAST,Fasteners,head_type,Head Type,Fastener head type,select,Hex/Phillips/Flat/Socket
+FAST,Fasteners,head_style,Head Style,Head style specification,text,
+FAST,Fasteners,drive_type_fast,Drive Type,Drive type specification,select,Slotted/Phillips/Torx/Hex
+FAST,Fasteners,drive_size_fast,Drive Size,Drive size for fastener,text,
+FAST,Fasteners,point_type,Point Type,Point type specification,text,Sharp/Flat/Cup
+FAST,Fasteners,shank_type,Shank Type,Shank specification,text,Full/Partial thread
+FAST,Fasteners,washer_type,Washer Type,Type of washer,text,Flat/Lock/Fender
+FAST,Fasteners,nut_type,Nut Type,Type of nut,text,Hex/Lock/Wing
+FAST,Fasteners,lock_feature,Lock Feature,Locking feature type,text,Nylon insert/Prevailing
+FAST,Fasteners,anchor_type,Anchor Type,Type of anchor,text,For concrete/masonry
+
+GEN,General Attributes,category,Category,Category classification,text,General grouping
+GEN,General Attributes,class,Class,Class rating or classification,text,
+GEN,General Attributes,type,Type,Type classification,text,
+GEN,General Attributes,subtype,Subtype,Subtype classification,text,
+GEN,General Attributes,style,Style,Style designation,text,
+GEN,General Attributes,pattern,Pattern,Pattern or design,text,
+GEN,General Attributes,design,Design,Design specification,text,
+GEN,General Attributes,rating,Rating,General rating,text,
+GEN,General Attributes,application,Application,Intended application,text,
+GEN,General Attributes,use,Use,Intended use or purpose,text,
+GEN,General Attributes,feature,Feature,Special features,text,
+GEN,General Attributes,configuration,Configuration,Configuration type,text,
+GEN,General Attributes,orientation,Orientation,Orientation specification,text,Vertical/Horizontal
+GEN,General Attributes,mounting_type,Mounting Type,Type of mounting,text,
+GEN,General Attributes,installation_type,Installation Type,Installation method,text,
+GEN,General Attributes,operation_type,Operation Type,Type of operation,text,Manual/Automatic
+GEN,General Attributes,condition,Condition,Item condition,select,New/Refurbished/Used
+GEN,General Attributes,status,Status,Item status,text,
+GEN,General Attributes,availability,Availability,Availability status,text,
+GEN,General Attributes,warranty_period,Warranty Period,Warranty duration,number,In months
+GEN,General Attributes,warranty_type,Warranty Type,Type of warranty coverage,text,
+GEN,General Attributes,repairable,Repairable,Item can be repaired,boolean,
+GEN,General Attributes,serviceable,Serviceable,Item can be serviced,boolean,
+GEN,General Attributes,returnable,Returnable,Item is returnable,boolean,
+GEN,General Attributes,hazardous,Hazardous,Hazardous material flag,boolean,
+GEN,General Attributes,restricted,Restricted,Restricted item flag,boolean,
+GEN,General Attributes,obsolete,Obsolete,Obsolete item flag,boolean,
+GEN,General Attributes,notes,Notes,Additional notes,text,Free text notes
+GEN,General Attributes,remarks,Remarks,Special remarks,text,
+GEN,General Attributes,comments,Comments,Comments or observations,text,
