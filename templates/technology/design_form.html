@@ -2192,6 +2192,127 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // =========================================================================
+    // TYPE VALIDATION - Check if entered type exists
+    // =========================================================================
+    let typesCache = null;
+
+    function fetchTypesCache() {
+        if (typesCache) return Promise.resolve(typesCache);
+        return fetch(`{% url "technology:api_hdbs_types" %}?show_inactive=1`)
+            .then(r => r.json())
+            .then(data => {
+                typesCache = data;
+                return data;
+            });
+    }
+
+    function validateHdbsType() {
+        const value = hdbsInput ? hdbsInput.value.trim() : '';
+        if (!value) return;
+
+        fetchTypesCache().then(data => {
+            const exists = data.hdbs_types.some(h => h.hdbs_name.toLowerCase() === value.toLowerCase());
+            if (!exists) {
+                showTypeNotFoundDialog('HDBS', value, hdbsInput);
+            }
+        });
+    }
+
+    function validateSmiType() {
+        const value = smiInput ? smiInput.value.trim() : '';
+        const hdbsValue = hdbsInput ? hdbsInput.value.trim() : '';
+        if (!value) return;
+
+        fetchTypesCache().then(data => {
+            let exists = false;
+            for (const h of data.hdbs_types) {
+                if (h.smi_types.some(s => s.smi_name.toLowerCase() === value.toLowerCase())) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                showTypeNotFoundDialog('SMI', value, smiInput, hdbsValue);
+            }
+        });
+    }
+
+    function showTypeNotFoundDialog(typeKind, value, inputElement, hdbsValue) {
+        // Create modal dialog
+        const dialog = document.createElement('div');
+        dialog.className = 'fixed inset-0 z-[100] flex items-center justify-center';
+        dialog.innerHTML = `
+            <div class="fixed inset-0 bg-black/50" id="type-validation-backdrop"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+                <div class="flex items-start gap-4">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 dark:text-yellow-400"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${typeKind} Type Not Found</h3>
+                        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            The ${typeKind} type "<strong>${value}</strong>" is not registered in the system.
+                        </p>
+                        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            Would you like to create it as a new ${typeKind} type?
+                        </p>
+                    </div>
+                </div>
+                <div class="mt-6 flex gap-3 justify-end">
+                    <button type="button" id="type-validation-cancel" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+                        No, Clear Field
+                    </button>
+                    <button type="button" id="type-validation-create" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                        Yes, Create New
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        const backdrop = dialog.querySelector('#type-validation-backdrop');
+        const cancelBtn = dialog.querySelector('#type-validation-cancel');
+        const createBtn = dialog.querySelector('#type-validation-create');
+
+        function closeDialog() {
+            dialog.remove();
+        }
+
+        backdrop.addEventListener('click', function() {
+            inputElement.value = '';
+            closeDialog();
+        });
+
+        cancelBtn.addEventListener('click', function() {
+            inputElement.value = '';
+            closeDialog();
+        });
+
+        createBtn.addEventListener('click', function() {
+            closeDialog();
+            if (typeKind === 'HDBS') {
+                // Open HDBS create page in new tab
+                window.open('{% url "technology:hdbs_type_create" %}', '_blank');
+            } else {
+                // Open SMI create page - if HDBS is known, pass it
+                let url = '{% url "technology:smi_type_create_standalone" %}';
+                window.open(url, '_blank');
+            }
+            // Clear the field since they're creating new
+            inputElement.value = '';
+        });
+    }
+
+    // Add blur validation to HDBS and SMI inputs
+    if (hdbsInput) {
+        hdbsInput.addEventListener('blur', debounce(validateHdbsType, 500));
+    }
+    if (smiInput) {
+        smiInput.addEventListener('blur', debounce(validateSmiType, 500));
+    }
+
     // Initialize icons
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
