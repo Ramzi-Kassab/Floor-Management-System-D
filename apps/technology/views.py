@@ -1794,13 +1794,36 @@ class APIHDBSTypesView(LoginRequiredMixin, View):
     """API endpoint to get HDBS types for dropdowns."""
 
     def get(self, request):
-        hdbs_types = HDBSType.objects.filter(is_active=True).order_by('hdbs_name')
+        # Filter by active status unless show_inactive is set
+        show_inactive = request.GET.get('show_inactive')
+        if show_inactive:
+            hdbs_types = HDBSType.objects.all()
+        else:
+            hdbs_types = HDBSType.objects.filter(is_active=True)
+
+        # Search filter
+        q = request.GET.get('q', '').strip()
+        if q:
+            hdbs_types = hdbs_types.filter(
+                models.Q(hdbs_name__icontains=q) |
+                models.Q(description__icontains=q) |
+                models.Q(smi_types__smi_name__icontains=q)
+            ).distinct()
+
+        hdbs_types = hdbs_types.order_by('hdbs_name')
+
         data = {
             'hdbs_types': [
                 {
                     'id': t.id,
                     'hdbs_name': t.hdbs_name,
-                    'smi_types': [{'id': s.id, 'smi_name': s.smi_name} for s in t.smi_types.filter(is_active=True)]
+                    'description': t.description or '',
+                    'is_active': t.is_active,
+                    'sizes': [{'id': s.id, 'display': s.size_display} for s in t.sizes.filter(is_active=True)],
+                    'smi_types': [
+                        {'id': s.id, 'smi_name': s.smi_name, 'is_active': s.is_active}
+                        for s in (t.smi_types.all() if show_inactive else t.smi_types.filter(is_active=True))
+                    ]
                 }
                 for t in hdbs_types
             ]

@@ -152,6 +152,9 @@ class DesignForm(forms.ModelForm):
             if field_name not in required_fields:
                 field.required = False
 
+        # Only show active sizes in the dropdown
+        self.fields["size"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+
 
 class BOMForm(forms.ModelForm):
     """Form for creating and editing BOMs."""
