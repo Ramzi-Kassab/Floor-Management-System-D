@@ -4,25 +4,33 @@
 
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
-    <div>
-        <div class="flex items-center space-x-3">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ item.code }}</h1>
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
-                {% if item.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                {% if item.is_active %}Active{% else %}Inactive{% endif %}
-            </span>
-            {% if is_low_stock %}
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                Low Stock
-            </span>
-            {% endif %}
-            {% if item.has_variants %}
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
-                Has Variants
-            </span>
-            {% endif %}
+    <div class="flex items-start space-x-4">
+        <!-- Item Photo Thumbnail in Header -->
+        {% if item.image %}
+        <div class="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+            <img src="{{ item.image.url }}" alt="{{ item.name }}" class="w-full h-full object-cover">
         </div>
-        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ item.name }}</p>
+        {% endif %}
+        <div>
+            <div class="flex items-center space-x-3 flex-wrap gap-y-2">
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ item.code }}</h1>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                    {% if item.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {% if item.is_active %}Active{% else %}Inactive{% endif %}
+                </span>
+                {% if is_low_stock %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                    Low Stock
+                </span>
+                {% endif %}
+                {% if item.has_variants %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                    Has Variants
+                </span>
+                {% endif %}
+            </div>
+            <p class="text-gray-600 dark:text-gray-400 mt-1">{{ item.name }}</p>
+        </div>
     </div>
     <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
         <a href="{% url 'inventory:transaction_create' %}?item={{ item.pk }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
@@ -43,75 +51,103 @@
 
 {% block content %}
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Content Column -->
     <div class="lg:col-span-2 space-y-6">
-        <!-- Item Details -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Item Details</h2>
-            <dl class="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                    <dt class="text-gray-500">Type</dt>
-                    <dd class="text-gray-900 dark:text-white font-medium">{{ item.get_item_type_display }}</dd>
+        <!-- Hero Section: Photo + Item Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="flex flex-col md:flex-row">
+                <!-- Large Photo -->
+                <div class="md:w-1/3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 p-6 flex items-center justify-center">
+                    {% if item.image %}
+                    <div class="relative group">
+                        <img src="{{ item.image.url }}" alt="{{ item.name }}"
+                             class="max-w-full max-h-64 object-contain rounded-lg shadow-md cursor-pointer transition-transform hover:scale-105"
+                             onclick="openImageModal('{{ item.image.url }}')">
+                        <button onclick="openImageModal('{{ item.image.url }}')"
+                                class="absolute bottom-2 right-2 bg-black/50 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    {% else %}
+                    <div class="w-48 h-48 rounded-xl bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                        <i data-lucide="package" class="w-16 h-16 text-gray-400 dark:text-gray-500"></i>
+                    </div>
+                    {% endif %}
                 </div>
-                <div>
-                    <dt class="text-gray-500">Category</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ item.category.name|default:"--" }}</dd>
+                <!-- Item Details -->
+                <div class="md:w-2/3 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                        <i data-lucide="info" class="w-5 h-5 mr-2 text-blue-500"></i>
+                        Item Details
+                    </h2>
+                    <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                        <div>
+                            <dt class="text-gray-500 dark:text-gray-400">Type</dt>
+                            <dd class="text-gray-900 dark:text-white font-medium">{{ item.get_item_type_display }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-gray-500 dark:text-gray-400">Category</dt>
+                            <dd class="text-gray-900 dark:text-white">{{ item.category.name|default:"--" }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-gray-500 dark:text-gray-400">Unit</dt>
+                            <dd class="text-gray-900 dark:text-white">{{ item.unit }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-gray-500 dark:text-gray-400">Standard Cost</dt>
+                            <dd class="text-gray-900 dark:text-white font-medium">{{ item.currency }} {{ item.standard_cost }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-gray-500 dark:text-gray-400">Primary Supplier</dt>
+                            <dd class="text-gray-900 dark:text-white">{{ item.primary_supplier.name|default:"--" }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-gray-500 dark:text-gray-400">Supplier Part #</dt>
+                            <dd class="text-gray-900 dark:text-white font-mono text-xs">{{ item.supplier_part_number|default:"--" }}</dd>
+                        </div>
+                        {% if item.mat_number %}
+                        <div>
+                            <dt class="text-gray-500 dark:text-gray-400">SAP MAT No.</dt>
+                            <dd class="text-gray-900 dark:text-white font-mono">{{ item.mat_number }}</dd>
+                        </div>
+                        {% endif %}
+                        {% if item.item_number %}
+                        <div>
+                            <dt class="text-gray-500 dark:text-gray-400">ERP Item No.</dt>
+                            <dd class="text-gray-900 dark:text-white font-mono">{{ item.item_number }}</dd>
+                        </div>
+                        {% endif %}
+                    </dl>
+                    {% if item.description %}
+                    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <dt class="text-gray-500 dark:text-gray-400 text-sm">Description</dt>
+                        <dd class="text-gray-900 dark:text-white mt-1 text-sm">{{ item.description }}</dd>
+                    </div>
+                    {% endif %}
                 </div>
-                <div>
-                    <dt class="text-gray-500">Unit</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ item.unit }}</dd>
-                </div>
-                <div>
-                    <dt class="text-gray-500">Standard Cost</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ item.currency }} {{ item.standard_cost }}</dd>
-                </div>
-                <div>
-                    <dt class="text-gray-500">Primary Supplier</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ item.primary_supplier.name|default:"--" }}</dd>
-                </div>
-                <div>
-                    <dt class="text-gray-500">Supplier Part #</dt>
-                    <dd class="text-gray-900 dark:text-white font-mono">{{ item.supplier_part_number|default:"--" }}</dd>
-                </div>
-                {% if item.mat_number %}
-                <div>
-                    <dt class="text-gray-500">SAP MAT No.</dt>
-                    <dd class="text-gray-900 dark:text-white font-mono">{{ item.mat_number }}</dd>
-                </div>
-                {% endif %}
-                {% if item.item_number %}
-                <div>
-                    <dt class="text-gray-500">ERP Item No.</dt>
-                    <dd class="text-gray-900 dark:text-white font-mono">{{ item.item_number }}</dd>
-                </div>
-                {% endif %}
-            </dl>
-            {% if item.description %}
-            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <dt class="text-gray-500 text-sm">Description</dt>
-                <dd class="text-gray-900 dark:text-white mt-1">{{ item.description }}</dd>
             </div>
-            {% endif %}
         </div>
 
         <!-- Category Attributes -->
         {% if category_attributes or attribute_values %}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="tag" class="w-5 h-5 mr-2 text-purple-500"></i>
                     Attributes
-                    <span class="text-sm font-normal text-gray-500">({{ item.category.name }})</span>
+                    <span class="text-sm font-normal text-gray-500 ml-2">({{ item.category.name }})</span>
                 </h2>
-                <a href="{% url 'inventory:item_update' item.pk %}" class="text-sm text-blue-600 hover:text-blue-800">
-                    Edit Values
+                <a href="{% url 'inventory:item_update' item.pk %}" class="text-sm text-blue-600 hover:text-blue-800 flex items-center">
+                    <i data-lucide="edit-2" class="w-3 h-3 mr-1"></i>Edit Values
                 </a>
             </div>
             {% if attribute_values %}
-            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <dl class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
                 {% for attr_value in attribute_values %}
-                <div>
-                    <dt class="text-gray-500">{{ attr_value.attribute.attribute.name }}</dt>
-                    <dd class="text-gray-900 dark:text-white font-medium">
-                        {{ attr_value.display_value }}{% if attr_value.attribute.unit %} {{ attr_value.attribute.unit.symbol }}{% endif %}
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                    <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">{{ attr_value.attribute.attribute.name }}</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium mt-1">
+                        {{ attr_value.display_value }}{% if attr_value.attribute.unit %} <span class="text-gray-500 text-xs">{{ attr_value.attribute.unit.symbol }}</span>{% endif %}
                     </dd>
                 </div>
                 {% endfor %}
@@ -144,9 +180,10 @@
         {% if item.variants.exists %}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="copy" class="w-5 h-5 mr-2 text-purple-500"></i>
                     Variants
-                    <span class="text-sm font-normal text-gray-500">({{ item.variants.count }})</span>
+                    <span class="text-sm font-normal text-gray-500 ml-2">({{ item.variants.count }})</span>
                 </h2>
                 <a href="{% url 'inventory:item_variant_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
                     + Add Variant
@@ -204,9 +241,10 @@
         <!-- Suppliers Section -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="building-2" class="w-5 h-5 mr-2 text-blue-500"></i>
                     Suppliers
-                    <span class="text-sm font-normal text-gray-500">({{ suppliers|length }})</span>
+                    <span class="text-sm font-normal text-gray-500 ml-2">({{ suppliers|length }})</span>
                 </h2>
                 <a href="{% url 'inventory:item_supplier_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
                     + Add Supplier
@@ -254,9 +292,10 @@
         <!-- Identifiers / Barcodes Section -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="scan-barcode" class="w-5 h-5 mr-2 text-indigo-500"></i>
                     Identifiers / Barcodes
-                    <span class="text-sm font-normal text-gray-500">({{ identifiers|length }})</span>
+                    <span class="text-sm font-normal text-gray-500 ml-2">({{ identifiers|length }})</span>
                 </h2>
                 <a href="{% url 'inventory:item_identifier_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
                     + Add Identifier
@@ -265,7 +304,7 @@
             {% if identifiers %}
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
                 {% for item_ident in identifiers %}
-                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-center">
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-center hover:shadow-md transition-shadow">
                     <img src="{{ item_ident.image }}" alt="{{ item_ident.identifier.identifier_type }}" class="mx-auto mb-3 max-h-24">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mb-2
                         {% if item_ident.identifier.identifier_type == 'QR' %}bg-purple-100 text-purple-800
@@ -277,8 +316,10 @@
                     </span>
                     <p class="text-xs font-mono text-gray-600 dark:text-gray-400 break-all">{{ item_ident.identifier.value }}</p>
                     <div class="mt-2 flex justify-center gap-2">
-                        <button onclick="printQRCode('{{ item_ident.image }}', '{{ item_ident.identifier.value }}', '{{ item.name }}')"
-                                class="text-xs text-blue-600 hover:text-blue-800">Print</button>
+                        <button onclick="openLabelModal('{{ item_ident.image }}', '{{ item_ident.identifier.value }}', '{{ item.name }}', '{% if item.image %}{{ item.image.url }}{% endif %}')"
+                                class="text-xs text-blue-600 hover:text-blue-800 flex items-center">
+                            <i data-lucide="printer" class="w-3 h-3 mr-1"></i>Print
+                        </button>
                         <a href="{% url 'inventory:item_identifier_update' item.pk item_ident.identifier.pk %}" class="text-xs text-gray-600 hover:text-gray-800">Edit</a>
                         <a href="{% url 'inventory:item_identifier_delete' item.pk item_ident.identifier.pk %}" class="text-xs text-red-600 hover:text-red-800">Delete</a>
                     </div>
@@ -296,9 +337,10 @@
         <!-- Warehouse Planning Section -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="warehouse" class="w-5 h-5 mr-2 text-amber-500"></i>
                     Warehouse Planning
-                    <span class="text-sm font-normal text-gray-500">({{ planning_records|length }})</span>
+                    <span class="text-sm font-normal text-gray-500 ml-2">({{ planning_records|length }})</span>
                 </h2>
                 <a href="{% url 'inventory:item_planning_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
                     + Add Planning
@@ -482,7 +524,10 @@
         <!-- Stock by Location -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Stock by Location</h2>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="map-pin" class="w-5 h-5 mr-2 text-green-500"></i>
+                    Stock by Location
+                </h2>
             </div>
             {% if stock_by_location %}
             <table class="w-full text-sm">
@@ -521,7 +566,10 @@
         <!-- Recent Transactions -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Transactions</h2>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="history" class="w-5 h-5 mr-2 text-cyan-500"></i>
+                    Recent Transactions
+                </h2>
                 <a href="{% url 'inventory:transaction_list' %}?item={{ item.pk }}" class="text-sm text-blue-600 hover:underline">View All</a>
             </div>
             {% if recent_transactions %}
@@ -566,10 +614,14 @@
         </div>
     </div>
 
+    <!-- Right Sidebar Column -->
     <div class="space-y-6">
         <!-- Stock Summary -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Stock Summary</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="package" class="w-5 h-5 mr-2 text-blue-500"></i>
+                Stock Summary
+            </h2>
             <div class="text-center">
                 <div class="text-4xl font-bold {% if is_low_stock %}text-red-600{% else %}text-gray-900 dark:text-white{% endif %}">
                     {{ total_stock }}
@@ -605,25 +657,47 @@
             </dl>
         </div>
 
-        <!-- Item QR Code -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Item QR Code</h2>
-            <div class="flex flex-col items-center">
-                <img src="{{ item_qr_code }}" alt="QR Code for {{ item.code }}" class="w-32 h-32 mb-3">
-                <p class="text-xs text-gray-500 text-center font-mono">{{ item.code }}</p>
-                <button onclick="printQRCode('{{ item_qr_code }}', '{{ item.code }}', '{{ item.name }}')"
-                        class="mt-3 inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                    </svg>
-                    Print Label
-                </button>
+        <!-- Item QR Code & Label Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="labelPrinter()">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="qr-code" class="w-5 h-5 mr-2 text-purple-500"></i>
+                Label & QR Code
+            </h2>
+
+            <!-- QR Code Preview -->
+            <div class="flex flex-col items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-4">
+                <img src="{{ item_qr_code }}" alt="QR Code for {{ item.code }}" class="w-32 h-32 mb-2">
+                <p class="text-sm font-bold text-gray-900 dark:text-white font-mono">{{ item.code }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1 max-w-[180px] truncate">{{ item.name }}</p>
             </div>
+
+            <!-- Quick Print Button -->
+            <button @click="quickPrint()"
+                    class="w-full inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 mb-3">
+                <i data-lucide="printer" class="w-4 h-4 mr-2"></i>
+                Quick Print
+            </button>
+
+            <!-- Print Options Button -->
+            <button @click="showOptions = true"
+                    class="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+                <i data-lucide="settings" class="w-4 h-4 mr-2"></i>
+                Print Options
+            </button>
+
+            <!-- Saved Preferences Indicator -->
+            <p class="text-xs text-center text-gray-500 mt-2" x-show="hasSavedPrefs">
+                <i data-lucide="check-circle" class="w-3 h-3 inline text-green-500"></i>
+                Using saved preferences
+            </p>
         </div>
 
         <!-- Tracking Options -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tracking</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="scan-line" class="w-5 h-5 mr-2 text-orange-500"></i>
+                Tracking
+            </h2>
             <dl class="space-y-3 text-sm">
                 <div class="flex justify-between items-center">
                     <dt class="text-gray-500">Serial Tracked</dt>
@@ -660,7 +734,10 @@
 
         <!-- Audit Info -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Audit Info</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="clock" class="w-5 h-5 mr-2 text-gray-500"></i>
+                Audit Info
+            </h2>
             <dl class="space-y-3 text-sm">
                 <div class="flex justify-between">
                     <dt class="text-gray-500">Created By</dt>
@@ -678,86 +755,475 @@
         </div>
     </div>
 </div>
+
+<!-- Label Print Options Modal -->
+<div x-data="labelPrinter()"
+     x-show="showOptions"
+     x-cloak
+     class="fixed inset-0 z-50 overflow-y-auto"
+     @keydown.escape.window="showOptions = false">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+        <div x-show="showOptions"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+             @click="showOptions = false"></div>
+
+        <div x-show="showOptions"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             class="relative inline-block w-full max-w-2xl bg-white dark:bg-gray-800 rounded-xl shadow-xl transform transition-all">
+
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="printer" class="w-5 h-5 mr-2 text-blue-500"></i>
+                    Label Print Options
+                </h3>
+                <button @click="showOptions = false" class="text-gray-400 hover:text-gray-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Left: Options -->
+                <div class="space-y-5">
+                    <!-- Label Content -->
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Label Content</h4>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="options.showCode" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Show Item Code</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="options.showName" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Show Item Name</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="options.showPhoto" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" {% if not item.image %}disabled{% endif %}>
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300 {% if not item.image %}opacity-50{% endif %}">
+                                    Include Photo {% if not item.image %}(No photo available){% endif %}
+                                </span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="options.showCompany" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Show Company Name</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Label Shape -->
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Label Shape</h4>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button @click="options.shape = 'square'"
+                                    :class="options.shape === 'square' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-700'"
+                                    class="p-3 rounded-lg border border-gray-200 dark:border-gray-600 text-center hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                <div class="w-8 h-8 mx-auto border-2 border-gray-400 rounded"></div>
+                                <span class="text-xs text-gray-600 dark:text-gray-400 mt-1 block">Square</span>
+                            </button>
+                            <button @click="options.shape = 'portrait'"
+                                    :class="options.shape === 'portrait' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-700'"
+                                    class="p-3 rounded-lg border border-gray-200 dark:border-gray-600 text-center hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                <div class="w-6 h-9 mx-auto border-2 border-gray-400 rounded"></div>
+                                <span class="text-xs text-gray-600 dark:text-gray-400 mt-1 block">Portrait</span>
+                            </button>
+                            <button @click="options.shape = 'landscape'"
+                                    :class="options.shape === 'landscape' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-700'"
+                                    class="p-3 rounded-lg border border-gray-200 dark:border-gray-600 text-center hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                <div class="w-10 h-6 mx-auto border-2 border-gray-400 rounded"></div>
+                                <span class="text-xs text-gray-600 dark:text-gray-400 mt-1 block">Landscape</span>
+                            </button>
+                            <button @click="options.shape = 'custom'"
+                                    :class="options.shape === 'custom' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-700'"
+                                    class="p-3 rounded-lg border border-gray-200 dark:border-gray-600 text-center hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                <div class="w-8 h-6 mx-auto border-2 border-dashed border-gray-400 rounded flex items-center justify-center">
+                                    <i data-lucide="settings-2" class="w-3 h-3 text-gray-400"></i>
+                                </div>
+                                <span class="text-xs text-gray-600 dark:text-gray-400 mt-1 block">Custom</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Size Presets -->
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Size Preset</h4>
+                        <select x-model="options.sizePreset" @change="applySizePreset()"
+                                class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm">
+                            <option value="small">Small - 1" x 1" (25mm x 25mm)</option>
+                            <option value="medium">Medium - 2" x 2" (50mm x 50mm)</option>
+                            <option value="large">Large - 3" x 3" (75mm x 75mm)</option>
+                            <option value="standard">Standard Label - 2" x 3" (50mm x 75mm)</option>
+                            <option value="shipping">Shipping - 4" x 6" (100mm x 150mm)</option>
+                            <option value="custom">Custom Size</option>
+                        </select>
+                    </div>
+
+                    <!-- Custom Size (shown when custom selected) -->
+                    <div x-show="options.sizePreset === 'custom' || options.shape === 'custom'" class="space-y-3">
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-white">Custom Dimensions</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Width</label>
+                                <div class="flex">
+                                    <input type="number" x-model="options.customWidth" min="10" max="300" step="1"
+                                           class="flex-1 rounded-l-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm">
+                                    <span class="inline-flex items-center px-3 rounded-r-lg border border-l-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-600 text-gray-500 text-sm">mm</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Height</label>
+                                <div class="flex">
+                                    <input type="number" x-model="options.customHeight" min="10" max="300" step="1"
+                                           class="flex-1 rounded-l-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm">
+                                    <span class="inline-flex items-center px-3 rounded-r-lg border border-l-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-600 text-gray-500 text-sm">mm</span>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500">
+                            Estimated print size: <span x-text="(options.customWidth / 25.4).toFixed(2)"></span>" x <span x-text="(options.customHeight / 25.4).toFixed(2)"></span>" (inches)
+                        </p>
+                    </div>
+
+                    <!-- QR Code Size -->
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">QR Code Size</h4>
+                        <input type="range" x-model="options.qrSize" min="60" max="200" step="10" class="w-full">
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>Small</span>
+                            <span x-text="options.qrSize + 'px'"></span>
+                            <span>Large</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Preview -->
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Preview</h4>
+                    <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-900 min-h-[300px] flex items-center justify-center">
+                        <div class="label-preview text-center p-4 border border-gray-200 dark:border-gray-700 rounded bg-white"
+                             :style="getPreviewStyle()">
+                            <!-- Photo (if enabled) -->
+                            <div x-show="options.showPhoto && '{{ item.image.url|default:"" }}'" class="mb-2">
+                                <img src="{% if item.image %}{{ item.image.url }}{% endif %}"
+                                     class="w-12 h-12 object-cover mx-auto rounded"
+                                     alt="Item photo">
+                            </div>
+                            <!-- QR Code -->
+                            <img src="{{ item_qr_code }}"
+                                 :style="'width: ' + (options.qrSize * 0.6) + 'px; height: ' + (options.qrSize * 0.6) + 'px;'"
+                                 class="mx-auto mb-2"
+                                 alt="QR Code">
+                            <!-- Code -->
+                            <div x-show="options.showCode" class="font-mono font-bold text-xs text-gray-900">{{ item.code }}</div>
+                            <!-- Name -->
+                            <div x-show="options.showName" class="text-xs text-gray-600 mt-1 truncate max-w-full">{{ item.name|truncatechars:30 }}</div>
+                            <!-- Company -->
+                            <div x-show="options.showCompany" class="text-xs text-gray-400 mt-1">ARDT FMS</div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 text-center mt-2">
+                        Preview is scaled. Actual size: <span x-text="getLabelDimensions()"></span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <label class="flex items-center">
+                    <input type="checkbox" x-model="saveAsDefault" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Save as default settings</span>
+                </label>
+                <div class="flex space-x-3">
+                    <button @click="showOptions = false"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                        Cancel
+                    </button>
+                    <button @click="printWithOptions()"
+                            class="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
+                        <i data-lucide="printer" class="w-4 h-4 mr-2"></i>
+                        Print Label
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Fullscreen Modal -->
+<div id="imageModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-90" onclick="closeImageModal()">
+    <button onclick="closeImageModal()" class="absolute top-4 right-4 text-white hover:text-gray-300">
+        <i data-lucide="x" class="w-8 h-8"></i>
+    </button>
+    <img id="modalImage" src="" class="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl" onclick="event.stopPropagation()">
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-function printQRCode(imageSrc, code, name) {
-    // Create a new window for printing
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
+// Image modal functions
+function openImageModal(src) {
+    document.getElementById('modalImage').src = src;
+    document.getElementById('imageModal').classList.remove('hidden');
+    document.getElementById('imageModal').classList.add('flex');
+    document.body.style.overflow = 'hidden';
+}
 
-    // Generate the print content
-    const printContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Print Label - ${code}</title>
-            <style>
-                @page {
-                    size: 2in 3in;
-                    margin: 0.25in;
-                }
-                body {
-                    font-family: Arial, sans-serif;
-                    text-align: center;
-                    padding: 10px;
-                    margin: 0;
-                }
-                .label-container {
-                    border: 1px solid #ccc;
-                    padding: 15px;
-                    display: inline-block;
-                }
-                .qr-code {
-                    width: 150px;
-                    height: 150px;
-                    margin: 0 auto 10px;
-                }
-                .item-code {
-                    font-size: 14px;
-                    font-weight: bold;
-                    font-family: monospace;
-                    margin: 5px 0;
-                }
-                .item-name {
-                    font-size: 11px;
-                    color: #666;
-                    margin: 5px 0;
-                    max-width: 180px;
-                    word-wrap: break-word;
-                }
-                .company {
-                    font-size: 9px;
-                    color: #999;
-                    margin-top: 10px;
-                }
-                @media print {
-                    body { padding: 0; }
-                    .label-container { border: none; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="label-container">
-                <img src="${imageSrc}" class="qr-code" alt="QR Code">
-                <div class="item-code">${code}</div>
-                <div class="item-name">${name}</div>
-                <div class="company">ARDT FMS</div>
-            </div>
-            <script>
-                window.onload = function() {
-                    setTimeout(function() {
-                        window.print();
-                        window.close();
-                    }, 250);
-                };
-            <\/script>
-        </body>
-        </html>
-    `;
+function closeImageModal() {
+    document.getElementById('imageModal').classList.add('hidden');
+    document.getElementById('imageModal').classList.remove('flex');
+    document.body.style.overflow = '';
+}
 
-    printWindow.document.write(printContent);
-    printWindow.document.close();
+// Label printer Alpine.js component
+function labelPrinter() {
+    return {
+        showOptions: false,
+        saveAsDefault: false,
+        hasSavedPrefs: false,
+
+        // Item data
+        itemData: {
+            qrCode: '{{ item_qr_code }}',
+            code: '{{ item.code }}',
+            name: '{{ item.name|escapejs }}',
+            photo: '{% if item.image %}{{ item.image.url }}{% endif %}'
+        },
+
+        // Default options
+        options: {
+            showCode: true,
+            showName: true,
+            showPhoto: false,
+            showCompany: true,
+            shape: 'square',
+            sizePreset: 'medium',
+            customWidth: 50,
+            customHeight: 50,
+            qrSize: 120
+        },
+
+        init() {
+            // Load saved preferences from localStorage
+            const saved = localStorage.getItem('labelPrintPrefs');
+            if (saved) {
+                try {
+                    const prefs = JSON.parse(saved);
+                    this.options = { ...this.options, ...prefs };
+                    this.hasSavedPrefs = true;
+                } catch(e) {
+                    console.log('Could not load saved preferences');
+                }
+            }
+        },
+
+        applySizePreset() {
+            const presets = {
+                'small': { width: 25, height: 25 },
+                'medium': { width: 50, height: 50 },
+                'large': { width: 75, height: 75 },
+                'standard': { width: 50, height: 75 },
+                'shipping': { width: 100, height: 150 },
+                'custom': { width: this.options.customWidth, height: this.options.customHeight }
+            };
+
+            if (presets[this.options.sizePreset]) {
+                this.options.customWidth = presets[this.options.sizePreset].width;
+                this.options.customHeight = presets[this.options.sizePreset].height;
+            }
+
+            // Update shape based on dimensions
+            if (this.options.sizePreset !== 'custom') {
+                const ratio = this.options.customWidth / this.options.customHeight;
+                if (Math.abs(ratio - 1) < 0.1) {
+                    this.options.shape = 'square';
+                } else if (ratio < 1) {
+                    this.options.shape = 'portrait';
+                } else {
+                    this.options.shape = 'landscape';
+                }
+            }
+        },
+
+        getPreviewStyle() {
+            let width = 150;
+            let height = 150;
+
+            if (this.options.shape === 'portrait') {
+                width = 120;
+                height = 180;
+            } else if (this.options.shape === 'landscape') {
+                width = 180;
+                height = 120;
+            } else if (this.options.shape === 'custom' || this.options.sizePreset === 'custom') {
+                const scale = 3;
+                width = this.options.customWidth * scale;
+                height = this.options.customHeight * scale;
+            }
+
+            return `width: ${width}px; height: ${height}px; display: flex; flex-direction: column; align-items: center; justify-content: center;`;
+        },
+
+        getLabelDimensions() {
+            const w = this.options.customWidth;
+            const h = this.options.customHeight;
+            return `${w}mm x ${h}mm (${(w/25.4).toFixed(2)}" x ${(h/25.4).toFixed(2)}")`;
+        },
+
+        quickPrint() {
+            this.printLabel();
+        },
+
+        printWithOptions() {
+            if (this.saveAsDefault) {
+                localStorage.setItem('labelPrintPrefs', JSON.stringify(this.options));
+                this.hasSavedPrefs = true;
+            }
+            this.printLabel();
+            this.showOptions = false;
+        },
+
+        printLabel() {
+            const opts = this.options;
+            const item = this.itemData;
+
+            // Calculate print dimensions in inches for @page
+            const widthIn = (opts.customWidth / 25.4).toFixed(2);
+            const heightIn = (opts.customHeight / 25.4).toFixed(2);
+
+            // Build label content
+            let photoHtml = '';
+            if (opts.showPhoto && item.photo) {
+                photoHtml = `<img src="${item.photo}" class="item-photo" alt="Item photo">`;
+            }
+
+            let codeHtml = opts.showCode ? `<div class="item-code">${item.code}</div>` : '';
+            let nameHtml = opts.showName ? `<div class="item-name">${item.name}</div>` : '';
+            let companyHtml = opts.showCompany ? `<div class="company">ARDT FMS</div>` : '';
+
+            const printContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Print Label - ${item.code}</title>
+                    <style>
+                        @page {
+                            size: ${widthIn}in ${heightIn}in;
+                            margin: 2mm;
+                        }
+                        * {
+                            margin: 0;
+                            padding: 0;
+                            box-sizing: border-box;
+                        }
+                        body {
+                            font-family: Arial, sans-serif;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            width: ${opts.customWidth}mm;
+                            height: ${opts.customHeight}mm;
+                        }
+                        .label-container {
+                            text-align: center;
+                            padding: 2mm;
+                            width: 100%;
+                            height: 100%;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        .item-photo {
+                            width: ${Math.min(opts.qrSize * 0.4, 40)}px;
+                            height: ${Math.min(opts.qrSize * 0.4, 40)}px;
+                            object-fit: cover;
+                            border-radius: 4px;
+                            margin-bottom: 2mm;
+                        }
+                        .qr-code {
+                            width: ${opts.qrSize}px;
+                            height: ${opts.qrSize}px;
+                            margin-bottom: 2mm;
+                        }
+                        .item-code {
+                            font-size: ${Math.max(10, opts.qrSize * 0.12)}px;
+                            font-weight: bold;
+                            font-family: monospace;
+                            margin: 1mm 0;
+                        }
+                        .item-name {
+                            font-size: ${Math.max(8, opts.qrSize * 0.09)}px;
+                            color: #333;
+                            margin: 1mm 0;
+                            max-width: ${opts.customWidth - 10}mm;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                        }
+                        .company {
+                            font-size: ${Math.max(7, opts.qrSize * 0.07)}px;
+                            color: #666;
+                            margin-top: 1mm;
+                        }
+                        @media print {
+                            body {
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="label-container">
+                        ${photoHtml}
+                        <img src="${item.qrCode}" class="qr-code" alt="QR Code">
+                        ${codeHtml}
+                        ${nameHtml}
+                        ${companyHtml}
+                    </div>
+                    <script>
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.print();
+                                window.close();
+                            }, 300);
+                        };
+                    <\/script>
+                </body>
+                </html>
+            `;
+
+            const printWindow = window.open('', '_blank', 'width=400,height=600');
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+        }
+    }
+}
+
+// For legacy print calls from identifiers section
+function openLabelModal(qrSrc, code, name, photoSrc) {
+    // Find the Alpine component and update item data
+    const labelComponent = document.querySelector('[x-data="labelPrinter()"]');
+    if (labelComponent && labelComponent.__x) {
+        labelComponent.__x.$data.itemData = {
+            qrCode: qrSrc,
+            code: code,
+            name: name,
+            photo: photoSrc || ''
+        };
+        labelComponent.__x.$data.showOptions = true;
+    }
 }
 </script>
 {% endblock %}
