@@ -107,7 +107,7 @@
                                 <template x-if="attr.attribute_type === 'TEXT'">
                                     <input type="text" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
                                         :required="attr.is_required"
-                                        @input="attr.is_used_in_name && !nameManuallySet && generateName()"
+                                        @input="onAttributeChange(attr)"
                                         class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                                 </template>
 
@@ -115,7 +115,7 @@
                                 <template x-if="attr.attribute_type === 'NUMBER'">
                                     <input type="number" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
                                         :required="attr.is_required" :min="attr.min_value" :max="attr.max_value" step="any"
-                                        @input="attr.is_used_in_name && !nameManuallySet && generateName()"
+                                        @input="onAttributeChange(attr)"
                                         class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                                 </template>
 
@@ -123,7 +123,7 @@
                                 <template x-if="attr.attribute_type === 'SELECT'">
                                     <select :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
                                         :required="attr.is_required"
-                                        @change="attr.is_used_in_name && !nameManuallySet && generateName()"
+                                        @change="onAttributeChange(attr)"
                                         class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                                         <option value="">-</option>
                                         <template x-for="opt in getOptions(attr)" :key="opt.value">
@@ -136,7 +136,7 @@
                                 <template x-if="attr.attribute_type === 'BOOLEAN'">
                                     <div class="flex items-center mt-1">
                                         <input type="checkbox" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
-                                            @change="attr.is_used_in_name && !nameManuallySet && generateName()"
+                                            @change="onAttributeChange(attr)"
                                             class="rounded border-gray-300 text-blue-600">
                                         <span class="ml-1 text-xs text-gray-600 dark:text-gray-400">Yes</span>
                                     </div>
@@ -237,26 +237,36 @@
                     </p>
                 </div>
 
-                <!-- Legacy References (Collapsible) -->
-                <details class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                    <summary class="p-3 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Legacy System References <span class="text-xs text-gray-500">(optional)</span>
-                    </summary>
-                    <div class="px-4 pb-4 grid grid-cols-2 gap-3">
+                <!-- Legacy References (Auto-synced from attributes) -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        Legacy System References
+                        <span x-show="sapMatNumber || erpItemNumber" class="text-xs text-green-600 font-normal ml-1">(Auto-synced)</span>
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">SAP MAT Number</label>
-                            <input type="text" name="mat_number"
-                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                value="{{ form.mat_number.value|default:'' }}">
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                SAP MAT Number
+                                <span x-show="sapMatNumber" class="text-green-600 text-xs ml-1">✓</span>
+                            </label>
+                            <input type="text" name="mat_number" x-model="sapMatNumber" readonly
+                                :class="{'bg-green-50 dark:bg-green-900/20 border-green-300': sapMatNumber}"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                placeholder="From HDBS Code attribute">
+                            <p class="text-xs text-gray-500 mt-0.5">Halliburton items only</p>
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">ERP Item Number</label>
-                            <input type="text" name="item_number"
-                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                value="{{ form.item_number.value|default:'' }}">
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                ERP Item Number
+                                <span x-show="erpItemNumber" class="text-green-600 text-xs ml-1">✓</span>
+                            </label>
+                            <input type="text" name="item_number" x-model="erpItemNumber" readonly
+                                :class="{'bg-green-50 dark:bg-green-900/20 border-green-300': erpItemNumber}"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                placeholder="From Item Number attribute">
                         </div>
                     </div>
-                </details>
+                </div>
 
             </div>
 
@@ -402,6 +412,10 @@ function itemForm() {
         releaseUom: '{{ form.release_uom.value|default:"" }}',
         conversionFactor: parseFloat('{{ form.purchase_to_release_factor.value|default:"1" }}') || 1,
 
+        // Legacy References (auto-synced from attributes)
+        sapMatNumber: '{{ form.mat_number.value|default:""|escapejs }}',
+        erpItemNumber: '{{ form.item_number.value|default:""|escapejs }}',
+
         // Image
         imagePreview: null,
         hasExistingImage: {{ object.image|yesno:"true,false,false" }},
@@ -415,6 +429,7 @@ function itemForm() {
                 this.setItemTypeFromCategory();
             }
             this.updateCostConversion();
+            this.syncLegacyReferences();
         },
 
         setItemTypeFromCategory() {
@@ -474,6 +489,9 @@ function itemForm() {
                         this.attributeValues[attr.code] = attr.attribute_type === 'BOOLEAN' ? false : '';
                     }
                 });
+
+                // Sync legacy references from loaded attributes
+                this.syncLegacyReferences();
 
                 if (!this.nameManuallySet && this.nameTemplate) {
                     this.$nextTick(() => this.generateName());
@@ -594,6 +612,34 @@ function itemForm() {
         clearImage() {
             this.imagePreview = null;
             this.$refs.imageInput.value = '';
+        },
+
+        // Auto-sync legacy references from attributes
+        syncLegacyReferences() {
+            // Map attribute codes to legacy fields
+            // hdbs_code / HDBS_CODE -> SAP MAT Number (Halliburton items)
+            // item_number / ITEM_NUMBER -> ERP Item Number
+            const hdbsValue = this.attributeValues['hdbs_code'] || this.attributeValues['HDBS_CODE'] ||
+                              this.attributeValues['hdbs'] || this.attributeValues['HDBS'] || '';
+            const itemNumValue = this.attributeValues['item_number'] || this.attributeValues['ITEM_NUMBER'] ||
+                                 this.attributeValues['item_num'] || this.attributeValues['ITEM_NUM'] || '';
+
+            if (hdbsValue) {
+                this.sapMatNumber = hdbsValue;
+            }
+            if (itemNumValue) {
+                this.erpItemNumber = itemNumValue;
+            }
+        },
+
+        // Called when any attribute value changes
+        onAttributeChange(attr) {
+            // Update name if this attribute is used in name
+            if (attr.is_used_in_name && !this.nameManuallySet) {
+                this.generateName();
+            }
+            // Sync legacy references
+            this.syncLegacyReferences();
         }
     }
 }
