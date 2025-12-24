@@ -1064,6 +1064,58 @@ class InventoryItem(models.Model):
     # Image
     image = models.ImageField(upload_to="inventory/", null=True, blank=True)
 
+    # Packaging: Purchase vs Release UOM
+    purchase_uom = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="items_purchase_uom",
+        help_text="Unit for purchasing (e.g., CARTON, BOX)"
+    )
+    release_uom = models.ForeignKey(
+        UnitOfMeasure,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="items_release_uom",
+        help_text="Unit for issuing/releasing (e.g., EACH, PC)"
+    )
+    purchase_to_release_factor = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="1 purchase UOM = X release UOM (e.g., 1 CARTON = 100 EA)"
+    )
+
+    # In-Floor Tracking
+    issued_to_floor = models.DecimalField(
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        help_text="Quantity currently issued to production floor"
+    )
+    floor_location = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Current location on production floor (e.g., Machine A, Workstation 5)"
+    )
+    estimated_consumption_per_day = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="Estimated daily consumption rate for forecasting"
+    )
+    floor_reorder_point = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="When floor stock drops below this, trigger replenishment"
+    )
+
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1088,6 +1140,56 @@ class InventoryItem(models.Model):
     def total_stock(self):
         """Total stock across all locations (base item only)."""
         return self.stock_records.aggregate(total=models.Sum("quantity_on_hand"))["total"] or 0
+
+    @property
+    def cost_per_base_unit(self):
+        """
+        Calculate cost per base unit for comparison between items with different packaging.
+        If item is purchased in cartons but released by pieces, shows cost per piece.
+        """
+        from decimal import Decimal
+        if self.standard_cost and self.purchase_to_release_factor and self.purchase_to_release_factor > 0:
+            return Decimal(str(self.standard_cost)) / Decimal(str(self.purchase_to_release_factor))
+        return self.standard_cost or Decimal('0')
+
+    @property
+    def alternate_currency_cost(self):
+        """
+        Calculate cost in alternate currency using fixed exchange rate.
+        Default: SAR to USD (3.75 SAR = 1 USD)
+        """
+        from decimal import Decimal
+        from django.conf import settings as django_settings
+        exchange_rate = getattr(django_settings, 'SAR_TO_USD_RATE', Decimal('3.75'))
+        if self.currency == 'SAR' and self.standard_cost:
+            return Decimal(str(self.standard_cost)) / exchange_rate
+        elif self.currency == 'USD' and self.standard_cost:
+            return Decimal(str(self.standard_cost)) * exchange_rate
+        return self.standard_cost or Decimal('0')
+
+    @property
+    def days_until_floor_reorder(self):
+        """Estimate days until floor stock needs replenishment."""
+        if self.estimated_consumption_per_day and self.estimated_consumption_per_day > 0:
+            available = self.issued_to_floor - (self.floor_reorder_point or 0)
+            if available > 0:
+                from decimal import Decimal
+                return int(Decimal(str(available)) / Decimal(str(self.estimated_consumption_per_day)))
+        return None
+
+    def get_related_items(self):
+        """Get all related items (both directions)."""
+        from itertools import chain
+        outgoing = self.related_to.filter(is_active=True).select_related('to_item')
+        incoming = self.related_from.filter(is_active=True).select_related('from_item')
+        return {
+            'outgoing': list(outgoing),
+            'incoming': list(incoming),
+            'all': list(chain(
+                [(r.to_item, r.status, r.get_status_display()) for r in outgoing],
+                [(r.from_item, r.status, r.get_status_display()) for r in incoming]
+            ))
+        }
 
     @property
     def total_stock_with_variants(self):
@@ -1116,6 +1218,93 @@ class InventoryItem(models.Model):
         template = ' '.join(template.split())  # Clean extra spaces
 
         return template.strip() or self.name
+
+
+class ItemRelationship(models.Model):
+    """
+    Bidirectional relationships between inventory items.
+    Used for similar items, replacements, alternatives, etc.
+
+    Status options define the relationship type:
+    - EQUAL: Items are equivalent/interchangeable
+    - OBSOLETE: from_item is obsolete, use to_item instead
+    - UNAVAILABLE: from_item temporarily unavailable, use to_item as alternative
+    - BLOCKED: from_item is blocked, use to_item instead
+    - USE_UNTIL_CONSUME: from_item should be used until consumed, then switch to to_item
+    """
+
+    class RelationshipStatus(models.TextChoices):
+        EQUAL = "EQUAL", "Equal/Interchangeable"
+        OBSOLETE = "OBSOLETE", "Obsolete (use alternative)"
+        UNAVAILABLE = "UNAVAILABLE", "Temporarily Unavailable"
+        BLOCKED = "BLOCKED", "Blocked (use alternative)"
+        USE_UNTIL_CONSUME = "USE_UNTIL_CONSUME", "Use Until Consumed"
+
+    from_item = models.ForeignKey(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="related_to"
+    )
+    to_item = models.ForeignKey(
+        InventoryItem,
+        on_delete=models.CASCADE,
+        related_name="related_from"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=RelationshipStatus.choices,
+        default=RelationshipStatus.EQUAL,
+        help_text="Relationship type/status"
+    )
+    notes = models.TextField(blank=True, help_text="Additional notes about the relationship")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_item_relationships"
+    )
+
+    class Meta:
+        db_table = "item_relationships"
+        unique_together = ["from_item", "to_item"]
+        verbose_name = "Item Relationship"
+        verbose_name_plural = "Item Relationships"
+        ordering = ["from_item", "status"]
+
+    def __str__(self):
+        return f"{self.from_item.code} → {self.to_item.code} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        """Create bidirectional relationship automatically."""
+        super().save(*args, **kwargs)
+
+        # Check if reverse relationship exists
+        reverse_exists = ItemRelationship.objects.filter(
+            from_item=self.to_item,
+            to_item=self.from_item
+        ).exists()
+
+        if not reverse_exists and self.from_item != self.to_item:
+            # Create reverse relationship with appropriate status
+            reverse_status = self.status
+            if self.status == self.RelationshipStatus.OBSOLETE:
+                # Reverse of "obsolete" means "is replacement for"
+                reverse_status = self.RelationshipStatus.EQUAL
+            elif self.status == self.RelationshipStatus.USE_UNTIL_CONSUME:
+                # Reverse means "replaces after consumed"
+                reverse_status = self.RelationshipStatus.EQUAL
+
+            ItemRelationship.objects.create(
+                from_item=self.to_item,
+                to_item=self.from_item,
+                status=reverse_status,
+                notes=f"Auto-created reverse of: {self.notes}" if self.notes else "Auto-created reverse relationship",
+                is_active=self.is_active,
+                created_by=self.created_by
+            )
 
 
 class ItemAttributeValue(models.Model):

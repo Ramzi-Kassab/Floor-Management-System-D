@@ -14,103 +14,160 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-4xl" x-data="itemForm()">
+<div x-data="itemForm()" x-init="init()">
     <form method="post" enctype="multipart/form-data" class="space-y-6">
         {% csrf_token %}
+        <input type="hidden" name="name_manually_set" x-model="nameManuallySet">
 
-        <!-- Basic Info -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h2>
+        <!-- Top Section: Basic Info + Image -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Basic Info (2/3 width) -->
+            <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category *</label>
-                    <select name="category" id="id_category" x-model="selectedCategory" @change="onCategoryChange()"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
-                        <option value="">Select Category</option>
-                        {% for category in categories %}
-                        <option value="{{ category.pk }}"
-                                data-item-type="{{ category.item_type }}"
-                                data-code-prefix="{{ category.code_prefix }}"
-                                data-name-template="{{ category.name_template }}"
-                                {% if form.category.value|stringformat:"s" == category.pk|stringformat:"s" %}selected{% endif %}>
-                            {{ category.code }} - {{ category.name }}
-                        </option>
-                        {% for child in category.children.all %}
-                        <option value="{{ child.pk }}"
-                                data-item-type="{{ child.item_type }}"
-                                data-code-prefix="{{ child.code_prefix }}"
-                                data-name-template="{{ child.name_template }}"
-                                {% if form.category.value|stringformat:"s" == child.pk|stringformat:"s" %}selected{% endif %}>
-                            &nbsp;&nbsp;└ {{ child.code }} - {{ child.name }}
-                        </option>
-                        {% endfor %}
-                        {% endfor %}
-                    </select>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category *</label>
+                        <select name="category" id="id_category" x-model="selectedCategory" @change="onCategoryChange()"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                            <option value="">Select Category</option>
+                            {% for category in categories %}
+                            <option value="{{ category.pk }}"
+                                    data-item-type="{{ category.item_type }}"
+                                    data-code-prefix="{{ category.code_prefix }}"
+                                    data-name-template="{{ category.name_template }}"
+                                    {% if form.category.value|stringformat:"s" == category.pk|stringformat:"s" %}selected{% endif %}>
+                                {{ category.code }} - {{ category.name }}
+                            </option>
+                            {% for child in category.children.all %}
+                            <option value="{{ child.pk }}"
+                                    data-item-type="{{ child.item_type }}"
+                                    data-code-prefix="{{ child.code_prefix }}"
+                                    data-name-template="{{ child.name_template }}"
+                                    {% if form.category.value|stringformat:"s" == child.pk|stringformat:"s" %}selected{% endif %}>
+                                &nbsp;&nbsp;- {{ child.code }} - {{ child.name }}
+                            </option>
+                            {% endfor %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Item Type</label>
+                        <select name="item_type" id="id_item_type" x-model="itemType"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                            {% for value, label in type_choices %}
+                            <option value="{{ value }}" {% if form.item_type.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Auto-set from category</p>
+                    </div>
+
+                    <!-- Name Field (Primary - Real-time auto-generated) -->
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Name *
+                            <span x-show="!nameManuallySet && nameTemplate" class="ml-2 text-xs text-green-600 font-normal">
+                                (Auto-generated)
+                            </span>
+                            <button type="button" x-show="nameManuallySet" @click="nameManuallySet = false; generateName()"
+                                class="ml-2 text-xs text-blue-600 hover:text-blue-800 font-normal">
+                                [Reset to auto]
+                            </button>
+                        </label>
+                        <div class="relative">
+                            <input type="text" name="name" id="id_name" x-model="itemName"
+                                @input="nameManuallySet = true"
+                                @focus="if(!nameManuallySet && nameTemplate) generateName()"
+                                :class="{'ring-2 ring-green-500 border-green-500': !nameManuallySet && nameTemplate}"
+                                class="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-medium"
+                                placeholder="Auto-generated from attributes"
+                                value="{{ form.name.value|default:'' }}">
+                            <span x-show="!nameManuallySet && nameTemplate" class="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                                <i data-lucide="sparkles" class="w-5 h-5"></i>
+                            </span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1" x-show="nameTemplate">
+                            Template: <span x-text="nameTemplate" class="font-mono text-blue-600"></span>
+                        </p>
+                        {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                    </div>
+
+                    <!-- Code Field (Secondary - Auto-generated) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Code
+                            <button type="button" @click="generateCode()"
+                                class="ml-2 text-xs text-blue-600 hover:text-blue-800"
+                                x-show="selectedCategory">
+                                [Generate]
+                            </button>
+                        </label>
+                        <input type="text" name="code" id="id_code" x-model="itemCode"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-600 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                            placeholder="Auto-generated"
+                            value="{{ form.code.value|default:'' }}">
+                        <p class="text-xs text-gray-500 mt-1">System reference code</p>
+                        {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                        {{ form.description }}
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Item Type *</label>
-                    <select name="item_type" id="id_item_type" x-model="itemType"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
-                        {% for value, label in type_choices %}
-                        <option value="{{ value }}" {% if form.item_type.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1">Auto-set from category or select manually</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Code *
-                        <button type="button" @click="generateCode()"
-                            class="ml-2 text-xs text-blue-600 hover:text-blue-800"
-                            x-show="selectedCategory">
-                            [Auto-generate]
+            </div>
+
+            <!-- Image Upload (1/3 width) -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Item Image</h2>
+                <div class="relative">
+                    <!-- Image Preview / Placeholder -->
+                    <div class="aspect-square w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center"
+                         x-show="!imagePreview"
+                         @click="$refs.imageInput.click()">
+                        <div class="text-center cursor-pointer p-4">
+                            <i data-lucide="image-plus" class="w-16 h-16 mx-auto text-gray-400 dark:text-gray-500 mb-2"></i>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Click to upload image</p>
+                            <p class="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB</p>
+                        </div>
+                    </div>
+                    <div x-show="imagePreview" class="aspect-square w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden relative">
+                        <img :src="imagePreview" class="w-full h-full object-cover">
+                        <button type="button" @click="clearImage()"
+                            class="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600">
+                            <i data-lucide="x" class="w-4 h-4"></i>
                         </button>
-                    </label>
-                    <input type="text" name="code" id="id_code" x-model="itemCode"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Auto-generated or enter manually"
-                        value="{{ form.code.value|default:'' }}">
-                    {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Name *
-                        <button type="button" @click="generateName()"
-                            class="ml-2 text-xs text-blue-600 hover:text-blue-800"
-                            x-show="nameTemplate">
-                            [Auto-generate from attributes]
+                    </div>
+                    {% if object.image %}
+                    <div x-show="!imagePreview && !imageCleared" class="aspect-square w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden relative">
+                        <img src="{{ object.image.url }}" class="w-full h-full object-cover">
+                        <button type="button" @click="imageCleared = true"
+                            class="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600">
+                            <i data-lucide="x" class="w-4 h-4"></i>
                         </button>
-                    </label>
-                    <input type="text" name="name" id="id_name" x-model="itemName"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Item Name"
-                        value="{{ form.name.value|default:'' }}">
-                    <p class="text-xs text-gray-500 mt-1" x-show="nameTemplate" x-text="'Template: ' + nameTemplate"></p>
-                    {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
-                </div>
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
-                    {{ form.description }}
+                    </div>
+                    {% endif %}
+                    <input type="file" name="image" x-ref="imageInput" @change="previewImage($event)" accept="image/*" class="hidden">
                 </div>
             </div>
         </div>
 
-        <!-- Legacy References -->
+        <!-- Legacy System References -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Legacy System References</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Legacy System References
+                <span class="text-sm font-normal text-gray-500">(Optional - for migration tracking)</span>
+            </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SAP MAT Number</label>
                     {{ form.mat_number }}
                     <p class="text-xs text-gray-500 mt-1">Reference from legacy SAP system</p>
-                    {% if form.mat_number.errors %}<p class="text-red-600 text-sm mt-1">{{ form.mat_number.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ERP Item Number</label>
                     {{ form.item_number }}
                     <p class="text-xs text-gray-500 mt-1">Reference from parallel ERP system</p>
-                    {% if form.item_number.errors %}<p class="text-red-600 text-sm mt-1">{{ form.item_number.errors.0 }}</p>{% endif %}
                 </div>
             </div>
         </div>
@@ -123,11 +180,14 @@
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <template x-for="attr in attributes" :key="attr.id">
-                    <div>
+                    <div :class="{'ring-2 ring-blue-500 rounded-lg p-3 bg-blue-50 dark:bg-blue-900/20': attr.is_used_in_name}">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             <span x-text="attr.name"></span>
                             <span x-show="attr.is_required" class="text-red-500">*</span>
                             <span x-show="attr.unit" class="text-gray-400 font-normal" x-text="'(' + attr.unit + ')'"></span>
+                            <span x-show="attr.is_used_in_name" class="ml-1 text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                                In Name
+                            </span>
                         </label>
 
                         <!-- TEXT type -->
@@ -136,7 +196,7 @@
                                 :name="'attr_' + attr.id"
                                 x-model="attributeValues[attr.code]"
                                 :required="attr.is_required"
-                                @input="attr.is_used_in_name && generateName()"
+                                @input="attr.is_used_in_name && !nameManuallySet && generateName()"
                                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
                         </template>
 
@@ -149,7 +209,7 @@
                                 :min="attr.min_value"
                                 :max="attr.max_value"
                                 step="0.0001"
-                                @input="attr.is_used_in_name && generateName()"
+                                @input="attr.is_used_in_name && !nameManuallySet && generateName()"
                                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
                         </template>
 
@@ -158,7 +218,7 @@
                             <select :name="'attr_' + attr.id"
                                 x-model="attributeValues[attr.code]"
                                 :required="attr.is_required"
-                                @change="attr.is_used_in_name && generateName()"
+                                @change="attr.is_used_in_name && !nameManuallySet && generateName()"
                                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 text-sm">
                                 <option value="">Select...</option>
                                 <template x-for="opt in getOptions(attr)" :key="opt.value">
@@ -173,7 +233,7 @@
                                 <input type="checkbox"
                                     :name="'attr_' + attr.id"
                                     x-model="attributeValues[attr.code]"
-                                    @change="attr.is_used_in_name && generateName()"
+                                    @change="attr.is_used_in_name && !nameManuallySet && generateName()"
                                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                                 <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Yes</span>
                             </div>
@@ -197,31 +257,119 @@
             </div>
         </div>
 
-        <!-- Cost & Units -->
+        <!-- Cost & Currency Section -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Cost & Units</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Cost & Currency</h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Unit</label>
-                    {{ form.unit }}
-                </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Standard Cost</label>
-                    {{ form.standard_cost }}
+                    <div class="relative">
+                        <input type="number" name="standard_cost" x-model="standardCost" step="0.01"
+                            @input="updateCostConversion()"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                            value="{{ form.standard_cost.value|default:'0' }}">
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Currency</label>
-                    {{ form.currency }}
+                    <div class="flex space-x-2">
+                        <button type="button" @click="setCurrency('SAR')"
+                            :class="currency === 'SAR' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'"
+                            class="flex-1 px-4 py-2 rounded-lg font-medium transition-colors">
+                            SAR
+                        </button>
+                        <button type="button" @click="setCurrency('USD')"
+                            :class="currency === 'USD' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'"
+                            class="flex-1 px-4 py-2 rounded-lg font-medium transition-colors">
+                            USD
+                        </button>
+                    </div>
+                    <input type="hidden" name="currency" x-model="currency">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <span x-text="currency === 'SAR' ? 'In USD' : 'In SAR'"></span>
+                        <span class="text-xs text-gray-500">(calculated)</span>
+                    </label>
+                    <div class="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                        <span x-text="currency === 'SAR' ? '$' : 'SAR '"></span>
+                        <span x-text="convertedCost.toFixed(2)"></span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Rate: 1 USD = 3.75 SAR</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Cost per Base Unit
+                        <span class="text-xs text-gray-500">(for comparison)</span>
+                    </label>
+                    <div class="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                        <span x-text="currency + ' '"></span>
+                        <span x-text="costPerBaseUnit.toFixed(4)"></span>
+                        <span x-show="purchaseToReleaseFactor > 1" class="text-xs text-gray-500" x-text="'/ ' + releaseUomLabel"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Unit</label>
+                {{ form.unit }}
+            </div>
+        </div>
+
+        <!-- Packaging Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Packaging
+                <span class="text-sm font-normal text-gray-500">(Optional - for items bought in bulk)</span>
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Purchase UOM</label>
+                    <select name="purchase_uom" x-model="purchaseUom"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                        <option value="">Same as release UOM</option>
+                        {% for uom in uoms %}
+                        <option value="{{ uom.pk }}" {% if form.purchase_uom.value|stringformat:"s" == uom.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ uom.code }} - {{ uom.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">How you buy (e.g., CARTON, BOX)</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Release UOM</label>
+                    <select name="release_uom" x-model="releaseUom" @change="updateReleaseUomLabel()"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                        <option value="">Select release UOM</option>
+                        {% for uom in uoms %}
+                        <option value="{{ uom.pk }}" data-label="{{ uom.code }}" {% if form.release_uom.value|stringformat:"s" == uom.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ uom.code }} - {{ uom.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">How you issue (e.g., EACH, PC)</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Conversion Factor</label>
+                    <input type="number" name="purchase_to_release_factor" x-model="purchaseToReleaseFactor" step="0.0001" min="0"
+                        @input="updateCostPerBaseUnit()"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        placeholder="e.g., 100"
+                        value="{{ form.purchase_to_release_factor.value|default:'' }}">
+                    <p class="text-xs text-gray-500 mt-1" x-show="purchaseUom && purchaseToReleaseFactor > 0">
+                        1 purchase unit = <span x-text="purchaseToReleaseFactor"></span> release units
+                    </p>
                 </div>
             </div>
         </div>
 
         <!-- Stock Levels -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Stock Levels</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Stock Levels & Reorder</h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Min Stock</label>
                     {{ form.min_stock }}
@@ -235,8 +383,19 @@
                     {{ form.reorder_point }}
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Reorder Qty</label>
-                    {{ form.reorder_quantity }}
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Reorder Qty
+                        <button type="button" @click="calculateSmartReorderQty()"
+                            class="ml-1 text-xs text-blue-600 hover:text-blue-800" title="Calculate based on min purchase qty">
+                            [Smart]
+                        </button>
+                    </label>
+                    <input type="number" name="reorder_quantity" x-model="reorderQty" step="0.001"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        value="{{ form.reorder_quantity.value|default:'0' }}">
+                    <p class="text-xs text-gray-500 mt-1" x-show="purchaseToReleaseFactor > 1">
+                        = <span x-text="(reorderQty / purchaseToReleaseFactor).toFixed(1)"></span> purchase units
+                    </p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Lead Time (days)</label>
@@ -244,6 +403,76 @@
                 </div>
             </div>
         </div>
+
+        <!-- In-Floor Tracking -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                In-Floor Tracking
+                <span class="text-sm font-normal text-gray-500">(Track items issued to production floor)</span>
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Floor Location</label>
+                    {{ form.floor_location }}
+                    <p class="text-xs text-gray-500 mt-1">e.g., Machine A, Workstation 5</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Issued to Floor</label>
+                    {{ form.issued_to_floor }}
+                    <p class="text-xs text-gray-500 mt-1">Current qty on floor</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Est. Daily Consumption</label>
+                    {{ form.estimated_consumption_per_day }}
+                    <p class="text-xs text-gray-500 mt-1">For forecasting</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Floor Reorder Point</label>
+                    {{ form.floor_reorder_point }}
+                    <p class="text-xs text-gray-500 mt-1">Trigger replenishment</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Similar/Replacement Items -->
+        {% if object %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Similar & Replacement Items
+                <button type="button" @click="showRelatedItemsModal = true"
+                    class="ml-2 text-sm font-normal text-blue-600 hover:text-blue-800">
+                    + Add Related Item
+                </button>
+            </h2>
+
+            {% if object.related_to.exists or object.related_from.exists %}
+            <div class="space-y-2">
+                {% for rel in object.related_to.all %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div class="flex items-center space-x-3">
+                        <span class="px-2 py-1 text-xs font-medium rounded
+                            {% if rel.status == 'EQUAL' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300
+                            {% elif rel.status == 'OBSOLETE' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300
+                            {% elif rel.status == 'BLOCKED' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300
+                            {% elif rel.status == 'UNAVAILABLE' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300
+                            {% else %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300{% endif %}">
+                            {{ rel.get_status_display }}
+                        </span>
+                        <span class="text-gray-600 dark:text-gray-400">→</span>
+                        <a href="{% url 'inventory:item_update' rel.to_item.pk %}" class="text-blue-600 hover:underline">
+                            {{ rel.to_item.code }} - {{ rel.to_item.name }}
+                        </a>
+                    </div>
+                    <span class="text-xs text-gray-500">{{ rel.notes|default:"" }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-sm">No related items configured.</p>
+            {% endif %}
+        </div>
+        {% endif %}
 
         <!-- Supplier Info -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
@@ -280,10 +509,6 @@
                         <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Track by Lot/Batch</label>
                     </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Image</label>
-                    {{ form.image }}
-                </div>
             </div>
         </div>
 
@@ -296,31 +521,127 @@
     </form>
 </div>
 
+<!-- Add Related Item Modal -->
+<div x-show="showRelatedItemsModal" x-cloak
+     class="fixed inset-0 z-50 overflow-y-auto"
+     @keydown.escape.window="showRelatedItemsModal = false">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black/50" @click="showRelatedItemsModal = false"></div>
+        <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Related Item</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search Item</label>
+                    <input type="text" x-model="relatedItemSearch" @input="searchRelatedItems()"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
+                        placeholder="Search by code or name...">
+                </div>
+
+                <div x-show="relatedItemResults.length > 0" class="max-h-40 overflow-y-auto border rounded-lg">
+                    <template x-for="item in relatedItemResults" :key="item.id">
+                        <div @click="selectRelatedItem(item)"
+                             class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b last:border-b-0">
+                            <span x-text="item.code" class="font-mono text-sm"></span> -
+                            <span x-text="item.name"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <div x-show="selectedRelatedItem">
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        Selected: <strong x-text="selectedRelatedItem?.code + ' - ' + selectedRelatedItem?.name"></strong>
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Relationship Status</label>
+                    <select x-model="relatedItemStatus"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg">
+                        <option value="EQUAL">Equal/Interchangeable</option>
+                        <option value="OBSOLETE">This item is obsolete (use selected as replacement)</option>
+                        <option value="UNAVAILABLE">This item temporarily unavailable</option>
+                        <option value="BLOCKED">This item is blocked</option>
+                        <option value="USE_UNTIL_CONSUME">Use until consumed, then switch</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
+                    <input type="text" x-model="relatedItemNotes"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
+                        placeholder="Optional notes...">
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 mt-6">
+                <button type="button" @click="showRelatedItemsModal = false"
+                    class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+                <button type="button" @click="addRelatedItem()" :disabled="!selectedRelatedItem"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    Add Relationship
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 function itemForm() {
     return {
         selectedCategory: '{{ form.category.value|default:"" }}',
-        itemType: '{{ form.item_type.value|default:"COMPONENT" }}',
+        itemType: '{{ form.item_type.value|default:"STOCK_ITEM" }}',
         itemCode: '{{ form.code.value|default:"" }}',
         itemName: '{{ form.name.value|default:"" }}',
+        nameManuallySet: {{ form.instance.name_manually_set|yesno:"true,false,false" }},
         nameTemplate: '',
         attributes: [],
         attributeValues: {},
         existingAttributeValues: {{ existing_attribute_values|safe|default:"{}" }},
 
+        // Cost & Currency
+        standardCost: parseFloat('{{ form.standard_cost.value|default:"0" }}') || 0,
+        currency: '{{ form.currency.value|default:"SAR" }}',
+        convertedCost: 0,
+        costPerBaseUnit: 0,
+        exchangeRate: 3.75,
+
+        // Packaging
+        purchaseUom: '{{ form.purchase_uom.value|default:"" }}',
+        releaseUom: '{{ form.release_uom.value|default:"" }}',
+        purchaseToReleaseFactor: parseFloat('{{ form.purchase_to_release_factor.value|default:"1" }}') || 1,
+        releaseUomLabel: 'unit',
+
+        // Stock
+        reorderQty: parseFloat('{{ form.reorder_quantity.value|default:"0" }}') || 0,
+
+        // Image
+        imagePreview: null,
+        imageCleared: false,
+
+        // Related Items Modal
+        showRelatedItemsModal: false,
+        relatedItemSearch: '',
+        relatedItemResults: [],
+        selectedRelatedItem: null,
+        relatedItemStatus: 'EQUAL',
+        relatedItemNotes: '',
+
         init() {
             // Load attributes if category is pre-selected
             if (this.selectedCategory) {
                 this.loadAttributes();
+            }
 
-                // Set item type from category default if not already set
-                if (!this.itemType || this.itemType === '') {
-                    const select = document.getElementById('id_category');
-                    const option = select.options[select.selectedIndex];
-                    if (option && option.dataset.itemType) {
-                        this.itemType = option.dataset.itemType;
-                    }
-                }
+            // Initial cost conversion
+            this.updateCostConversion();
+            this.updateCostPerBaseUnit();
+            this.updateReleaseUomLabel();
+
+            // Check if name was manually set
+            if (this.itemName && !this.nameManuallySet) {
+                // If we have a name but it wasn't manually set, assume auto-generated
+                // This helps on edit when coming back to form
             }
         },
 
@@ -340,6 +661,11 @@ function itemForm() {
 
                 // Load category attributes
                 this.loadAttributes();
+
+                // Auto-generate name if not manually set
+                if (!this.nameManuallySet) {
+                    this.$nextTick(() => this.generateName());
+                }
             } else {
                 this.nameTemplate = '';
                 this.attributes = [];
@@ -359,13 +685,17 @@ function itemForm() {
                 // Initialize attribute values
                 this.attributeValues = {};
                 this.attributes.forEach(attr => {
-                    // Check if we have existing values
                     if (this.existingAttributeValues[attr.code] !== undefined) {
                         this.attributeValues[attr.code] = this.existingAttributeValues[attr.code];
                     } else {
                         this.attributeValues[attr.code] = attr.attribute_type === 'BOOLEAN' ? false : '';
                     }
                 });
+
+                // Generate name after loading attributes
+                if (!this.nameManuallySet && this.nameTemplate) {
+                    this.$nextTick(() => this.generateName());
+                }
             } catch (error) {
                 console.error('Error loading attributes:', error);
             }
@@ -424,14 +754,132 @@ function itemForm() {
 
         getOptions(attr) {
             if (!attr.options) return [];
-
-            // Handle both simple arrays and object arrays
             return attr.options.map(opt => {
                 if (typeof opt === 'string') {
                     return { value: opt, label: opt };
                 }
                 return { value: opt.value, label: opt.label };
             });
+        },
+
+        // Cost & Currency methods
+        setCurrency(curr) {
+            this.currency = curr;
+            this.updateCostConversion();
+        },
+
+        updateCostConversion() {
+            if (this.currency === 'SAR') {
+                this.convertedCost = this.standardCost / this.exchangeRate;
+            } else {
+                this.convertedCost = this.standardCost * this.exchangeRate;
+            }
+            this.updateCostPerBaseUnit();
+        },
+
+        updateCostPerBaseUnit() {
+            if (this.purchaseToReleaseFactor > 0) {
+                this.costPerBaseUnit = this.standardCost / this.purchaseToReleaseFactor;
+            } else {
+                this.costPerBaseUnit = this.standardCost;
+            }
+        },
+
+        updateReleaseUomLabel() {
+            const select = document.querySelector('select[name="release_uom"]');
+            if (select && select.selectedIndex > 0) {
+                const option = select.options[select.selectedIndex];
+                this.releaseUomLabel = option.dataset.label || 'unit';
+            } else {
+                this.releaseUomLabel = 'unit';
+            }
+        },
+
+        calculateSmartReorderQty() {
+            // Calculate reorder qty that's a multiple of purchase units
+            const minStock = parseFloat(document.querySelector('input[name="min_stock"]')?.value) || 0;
+            const maxStock = parseFloat(document.querySelector('input[name="max_stock"]')?.value) || 0;
+            const factor = this.purchaseToReleaseFactor || 1;
+
+            if (maxStock > minStock) {
+                // Calculate ideal qty and round up to nearest purchase unit
+                const idealQty = maxStock - minStock;
+                const purchaseUnits = Math.ceil(idealQty / factor);
+                this.reorderQty = purchaseUnits * factor;
+            } else if (factor > 1) {
+                // Default to 1 purchase unit
+                this.reorderQty = factor;
+            }
+        },
+
+        // Image methods
+        previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    this.imagePreview = e.target.result;
+                    this.imageCleared = false;
+                };
+                reader.readAsDataURL(file);
+            }
+        },
+
+        clearImage() {
+            this.imagePreview = null;
+            this.$refs.imageInput.value = '';
+        },
+
+        // Related Items methods
+        async searchRelatedItems() {
+            if (this.relatedItemSearch.length < 2) {
+                this.relatedItemResults = [];
+                return;
+            }
+
+            try {
+                const response = await fetch(`/inventory/api/items/search/?q=${encodeURIComponent(this.relatedItemSearch)}`);
+                const data = await response.json();
+                this.relatedItemResults = data.items || [];
+            } catch (error) {
+                console.error('Error searching items:', error);
+            }
+        },
+
+        selectRelatedItem(item) {
+            this.selectedRelatedItem = item;
+            this.relatedItemResults = [];
+            this.relatedItemSearch = item.code + ' - ' + item.name;
+        },
+
+        async addRelatedItem() {
+            if (!this.selectedRelatedItem) return;
+
+            try {
+                const response = await fetch('/inventory/api/item-relationships/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        from_item: {{ object.pk|default:"null" }},
+                        to_item: this.selectedRelatedItem.id,
+                        status: this.relatedItemStatus,
+                        notes: this.relatedItemNotes
+                    })
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const data = await response.json();
+                    alert(data.error || 'Failed to add relationship');
+                }
+            } catch (error) {
+                console.error('Error adding relationship:', error);
+                alert('Error adding relationship');
+            }
         }
     }
 }

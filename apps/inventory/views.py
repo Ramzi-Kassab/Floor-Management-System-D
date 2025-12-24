@@ -8,6 +8,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import F, Q, Sum
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -46,6 +47,7 @@ from .models import (
     ItemCutterSpec,
     ItemIdentifier,
     ItemPlanning,
+    ItemRelationship,
     ItemSupplier,
     ItemVariant,
     UnitOfMeasure,
@@ -481,6 +483,8 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         context["form_title"] = "Create Inventory Item"
         context["categories"] = InventoryCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
         context["type_choices"] = InventoryItem.ItemType.choices
+        context["uoms"] = UnitOfMeasure.objects.filter(is_active=True).order_by('name')
+        context["existing_attribute_values"] = "{}"
         return context
 
 
@@ -555,6 +559,7 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
         context["form_title"] = "Edit Inventory Item"
         context["categories"] = InventoryCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
         context["type_choices"] = InventoryItem.ItemType.choices
+        context["uoms"] = UnitOfMeasure.objects.filter(is_active=True).order_by('name')
 
         # Pass existing attribute values for pre-populating the form
         if self.object.category:
@@ -1829,12 +1834,16 @@ class CategoryAttributesAPIView(LoginRequiredMixin, View):
                 "attribute_type": attr.attribute_type,
                 "unit": attr.unit.symbol if attr.unit else "",
                 "is_required": attr.is_required,
+                "is_used_in_name": attr.is_used_in_name,
                 "min_value": str(attr.min_value) if attr.min_value else None,
                 "max_value": str(attr.max_value) if attr.max_value else None,
                 "options": attr.options,
             })
 
-        return JsonResponse({"attributes": data})
+        return JsonResponse({
+            "attributes": data,
+            "name_template": category.name_template or ""
+        })
 
 
 class CategoryGenerateCodeAPIView(LoginRequiredMixin, View):
@@ -1844,6 +1853,82 @@ class CategoryGenerateCodeAPIView(LoginRequiredMixin, View):
         category = get_object_or_404(InventoryCategory, pk=category_pk)
         code = category.generate_next_code()
         return JsonResponse({"code": code})
+
+    def post(self, request, category_pk):
+        """Also handle POST for CSRF-protected requests."""
+        return self.get(request, category_pk)
+
+
+class ItemSearchAPIView(LoginRequiredMixin, View):
+    """API to search for inventory items."""
+
+    def get(self, request):
+        query = request.GET.get("q", "").strip()
+        if len(query) < 2:
+            return JsonResponse({"items": []})
+
+        items = InventoryItem.objects.filter(
+            Q(code__icontains=query) | Q(name__icontains=query)
+        ).filter(is_active=True)[:20]
+
+        data = [{"id": item.pk, "code": item.code, "name": item.name} for item in items]
+        return JsonResponse({"items": data})
+
+
+class ItemRelationshipAPIView(LoginRequiredMixin, View):
+    """API to manage item relationships."""
+
+    def post(self, request):
+        import json
+        try:
+            data = json.loads(request.body)
+            from_item_id = data.get("from_item")
+            to_item_id = data.get("to_item")
+            status = data.get("status", "EQUAL")
+            notes = data.get("notes", "")
+
+            if not from_item_id or not to_item_id:
+                return JsonResponse({"error": "Both from_item and to_item are required"}, status=400)
+
+            if from_item_id == to_item_id:
+                return JsonResponse({"error": "Cannot create relationship to self"}, status=400)
+
+            from_item = get_object_or_404(InventoryItem, pk=from_item_id)
+            to_item = get_object_or_404(InventoryItem, pk=to_item_id)
+
+            # Check if relationship already exists
+            if ItemRelationship.objects.filter(from_item=from_item, to_item=to_item).exists():
+                return JsonResponse({"error": "Relationship already exists"}, status=400)
+
+            # Create the relationship (bidirectional is handled in model.save())
+            relationship = ItemRelationship.objects.create(
+                from_item=from_item,
+                to_item=to_item,
+                status=status,
+                notes=notes,
+                created_by=request.user
+            )
+
+            return JsonResponse({
+                "success": True,
+                "id": relationship.pk,
+                "message": f"Relationship created: {from_item.code} → {to_item.code}"
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    def delete(self, request, pk):
+        relationship = get_object_or_404(ItemRelationship, pk=pk)
+        # Also delete the reverse relationship
+        ItemRelationship.objects.filter(
+            from_item=relationship.to_item,
+            to_item=relationship.from_item
+        ).delete()
+        relationship.delete()
+        return JsonResponse({"success": True})
 
 
 # =============================================================================

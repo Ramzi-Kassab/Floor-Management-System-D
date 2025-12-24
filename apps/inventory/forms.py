@@ -123,50 +123,101 @@ class InventoryItemForm(forms.ModelForm):
         fields = [
             "code",
             "name",
+            "name_manually_set",
             "description",
             "item_type",
             "category",
             "unit",
             "standard_cost",
             "currency",
+            # Legacy references
+            "mat_number",
+            "item_number",
+            # Packaging
+            "purchase_uom",
+            "release_uom",
+            "purchase_to_release_factor",
+            # Stock levels
             "min_stock",
             "max_stock",
             "reorder_point",
             "reorder_quantity",
             "lead_time_days",
+            # In-Floor Tracking
+            "floor_location",
+            "issued_to_floor",
+            "estimated_consumption_per_day",
+            "floor_reorder_point",
+            # Supplier
             "primary_supplier",
             "supplier_part_number",
+            # Tracking & Status
             "is_active",
             "is_serialized",
             "is_lot_controlled",
             "image",
         ]
         widgets = {
-            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "ITEM-0001"}),
-            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Item Name"}),
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Auto-generated"}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Auto-generated from attributes"}),
+            "name_manually_set": forms.HiddenInput(),
             "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
             "item_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "unit": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "EA"}),
             "standard_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01"}),
-            "currency": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "SAR"}),
+            "currency": forms.Select(attrs={"class": TAILWIND_SELECT}, choices=[("SAR", "SAR"), ("USD", "USD")]),
+            # Legacy references
+            "mat_number": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "SAP MAT Number"}),
+            "item_number": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "ERP Item Number"}),
+            # Packaging
+            "purchase_uom": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "release_uom": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "purchase_to_release_factor": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001", "placeholder": "e.g. 100 for 1 carton = 100 pcs"}),
+            # Stock levels
             "min_stock": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "max_stock": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "reorder_point": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "reorder_quantity": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "lead_time_days": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            # In-Floor Tracking
+            "floor_location": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g. Machine A, Workstation 5"}),
+            "issued_to_floor": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
+            "estimated_consumption_per_day": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "placeholder": "Daily usage rate"}),
+            "floor_reorder_point": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "placeholder": "Trigger replenishment when below"}),
+            # Supplier
             "primary_supplier": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "supplier_part_number": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            # Tracking & Status
             "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "is_serialized": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "is_lot_controlled": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
-            "image": forms.FileInput(attrs={"class": TAILWIND_INPUT}),
+            "image": forms.FileInput(attrs={"class": TAILWIND_INPUT, "accept": "image/*"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Make item_type not required - will get from category default if not provided
         self.fields['item_type'].required = False
+
+        # Set UOM querysets
+        from apps.inventory.models import UnitOfMeasure
+        uom_qs = UnitOfMeasure.objects.filter(is_active=True).order_by('name')
+        self.fields['purchase_uom'].queryset = uom_qs
+        self.fields['release_uom'].queryset = uom_qs
+        self.fields['purchase_uom'].empty_label = "Same as release UOM"
+        self.fields['release_uom'].empty_label = "Select release UOM"
+
+        # Make new fields not required
+        self.fields['purchase_uom'].required = False
+        self.fields['release_uom'].required = False
+        self.fields['purchase_to_release_factor'].required = False
+        self.fields['floor_location'].required = False
+        self.fields['issued_to_floor'].required = False
+        self.fields['estimated_consumption_per_day'].required = False
+        self.fields['floor_reorder_point'].required = False
+        self.fields['mat_number'].required = False
+        self.fields['item_number'].required = False
 
     def clean_item_type(self):
         item_type = self.cleaned_data.get('item_type')
@@ -178,6 +229,20 @@ class InventoryItemForm(forms.ModelForm):
             # Final fallback
             return 'STOCK_ITEM'
         return item_type
+
+    def clean(self):
+        cleaned_data = super().clean()
+        purchase_uom = cleaned_data.get('purchase_uom')
+        release_uom = cleaned_data.get('release_uom')
+        factor = cleaned_data.get('purchase_to_release_factor')
+
+        # If purchase UOM is set, factor is required
+        if purchase_uom and release_uom and purchase_uom != release_uom:
+            if not factor or factor <= 0:
+                self.add_error('purchase_to_release_factor',
+                    'Conversion factor is required when purchase and release UOM differ')
+
+        return cleaned_data
 
 
 class InventoryStockForm(forms.ModelForm):
