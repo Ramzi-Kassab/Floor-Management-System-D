@@ -4742,6 +4742,18 @@ class PocketItemView(View):
         # Get device info
         device_info = self.get_device_info(request)
 
+        # Get pending GRN lines for this item (for receiving workflow)
+        pending_grn_lines = GRNLine.objects.filter(
+            item=item,
+            grn__status__in=['DRAFT', 'PENDING_QC', 'CONFIRMED'],
+        ).select_related('grn', 'grn__vendor', 'grn__warehouse').order_by('-grn__created_at')[:5]
+
+        # Get count of all pending GRNs for this item
+        pending_grn_count = GRNLine.objects.filter(
+            item=item,
+            grn__status__in=['DRAFT', 'PENDING_QC', 'CONFIRMED'],
+        ).values('grn').distinct().count()
+
         context = {
             'item': item,
             'total_stock': total_stock,
@@ -4750,6 +4762,8 @@ class PocketItemView(View):
             'current_user': current_user,
             'device_info': device_info,
             'is_mobile': device_info['type'] in ('mobile', 'tablet'),
+            'pending_grn_lines': pending_grn_lines,
+            'pending_grn_count': pending_grn_count,
         }
 
         return render(request, self.template_name, context)
