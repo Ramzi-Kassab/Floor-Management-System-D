@@ -818,31 +818,16 @@ class StockAdjustView(LoginRequiredMixin, View):
 
 
 class AttributeListView(LoginRequiredMixin, ListView):
-    """List of all attributes (simple name list)."""
+    """List of all attributes (simple name list) with client-side sort/filter."""
 
     model = Attribute
     template_name = "inventory/attribute_list.html"
     context_object_name = "attributes"
-    paginate_by = 50
+    # No pagination - client-side filtering handles all data
 
     def get_queryset(self):
-        queryset = Attribute.objects.all()
-
-        # Search filter
-        search = self.request.GET.get("q", "").strip()
-        if search:
-            queryset = queryset.filter(
-                Q(code__icontains=search) |
-                Q(name__icontains=search) |
-                Q(description__icontains=search)
-            )
-
-        # Classification filter
-        classification = self.request.GET.get("classification", "").strip()
-        if classification:
-            queryset = queryset.filter(classification=classification)
-
-        return queryset.order_by("classification", "name")
+        # Load all attributes for client-side filtering/sorting
+        return Attribute.objects.all().order_by("classification", "name")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -850,6 +835,7 @@ class AttributeListView(LoginRequiredMixin, ListView):
         context["search_query"] = self.request.GET.get("q", "")
         context["selected_classification"] = self.request.GET.get("classification", "")
         context["classification_choices"] = Attribute.Classification.choices
+        context["type_choices"] = Attribute.DataType.choices
         return context
 
 

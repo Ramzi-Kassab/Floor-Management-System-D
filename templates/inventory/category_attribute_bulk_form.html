@@ -360,7 +360,7 @@ function attributeSelector() {
                         {% for attr in selected_attributes %}
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 config-row"
                             data-attr-id="{{ attr.id }}"
-                            x-data="{ attrType: 'TEXT' }">
+                            x-data="rowConfig({{ attr.id }})" x-init="initRow()">
                             <input type="hidden" name="attribute_id" value="{{ attr.id }}">
 
                             <!-- Attribute Name -->
@@ -827,103 +827,103 @@ function updateRulesButton(attrId, ruleCount) {
 </script>
 
 <script>
-function attributeConfigurator() {
-    // Existing attribute configurations from server
-    const existingConfigs = {
-        {% for attr_id, cat_attr in existing_cat_attrs.items %}
-        {{ attr_id }}: {
-            type: "{{ cat_attr.attribute_type }}",
-            unit: "{{ cat_attr.unit_id|default:'' }}",
-            min: "{{ cat_attr.min_value|default:'' }}",
-            max: "{{ cat_attr.max_value|default:'' }}",
-            options: "{% if cat_attr.options %}{{ cat_attr.options|escapejs }}{% endif %}",
-            defaultValue: "{{ cat_attr.default_value|default:''|escapejs }}",
-            rules: {% if cat_attr.conditional_rules %}{{ cat_attr.conditional_rules|safe }}{% else %}null{% endif %},
-            required: {{ cat_attr.is_required|yesno:"true,false" }},
-            inName: {{ cat_attr.is_used_in_name|yesno:"true,false" }},
-            order: {{ cat_attr.display_order|default:0 }}
-        }{% if not forloop.last %},{% endif %}
-        {% endfor %}
-    };
+// Global existing configs - accessible to row components
+const existingConfigs = {
+    {% for attr_id, cat_attr in existing_cat_attrs.items %}
+    {{ attr_id }}: {
+        type: "{{ cat_attr.attribute_type }}",
+        unit: "{{ cat_attr.unit_id|default:'' }}",
+        min: "{{ cat_attr.min_value|default:'' }}",
+        max: "{{ cat_attr.max_value|default:'' }}",
+        options: "{% if cat_attr.options %}{{ cat_attr.options|escapejs }}{% endif %}",
+        defaultValue: "{{ cat_attr.default_value|default:''|escapejs }}",
+        rules: {% if cat_attr.conditional_rules %}{{ cat_attr.conditional_rules|safe }}{% else %}null{% endif %},
+        required: {{ cat_attr.is_required|yesno:"true,false" }},
+        inName: {{ cat_attr.is_used_in_name|yesno:"true,false" }},
+        order: {{ cat_attr.display_order|default:0 }}
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+};
 
+// Row-level Alpine component
+function rowConfig(attrId) {
+    const config = existingConfigs[attrId];
+    return {
+        attrType: config ? config.type : 'TEXT',
+        isExisting: !!config,
+
+        initRow() {
+            if (!config) return;
+
+            const row = this.$el;
+
+            // Mark as existing
+            row.classList.add('bg-green-50', 'dark:bg-green-900/10');
+            row.querySelector('.existing-badge')?.classList.remove('hidden');
+
+            // Set unit
+            const unitSelect = row.querySelector('.unit-select');
+            if (unitSelect && config.unit) {
+                unitSelect.value = config.unit;
+            }
+
+            // Set min/max
+            const minInput = row.querySelector('.min-input');
+            const maxInput = row.querySelector('.max-input');
+            if (minInput && config.min) minInput.value = config.min;
+            if (maxInput && config.max) maxInput.value = config.max;
+
+            // Set options
+            const optionsInput = row.querySelector('.options-input');
+            if (optionsInput && config.options) {
+                try {
+                    const opts = JSON.parse(config.options);
+                    if (Array.isArray(opts)) {
+                        optionsInput.value = opts.map(o => typeof o === 'object' ? o.value : o).join(', ');
+                    } else {
+                        optionsInput.value = config.options;
+                    }
+                } catch {
+                    optionsInput.value = config.options;
+                }
+            }
+
+            // Set default value
+            const defaultInput = row.querySelector('.default-input');
+            if (defaultInput && config.defaultValue) {
+                defaultInput.value = config.defaultValue;
+            }
+
+            // Set conditional rules
+            if (config.rules) {
+                const rulesInput = row.querySelector('.rules-input');
+                if (rulesInput) {
+                    rulesInput.value = JSON.stringify(config.rules);
+                    const ruleCount = config.rules.rules ? config.rules.rules.length : 0;
+                    updateRulesButton(attrId, ruleCount);
+                }
+            }
+
+            // Set checkboxes
+            const reqCheckbox = row.querySelector('.required-checkbox');
+            const nameCheckbox = row.querySelector('.inname-checkbox');
+            if (reqCheckbox) reqCheckbox.checked = config.required;
+            if (nameCheckbox) nameCheckbox.checked = config.inName;
+
+            // Set order
+            const orderInput = row.querySelector('.order-input');
+            if (orderInput) orderInput.value = config.order;
+        }
+    }
+}
+
+function attributeConfigurator() {
     return {
         init() {
-            // Pre-fill form fields for existing attributes
-            document.querySelectorAll('.config-row').forEach(row => {
-                const attrId = row.dataset.attrId;
-                const config = existingConfigs[attrId];
-
-                if (config) {
-                    // Mark as existing
-                    row.classList.add('bg-green-50', 'dark:bg-green-900/10');
-                    row.querySelector('.existing-badge')?.classList.remove('hidden');
-
-                    // Set type (this also updates Alpine x-data)
-                    const typeSelect = row.querySelector('.type-select');
-                    if (typeSelect) {
-                        typeSelect.value = config.type;
-                        typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-
-                    // Set unit
-                    const unitSelect = row.querySelector('.unit-select');
-                    if (unitSelect && config.unit) {
-                        unitSelect.value = config.unit;
-                    }
-
-                    // Set min/max
-                    const minInput = row.querySelector('.min-input');
-                    const maxInput = row.querySelector('.max-input');
-                    if (minInput && config.min) minInput.value = config.min;
-                    if (maxInput && config.max) maxInput.value = config.max;
-
-                    // Set options
-                    const optionsInput = row.querySelector('.options-input');
-                    if (optionsInput && config.options) {
-                        // Parse JSON array to comma-separated display
-                        try {
-                            const opts = JSON.parse(config.options);
-                            if (Array.isArray(opts)) {
-                                optionsInput.value = opts.map(o => typeof o === 'object' ? o.value : o).join(', ');
-                            } else {
-                                optionsInput.value = config.options;
-                            }
-                        } catch {
-                            optionsInput.value = config.options;
-                        }
-                    }
-
-                    // Set default value
-                    const defaultInput = row.querySelector('.default-input');
-                    if (defaultInput && config.defaultValue) {
-                        defaultInput.value = config.defaultValue;
-                    }
-
-                    // Set conditional rules
-                    if (config.rules) {
-                        const rulesInput = row.querySelector('.rules-input');
-                        if (rulesInput) {
-                            rulesInput.value = JSON.stringify(config.rules);
-                            // Update button appearance
-                            const ruleCount = config.rules.rules ? config.rules.rules.length : 0;
-                            updateRulesButton(attrId, ruleCount);
-                        }
-                    }
-
-                    // Set checkboxes
-                    const reqCheckbox = row.querySelector('.required-checkbox');
-                    const nameCheckbox = row.querySelector('.inname-checkbox');
-                    if (reqCheckbox) reqCheckbox.checked = config.required;
-                    if (nameCheckbox) nameCheckbox.checked = config.inName;
-
-                    // Set order
-                    const orderInput = row.querySelector('.order-input');
-                    if (orderInput) orderInput.value = config.order;
-                }
+            // Sort rows by display order after all rows initialize
+            this.$nextTick(() => {
+                this.sortRowsByOrder();
             });
-
-            // Sort rows by display order for existing, then by loop order for new
-            this.sortRowsByOrder();
         },
 
         sortRowsByOrder() {
