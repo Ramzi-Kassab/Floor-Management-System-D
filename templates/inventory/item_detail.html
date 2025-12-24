@@ -1010,8 +1010,8 @@
                                         <div x-show="$store.labelPrinter.options.showName" class="text-xs text-gray-600 truncate max-w-full">{{ item.name|truncatechars:25 }}</div>
                                     </div>
                                     <!-- Photo -->
-                                    <div x-show="$store.labelPrinter.options.showPhoto && '{{ item.image.url|default:"" }}'" class="mb-1">
-                                        <img src="{% if item.image %}{{ item.image.url }}{% endif %}" :style="'width: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px;'" class="object-cover rounded" alt="Photo">
+                                    <div x-show="$store.labelPrinter.options.showPhoto && $store.labelPrinter.itemData.photo" class="mb-1">
+                                        <img :src="$store.labelPrinter.itemData.photo" :style="'width: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px;'" class="object-cover rounded" alt="Photo">
                                     </div>
                                     <!-- QR Code -->
                                     <img src="{{ item_qr_code }}" :style="'width: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px;'" class="mb-1" alt="QR">
@@ -1029,8 +1029,8 @@
                                 <div class="flex flex-col items-center justify-center h-full">
                                     <!-- Photo + QR Row -->
                                     <div class="flex items-center justify-center gap-2 mb-2">
-                                        <div x-show="$store.labelPrinter.options.showPhoto && '{{ item.image.url|default:"" }}'">
-                                            <img src="{% if item.image %}{{ item.image.url }}{% endif %}" :style="'width: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px;'" class="object-cover rounded" alt="Photo">
+                                        <div x-show="$store.labelPrinter.options.showPhoto && $store.labelPrinter.itemData.photo">
+                                            <img :src="$store.labelPrinter.itemData.photo" :style="'width: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px;'" class="object-cover rounded" alt="Photo">
                                         </div>
                                         <img src="{{ item_qr_code }}" :style="'width: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px;'" alt="QR">
                                     </div>
@@ -1048,8 +1048,8 @@
                                 <div class="flex items-center justify-center h-full gap-3">
                                     <!-- Left: Photo/QR Stack -->
                                     <div class="flex flex-col items-center">
-                                        <div x-show="$store.labelPrinter.options.showPhoto && '{{ item.image.url|default:"" }}'" class="mb-1">
-                                            <img src="{% if item.image %}{{ item.image.url }}{% endif %}" :style="'width: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px;'" class="object-cover rounded" alt="Photo">
+                                        <div x-show="$store.labelPrinter.options.showPhoto && $store.labelPrinter.itemData.photo" class="mb-1">
+                                            <img :src="$store.labelPrinter.itemData.photo" :style="'width: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.photoSize * 0.5) + 'px;'" class="object-cover rounded" alt="Photo">
                                         </div>
                                         <img src="{{ item_qr_code }}" :style="'width: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px;'" alt="QR">
                                     </div>
@@ -1066,8 +1066,8 @@
                             <template x-if="$store.labelPrinter.options.layout === 'compact'">
                                 <div class="flex items-center justify-center h-full gap-2">
                                     <!-- Photo -->
-                                    <div x-show="$store.labelPrinter.options.showPhoto && '{{ item.image.url|default:"" }}'">
-                                        <img src="{% if item.image %}{{ item.image.url }}{% endif %}" :style="'width: ' + ($store.labelPrinter.options.photoSize * 0.4) + 'px; height: ' + ($store.labelPrinter.options.photoSize * 0.4) + 'px;'" class="object-cover rounded" alt="Photo">
+                                    <div x-show="$store.labelPrinter.options.showPhoto && $store.labelPrinter.itemData.photo">
+                                        <img :src="$store.labelPrinter.itemData.photo" :style="'width: ' + ($store.labelPrinter.options.photoSize * 0.4) + 'px; height: ' + ($store.labelPrinter.options.photoSize * 0.4) + 'px;'" class="object-cover rounded" alt="Photo">
                                     </div>
                                     <!-- QR -->
                                     <img src="{{ item_qr_code }}" :style="'width: ' + ($store.labelPrinter.options.qrSize * 0.35) + 'px; height: ' + ($store.labelPrinter.options.qrSize * 0.35) + 'px;'" alt="QR">
