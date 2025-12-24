@@ -386,8 +386,8 @@
                             {% endif %}
                         </td>
                         <td class="py-2 text-right">
-                            <a href="{% url 'inventory:category_attribute_update' object.pk attr.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
-                            <a href="{% url 'inventory:category_attribute_delete' object.pk attr.pk %}" class="text-red-600 hover:text-red-800 text-xs ml-2">Delete</a>
+                            <a href="{% url 'inventory:category_attribute_update' attr.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                            <a href="{% url 'inventory:category_attribute_delete' attr.pk %}" class="text-red-600 hover:text-red-800 text-xs ml-2">Delete</a>
                         </td>
                     </tr>
                     {% endfor %}
