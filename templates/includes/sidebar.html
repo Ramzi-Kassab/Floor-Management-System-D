@@ -11,7 +11,8 @@
 </div>
 
 <!-- Sidebar Navigation -->
-<aside class="fixed left-0 top-16 bottom-0 bg-white dark:bg-gray-800 shadow-lg z-30 transition-all duration-300 overflow-y-auto lg:translate-x-0"
+<aside x-data="sidebarState()" x-init="init()"
+       class="fixed left-0 top-16 bottom-0 bg-white dark:bg-gray-800 shadow-lg z-30 transition-all duration-300 overflow-y-auto lg:translate-x-0"
        :class="{
            'w-64': sidebarOpen,
            'w-16 hidden lg:block': !sidebarOpen,
@@ -19,595 +20,715 @@
            '-translate-x-full lg:translate-x-0': !sidebarOpen
        }">
 
-    <nav class="p-4 space-y-1">
+    <nav class="p-3 space-y-0.5">
         <!-- Dashboard -->
-        <div x-data="{ open: false }" class="space-y-0.5">
-            <button @click="open = !open"
+        <div class="space-y-0.5">
+            <button @click="toggle('dashboard')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700
                            {% if request.resolver_match.app_name == 'dashboard' %}bg-primary-50 dark:bg-primary-900/50 text-primary-700 dark:text-primary-200{% endif %}">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0 text-indigo-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Dashboard</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Dashboard</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('dashboard') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'dashboard:main' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="home" class="w-4 h-4 inline mr-2"></i>Main Dashboard
+            <div x-show="isOpen('dashboard') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'dashboard:main' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="home" class="w-4 h-4 mr-2 text-indigo-400"></i><span class="truncate">Main Dashboard</span>
                 </a>
-                <a href="{% url 'dashboard:manager' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="briefcase" class="w-4 h-4 inline mr-2"></i>Manager
+                <a href="{% url 'dashboard:manager' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="briefcase" class="w-4 h-4 mr-2 text-indigo-400"></i><span class="truncate">Manager</span>
                 </a>
-                <a href="{% url 'dashboard:planner' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="calendar" class="w-4 h-4 inline mr-2"></i>Planner
+                <a href="{% url 'dashboard:planner' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="calendar" class="w-4 h-4 mr-2 text-indigo-400"></i><span class="truncate">Planner</span>
                 </a>
-                <a href="{% url 'dashboard:technician' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="wrench" class="w-4 h-4 inline mr-2"></i>Technician
+                <a href="{% url 'dashboard:technician' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="wrench" class="w-4 h-4 mr-2 text-indigo-400"></i><span class="truncate">Technician</span>
                 </a>
-                <a href="{% url 'dashboard:qc' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="clipboard-check" class="w-4 h-4 inline mr-2"></i>QC Inspector
+                <a href="{% url 'dashboard:qc' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="clipboard-check" class="w-4 h-4 mr-2 text-indigo-400"></i><span class="truncate">QC Inspector</span>
                 </a>
-
-                <!-- Saved Dashboards -->
-                {% if saved_dashboards %}
-                <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
-                <span class="block px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">My Dashboards</span>
-                {% for dashboard in saved_dashboards %}
-                <a href="{% url 'dashboard:saved_view' dashboard.pk %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="{{ dashboard.icon }}" class="w-4 h-4 inline mr-2"></i>{{ dashboard.name }}
-                </a>
-                {% endfor %}
-                {% endif %}
-
-                <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
-                <a href="{% url 'dashboard:saved_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="folder" class="w-4 h-4 inline mr-2"></i>All Dashboards
+                <a href="{% url 'dashboard:saved_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="folder" class="w-4 h-4 mr-2 text-indigo-400"></i><span class="truncate">All Dashboards</span>
                 </a>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- SALES - Sales & Commercial -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'sales' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- SALES -->
+        <div class="space-y-0.5">
+            <button @click="toggle('sales')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
-                    <i data-lucide="briefcase" class="w-5 h-5 flex-shrink-0 text-emerald-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Sales</span>
+                    <i data-lucide="trending-up" class="w-5 h-5 flex-shrink-0 text-emerald-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Sales</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('sales') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <!-- Customer Master Data -->
-                <a href="{% url 'sales:customer_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Customers</a>
-                <a href="{% url 'sales:rig_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Rigs</a>
-                <a href="{% url 'sales:well_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Wells</a>
-                <a href="{% url 'sales:salesorder_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Sales Orders</a>
-                <!-- Field Services (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+            <div x-show="isOpen('sales') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'sales:customer_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="users" class="w-4 h-4 mr-2 text-emerald-400"></i><span class="truncate">Customers</span>
+                </a>
+                <a href="{% url 'sales:rig_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="anchor" class="w-4 h-4 mr-2 text-emerald-400"></i><span class="truncate">Rigs</span>
+                </a>
+                <a href="{% url 'sales:well_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="target" class="w-4 h-4 mr-2 text-emerald-400"></i><span class="truncate">Wells</span>
+                </a>
+                <a href="{% url 'sales:salesorder_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="shopping-cart" class="w-4 h-4 mr-2 text-emerald-400"></i><span class="truncate">Sales Orders</span>
+                </a>
+                <!-- Field Services Sub-section -->
+                <div class="pt-1">
+                    <button @click="toggle('sales_field')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
                         <span>Field Services</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('sales_field') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'sales:servicesite_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Sites</a>
-                        <a href="{% url 'sales:fieldservicerequest_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Requests</a>
-                        <a href="{% url 'sales:sitevisit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Site Visits</a>
-                        <a href="{% url 'sales:servicereport_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Service Reports</a>
-                        <a href="{% url 'sales:serviceschedule_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Schedules</a>
-                        <a href="{% url 'sales:fieldtechnician_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Engineers</a>
-                        <a href="{% url 'sales:fieldworkorder_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Work Orders</a>
-                        <a href="{% url 'sales:fieldassetassignment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Asset Assignments</a>
+                    <div x-show="isOpen('sales_field')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'sales:servicesite_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="map-pin" class="w-3 h-3 mr-2 text-emerald-400"></i>Service Sites
+                        </a>
+                        <a href="{% url 'sales:fieldservicerequest_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="clipboard" class="w-3 h-3 mr-2 text-emerald-400"></i>Service Requests
+                        </a>
+                        <a href="{% url 'sales:sitevisit_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="car" class="w-3 h-3 mr-2 text-emerald-400"></i>Site Visits
+                        </a>
+                        <a href="{% url 'sales:servicereport_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="file-text" class="w-3 h-3 mr-2 text-emerald-400"></i>Service Reports
+                        </a>
+                        <a href="{% url 'sales:fieldtechnician_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="hard-hat" class="w-3 h-3 mr-2 text-emerald-400"></i>Field Engineers
+                        </a>
+                        <a href="{% url 'sales:fieldworkorder_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="file-check" class="w-3 h-3 mr-2 text-emerald-400"></i>Field Work Orders
+                        </a>
                     </div>
                 </div>
-                <!-- Field Data (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                <!-- Field Data Sub-section -->
+                <div class="pt-1">
+                    <button @click="toggle('sales_data')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
                         <span>Field Data</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('sales_data') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'sales:fielddrillstringrun_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Drill Runs</a>
-                        <a href="{% url 'sales:fieldrundata_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Run Data</a>
-                        <a href="{% url 'sales:runhours_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Run Hours</a>
-                        <a href="{% url 'sales:fieldperformancelog_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Performance Logs</a>
-                        <a href="{% url 'sales:fieldinspection_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Inspections</a>
-                        <a href="{% url 'sales:fieldincident_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Field Incidents</a>
+                    <div x-show="isOpen('sales_data')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'sales:fielddrillstringrun_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="activity" class="w-3 h-3 mr-2 text-emerald-400"></i>Drill Runs
+                        </a>
+                        <a href="{% url 'sales:fieldrundata_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="database" class="w-3 h-3 mr-2 text-emerald-400"></i>Run Data
+                        </a>
+                        <a href="{% url 'sales:runhours_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="clock" class="w-3 h-3 mr-2 text-emerald-400"></i>Run Hours
+                        </a>
+                        <a href="{% url 'sales:fieldperformancelog_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="line-chart" class="w-3 h-3 mr-2 text-emerald-400"></i>Performance Logs
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- PRODUCTION - Manufacturing Floor -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'workorders' or request.resolver_match.app_name == 'execution' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- PRODUCTION -->
+        <div class="space-y-0.5">
+            <button @click="toggle('production')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="factory" class="w-5 h-5 flex-shrink-0 text-orange-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Production</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Production</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('production') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'workorders:list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Orders</a>
-                <a href="{% url 'execution:list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">WIP</a>
-                <a href="{% url 'workorders:processroute_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Process Routes</a>
-                <a href="{% url 'workorders:workordercost_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Order Costs</a>
-                <!-- Repair Operations (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
-                        <span>Repair Operations</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+            <div x-show="isOpen('production') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'workorders:list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="clipboard-list" class="w-4 h-4 mr-2 text-orange-400"></i><span class="truncate">Work Orders</span>
+                </a>
+                <a href="{% url 'execution:list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="play-circle" class="w-4 h-4 mr-2 text-orange-400"></i><span class="truncate">WIP</span>
+                </a>
+                <a href="{% url 'workorders:processroute_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="git-branch" class="w-4 h-4 mr-2 text-orange-400"></i><span class="truncate">Process Routes</span>
+                </a>
+                <a href="{% url 'workorders:workordercost_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="dollar-sign" class="w-4 h-4 mr-2 text-orange-400"></i><span class="truncate">WO Costs</span>
+                </a>
+                <!-- Repair Operations -->
+                <div class="pt-1">
+                    <button @click="toggle('prod_repair')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
+                        <span>Repair Ops</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('prod_repair') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'workorders:repairevaluation_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Repair Evaluations</a>
-                        <a href="{% url 'workorders:repairbom_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Repair BOM</a>
-                        <a href="{% url 'workorders:bitrepairhistory_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Bit Repair History</a>
-                        <a href="{% url 'workorders:salvageitem_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Salvage Items</a>
+                    <div x-show="isOpen('prod_repair')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'workorders:repairevaluation_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="search" class="w-3 h-3 mr-2 text-orange-400"></i>Evaluations
+                        </a>
+                        <a href="{% url 'workorders:repairbom_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="list" class="w-3 h-3 mr-2 text-orange-400"></i>Repair BOM
+                        </a>
+                        <a href="{% url 'workorders:bitrepairhistory_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="history" class="w-3 h-3 mr-2 text-orange-400"></i>Bit History
+                        </a>
+                        <a href="{% url 'workorders:salvageitem_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="recycle" class="w-3 h-3 mr-2 text-orange-400"></i>Salvage
+                        </a>
                     </div>
                 </div>
-                <!-- Maintenance (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                <!-- Maintenance -->
+                <div class="pt-1">
+                    <button @click="toggle('prod_maint')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
                         <span>Maintenance</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('prod_maint') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'maintenance:equipment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Equipment</a>
-                        <a href="{% url 'maintenance:request_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance Requests</a>
-                        <a href="{% url 'maintenance:mwo_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance Work Orders</a>
-                        <a href="{% url 'maintenance:pm_schedule' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">PM Schedule</a>
+                    <div x-show="isOpen('prod_maint')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'maintenance:equipment_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="cpu" class="w-3 h-3 mr-2 text-orange-400"></i>Equipment
+                        </a>
+                        <a href="{% url 'maintenance:request_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="alert-circle" class="w-3 h-3 mr-2 text-orange-400"></i>Requests
+                        </a>
+                        <a href="{% url 'maintenance:mwo_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="tool" class="w-3 h-3 mr-2 text-orange-400"></i>MWOs
+                        </a>
+                        <a href="{% url 'maintenance:pm_schedule' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="calendar-check" class="w-3 h-3 mr-2 text-orange-400"></i>PM Schedule
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- FC PRODUCTION & REPAIR - Separate Department -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: false }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- FC PRODUCTION -->
+        <div class="space-y-0.5">
+            <button @click="toggle('fc_prod')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="disc-3" class="w-5 h-5 flex-shrink-0 text-amber-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">FC Production</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">FC Production</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('fc_prod') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'workorders:list' %}?type=FC" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">FC Work Orders</a>
-                <a href="{% url 'workorders:drillbit_list' %}?type=FC" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">FC Drill Bits</a>
-                <a href="{% url 'execution:list' %}?type=FC" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">FC WIP</a>
+            <div x-show="isOpen('fc_prod') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'workorders:list' %}?type=FC" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="clipboard-list" class="w-4 h-4 mr-2 text-amber-400"></i><span class="truncate">FC Work Orders</span>
+                </a>
+                <a href="{% url 'workorders:drillbit_list' %}?type=FC" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="disc" class="w-4 h-4 mr-2 text-amber-400"></i><span class="truncate">FC Drill Bits</span>
+                </a>
+                <a href="{% url 'execution:list' %}?type=FC" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="play-circle" class="w-4 h-4 mr-2 text-amber-400"></i><span class="truncate">FC WIP</span>
+                </a>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- TECHNICAL - Technical Department -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'technology' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- TECHNICAL -->
+        <div class="space-y-0.5">
+            <button @click="toggle('technical')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="cog" class="w-5 h-5 flex-shrink-0 text-slate-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Technical</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Technical</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('technical') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'technology:design_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Designs</a>
-                <a href="{% url 'technology:connection_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="link" class="w-4 h-4 mr-2"></i>Connections
+            <div x-show="isOpen('technical') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'technology:design_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="pen-tool" class="w-4 h-4 mr-2 text-slate-400"></i><span class="truncate">Designs</span>
                 </a>
-                <a href="{% url 'technology:breaker_slot_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="wrench" class="w-4 h-4 mr-2"></i>Breaker Slots
+                <a href="{% url 'technology:connection_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="link" class="w-4 h-4 mr-2 text-slate-400"></i><span class="truncate">Connections</span>
                 </a>
-                <a href="{% url 'technology:pockets_layout_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="grid-3x3" class="w-4 h-4 mr-2"></i>Pockets Layout
+                <a href="{% url 'technology:breaker_slot_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="wrench" class="w-4 h-4 mr-2 text-slate-400"></i><span class="truncate">Breaker Slots</span>
                 </a>
-                <a href="{% url 'technology:bom_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="package" class="w-4 h-4 mr-2"></i>Bills of Materials
+                <a href="{% url 'technology:pockets_layout_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="grid-3x3" class="w-4 h-4 mr-2 text-slate-400"></i><span class="truncate">Pockets Layout</span>
+                </a>
+                <a href="{% url 'technology:bom_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="package" class="w-4 h-4 mr-2 text-slate-400"></i><span class="truncate">Bills of Materials</span>
                 </a>
                 <!-- Reference Data -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                <div class="pt-1">
+                    <button @click="toggle('tech_ref')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
                         <span>Reference Data</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('tech_ref') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'technology:bit_size_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="ruler" class="w-4 h-4 mr-2"></i>Bit Sizes
+                    <div x-show="isOpen('tech_ref')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'technology:bit_size_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="ruler" class="w-3 h-3 mr-2 text-slate-400"></i>Bit Sizes
                         </a>
-                        <a href="{% url 'technology:hdbs_type_list' %}" class="flex items-center px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="layers" class="w-4 h-4 mr-2"></i>Types (HDBS/SMI)
+                        <a href="{% url 'technology:hdbs_type_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="layers" class="w-3 h-3 mr-2 text-slate-400"></i>Types (HDBS/SMI)
                         </a>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- QUALITY - Quality Management System -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'quality' or request.resolver_match.app_name == 'compliance' or request.resolver_match.app_name == 'procedures' or request.resolver_match.app_name == 'forms_engine' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- QUALITY -->
+        <div class="space-y-0.5">
+            <button @click="toggle('quality')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-green-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Quality</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Quality</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('quality') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'quality:inspection_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Inspections</a>
-                <a href="{% url 'quality:ncr_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">NCRs</a>
-                <a href="{% url 'supplychain:capa_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">CAPA</a>
-                <a href="{% url 'procedures:procedure_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Procedures</a>
-                <a href="{% url 'forms_engine:template-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Form Templates</a>
-                <!-- Compliance (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+            <div x-show="isOpen('quality') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'quality:inspection_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="search" class="w-4 h-4 mr-2 text-green-400"></i><span class="truncate">Inspections</span>
+                </a>
+                <a href="{% url 'quality:ncr_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 mr-2 text-green-400"></i><span class="truncate">NCRs</span>
+                </a>
+                <a href="{% url 'supplychain:capa_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="shield-check" class="w-4 h-4 mr-2 text-green-400"></i><span class="truncate">CAPA</span>
+                </a>
+                <a href="{% url 'procedures:procedure_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="book-open" class="w-4 h-4 mr-2 text-green-400"></i><span class="truncate">Procedures</span>
+                </a>
+                <a href="{% url 'forms_engine:template-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="file-check" class="w-4 h-4 mr-2 text-green-400"></i><span class="truncate">Form Templates</span>
+                </a>
+                <!-- Compliance -->
+                <div class="pt-1">
+                    <button @click="toggle('quality_comp')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
                         <span>Compliance</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('quality_comp') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'compliance:compliancerequirement_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requirements</a>
-                        <a href="{% url 'compliance:inspectionchecklist_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Checklists</a>
-                        <a href="{% url 'compliance:audittrail_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Audits</a>
-                        <a href="{% url 'compliance:certification_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Certifications</a>
-                        <a href="{% url 'compliance:trainingrecord_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Training Records</a>
-                        <a href="{% url 'compliance:qualitymetric_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Metrics</a>
+                    <div x-show="isOpen('quality_comp')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'compliance:compliancerequirement_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="list-checks" class="w-3 h-3 mr-2 text-green-400"></i>Requirements
+                        </a>
+                        <a href="{% url 'compliance:inspectionchecklist_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="clipboard-check" class="w-3 h-3 mr-2 text-green-400"></i>Checklists
+                        </a>
+                        <a href="{% url 'compliance:audittrail_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="eye" class="w-3 h-3 mr-2 text-green-400"></i>Audits
+                        </a>
+                        <a href="{% url 'compliance:certification_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="award" class="w-3 h-3 mr-2 text-green-400"></i>Certifications
+                        </a>
+                        <a href="{% url 'compliance:trainingrecord_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="graduation-cap" class="w-3 h-3 mr-2 text-green-400"></i>Training
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- LOGISTICS - Inventory, Purchasing, DRSS, Dispatch -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'inventory' or request.resolver_match.app_name == 'supplychain' or request.resolver_match.app_name == 'dispatch' or request.resolver_match.app_name == 'drss' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- LOGISTICS -->
+        <div class="space-y-0.5">
+            <button @click="toggle('logistics')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="truck" class="w-5 h-5 flex-shrink-0 text-blue-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Logistics</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Logistics</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('logistics') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'inventory:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium">
-                    <i data-lucide="layout-dashboard" class="w-4 h-4 inline mr-2"></i>Inventory Dashboard
+            <div x-show="isOpen('logistics') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'inventory:dashboard' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-blue-600 dark:text-blue-400 font-medium hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4 mr-2 text-blue-500"></i><span class="truncate">Inv. Dashboard</span>
                 </a>
-                <!-- Master Data (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                <!-- Master Data -->
+                <div class="pt-1">
+                    <button @click="toggle('log_master')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
                         <span>Master Data</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_master') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'inventory:category_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Categories</a>
-                        <a href="{% url 'inventory:attribute_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Attributes</a>
-                        <a href="{% url 'inventory:variant_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Variants</a>
-                        <a href="{% url 'inventory:uom_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Units of Measure</a>
-                        <a href="{% url 'inventory:lot_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Material Lots</a>
-                        <a href="{% url 'inventory:party_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Parties</a>
-                        <a href="{% url 'inventory:condition_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Condition Types</a>
-                        <a href="{% url 'inventory:quality_status_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Quality Statuses</a>
-                        <a href="{% url 'inventory:adjustment_reason_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Adjustment Reasons</a>
-                        <a href="{% url 'inventory:ownership_type_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Ownership Types</a>
+                    <div x-show="isOpen('log_master')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'inventory:category_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="folder-tree" class="w-3 h-3 mr-2 text-blue-400"></i>Categories
+                        </a>
+                        <a href="{% url 'inventory:attribute_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="tag" class="w-3 h-3 mr-2 text-blue-400"></i>Attributes
+                        </a>
+                        <a href="{% url 'inventory:variant_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="copy" class="w-3 h-3 mr-2 text-blue-400"></i>Variants
+                        </a>
+                        <a href="{% url 'inventory:uom_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="ruler" class="w-3 h-3 mr-2 text-blue-400"></i>UoM
+                        </a>
+                        <a href="{% url 'inventory:lot_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="box" class="w-3 h-3 mr-2 text-blue-400"></i>Lots
+                        </a>
+                        <a href="{% url 'inventory:party_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="building" class="w-3 h-3 mr-2 text-blue-400"></i>Parties
+                        </a>
                     </div>
                 </div>
-                <!-- Inventory (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                <!-- Inventory -->
+                <div class="pt-1">
+                    <button @click="toggle('log_inv')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
                         <span>Inventory</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_inv') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'inventory:item_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Items</a>
-                        <a href="{% url 'inventory:stock_balance_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Balances</a>
-                        <a href="{% url 'inventory:stock_ledger_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Ledger</a>
-                        <a href="{% url 'inventory:stock_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Levels (Legacy)</a>
+                    <div x-show="isOpen('log_inv')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'inventory:item_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="package" class="w-3 h-3 mr-2 text-blue-400"></i>Items
+                        </a>
+                        <a href="{% url 'inventory:stock_balance_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="scale" class="w-3 h-3 mr-2 text-blue-400"></i>Stock Balances
+                        </a>
+                        <a href="{% url 'inventory:stock_ledger_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="book" class="w-3 h-3 mr-2 text-blue-400"></i>Stock Ledger
+                        </a>
                     </div>
                 </div>
-                <!-- Inventory Documents (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
-                        <span>Inventory Documents</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                <!-- Inv Documents -->
+                <div class="pt-1">
+                    <button @click="toggle('log_docs')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
+                        <span>Inv Documents</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_docs') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'inventory:grn_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Goods Receipt Notes</a>
-                        <a href="{% url 'inventory:issue_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Issues</a>
-                        <a href="{% url 'inventory:transfer_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Transfers</a>
-                        <a href="{% url 'inventory:adjustment_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Adjustments</a>
-                        <a href="{% url 'inventory:transaction_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Transactions (Legacy)</a>
+                    <div x-show="isOpen('log_docs')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'inventory:grn_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="download" class="w-3 h-3 mr-2 text-blue-400"></i>GRN
+                        </a>
+                        <a href="{% url 'inventory:issue_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="upload" class="w-3 h-3 mr-2 text-blue-400"></i>Issues
+                        </a>
+                        <a href="{% url 'inventory:transfer_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="arrow-right-left" class="w-3 h-3 mr-2 text-blue-400"></i>Transfers
+                        </a>
+                        <a href="{% url 'inventory:adjustment_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="settings-2" class="w-3 h-3 mr-2 text-blue-400"></i>Adjustments
+                        </a>
                     </div>
                 </div>
-                <!-- Assets & BOM (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
-                        <span>Assets & BOM</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
-                    </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'inventory:asset_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Asset Register</a>
-                        <a href="{% url 'inventory:bom_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Bills of Material</a>
-                        <a href="{% url 'inventory:reservation_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Reservations</a>
-                    </div>
-                </div>
-                <!-- QC & Cycle Count (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
-                        <span>QC & Cycle Count</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
-                    </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'inventory:qc_change_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">QC Status Changes</a>
-                        <a href="{% url 'inventory:cyclecount_plan_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Cycle Count Plans</a>
-                        <a href="{% url 'inventory:cyclecount_session_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Cycle Count Sessions</a>
-                    </div>
-                </div>
-                <!-- Inventory Reports (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
-                        <span>Inventory Reports</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
-                    </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'inventory:report_stock_valuation' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Stock Valuation</a>
-                        <a href="{% url 'inventory:report_movement_history' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Movement History</a>
-                        <a href="{% url 'inventory:report_low_stock' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Low Stock Alert</a>
-                    </div>
-                </div>
-                <!-- Locations (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
-                        <span>Locations</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
-                    </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'inventory:location_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">All Locations</a>
-                        <a href="{% url 'sales:warehouse_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Warehouses</a>
-                    </div>
-                </div>
-                <!-- Drill Bits Inventory (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
-                        <span>Drill Bits Inventory</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
-                    </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'workorders:drillbit_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Drill Bits</a>
-                    </div>
-                </div>
-                <!-- Purchasing (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                <!-- Purchasing -->
+                <div class="pt-1">
+                    <button @click="toggle('log_purch')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
                         <span>Purchasing</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_purch') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'supplychain:supplier_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Vendors</a>
-                        <a href="{% url 'supplychain:pr_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Requisitions</a>
-                        <a href="{% url 'supplychain:po_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Purchase Orders</a>
-                        <a href="{% url 'supplychain:grn_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Goods Receipts</a>
+                    <div x-show="isOpen('log_purch')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'supplychain:supplier_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="building-2" class="w-3 h-3 mr-2 text-blue-400"></i>Vendors
+                        </a>
+                        <a href="{% url 'supplychain:pr_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="file-input" class="w-3 h-3 mr-2 text-blue-400"></i>Requisitions
+                        </a>
+                        <a href="{% url 'supplychain:po_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="file-output" class="w-3 h-3 mr-2 text-blue-400"></i>POs
+                        </a>
+                        <a href="{% url 'supplychain:grn_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="package-check" class="w-3 h-3 mr-2 text-blue-400"></i>Goods Receipts
+                        </a>
                     </div>
                 </div>
-                <!-- DRSS (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
-                        <span>DRSS</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                <!-- Locations -->
+                <div class="pt-1">
+                    <button @click="toggle('log_loc')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
+                        <span>Locations</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_loc') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'drss:drss_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">DRSS Requests</a>
+                    <div x-show="isOpen('log_loc')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'inventory:location_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="map-pin" class="w-3 h-3 mr-2 text-blue-400"></i>All Locations
+                        </a>
+                        <a href="{% url 'sales:warehouse_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="warehouse" class="w-3 h-3 mr-2 text-blue-400"></i>Warehouses
+                        </a>
                     </div>
                 </div>
-                <!-- Dispatch (collapsible) -->
-                <div x-data="{ subOpen: false }" class="space-y-1">
-                    <button @click="subOpen = !subOpen" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider hover:text-gray-600 dark:hover:text-gray-300">
+                <!-- Dispatch -->
+                <div class="pt-1">
+                    <button @click="toggle('log_disp')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
                         <span>Dispatch</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform" :class="subOpen ? 'rotate-90' : ''"></i>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_disp') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="subOpen" x-collapse class="space-y-1">
-                        <a href="{% url 'dispatch:dispatch-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Dispatches</a>
-                        <a href="{% url 'dispatch:vehicle-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Vehicles</a>
+                    <div x-show="isOpen('log_disp')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'dispatch:dispatch-list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="send" class="w-3 h-3 mr-2 text-blue-400"></i>Dispatches
+                        </a>
+                        <a href="{% url 'dispatch:vehicle-list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="car" class="w-3 h-3 mr-2 text-blue-400"></i>Vehicles
+                        </a>
+                        <a href="{% url 'drss:drss_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="file-search" class="w-3 h-3 mr-2 text-blue-400"></i>DRSS
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- HSSE - Health, Safety, Security, Environment -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'hsse' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- HSSE -->
+        <div class="space-y-0.5">
+            <button @click="toggle('hsse')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="hard-hat" class="w-5 h-5 flex-shrink-0 text-yellow-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">HSSE</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">HSSE</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('hsse') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'hsse:incident-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Incidents</a>
-                <a href="{% url 'hsse:hoc-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">HOC Reports</a>
-                <a href="{% url 'hsse:journey-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Journey Management</a>
+            <div x-show="isOpen('hsse') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'hsse:incident-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="alert-octagon" class="w-4 h-4 mr-2 text-yellow-400"></i><span class="truncate">Incidents</span>
+                </a>
+                <a href="{% url 'hsse:hoc-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="eye" class="w-4 h-4 mr-2 text-yellow-400"></i><span class="truncate">HOC Reports</span>
+                </a>
+                <a href="{% url 'hsse:journey-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="route" class="w-4 h-4 mr-2 text-yellow-400"></i><span class="truncate">Journey Mgmt</span>
+                </a>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- HR & ADMINISTRATION -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'hr' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- HR & Admin -->
+        <div class="space-y-0.5">
+            <button @click="toggle('hr')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="users" class="w-5 h-5 flex-shrink-0 text-pink-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">HR & Admin</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">HR & Admin</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('hr') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'hr:employee-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Employees</a>
-                <a href="{% url 'hr:attendance-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Attendance</a>
-                <a href="{% url 'hr:timeentry-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Time Entries</a>
-                <a href="{% url 'hr:leave-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Leave Requests</a>
-                <a href="{% url 'hr:shift-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Shifts</a>
-                <a href="{% url 'hr:payroll-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Payroll</a>
-                <a href="{% url 'hr:review-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Reviews</a>
-                <a href="{% url 'hr:skill-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Skills</a>
+            <div x-show="isOpen('hr') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'hr:employee-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="user" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Employees</span>
+                </a>
+                <a href="{% url 'hr:attendance-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="user-check" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Attendance</span>
+                </a>
+                <a href="{% url 'hr:timeentry-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="clock" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Time Entries</span>
+                </a>
+                <a href="{% url 'hr:leave-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="calendar-off" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Leave</span>
+                </a>
+                <a href="{% url 'hr:shift-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="sun-moon" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Shifts</span>
+                </a>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- PLANNING - Project Management -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'planning' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- Planning -->
+        <div class="space-y-0.5">
+            <button @click="toggle('planning')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
-                    <i data-lucide="calendar" class="w-5 h-5 flex-shrink-0 text-teal-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Planning</span>
+                    <i data-lucide="kanban" class="w-5 h-5 flex-shrink-0 text-teal-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Planning</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('planning') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'planning:board_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Boards</a>
-                <a href="{% url 'planning:sprint_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Sprints</a>
-                <a href="{% url 'planning:wiki_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Wiki</a>
+            <div x-show="isOpen('planning') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'planning:board_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="layout-kanban" class="w-4 h-4 mr-2 text-teal-400"></i><span class="truncate">Boards</span>
+                </a>
+                <a href="{% url 'planning:sprint_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="timer" class="w-4 h-4 mr-2 text-teal-400"></i><span class="truncate">Sprints</span>
+                </a>
+                <a href="{% url 'planning:wiki_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="book-marked" class="w-4 h-4 mr-2 text-teal-400"></i><span class="truncate">Wiki</span>
+                </a>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- DOCUMENTS - Document Control -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'documents' or request.resolver_match.app_name == 'scancodes' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- Documents -->
+        <div class="space-y-0.5">
+            <button @click="toggle('documents')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="file-text" class="w-5 h-5 flex-shrink-0 text-cyan-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Documents</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Documents</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('documents') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'documents:document_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Document List</a>
-                <a href="{% url 'scancodes:scancode-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Scan Codes</a>
+            <div x-show="isOpen('documents') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'documents:document_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="files" class="w-4 h-4 mr-2 text-cyan-400"></i><span class="truncate">Document List</span>
+                </a>
+                <a href="{% url 'scancodes:scancode-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="qr-code" class="w-4 h-4 mr-2 text-cyan-400"></i><span class="truncate">Scan Codes</span>
+                </a>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- REPORTS - Analytics & Reporting -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'reports' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- Reports -->
+        <div class="space-y-0.5">
+            <button @click="toggle('reports')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="bar-chart-2" class="w-5 h-5 flex-shrink-0 text-purple-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Reports</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Reports</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('reports') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'reports:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Dashboard</a>
-                <a href="{% url 'reports:workorder_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Orders</a>
-                <a href="{% url 'reports:inventory_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Inventory</a>
-                <a href="{% url 'reports:quality_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Quality</a>
-                <a href="{% url 'reports:maintenance_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Maintenance</a>
-                <a href="{% url 'reports:supplychain_report' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Logistics</a>
+            <div x-show="isOpen('reports') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'reports:dashboard' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4 mr-2 text-purple-400"></i><span class="truncate">Dashboard</span>
+                </a>
+                <a href="{% url 'reports:workorder_report' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="clipboard" class="w-4 h-4 mr-2 text-purple-400"></i><span class="truncate">Work Orders</span>
+                </a>
+                <a href="{% url 'reports:inventory_report' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="package" class="w-4 h-4 mr-2 text-purple-400"></i><span class="truncate">Inventory</span>
+                </a>
+                <a href="{% url 'reports:quality_report' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="check-circle" class="w-4 h-4 mr-2 text-purple-400"></i><span class="truncate">Quality</span>
+                </a>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- ERP AUTOMATION - Browser Automation -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'erp_automation' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- ERP Automation -->
+        <div class="space-y-0.5">
+            <button @click="toggle('erp')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="bot" class="w-5 h-5 flex-shrink-0 text-rose-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">ERP Automation</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">ERP Auto</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('erp') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'erp_automation:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium">
-                    <i data-lucide="layout-dashboard" class="w-4 h-4 inline mr-2"></i>Dashboard
+            <div x-show="isOpen('erp') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'erp_automation:dashboard' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-rose-600 dark:text-rose-400 font-medium hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4 mr-2 text-rose-500"></i><span class="truncate">Dashboard</span>
                 </a>
-                <a href="{% url 'erp_automation:workflow_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Workflows</a>
-                <a href="{% url 'erp_automation:locator_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Locators</a>
-                <a href="{% url 'erp_automation:record' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="circle" class="w-4 h-4 inline mr-2 text-red-500"></i>Record
+                <a href="{% url 'erp_automation:workflow_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="git-branch" class="w-4 h-4 mr-2 text-rose-400"></i><span class="truncate">Workflows</span>
                 </a>
-                <a href="{% url 'erp_automation:excel_handler' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Excel Data</a>
-                <a href="{% url 'erp_automation:execution_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Executions</a>
-                <a href="{% url 'erp_automation:credentials' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="key" class="w-4 h-4 inline mr-2"></i>Credentials
+                <a href="{% url 'erp_automation:record' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="circle" class="w-4 h-4 mr-2 text-red-500"></i><span class="truncate">Record</span>
+                </a>
+                <a href="{% url 'erp_automation:execution_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="play" class="w-4 h-4 mr-2 text-rose-400"></i><span class="truncate">Executions</span>
                 </a>
             </div>
         </div>
 
         <!-- Divider -->
-        <div class="border-t border-gray-200 dark:border-gray-700 my-4"></div>
+        <div class="border-t border-gray-200 dark:border-gray-700 my-3"></div>
 
-        <!-- ============================================================ -->
-        <!-- ORGANIZATION - Settings -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'organization' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- Organization -->
+        <div class="space-y-0.5">
+            <button @click="toggle('org')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="building-2" class="w-5 h-5 flex-shrink-0 text-stone-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Organization</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Organization</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('org') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'organization:department-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Departments</a>
-                <a href="{% url 'organization:position-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Positions</a>
-                <a href="{% url 'organization:setting-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Settings</a>
+            <div x-show="isOpen('org') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'organization:department-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="network" class="w-4 h-4 mr-2 text-stone-400"></i><span class="truncate">Departments</span>
+                </a>
+                <a href="{% url 'organization:position-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="briefcase" class="w-4 h-4 mr-2 text-stone-400"></i><span class="truncate">Positions</span>
+                </a>
+                <a href="{% url 'organization:setting-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="settings" class="w-4 h-4 mr-2 text-stone-400"></i><span class="truncate">Settings</span>
+                </a>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- ACCOUNT - User Account -->
-        <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'accounts' or request.resolver_match.app_name == 'notifications' %}true{% else %}false{% endif %} }" class="space-y-0.5">
-            <button @click="open = !open"
+        <!-- Account -->
+        <div class="space-y-0.5">
+            <button @click="toggle('account')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
-                    <i data-lucide="user" class="w-5 h-5 flex-shrink-0 text-sky-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Account</span>
+                    <i data-lucide="user-circle" class="w-5 h-5 flex-shrink-0 text-sky-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Account</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('account') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'accounts:profile' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">My Profile</a>
-                <a href="{% url 'notifications:notification_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Notifications</a>
+            <div x-show="isOpen('account') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'accounts:profile' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="user" class="w-4 h-4 mr-2 text-sky-400"></i><span class="truncate">My Profile</span>
+                </a>
+                <a href="{% url 'notifications:notification_list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="bell" class="w-4 h-4 mr-2 text-sky-400"></i><span class="truncate">Notifications</span>
+                </a>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- ADMIN - Administration (Staff Only) -->
-        <!-- ============================================================ -->
+        <!-- Admin (Staff Only) -->
         {% if user.is_staff %}
-        <div x-data="{ open: false }" class="space-y-0.5">
-            <button @click="open = !open"
+        <div class="space-y-0.5">
+            <button @click="toggle('admin')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
-                    <i data-lucide="settings" class="w-5 h-5 flex-shrink-0 text-red-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Admin</span>
+                    <i data-lucide="shield" class="w-5 h-5 flex-shrink-0 text-red-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Admin</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('admin') ? 'rotate-180' : ''"></i>
             </button>
-            <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
-                <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium">Django Admin</a>
+            <div x-show="isOpen('admin') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'admin:index' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-red-600 dark:text-red-400 font-medium hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="database" class="w-4 h-4 mr-2 text-red-500"></i><span class="truncate">Django Admin</span>
+                </a>
             </div>
         </div>
         {% endif %}
     </nav>
 </aside>
+
+<script>
+function sidebarState() {
+    return {
+        openSections: {},
+
+        init() {
+            // Load state from localStorage
+            const saved = localStorage.getItem('sidebarState');
+            if (saved) {
+                try {
+                    this.openSections = JSON.parse(saved);
+                } catch (e) {
+                    this.openSections = {};
+                }
+            }
+
+            // Auto-open section based on current page
+            const appName = '{{ request.resolver_match.app_name|default:"" }}';
+            const sectionMap = {
+                'dashboard': 'dashboard',
+                'sales': 'sales',
+                'workorders': 'production',
+                'execution': 'production',
+                'technology': 'technical',
+                'quality': 'quality',
+                'compliance': 'quality',
+                'procedures': 'quality',
+                'forms_engine': 'quality',
+                'inventory': 'logistics',
+                'supplychain': 'logistics',
+                'dispatch': 'logistics',
+                'drss': 'logistics',
+                'hsse': 'hsse',
+                'hr': 'hr',
+                'planning': 'planning',
+                'documents': 'documents',
+                'scancodes': 'documents',
+                'reports': 'reports',
+                'erp_automation': 'erp',
+                'organization': 'org',
+                'accounts': 'account',
+                'notifications': 'account'
+            };
+
+            if (appName && sectionMap[appName] && this.openSections[sectionMap[appName]] === undefined) {
+                this.openSections[sectionMap[appName]] = true;
+                this.save();
+            }
+        },
+
+        toggle(section) {
+            this.openSections[section] = !this.openSections[section];
+            this.save();
+        },
+
+        isOpen(section) {
+            return this.openSections[section] === true;
+        },
+
+        save() {
+            localStorage.setItem('sidebarState', JSON.stringify(this.openSections));
+        }
+    }
+}
+</script>
