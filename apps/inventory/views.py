@@ -830,12 +830,32 @@ class AttributeListView(LoginRequiredMixin, ListView):
         return Attribute.objects.all().order_by("classification", "name")
 
     def get_context_data(self, **kwargs):
+        import json
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Attributes"
         context["search_query"] = self.request.GET.get("q", "")
         context["selected_classification"] = self.request.GET.get("classification", "")
         context["classification_choices"] = Attribute.Classification.choices
         context["type_choices"] = Attribute.DataType.choices
+
+        # Serialize attributes as JSON for safe JavaScript consumption
+        attributes_json = []
+        for attr in context["attributes"]:
+            attributes_json.append({
+                "id": attr.id,
+                "code": attr.code or "",
+                "name": attr.name or "",
+                "classification": attr.classification or "",
+                "type": attr.data_type or "",
+                "typeDisplay": attr.get_data_type_display() or "",
+                "isActive": attr.is_active,
+                "status": "active" if attr.is_active else "inactive",
+                "usedIn": attr.category_usages.count(),
+                "editUrl": f"/inventory/attributes/{attr.pk}/edit/",
+                "deleteUrl": f"/inventory/attributes/{attr.pk}/delete/",
+                "visible": True
+            })
+        context["attributes_json"] = json.dumps(attributes_json)
         return context
 
 

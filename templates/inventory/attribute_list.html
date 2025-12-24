@@ -235,25 +235,8 @@
 
 <script>
 function attributeTable() {
-    // Build attributes array from Django template
-    const rawAttributes = [
-        {% for attr in attributes %}
-        {
-            id: {{ attr.id }},
-            code: "{{ attr.code|escapejs }}",
-            name: "{{ attr.name|escapejs }}",
-            classification: "{{ attr.classification|escapejs }}",
-            type: "{{ attr.data_type|escapejs }}",
-            typeDisplay: "{{ attr.get_data_type_display|escapejs }}",
-            isActive: {{ attr.is_active|yesno:"true,false" }},
-            status: {{ attr.is_active|yesno:"'active','inactive'" }},
-            usedIn: {{ attr.category_usages.count|default:0 }},
-            editUrl: "{% url 'inventory:standalone_attribute_update' pk=attr.pk %}",
-            deleteUrl: "{% url 'inventory:standalone_attribute_delete' pk=attr.pk %}",
-            visible: true
-        }{% if not forloop.last %},{% endif %}
-        {% endfor %}
-    ];
+    // Load attributes from server-serialized JSON (handles all escaping safely)
+    const rawAttributes = {{ attributes_json|safe }};
 
     return {
         attributes: rawAttributes,
