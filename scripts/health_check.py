@@ -328,6 +328,12 @@ def check_seed_data():
         # Bit technology seeds (in technology app, managed by workorders commands)
         ('Bit Sizes', 'from apps.technology.models import BitSize; print(BitSize.objects.count())', 10, 'seed_bit_sizes', 'Technology'),
         ('Bit Types', 'from apps.technology.models import BitType; print(BitType.objects.count())', 5, 'seed_bit_types', 'Technology'),
+
+        # Procurement/Supply Chain seeds (test data for PR→PO→GRN workflow)
+        ('Vendors', 'from apps.supplychain.models import Vendor; print(Vendor.objects.count())', 1, 'seed_procurement_workflow', 'Procurement'),
+        ('Purchase Requisitions', 'from apps.supplychain.models import PurchaseRequisition; print(PurchaseRequisition.objects.count())', 1, 'seed_procurement_workflow', 'Procurement'),
+        ('Purchase Orders', 'from apps.supplychain.models import PurchaseOrder; print(PurchaseOrder.objects.count())', 1, 'seed_procurement_workflow', 'Procurement'),
+        ('GRNs', 'from apps.inventory.models import GoodsReceiptNote; print(GoodsReceiptNote.objects.count())', 1, 'seed_procurement_workflow', 'Procurement'),
     ]
 
     all_passed = True
