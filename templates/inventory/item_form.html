@@ -480,6 +480,7 @@ function itemForm() {
                 const data = await response.json();
                 this.attributes = data.attributes || [];
                 this.nameTemplate = data.name_template || '';
+                this.nameTemplateConfig = data.name_template_config || null;
 
                 this.attributeValues = {};
                 this.attributes.forEach(attr => {
@@ -493,7 +494,7 @@ function itemForm() {
                 // Sync legacy references from loaded attributes
                 this.syncLegacyReferences();
 
-                if (!this.nameManuallySet && this.nameTemplate) {
+                if (!this.nameManuallySet && (this.nameTemplate || this.nameTemplateConfig)) {
                     this.$nextTick(() => this.generateName());
                 }
             } catch (error) {
@@ -502,13 +503,14 @@ function itemForm() {
         },
 
         generateName() {
-            if (!this.nameTemplate) return;
-
             // First check if we have structured config
             if (this.nameTemplateConfig && this.nameTemplateConfig.parts) {
-                this.itemName = this.evaluateStructuredTemplate(this.nameTemplateConfig);
+                const generated = this.evaluateStructuredTemplate(this.nameTemplateConfig);
+                if (generated) this.itemName = generated;
                 return;
             }
+
+            if (!this.nameTemplate) return;
 
             // Simple template replacement
             let name = this.nameTemplate;
@@ -532,10 +534,35 @@ function itemForm() {
 
         evaluateStructuredTemplate(config) {
             if (!config.parts) return '';
-            let result = '';
+
+            // Get separator from config (default to space)
+            const separator = config.separator === 'custom' ? (config.customSeparator || '') : (config.separator ?? ' ');
+
+            const evaluatedParts = [];
             for (const part of config.parts) {
-                result += this.evaluatePart(part);
+                const val = this.evaluatePart(part);
+                // Skip empty values and N/A values
+                if (val && val !== 'N/A' && val !== 'n/a' && val !== 'NA' && val.trim() !== '') {
+                    evaluatedParts.push(val);
+                }
             }
+
+            // Join with separator, handling text parts intelligently
+            let result = '';
+            for (let i = 0; i < evaluatedParts.length; i++) {
+                const val = evaluatedParts[i];
+                if (i > 0) {
+                    // Don't add separator if previous value ends with separator-like chars
+                    // or current value starts with them
+                    const prevVal = evaluatedParts[i - 1];
+                    const skipSep = /[\s\-_,.]$/.test(prevVal) || /^[\s\-_,.]/.test(val);
+                    if (!skipSep) {
+                        result += separator;
+                    }
+                }
+                result += val;
+            }
+
             return result.replace(/\s+/g, ' ').trim();
         },
 
@@ -546,12 +573,28 @@ function itemForm() {
             if (part.type === 'attr') {
                 const attr = this.attributes.find(a => a.code === part.code);
                 let val = this.attributeValues[part.code] || '';
+                // Skip N/A values
+                if (val === 'N/A' || val === 'n/a' || val === 'NA') {
+                    return '';
+                }
                 if (attr && attr.attribute_type === 'NUMBER' && val && attr.unit) {
                     val = val + attr.unit;
                 }
                 return val;
             }
             if (part.type === 'conditional') {
+                // Handle new structure with conditions array
+                if (part.conditions && Array.isArray(part.conditions)) {
+                    const conditionsMet = this.evaluateConditions(part.conditions);
+                    if (conditionsMet) {
+                        // Try each THEN option until one works (all attributes have values)
+                        return this.evaluateFallbackOptions(part.then || []);
+                    } else {
+                        // Try each ELSE option until one works
+                        return this.evaluateFallbackOptions(part.else || []);
+                    }
+                }
+                // Legacy format: single if/then/else
                 if (this.evaluateCondition(part.if)) {
                     return part.then ? this.evaluatePart(part.then) : '';
                 } else {
@@ -561,16 +604,91 @@ function itemForm() {
             return '';
         },
 
-        evaluateCondition(cond) {
-            if (!cond) return false;
-            const val = this.attributeValues[cond.attr];
+        // Evaluate multiple conditions with AND/OR logic
+        evaluateConditions(conditions) {
+            if (!conditions || conditions.length === 0) return false;
+
+            let result = this.evaluateSingleCondition(conditions[0]);
+
+            for (let i = 1; i < conditions.length; i++) {
+                const cond = conditions[i];
+                const condResult = this.evaluateSingleCondition(cond);
+
+                if (cond.logic === 'OR') {
+                    result = result || condResult;
+                } else {
+                    // Default to AND
+                    result = result && condResult;
+                }
+            }
+
+            return result;
+        },
+
+        evaluateSingleCondition(cond) {
+            if (!cond || !cond.attr) return false;
+            let val = this.attributeValues[cond.attr];
+            // Treat N/A as empty
+            if (val === 'N/A' || val === 'n/a' || val === 'NA') {
+                val = '';
+            }
             switch (cond.op) {
                 case 'not_empty': return val !== '' && val !== null && val !== undefined;
                 case 'empty': return val === '' || val === null || val === undefined;
                 case 'eq': return val == cond.value;
                 case 'ne': return val != cond.value;
+                case 'contains': return val && String(val).toLowerCase().includes(String(cond.value).toLowerCase());
+                case 'gt': return parseFloat(val) > parseFloat(cond.value);
+                case 'gte': return parseFloat(val) >= parseFloat(cond.value);
+                case 'lt': return parseFloat(val) < parseFloat(cond.value);
+                case 'lte': return parseFloat(val) <= parseFloat(cond.value);
+                case 'in': {
+                    const options = String(cond.value).split(',').map(s => s.trim().toLowerCase());
+                    return options.includes(String(val).toLowerCase());
+                }
                 default: return false;
             }
+        },
+
+        // Try each option until one works (all attributes have values)
+        evaluateFallbackOptions(options) {
+            if (!options || options.length === 0) return '';
+
+            for (const opt of options) {
+                const template = opt.template || '';
+                // Check if all placeholders can be filled
+                const placeholders = template.match(/\{([^}]+)\}/g) || [];
+                let allFilled = true;
+                let result = template;
+
+                for (const ph of placeholders) {
+                    const code = ph.slice(1, -1); // Remove { and }
+                    let val = this.attributeValues[code] || '';
+                    // Skip N/A values
+                    if (val === 'N/A' || val === 'n/a' || val === 'NA') {
+                        val = '';
+                    }
+                    if (!val) {
+                        allFilled = false;
+                        break;
+                    }
+                    const attr = this.attributes.find(a => a.code === code);
+                    if (attr && attr.attribute_type === 'NUMBER' && val && attr.unit) {
+                        val = val + attr.unit;
+                    }
+                    result = result.replace(ph, val);
+                }
+
+                if (allFilled) {
+                    return result;
+                }
+            }
+
+            return ''; // No option worked
+        },
+
+        evaluateCondition(cond) {
+            return this.evaluateSingleCondition(cond);
         },
 
         getOptions(attr) {

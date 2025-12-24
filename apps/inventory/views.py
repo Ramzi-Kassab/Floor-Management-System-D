@@ -1857,7 +1857,8 @@ class CategoryAttributesAPIView(LoginRequiredMixin, View):
 
         return JsonResponse({
             "attributes": data,
-            "name_template": category.name_template or ""
+            "name_template": category.name_template or "",
+            "name_template_config": category.name_template_config or None
         })
 
 
