@@ -778,15 +778,14 @@ class CategoryAttribute(models.Model):
 
     The same Attribute (e.g., "Size") can have different configurations
     per category:
-    - For Clothing: Size is SELECT type with options [S, M, L, XL]
-    - For Tools: Size is NUMBER type with unit "mm"
-    - For Pipes: Size is NUMBER type with unit "inch"
+    - For Clothing: Size is TEXT type with options [S, M, L, XL] → dropdown
+    - For Tools: Size is NUMBER type with unit "mm" and options [6, 8, 10, 12]
+    - For Shelf Life: NUMBER type with unit "months" and options [6, 12, 18, 24]
     """
 
     class AttributeType(models.TextChoices):
-        TEXT = "TEXT", "Text"
-        NUMBER = "NUMBER", "Number"
-        SELECT = "SELECT", "Select (Dropdown)"
+        TEXT = "TEXT", "Text"           # With options = dropdown, without = free text
+        NUMBER = "NUMBER", "Number"     # With options = dropdown + custom, unit/min/max
         BOOLEAN = "BOOLEAN", "Yes/No"
         DATE = "DATE", "Date"
 
@@ -823,11 +822,18 @@ class CategoryAttribute(models.Model):
     min_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
     max_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
 
-    # For SELECT type - JSON array of options
+    # Options for dropdown - works with TEXT and NUMBER
     options = models.JSONField(
         null=True,
         blank=True,
-        help_text='Options for SELECT type: ["Option1", "Option2"] or [{"value": "opt1", "label": "Option 1"}]'
+        help_text='Dropdown options: ["Option1", "Option2"]. TEXT with options = dropdown. NUMBER with options = common values.'
+    )
+
+    # Default value for new items
+    default_value = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Default value when creating new items"
     )
 
     # Validation

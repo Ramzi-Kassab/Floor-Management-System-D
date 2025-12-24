@@ -1118,6 +1118,7 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
                     min_val = request.POST.get(f"min_{attr_id}") or None
                     max_val = request.POST.get(f"max_{attr_id}") or None
                     options = request.POST.get(f"options_{attr_id}") or None
+                    default_value = request.POST.get(f"default_{attr_id}", "").strip()
                     is_required = request.POST.get(f"required_{attr_id}") == "on"
                     is_used_in_name = request.POST.get(f"in_name_{attr_id}") == "on"
                     display_order = request.POST.get(f"order_{attr_id}") or 0
@@ -1141,6 +1142,7 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
                             "min_value": min_val if min_val else None,
                             "max_value": max_val if max_val else None,
                             "options": options,
+                            "default_value": default_value,
                             "is_required": is_required,
                             "is_used_in_name": is_used_in_name,
                             "display_order": int(display_order),

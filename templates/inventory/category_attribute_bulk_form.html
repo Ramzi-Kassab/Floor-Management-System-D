@@ -344,11 +344,12 @@ function attributeSelector() {
                     <thead class="bg-gray-50 dark:bg-gray-700">
                         <tr>
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Attribute</th>
-                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type *</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Unit</th>
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Min</th>
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Max</th>
-                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Options (for SELECT/TEXT)</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Options</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Default</th>
                             <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Req</th>
                             <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
                             <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Order</th>
@@ -416,12 +417,19 @@ function attributeSelector() {
                                        class="max-input w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
                             </td>
 
-                            <!-- Options (for SELECT/TEXT) -->
+                            <!-- Options (for TEXT and NUMBER) -->
                             <td class="px-3 py-3">
                                 <input type="text" name="options_{{ attr.id }}"
-                                       :disabled="attrType === 'NUMBER' || attrType === 'BOOLEAN' || attrType === 'DATE'"
+                                       :disabled="attrType === 'BOOLEAN' || attrType === 'DATE'"
                                        placeholder="Option1, Option2, ..."
-                                       class="options-input w-40 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
+                                       class="options-input w-36 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
+                            </td>
+
+                            <!-- Default Value -->
+                            <td class="px-3 py-3">
+                                <input type="text" name="default_{{ attr.id }}"
+                                       placeholder="-"
+                                       class="default-input w-24 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                             </td>
 
                             <!-- Required -->
@@ -452,10 +460,11 @@ function attributeSelector() {
         <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mt-4 text-sm">
             <p class="font-medium text-gray-700 dark:text-gray-300 mb-2">Column Guide:</p>
             <ul class="grid grid-cols-2 md:grid-cols-3 gap-2 text-gray-600 dark:text-gray-400">
-                <li><strong>Type:</strong> How the value is entered (text, number, dropdown, etc.)</li>
-                <li><strong>Unit:</strong> For NUMBER type only (mm, kg, psi, etc.)</li>
+                <li><strong>Type:</strong> Text (with options=dropdown), Number (with options=common values), Yes/No, Date</li>
+                <li><strong>Unit:</strong> For NUMBER type only (mm, kg, months, etc.)</li>
                 <li><strong>Min/Max:</strong> For NUMBER type validation</li>
-                <li><strong>Options:</strong> For SELECT type (comma-separated values)</li>
+                <li><strong>Options:</strong> Comma-separated values for dropdown (TEXT) or common values (NUMBER)</li>
+                <li><strong>Default:</strong> Pre-filled value when creating new items</li>
                 <li><strong>Req:</strong> Must have a value when creating items</li>
                 <li><strong>Name:</strong> Include in auto-generated item name</li>
             </ul>
@@ -490,6 +499,7 @@ function attributeConfigurator() {
             min: "{{ cat_attr.min_value|default:'' }}",
             max: "{{ cat_attr.max_value|default:'' }}",
             options: "{% if cat_attr.options %}{{ cat_attr.options|escapejs }}{% endif %}",
+            defaultValue: "{{ cat_attr.default_value|default:''|escapejs }}",
             required: {{ cat_attr.is_required|yesno:"true,false" }},
             inName: {{ cat_attr.is_used_in_name|yesno:"true,false" }},
             order: {{ cat_attr.display_order|default:0 }}
@@ -542,6 +552,12 @@ function attributeConfigurator() {
                         } catch {
                             optionsInput.value = config.options;
                         }
+                    }
+
+                    // Set default value
+                    const defaultInput = row.querySelector('.default-input');
+                    if (defaultInput && config.defaultValue) {
+                        defaultInput.value = config.defaultValue;
                     }
 
                     // Set checkboxes
