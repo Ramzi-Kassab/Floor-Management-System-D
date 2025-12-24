@@ -134,6 +134,11 @@ IADC,IADC & Drilling Specifications,gauge_length,Gauge Length,Length of gauge se
 IADC,IADC & Drilling Specifications,bearing_type,Bearing Type,Type of bearing,text,
 IADC,IADC & Drilling Specifications,seal_type_bit,Bit Seal Type,Seal type for drill bit,text,
 IADC,IADC & Drilling Specifications,hydraulics_type,Hydraulics Type,Hydraulic system type,text,
+IADC,IADC & Drilling Specifications,chamfer,Chamfer,Cutter chamfer angle or size,text,Edge protection specification
+IADC,IADC & Drilling Specifications,family,Family,Product family classification,select,PDC bit design family grouping
+IADC,IADC & Drilling Specifications,substrate_shape,Substrate Shape,Cutter substrate geometry,select,Round/Non-planar/Conical/Dome
+IADC,IADC & Drilling Specifications,diamond_thickness,Diamond Thickness,PDC diamond layer thickness,decimal,Diamond table thickness in mm
+IADC,IADC & Drilling Specifications,separator_type,Separator Type,Blade separator or wear pad type,select,Type of separator between blades
 
 OPER,Operational Parameters,max_wob,Maximum WOB,Maximum weight on bit,decimal,
 OPER,Operational Parameters,recommended_wob,Recommended WOB,Recommended weight on bit range,text,

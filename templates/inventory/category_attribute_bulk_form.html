@@ -8,7 +8,7 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         <p class="text-gray-600 dark:text-gray-400">
             {% if phase == 'select' %}
-            Select attributes to add to this category
+            Select attributes to add or edit for this category
             {% else %}
             Configure how each attribute will be used in this category
             {% endif %}
@@ -157,7 +157,12 @@
                                 <td class="px-4 py-3">
                                     <code class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono" x-text="attr.code"></code>
                                 </td>
-                                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white" x-text="attr.name"></td>
+                                <td class="px-4 py-3">
+                                    <span class="font-medium text-gray-900 dark:text-white" x-text="attr.name"></span>
+                                    <span x-show="attr.existing" class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                        Linked
+                                    </span>
+                                </td>
                                 <td class="px-4 py-3">
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
                                           x-text="attr.classification"></span>
@@ -194,6 +199,9 @@
 
 <script>
 function attributeSelector() {
+    // Build set of existing attribute IDs (already linked to this category)
+    const existingIds = new Set([{% for id in existing_attr_ids %}{{ id }}{% if not forloop.last %},{% endif %}{% endfor %}]);
+
     // Build attributes array from Django template
     const rawAttributes = [
         {% for attr in attributes %}
@@ -205,7 +213,8 @@ function attributeSelector() {
             type: "{{ attr.data_type }}",
             typeDisplay: "{{ attr.get_data_type_display }}",
             visible: true,
-            selected: false
+            selected: existingIds.has({{ attr.id }}),  // Pre-check existing
+            existing: existingIds.has({{ attr.id }})   // Flag for badge
         }{% if not forloop.last %},{% endif %}
         {% endfor %}
     ];
@@ -220,7 +229,7 @@ function attributeSelector() {
             classification: '',
             type: ''
         },
-        selectedCount: 0,
+        selectedCount: rawAttributes.filter(a => a.selected).length,  // Count pre-selected
         visibleCount: rawAttributes.length,
 
         get sortedAttributes() {
@@ -345,23 +354,32 @@ function attributeSelector() {
                             <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Order</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700" id="configTableBody">
                         {% for attr in selected_attributes %}
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50" x-data="{ attrType: '{{ attr.data_type }}' }">
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 config-row"
+                            data-attr-id="{{ attr.id }}"
+                            x-data="{ attrType: 'TEXT' }">
                             <input type="hidden" name="attribute_id" value="{{ attr.id }}">
 
                             <!-- Attribute Name -->
                             <td class="px-3 py-3">
-                                <div class="font-medium text-gray-900 dark:text-white">{{ attr.name }}</div>
-                                <code class="text-xs text-gray-500">{{ attr.code }}</code>
+                                <div class="flex items-center gap-2">
+                                    <div>
+                                        <div class="font-medium text-gray-900 dark:text-white">{{ attr.name }}</div>
+                                        <code class="text-xs text-gray-500">{{ attr.code }}</code>
+                                    </div>
+                                    <span class="existing-badge hidden inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                        Edit
+                                    </span>
+                                </div>
                             </td>
 
                             <!-- Type -->
                             <td class="px-3 py-3">
                                 <select name="type_{{ attr.id }}" x-model="attrType"
-                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                        class="type-select w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                                     {% for value, label in attribute_types %}
-                                    <option value="{{ value }}" {% if attr.data_type == value %}selected{% endif %}>{{ label }}</option>
+                                    <option value="{{ value }}">{{ label }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -369,7 +387,7 @@ function attributeSelector() {
                             <!-- Unit (for NUMBER) -->
                             <td class="px-3 py-3">
                                 <select name="unit_{{ attr.id }}" :disabled="attrType !== 'NUMBER'"
-                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
+                                        class="unit-select w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
                                     <option value="">-</option>
                                     {% regroup units by get_unit_type_display as unit_groups %}
                                     {% for group in unit_groups %}
@@ -387,7 +405,7 @@ function attributeSelector() {
                                 <input type="number" name="min_{{ attr.id }}" step="any"
                                        :disabled="attrType !== 'NUMBER'"
                                        placeholder="-"
-                                       class="w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
+                                       class="min-input w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
                             </td>
 
                             <!-- Max Value -->
@@ -395,7 +413,7 @@ function attributeSelector() {
                                 <input type="number" name="max_{{ attr.id }}" step="any"
                                        :disabled="attrType !== 'NUMBER'"
                                        placeholder="-"
-                                       class="w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
+                                       class="max-input w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
                             </td>
 
                             <!-- Options (for SELECT/TEXT) -->
@@ -403,25 +421,25 @@ function attributeSelector() {
                                 <input type="text" name="options_{{ attr.id }}"
                                        :disabled="attrType === 'NUMBER' || attrType === 'BOOLEAN' || attrType === 'DATE'"
                                        placeholder="Option1, Option2, ..."
-                                       class="w-40 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
+                                       class="options-input w-40 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50">
                             </td>
 
                             <!-- Required -->
                             <td class="px-3 py-3 text-center">
                                 <input type="checkbox" name="required_{{ attr.id }}"
-                                       class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500">
+                                       class="required-checkbox rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500">
                             </td>
 
                             <!-- Use in Name -->
                             <td class="px-3 py-3 text-center">
                                 <input type="checkbox" name="in_name_{{ attr.id }}"
-                                       class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500">
+                                       class="inname-checkbox rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500">
                             </td>
 
                             <!-- Display Order -->
                             <td class="px-3 py-3 text-center">
                                 <input type="number" name="order_{{ attr.id }}" value="{{ forloop.counter0 }}"
-                                       class="w-16 px-2 py-1.5 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                       class="order-input w-16 px-2 py-1.5 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                             </td>
                         </tr>
                         {% endfor %}
@@ -454,7 +472,7 @@ function attributeSelector() {
                     Cancel
                 </a>
                 <button type="submit" class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-                    Save {{ selected_attributes|length }} Attributes
+                    Save Changes ({{ selected_attributes|length }} Attributes)
                 </button>
             </div>
         </div>
@@ -463,8 +481,97 @@ function attributeSelector() {
 
 <script>
 function attributeConfigurator() {
+    // Existing attribute configurations from server
+    const existingConfigs = {
+        {% for attr_id, cat_attr in existing_cat_attrs.items %}
+        {{ attr_id }}: {
+            type: "{{ cat_attr.attribute_type }}",
+            unit: "{{ cat_attr.unit_id|default:'' }}",
+            min: "{{ cat_attr.min_value|default:'' }}",
+            max: "{{ cat_attr.max_value|default:'' }}",
+            options: "{% if cat_attr.options %}{{ cat_attr.options|escapejs }}{% endif %}",
+            required: {{ cat_attr.is_required|yesno:"true,false" }},
+            inName: {{ cat_attr.is_used_in_name|yesno:"true,false" }},
+            order: {{ cat_attr.display_order|default:0 }}
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    };
+
     return {
-        // Can add interactive features here if needed
+        init() {
+            // Pre-fill form fields for existing attributes
+            document.querySelectorAll('.config-row').forEach(row => {
+                const attrId = row.dataset.attrId;
+                const config = existingConfigs[attrId];
+
+                if (config) {
+                    // Mark as existing
+                    row.classList.add('bg-green-50', 'dark:bg-green-900/10');
+                    row.querySelector('.existing-badge')?.classList.remove('hidden');
+
+                    // Set type (this also updates Alpine x-data)
+                    const typeSelect = row.querySelector('.type-select');
+                    if (typeSelect) {
+                        typeSelect.value = config.type;
+                        typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+
+                    // Set unit
+                    const unitSelect = row.querySelector('.unit-select');
+                    if (unitSelect && config.unit) {
+                        unitSelect.value = config.unit;
+                    }
+
+                    // Set min/max
+                    const minInput = row.querySelector('.min-input');
+                    const maxInput = row.querySelector('.max-input');
+                    if (minInput && config.min) minInput.value = config.min;
+                    if (maxInput && config.max) maxInput.value = config.max;
+
+                    // Set options
+                    const optionsInput = row.querySelector('.options-input');
+                    if (optionsInput && config.options) {
+                        // Parse JSON array to comma-separated display
+                        try {
+                            const opts = JSON.parse(config.options);
+                            if (Array.isArray(opts)) {
+                                optionsInput.value = opts.map(o => typeof o === 'object' ? o.value : o).join(', ');
+                            } else {
+                                optionsInput.value = config.options;
+                            }
+                        } catch {
+                            optionsInput.value = config.options;
+                        }
+                    }
+
+                    // Set checkboxes
+                    const reqCheckbox = row.querySelector('.required-checkbox');
+                    const nameCheckbox = row.querySelector('.inname-checkbox');
+                    if (reqCheckbox) reqCheckbox.checked = config.required;
+                    if (nameCheckbox) nameCheckbox.checked = config.inName;
+
+                    // Set order
+                    const orderInput = row.querySelector('.order-input');
+                    if (orderInput) orderInput.value = config.order;
+                }
+            });
+
+            // Sort rows by display order for existing, then by loop order for new
+            this.sortRowsByOrder();
+        },
+
+        sortRowsByOrder() {
+            const tbody = document.getElementById('configTableBody');
+            const rows = Array.from(tbody.querySelectorAll('.config-row'));
+
+            rows.sort((a, b) => {
+                const orderA = parseInt(a.querySelector('.order-input')?.value || 0);
+                const orderB = parseInt(b.querySelector('.order-input')?.value || 0);
+                return orderA - orderB;
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+        }
     }
 }
 </script>

@@ -1041,24 +1041,26 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
             messages.error(request, "Please select a category first.")
             return redirect("inventory:category_list")
 
-        # Get existing attribute IDs for this category
-        existing_attr_ids = set(
-            CategoryAttribute.objects.filter(category=category)
-            .values_list("attribute_id", flat=True)
-        )
+        # Get existing category attributes with their config for this category
+        existing_cat_attrs = {
+            ca.attribute_id: ca
+            for ca in CategoryAttribute.objects.filter(category=category)
+            .select_related("attribute", "unit")
+        }
+        existing_attr_ids = set(existing_cat_attrs.keys())
 
-        # Get all available attributes (excluding already linked ones)
-        attributes = Attribute.objects.filter(is_active=True).exclude(
-            id__in=existing_attr_ids
-        ).order_by("classification", "name")
+        # Get all available attributes (include already linked for bulk edit)
+        attributes = Attribute.objects.filter(is_active=True).order_by("classification", "name")
 
         context = {
             "category": category,
             "attributes": attributes,
+            "existing_attr_ids": existing_attr_ids,  # For pre-checking in template
+            "existing_cat_attrs": existing_cat_attrs,  # For pre-filling config values
             "classifications": Attribute.Classification.choices,
             "attribute_types": CategoryAttribute.AttributeType.choices,
             "units": UnitOfMeasure.objects.filter(is_active=True).order_by("unit_type", "name"),
-            "page_title": f"Bulk Add Attributes to {category.name}",
+            "page_title": f"Bulk Add/Edit Attributes - {category.name}",
             "phase": "select",  # or "configure"
         }
         return render(request, self.template_name, context)
@@ -1080,9 +1082,18 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
 
             attributes = Attribute.objects.filter(id__in=selected_ids, is_active=True)
 
+            # Get existing configurations for pre-filling the form
+            existing_cat_attrs = {
+                ca.attribute_id: ca
+                for ca in CategoryAttribute.objects.filter(
+                    category=category, attribute_id__in=selected_ids
+                ).select_related("unit")
+            }
+
             context = {
                 "category": category,
                 "selected_attributes": attributes,
+                "existing_cat_attrs": existing_cat_attrs,  # For pre-filling config values
                 "attribute_types": CategoryAttribute.AttributeType.choices,
                 "units": UnitOfMeasure.objects.filter(is_active=True).order_by("unit_type", "name"),
                 "page_title": f"Configure Attributes for {category.name}",
@@ -1091,9 +1102,10 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
             return render(request, self.template_name, context)
 
         elif phase == "configure":
-            # Phase 2: Save all configurations
+            # Phase 2: Save all configurations (create or update)
             attribute_ids = request.POST.getlist("attribute_id")
             created_count = 0
+            updated_count = 0
             errors = []
 
             for attr_id in attribute_ids:
@@ -1119,26 +1131,36 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
                             # Try comma-separated values
                             options = [o.strip() for o in options.split(",") if o.strip()]
 
-                    # Create CategoryAttribute
-                    CategoryAttribute.objects.create(
+                    # Create or update CategoryAttribute
+                    cat_attr, created = CategoryAttribute.objects.update_or_create(
                         category=category,
                         attribute=attribute,
-                        attribute_type=attr_type,
-                        unit_id=unit_id if unit_id else None,
-                        min_value=min_val if min_val else None,
-                        max_value=max_val if max_val else None,
-                        options=options,
-                        is_required=is_required,
-                        is_used_in_name=is_used_in_name,
-                        display_order=int(display_order),
+                        defaults={
+                            "attribute_type": attr_type,
+                            "unit_id": unit_id if unit_id else None,
+                            "min_value": min_val if min_val else None,
+                            "max_value": max_val if max_val else None,
+                            "options": options,
+                            "is_required": is_required,
+                            "is_used_in_name": is_used_in_name,
+                            "display_order": int(display_order),
+                        }
                     )
-                    created_count += 1
+                    if created:
+                        created_count += 1
+                    else:
+                        updated_count += 1
 
                 except Exception as e:
-                    errors.append(f"Error adding {attr_id}: {str(e)}")
+                    errors.append(f"Error saving {attr_id}: {str(e)}")
 
-            if created_count > 0:
-                messages.success(request, f"Added {created_count} attributes to {category.name}.")
+            if created_count > 0 or updated_count > 0:
+                msg_parts = []
+                if created_count > 0:
+                    msg_parts.append(f"added {created_count}")
+                if updated_count > 0:
+                    msg_parts.append(f"updated {updated_count}")
+                messages.success(request, f"Successfully {' and '.join(msg_parts)} attributes.")
             if errors:
                 for error in errors:
                     messages.error(request, error)
