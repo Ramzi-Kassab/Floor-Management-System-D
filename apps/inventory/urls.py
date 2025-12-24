@@ -93,6 +93,7 @@ urlpatterns = [
     path("api/items/search/", views.ItemSearchAPIView.as_view(), name="api_items_search"),
     path("api/item-relationships/", views.ItemRelationshipAPIView.as_view(), name="api_item_relationships"),
     path("api/item-relationships/<int:pk>/", views.ItemRelationshipAPIView.as_view(), name="api_item_relationship_detail"),
+    path("api/warehouse/<int:warehouse_pk>/locations/", views.WarehouseLocationsAPIView.as_view(), name="api_warehouse_locations"),
 
     # =========================================================================
     # PHASE 2: LEDGER (Read-Only)
@@ -107,6 +108,7 @@ urlpatterns = [
     # Goods Receipt Notes
     path("grn/", views.GRNListView.as_view(), name="grn_list"),
     path("grn/create/", views.GRNCreateView.as_view(), name="grn_create"),
+    path("grn/from-po/<int:po_pk>/", views.GRNFromPOView.as_view(), name="grn_from_po"),
     path("grn/<int:pk>/", views.GRNDetailView.as_view(), name="grn_detail"),
     path("grn/<int:pk>/edit/", views.GRNUpdateView.as_view(), name="grn_update"),
     path("grn/<int:pk>/post/", views.GRNPostView.as_view(), name="grn_post"),

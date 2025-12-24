@@ -2004,6 +2004,20 @@ class ItemRelationshipAPIView(LoginRequiredMixin, View):
         return JsonResponse({"success": True})
 
 
+class WarehouseLocationsAPIView(LoginRequiredMixin, View):
+    """API to get locations for a specific warehouse."""
+
+    def get(self, request, warehouse_pk):
+        locations = InventoryLocation.objects.filter(
+            warehouse_id=warehouse_pk,
+            is_active=True
+        ).values('id', 'name', 'code')
+
+        return JsonResponse({
+            'locations': list(locations)
+        })
+
+
 # =============================================================================
 # Item Planning Views (per-warehouse planning)
 # =============================================================================
@@ -2614,52 +2628,361 @@ class GRNUpdateView(LoginRequiredMixin, UpdateView):
         return reverse_lazy("inventory:grn_detail", kwargs={"pk": self.object.pk})
 
 
-class GRNPostView(LoginRequiredMixin, View):
-    """Post a GRN to create ledger entries."""
+class GRNFromPOView(LoginRequiredMixin, View):
+    """
+    Create a GRN from an existing Purchase Order.
+    Pre-populates GRN lines from outstanding PO lines.
+    """
+    template_name = "inventory/documents/grn_from_po.html"
 
-    def post(self, request, pk):
-        grn = get_object_or_404(GoodsReceiptNote, pk=pk)
+    def get(self, request, po_pk):
+        from apps.supplychain.models import PurchaseOrder
+        from apps.sales.models import Warehouse
+        from decimal import Decimal
 
-        if grn.status != "DRAFT":
-            messages.error(request, "Only DRAFT GRNs can be posted.")
-            return redirect("inventory:grn_detail", pk=pk)
+        po = get_object_or_404(
+            PurchaseOrder.objects.select_related('vendor').prefetch_related('lines__inventory_item'),
+            pk=po_pk,
+            status__in=['APPROVED', 'SENT', 'ACKNOWLEDGED', 'IN_PROGRESS', 'PARTIALLY_RECEIVED']
+        )
+
+        # Get outstanding lines only
+        outstanding_lines = []
+        for line in po.lines.filter(is_cancelled=False, is_closed=False):
+            outstanding = (line.quantity_ordered or Decimal('0')) - (line.quantity_received or Decimal('0'))
+            if outstanding > 0:
+                outstanding_lines.append({
+                    'po_line': line,
+                    'qty_expected': outstanding,
+                    'item': line.inventory_item,
+                })
+
+        # Get available options for form
+        warehouses = Warehouse.objects.filter(is_active=True)
+        parties = Party.objects.filter(is_active=True)
+        ownership_types = OwnershipType.objects.filter(is_active=True)
+        conditions = ConditionType.objects.filter(is_active=True)
+        quality_statuses = QualityStatus.objects.filter(is_active=True)
+
+        context = {
+            'po': po,
+            'outstanding_lines': outstanding_lines,
+            'warehouses': warehouses,
+            'parties': parties,
+            'ownership_types': ownership_types,
+            'conditions': conditions,
+            'quality_statuses': quality_statuses,
+            'page_title': f'Create GRN from {po.po_number}',
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request, po_pk):
+        from apps.supplychain.models import PurchaseOrder, PurchaseOrderLine
+        from decimal import Decimal
+
+        po = get_object_or_404(PurchaseOrder, pk=po_pk)
+
+        # Get form data
+        warehouse_id = request.POST.get('warehouse')
+        receiving_location_id = request.POST.get('receiving_location')
+        owner_party_id = request.POST.get('owner_party')
+        ownership_type_id = request.POST.get('ownership_type')
+        requires_qc = request.POST.get('requires_qc') == 'on'
+        receipt_date = request.POST.get('receipt_date') or timezone.now().date()
+        source_reference = request.POST.get('source_reference', '')
+        notes = request.POST.get('notes', '')
+
+        # Validate required fields
+        if not warehouse_id or not receiving_location_id:
+            messages.error(request, "Warehouse and Receiving Location are required.")
+            return redirect('inventory:grn_from_po', po_pk=po_pk)
+
+        if not owner_party_id or not ownership_type_id:
+            messages.error(request, "Owner Party and Ownership Type are required.")
+            return redirect('inventory:grn_from_po', po_pk=po_pk)
+
+        # Get default condition and quality status
+        default_condition = ConditionType.objects.filter(code='NEW', is_active=True).first()
+        default_quality_status = QualityStatus.objects.filter(code='QUARANTINE', is_active=True).first()
+
+        if not default_condition:
+            default_condition = ConditionType.objects.filter(is_active=True).first()
+        if not default_quality_status:
+            default_quality_status = QualityStatus.objects.filter(is_active=True).first()
 
         try:
-            # Post each line
-            for line in grn.lines.filter(is_posted=False):
-                # Create ledger entry for each line
-                StockLedger.objects.create(
-                    transaction_type="RECEIPT",
-                    transaction_date=grn.receipt_date,
-                    item=line.item,
-                    location=line.location,
-                    lot=line.lot,
-                    qty_delta=line.qty_received,
-                    unit_cost=line.unit_cost,
-                    total_cost=line.total_cost,
-                    owner_party=grn.owner_party,
-                    ownership_type=grn.ownership_type,
-                    condition=line.condition,
-                    quality_status=line.quality_status,
-                    reference_type="GRN",
-                    reference_id=str(grn.pk),
-                    created_by=request.user,
-                )
-                line.is_posted = True
-                line.posted_at = timezone.now()
-                line.save()
+            # Create GRN header
+            grn = GoodsReceiptNote.objects.create(
+                receipt_type=GoodsReceiptNote.ReceiptType.PURCHASE,
+                purchase_order=po,
+                vendor=po.vendor,
+                warehouse_id=warehouse_id,
+                receiving_location_id=receiving_location_id,
+                receipt_date=receipt_date,
+                owner_party_id=owner_party_id,
+                ownership_type_id=ownership_type_id,
+                requires_qc=requires_qc,
+                qc_status=GoodsReceiptNote.QCStatus.NOT_REQUIRED if not requires_qc else GoodsReceiptNote.QCStatus.PENDING,
+                source_reference=source_reference,
+                notes=notes,
+                created_by=request.user,
+            )
 
-            # Update GRN status
-            grn.status = "POSTED"
-            grn.posted_date = timezone.now()
-            grn.posted_by = request.user
-            grn.save()
+            # Create GRN lines from selected PO lines
+            line_number = 0
+            lines_created = 0
 
-            messages.success(request, f"GRN {grn.grn_number} posted successfully.")
+            for po_line in po.lines.filter(is_cancelled=False):
+                qty_received = request.POST.get(f'qty_received_{po_line.pk}')
+
+                if qty_received:
+                    try:
+                        qty = Decimal(qty_received)
+                        if qty > 0:
+                            line_number += 1
+
+                            # Calculate expected quantity
+                            qty_expected = (po_line.quantity_ordered or Decimal('0')) - (po_line.quantity_received or Decimal('0'))
+
+                            GRNLine.objects.create(
+                                grn=grn,
+                                line_number=line_number,
+                                po_line=po_line,
+                                item=po_line.inventory_item,
+                                qty_expected=qty_expected,
+                                qty_received=qty,
+                                uom=po_line.inventory_item.base_uom if po_line.inventory_item else None,
+                                unit_cost=po_line.unit_price or Decimal('0'),
+                                condition=default_condition,
+                                quality_status=default_quality_status,
+                                location_id=receiving_location_id,
+                            )
+                            lines_created += 1
+                    except (ValueError, TypeError):
+                        continue
+
+            if lines_created == 0:
+                grn.delete()
+                messages.error(request, "No lines were created. Please enter quantities to receive.")
+                return redirect('inventory:grn_from_po', po_pk=po_pk)
+
+            # Calculate variances
+            grn.calculate_variances()
+
+            messages.success(request, f"GRN {grn.grn_number} created from {po.po_number} with {lines_created} lines.")
+            return redirect('inventory:grn_detail', pk=grn.pk)
+
+        except Exception as e:
+            messages.error(request, f"Error creating GRN: {str(e)}")
+            return redirect('inventory:grn_from_po', po_pk=po_pk)
+
+
+class GRNPostView(LoginRequiredMixin, View):
+    """
+    Post a GRN to create ledger entries and update PO quantities.
+
+    Business Logic:
+    1. Validate GRN is in CONFIRMED status (passed QC if required)
+    2. For each line:
+       a. Check variance tolerance
+       b. Create StockLedger entry with proper dimensions
+       c. Update/Create StockBalance
+       d. Update PO line quantity_received
+       e. Mark line as posted
+    3. Update GRN status
+    4. Update PO status if fully/partially received
+    """
+
+    def post(self, request, pk):
+        from django.db import transaction
+        from decimal import Decimal
+
+        grn = get_object_or_404(
+            GoodsReceiptNote.objects.select_related(
+                'purchase_order', 'owner_party', 'ownership_type', 'receiving_location'
+            ),
+            pk=pk
+        )
+
+        # Validation: Status check - allow CONFIRMED or DRAFT (for backward compatibility)
+        if grn.status not in [GoodsReceiptNote.Status.CONFIRMED, GoodsReceiptNote.Status.DRAFT]:
+            messages.error(request, f"Cannot post GRN. Status must be CONFIRMED or DRAFT, but is {grn.get_status_display()}")
+            return redirect("inventory:grn_detail", pk=pk)
+
+        # Validation: QC check
+        if grn.requires_qc and grn.qc_status not in [
+            GoodsReceiptNote.QCStatus.PASSED,
+            GoodsReceiptNote.QCStatus.NOT_REQUIRED,
+            GoodsReceiptNote.QCStatus.PARTIAL
+        ]:
+            messages.error(request, "Cannot post GRN. QC inspection not completed or failed.")
+            return redirect("inventory:grn_detail", pk=pk)
+
+        # Validation: Variance approval check
+        if grn.has_quantity_variance and not grn.variance_approved:
+            messages.error(request, "Cannot post GRN. Quantity variances require approval.")
+            return redirect("inventory:grn_detail", pk=pk)
+
+        posted_count = 0
+        error_messages = []
+
+        try:
+            with transaction.atomic():
+                for line in grn.lines.filter(is_posted=False):
+                    try:
+                        # Determine quantity to post
+                        qty_to_post = line.get_qty_to_post()
+
+                        if qty_to_post <= 0:
+                            continue
+
+                        # Get effective location (line override or GRN default)
+                        location = line.location or grn.receiving_location
+
+                        if not location:
+                            error_messages.append(f"Line {line.line_number}: No location specified")
+                            continue
+
+                        # Create unique reference_id for idempotent posting
+                        reference_id = f"{grn.grn_number}-LINE-{line.line_number}"
+
+                        # Check if already posted (idempotency)
+                        if StockLedger.objects.filter(
+                            reference_type='GRN',
+                            reference_id=reference_id
+                        ).exists():
+                            line.is_posted = True
+                            line.posted_at = timezone.now()
+                            line.save()
+                            continue
+
+                        # Create StockLedger entry
+                        StockLedger.objects.create(
+                            transaction_type=StockLedger.TransactionType.RECEIPT,
+                            transaction_date=grn.receipt_date,
+                            item=line.item,
+                            qty_delta=qty_to_post,
+                            uom=line.uom,
+                            location=location,
+                            lot=line.lot,
+                            owner_party=grn.owner_party,
+                            ownership_type=grn.ownership_type,
+                            quality_status=line.quality_status,
+                            condition=line.condition,
+                            unit_cost=line.unit_cost,
+                            total_cost=qty_to_post * line.unit_cost,
+                            reference_type='GRN',
+                            reference_id=reference_id,
+                            notes=f"Receipt from GRN {grn.grn_number}",
+                            created_by=request.user,
+                        )
+
+                        # Update StockBalance
+                        self._update_stock_balance(
+                            item=line.item,
+                            location=location,
+                            lot=line.lot,
+                            owner_party=grn.owner_party,
+                            ownership_type=grn.ownership_type,
+                            quality_status=line.quality_status,
+                            condition=line.condition,
+                            qty_change=qty_to_post,
+                            cost_change=qty_to_post * line.unit_cost,
+                        )
+
+                        # Update PO line quantity received
+                        if line.po_line:
+                            line.po_line.quantity_received = (
+                                line.po_line.quantity_received or Decimal('0')
+                            ) + qty_to_post
+                            line.po_line.save()
+
+                        # Mark line as posted
+                        line.is_posted = True
+                        line.posted_at = timezone.now()
+                        line.save()
+
+                        posted_count += 1
+
+                    except Exception as e:
+                        error_messages.append(f"Line {line.line_number}: {str(e)}")
+
+                if error_messages:
+                    for msg in error_messages:
+                        messages.error(request, msg)
+
+                if posted_count > 0:
+                    # Update GRN to CONFIRMED status (final positive state)
+                    grn.status = GoodsReceiptNote.Status.CONFIRMED
+                    grn.posted_date = timezone.now()
+                    grn.posted_by = request.user
+                    grn.save()
+
+                    # Update PO status
+                    if grn.purchase_order:
+                        self._update_po_status(grn.purchase_order)
+
+                    messages.success(request, f"GRN {grn.grn_number}: {posted_count} lines posted successfully.")
+                else:
+                    messages.warning(request, "No lines were posted.")
+
         except Exception as e:
             messages.error(request, f"Error posting GRN: {str(e)}")
 
         return redirect("inventory:grn_detail", pk=pk)
+
+    def _update_stock_balance(self, item, location, lot, owner_party,
+                              ownership_type, quality_status, condition,
+                              qty_change, cost_change):
+        """Update or create StockBalance entry."""
+        from decimal import Decimal
+
+        balance, created = StockBalance.objects.get_or_create(
+            item=item,
+            location=location,
+            lot=lot,
+            owner_party=owner_party,
+            ownership_type=ownership_type,
+            quality_status=quality_status,
+            condition=condition,
+            defaults={
+                'qty_on_hand': Decimal('0'),
+                'qty_reserved': Decimal('0'),
+                'qty_available': Decimal('0'),
+                'total_cost': Decimal('0'),
+            }
+        )
+
+        balance.qty_on_hand = (balance.qty_on_hand or Decimal('0')) + qty_change
+        balance.qty_available = balance.qty_on_hand - (balance.qty_reserved or Decimal('0'))
+        balance.total_cost = (balance.total_cost or Decimal('0')) + cost_change
+
+        if balance.qty_on_hand > 0:
+            balance.avg_unit_cost = balance.total_cost / balance.qty_on_hand
+
+        balance.last_movement_date = timezone.now()
+        balance.save()
+
+    def _update_po_status(self, po):
+        """Update PO status based on received quantities."""
+        from decimal import Decimal
+
+        total_ordered = sum(
+            line.quantity_ordered or Decimal('0')
+            for line in po.lines.filter(is_cancelled=False)
+        )
+        total_received = sum(
+            line.quantity_received or Decimal('0')
+            for line in po.lines.filter(is_cancelled=False)
+        )
+
+        if total_ordered > 0:
+            if total_received >= total_ordered:
+                po.status = 'COMPLETED'
+            elif total_received > 0:
+                po.status = 'PARTIALLY_RECEIVED'
+
+            po.save()
 
 
 # Stock Issue Views

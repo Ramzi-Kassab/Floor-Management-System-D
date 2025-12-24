@@ -2848,6 +2848,13 @@ class GoodsReceiptNote(models.Model):
         help_text="Ownership type (OWNED, CONSIGNMENT, CLIENT, etc.)"
     )
 
+    # Vendor (preferred over legacy Supplier)
+    vendor = models.ForeignKey(
+        "supplychain.Vendor", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="grns",
+        help_text="Vendor for purchase receipts (preferred over supplier)"
+    )
+
     # Quality control
     requires_qc = models.BooleanField(
         default=True,
@@ -2855,6 +2862,47 @@ class GoodsReceiptNote(models.Model):
     )
     qc_completed = models.BooleanField(default=False)
     qc_notes = models.TextField(blank=True)
+
+    # QC Workflow Enhancement
+    class QCStatus(models.TextChoices):
+        NOT_REQUIRED = "NOT_REQUIRED", "QC Not Required"
+        PENDING = "PENDING", "Pending Inspection"
+        IN_PROGRESS = "IN_PROGRESS", "Inspection In Progress"
+        PASSED = "PASSED", "QC Passed"
+        FAILED = "FAILED", "QC Failed"
+        PARTIAL = "PARTIAL", "Partially Passed"
+
+    qc_status = models.CharField(
+        max_length=20, choices=QCStatus.choices, default=QCStatus.PENDING
+    )
+    qc_inspection = models.ForeignKey(
+        "compliance.QualityControl", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="grns",
+        help_text="Link to QC inspection record"
+    )
+    qc_completed_at = models.DateTimeField(null=True, blank=True)
+    qc_completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="grns_qc_completed"
+    )
+
+    # Posting
+    posted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="grns_posted"
+    )
+
+    # Variance tracking
+    has_quantity_variance = models.BooleanField(
+        default=False,
+        help_text="True if any line exceeds tolerance"
+    )
+    variance_approved = models.BooleanField(default=False)
+    variance_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="grns_variance_approved"
+    )
+    variance_approved_at = models.DateTimeField(null=True, blank=True)
 
     # Audit
     notes = models.TextField(blank=True)
@@ -2902,6 +2950,58 @@ class GoodsReceiptNote(models.Model):
 
         super().save(*args, **kwargs)
 
+    def calculate_variances(self):
+        """
+        Calculate and flag quantity variances on all lines.
+        Returns True if any variance exceeds tolerance.
+        """
+        from decimal import Decimal
+        has_variance = False
+
+        for line in self.lines.all():
+            if line.qty_expected > 0:
+                variance = ((line.qty_received - line.qty_expected) / line.qty_expected) * 100
+                line.variance_percent = abs(variance)
+
+                if variance > 0:
+                    line.variance_type = 'OVER'
+                elif variance < 0:
+                    line.variance_type = 'SHORT'
+                else:
+                    line.variance_type = 'NONE'
+
+                # Get tolerance for this item
+                tolerance = ReceiptTolerance.get_tolerance_for(
+                    item=line.item,
+                    category=line.item.category if line.item else None,
+                    vendor=self.vendor
+                )
+
+                if tolerance:
+                    if line.variance_type == 'OVER' and line.variance_percent > tolerance.over_receipt_percent:
+                        has_variance = True
+                    elif line.variance_type == 'SHORT' and line.variance_percent > tolerance.under_receipt_percent:
+                        has_variance = True
+
+                line.save()
+
+        self.has_quantity_variance = has_variance
+        self.save(update_fields=['has_quantity_variance'])
+        return has_variance
+
+    def can_post(self):
+        """Check if GRN can be posted to ledger."""
+        if self.status != self.Status.CONFIRMED:
+            return False, "GRN must be in CONFIRMED status"
+
+        if self.requires_qc and self.qc_status not in [self.QCStatus.PASSED, self.QCStatus.NOT_REQUIRED, self.QCStatus.PARTIAL]:
+            return False, "QC inspection not completed or failed"
+
+        if self.has_quantity_variance and not self.variance_approved:
+            return False, "Quantity variances require approval"
+
+        return True, "Ready to post"
+
 
 class GRNLine(models.Model):
     """
@@ -2928,6 +3028,17 @@ class GRNLine(models.Model):
         max_digits=15, decimal_places=3,
         help_text="Actual quantity received"
     )
+
+    # QC quantities (populated after QC inspection)
+    qty_accepted = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text="Quantity accepted after QC"
+    )
+    qty_rejected = models.DecimalField(
+        max_digits=15, decimal_places=3, default=0,
+        help_text="Quantity rejected during QC"
+    )
+
     uom = models.ForeignKey(
         UnitOfMeasure, on_delete=models.PROTECT,
         related_name="grn_lines"
@@ -2979,6 +3090,33 @@ class GRNLine(models.Model):
         null=True, blank=True, related_name="grn_lines"
     )
 
+    # QC per-line status
+    class LineQCStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PASSED = "PASSED", "Passed"
+        FAILED = "FAILED", "Failed"
+        PARTIAL = "PARTIAL", "Partial Pass"
+
+    line_qc_status = models.CharField(
+        max_length=20, choices=LineQCStatus.choices, default=LineQCStatus.PENDING
+    )
+    qc_notes = models.TextField(blank=True, help_text="QC inspection notes")
+    qc_defects = models.TextField(blank=True, help_text="Description of defects found")
+
+    # Variance tracking per line
+    class VarianceType(models.TextChoices):
+        NONE = "NONE", "None"
+        SHORT = "SHORT", "Under Receipt"
+        OVER = "OVER", "Over Receipt"
+
+    variance_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        help_text="Variance from expected quantity (%)"
+    )
+    variance_type = models.CharField(
+        max_length=10, choices=VarianceType.choices, default=VarianceType.NONE
+    )
+
     # Status tracking
     is_posted = models.BooleanField(
         default=False,
@@ -3001,6 +3139,121 @@ class GRNLine(models.Model):
     def save(self, *args, **kwargs):
         self.total_cost = self.qty_received * self.unit_cost
         super().save(*args, **kwargs)
+
+    def get_qty_to_post(self):
+        """Get quantity to post to ledger (accepted qty if QC done, otherwise received)."""
+        if self.grn.requires_qc and self.qty_accepted > 0:
+            return self.qty_accepted
+        return self.qty_received
+
+
+class ReceiptTolerance(models.Model):
+    """
+    Configurable tolerance thresholds for receipt variance handling.
+    Can be set per item, category, vendor, or system-wide default.
+    """
+
+    class AppliesTo(models.TextChoices):
+        SYSTEM = "SYSTEM", "System Default"
+        CATEGORY = "CATEGORY", "Category"
+        ITEM = "ITEM", "Specific Item"
+        VENDOR = "VENDOR", "Vendor"
+
+    applies_to = models.CharField(max_length=20, choices=AppliesTo.choices)
+    category = models.ForeignKey(
+        InventoryCategory, on_delete=models.CASCADE,
+        null=True, blank=True, related_name="receipt_tolerances"
+    )
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.CASCADE,
+        null=True, blank=True, related_name="receipt_tolerances"
+    )
+    vendor = models.ForeignKey(
+        "supplychain.Vendor", on_delete=models.CASCADE,
+        null=True, blank=True, related_name="receipt_tolerances"
+    )
+
+    # Tolerance thresholds (percentages)
+    over_receipt_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=10.00,
+        help_text="Maximum over-receipt allowed (%)"
+    )
+    under_receipt_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=5.00,
+        help_text="Maximum under-receipt allowed without approval (%)"
+    )
+
+    # QC and closure settings
+    require_qc = models.BooleanField(
+        default=True,
+        help_text="Require QC inspection for items with this tolerance"
+    )
+    auto_close_on_tolerance = models.BooleanField(
+        default=True,
+        help_text="Auto-close PO line if within tolerance"
+    )
+
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "receipt_tolerances"
+        verbose_name = "Receipt Tolerance"
+        verbose_name_plural = "Receipt Tolerances"
+
+    def __str__(self):
+        if self.applies_to == self.AppliesTo.SYSTEM:
+            return "System Default Tolerance"
+        elif self.applies_to == self.AppliesTo.CATEGORY:
+            return f"Category: {self.category}"
+        elif self.applies_to == self.AppliesTo.ITEM:
+            return f"Item: {self.item}"
+        elif self.applies_to == self.AppliesTo.VENDOR:
+            return f"Vendor: {self.vendor}"
+        return f"Tolerance {self.pk}"
+
+    @classmethod
+    def get_tolerance_for(cls, item=None, category=None, vendor=None):
+        """
+        Get most specific applicable tolerance.
+        Priority: Item > Vendor > Category > System
+        """
+        # Try item-specific first
+        if item:
+            tol = cls.objects.filter(
+                applies_to=cls.AppliesTo.ITEM,
+                item=item,
+                is_active=True
+            ).first()
+            if tol:
+                return tol
+
+        # Try vendor-specific
+        if vendor:
+            tol = cls.objects.filter(
+                applies_to=cls.AppliesTo.VENDOR,
+                vendor=vendor,
+                is_active=True
+            ).first()
+            if tol:
+                return tol
+
+        # Try category-specific
+        if category:
+            tol = cls.objects.filter(
+                applies_to=cls.AppliesTo.CATEGORY,
+                category=category,
+                is_active=True
+            ).first()
+            if tol:
+                return tol
+
+        # Fall back to system default
+        return cls.objects.filter(
+            applies_to=cls.AppliesTo.SYSTEM,
+            is_active=True
+        ).first()
 
 
 class StockIssue(models.Model):
