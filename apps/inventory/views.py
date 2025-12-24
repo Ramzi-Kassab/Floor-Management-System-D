@@ -419,7 +419,9 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
         context["identifiers"] = identifiers_with_images
 
         # Generate default QR code for the item itself (pointing to pocket/mobile view)
-        base_url = self.request.build_absolute_uri('/')[:-1]  # Get base URL like https://example.com
+        # Use SITE_URL from settings if configured (auto-detected for Codespaces), otherwise use request
+        from django.conf import settings as django_settings
+        base_url = getattr(django_settings, 'SITE_URL', None) or self.request.build_absolute_uri('/')[:-1]
         context["item_qr_code"] = generate_inventory_item_qr(item, base_url=base_url)
 
         # NEW: Bit Spec (if exists)

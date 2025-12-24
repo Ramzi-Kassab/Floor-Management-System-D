@@ -275,6 +275,22 @@ LOGGING = {
 (BASE_DIR / 'logs').mkdir(exist_ok=True)
 
 # =============================================================================
+# SITE URL CONFIGURATION (for QR codes and external links)
+# =============================================================================
+
+# SITE_URL can be set explicitly in environment, or auto-detected for Codespaces
+SITE_URL = env('SITE_URL', default=None)
+
+# Auto-detect GitHub Codespaces URL
+if SITE_URL is None:
+    codespace_name = os.environ.get('CODESPACE_NAME')
+    codespaces_domain = os.environ.get('GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN', 'app.github.dev')
+
+    if codespace_name:
+        # Running in GitHub Codespaces - construct the public URL
+        SITE_URL = f"https://{codespace_name}-8000.{codespaces_domain}"
+
+# =============================================================================
 # ARDT FMS CUSTOM SETTINGS
 # =============================================================================
 
