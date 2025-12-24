@@ -3,686 +3,469 @@
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
 {% block page_header %}
-<div class="flex items-center justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
-    </div>
-    <a href="{% url 'inventory:item_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
-        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+<div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+    <a href="{% url 'inventory:item_list' %}" class="inline-flex items-center px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back
     </a>
 </div>
 {% endblock %}
 
 {% block content %}
 <div x-data="itemForm()" x-init="init()">
-    <form method="post" enctype="multipart/form-data" class="space-y-6">
+    <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         <input type="hidden" name="name_manually_set" x-model="nameManuallySet">
 
-        <!-- Top Section: Basic Info + Image -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Basic Info (2/3 width) -->
-            <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h2>
+        <!-- Main Grid: 3 columns on desktop -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category *</label>
-                        <select name="category" id="id_category" x-model="selectedCategory" @change="onCategoryChange()"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
-                            <option value="">Select Category</option>
-                            {% for category in categories %}
-                            <option value="{{ category.pk }}"
-                                    data-item-type="{{ category.item_type }}"
-                                    data-code-prefix="{{ category.code_prefix }}"
-                                    data-name-template="{{ category.name_template }}"
-                                    {% if form.category.value|stringformat:"s" == category.pk|stringformat:"s" %}selected{% endif %}>
-                                {{ category.code }} - {{ category.name }}
-                            </option>
-                            {% for child in category.children.all %}
-                            <option value="{{ child.pk }}"
-                                    data-item-type="{{ child.item_type }}"
-                                    data-code-prefix="{{ child.code_prefix }}"
-                                    data-name-template="{{ child.name_template }}"
-                                    {% if form.category.value|stringformat:"s" == child.pk|stringformat:"s" %}selected{% endif %}>
-                                &nbsp;&nbsp;- {{ child.code }} - {{ child.name }}
-                            </option>
-                            {% endfor %}
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Item Type</label>
-                        <select name="item_type" id="id_item_type" x-model="itemType"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
-                            {% for value, label in type_choices %}
-                            <option value="{{ value }}" {% if form.item_type.value == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                        <p class="text-xs text-gray-500 mt-1">Auto-set from category</p>
-                    </div>
+            <!-- LEFT COLUMN: Category, Name, Attributes (8 cols) -->
+            <div class="lg:col-span-8 space-y-4">
 
-                    <!-- Name Field (Primary - Real-time auto-generated) -->
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Name *
-                            <span x-show="!nameManuallySet && nameTemplate" class="ml-2 text-xs text-green-600 font-normal">
-                                (Auto-generated)
-                            </span>
-                            <button type="button" x-show="nameManuallySet" @click="nameManuallySet = false; generateName()"
-                                class="ml-2 text-xs text-blue-600 hover:text-blue-800 font-normal">
-                                [Reset to auto]
-                            </button>
-                        </label>
-                        <div class="relative">
-                            <input type="text" name="name" id="id_name" x-model="itemName"
-                                @input="nameManuallySet = true"
-                                @focus="if(!nameManuallySet && nameTemplate) generateName()"
-                                :class="{'ring-2 ring-green-500 border-green-500': !nameManuallySet && nameTemplate}"
-                                class="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-medium"
-                                placeholder="Auto-generated from attributes"
-                                value="{{ form.name.value|default:'' }}">
-                            <span x-show="!nameManuallySet && nameTemplate" class="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
-                                <i data-lucide="sparkles" class="w-5 h-5"></i>
-                            </span>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-1" x-show="nameTemplate">
-                            Template: <span x-text="nameTemplate" class="font-mono text-blue-600"></span>
-                        </p>
-                        {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
-                    </div>
-
-                    <!-- Code Field (Secondary - Auto-generated) -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Code
-                            <button type="button" @click="generateCode()"
-                                class="ml-2 text-xs text-blue-600 hover:text-blue-800"
-                                x-show="selectedCategory">
-                                [Generate]
-                            </button>
-                        </label>
-                        <input type="text" name="code" id="id_code" x-model="itemCode"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-600 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
-                            placeholder="Auto-generated"
-                            value="{{ form.code.value|default:'' }}">
-                        <p class="text-xs text-gray-500 mt-1">System reference code</p>
-                        {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
-                        {{ form.description }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Image Upload (1/3 width) -->
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Item Image</h2>
-                <div class="relative">
-                    <!-- Image Preview / Placeholder -->
-                    <div class="aspect-square w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center"
-                         x-show="!imagePreview"
-                         @click="$refs.imageInput.click()">
-                        <div class="text-center cursor-pointer p-4">
-                            <i data-lucide="image-plus" class="w-16 h-16 mx-auto text-gray-400 dark:text-gray-500 mb-2"></i>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">Click to upload image</p>
-                            <p class="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB</p>
-                        </div>
-                    </div>
-                    <div x-show="imagePreview" class="aspect-square w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden relative">
-                        <img :src="imagePreview" class="w-full h-full object-cover">
-                        <button type="button" @click="clearImage()"
-                            class="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600">
-                            <i data-lucide="x" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                    {% if object.image %}
-                    <div x-show="!imagePreview && !imageCleared" class="aspect-square w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden relative">
-                        <img src="{{ object.image.url }}" class="w-full h-full object-cover">
-                        <button type="button" @click="imageCleared = true"
-                            class="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600">
-                            <i data-lucide="x" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                    {% endif %}
-                    <input type="file" name="image" x-ref="imageInput" @change="previewImage($event)" accept="image/*" class="hidden">
-                </div>
-            </div>
-        </div>
-
-        <!-- Legacy System References -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Legacy System References
-                <span class="text-sm font-normal text-gray-500">(Optional - for migration tracking)</span>
-            </h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SAP MAT Number</label>
-                    {{ form.mat_number }}
-                    <p class="text-xs text-gray-500 mt-1">Reference from legacy SAP system</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ERP Item Number</label>
-                    {{ form.item_number }}
-                    <p class="text-xs text-gray-500 mt-1">Reference from parallel ERP system</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Category Attributes (Dynamic) -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-show="attributes.length > 0" x-cloak>
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Category Attributes
-                <span class="text-sm font-normal text-gray-500" x-text="'(' + attributes.length + ' attributes)'"></span>
-            </h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <template x-for="attr in attributes" :key="attr.id">
-                    <div :class="{'ring-2 ring-blue-500 rounded-lg p-3 bg-blue-50 dark:bg-blue-900/20': attr.is_used_in_name}">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            <span x-text="attr.name"></span>
-                            <span x-show="attr.is_required" class="text-red-500">*</span>
-                            <span x-show="attr.unit" class="text-gray-400 font-normal" x-text="'(' + attr.unit + ')'"></span>
-                            <span x-show="attr.is_used_in_name" class="ml-1 text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
-                                In Name
-                            </span>
-                        </label>
-
-                        <!-- TEXT type -->
-                        <template x-if="attr.attribute_type === 'TEXT'">
-                            <input type="text"
-                                :name="'attr_' + attr.id"
-                                x-model="attributeValues[attr.code]"
-                                :required="attr.is_required"
-                                @input="attr.is_used_in_name && !nameManuallySet && generateName()"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
-                        </template>
-
-                        <!-- NUMBER type -->
-                        <template x-if="attr.attribute_type === 'NUMBER'">
-                            <input type="number"
-                                :name="'attr_' + attr.id"
-                                x-model="attributeValues[attr.code]"
-                                :required="attr.is_required"
-                                :min="attr.min_value"
-                                :max="attr.max_value"
-                                step="0.0001"
-                                @input="attr.is_used_in_name && !nameManuallySet && generateName()"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
-                        </template>
-
-                        <!-- SELECT type -->
-                        <template x-if="attr.attribute_type === 'SELECT'">
-                            <select :name="'attr_' + attr.id"
-                                x-model="attributeValues[attr.code]"
-                                :required="attr.is_required"
-                                @change="attr.is_used_in_name && !nameManuallySet && generateName()"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 text-sm">
-                                <option value="">Select...</option>
-                                <template x-for="opt in getOptions(attr)" :key="opt.value">
-                                    <option :value="opt.value" x-text="opt.label"></option>
-                                </template>
+                <!-- Category & Name Section -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Category -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
+                            <select name="category" id="id_category" x-model="selectedCategory" @change="onCategoryChange()"
+                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                                <option value="">Select Category</option>
+                                {% for category in categories %}
+                                <option value="{{ category.pk }}"
+                                        data-item-type="{{ category.item_type }}"
+                                        data-name-template="{{ category.name_template|escapejs }}"
+                                        data-name-template-config='{{ category.name_template_config|default:""|escapejs }}'
+                                        {% if form.category.value|stringformat:"s" == category.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ category.name }}
+                                </option>
+                                {% for child in category.children.all %}
+                                <option value="{{ child.pk }}"
+                                        data-item-type="{{ child.item_type }}"
+                                        data-name-template="{{ child.name_template|escapejs }}"
+                                        data-name-template-config='{{ child.name_template_config|default:""|escapejs }}'
+                                        {% if form.category.value|stringformat:"s" == child.pk|stringformat:"s" %}selected{% endif %}>
+                                    &nbsp;&nbsp;└ {{ child.name }}
+                                </option>
+                                {% endfor %}
+                                {% endfor %}
                             </select>
-                        </template>
+                        </div>
 
-                        <!-- BOOLEAN type -->
-                        <template x-if="attr.attribute_type === 'BOOLEAN'">
-                            <div class="flex items-center mt-2">
-                                <input type="checkbox"
-                                    :name="'attr_' + attr.id"
-                                    x-model="attributeValues[attr.code]"
-                                    @change="attr.is_used_in_name && !nameManuallySet && generateName()"
-                                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Yes</span>
+                        <!-- Item Type (auto-set, read-only display) -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Item Type</label>
+                            <div class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300" x-text="itemTypeLabel || 'Auto-set from category'"></div>
+                            <input type="hidden" name="item_type" x-model="itemType">
+                        </div>
+
+                        <!-- Name Field (Full Width, Primary) -->
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Name *
+                                <span x-show="!nameManuallySet && nameTemplate" class="ml-1 text-xs text-green-600">(Auto)</span>
+                                <button type="button" x-show="nameManuallySet" @click="nameManuallySet = false; generateName()"
+                                    class="ml-1 text-xs text-blue-600 hover:text-blue-800">[Reset]</button>
+                            </label>
+                            <input type="text" name="name" id="id_name" x-model="itemName" required
+                                @input="nameManuallySet = true"
+                                :class="{'ring-2 ring-green-400': !nameManuallySet && nameTemplate}"
+                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                placeholder="Auto-generated from attributes">
+                            <p class="text-xs text-gray-500 mt-0.5" x-show="nameTemplate" x-cloak>
+                                Template: <span x-text="nameTemplate" class="font-mono text-blue-600"></span>
+                            </p>
+                            {% if form.name.errors %}<p class="text-red-600 text-xs mt-0.5">{{ form.name.errors.0 }}</p>{% endif %}
+                        </div>
+
+                        <!-- Description -->
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                            <textarea name="description" rows="2"
+                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">{{ form.description.value|default:'' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Category Attributes (Dynamic) -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4" x-show="attributes.length > 0" x-cloak>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                        Specifications
+                        <span class="text-xs font-normal text-gray-500" x-text="'(' + attributes.length + ')'"></span>
+                    </h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        <template x-for="attr in attributes" :key="attr.id">
+                            <div :class="{'bg-blue-50 dark:bg-blue-900/20 p-2 rounded': attr.is_used_in_name}">
+                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <span x-text="attr.name"></span>
+                                    <span x-show="attr.is_required" class="text-red-500">*</span>
+                                    <span x-show="attr.unit" class="text-gray-400" x-text="'(' + attr.unit + ')'"></span>
+                                </label>
+
+                                <!-- TEXT -->
+                                <template x-if="attr.attribute_type === 'TEXT'">
+                                    <input type="text" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
+                                        :required="attr.is_required"
+                                        @input="attr.is_used_in_name && !nameManuallySet && generateName()"
+                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                </template>
+
+                                <!-- NUMBER -->
+                                <template x-if="attr.attribute_type === 'NUMBER'">
+                                    <input type="number" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
+                                        :required="attr.is_required" :min="attr.min_value" :max="attr.max_value" step="any"
+                                        @input="attr.is_used_in_name && !nameManuallySet && generateName()"
+                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                </template>
+
+                                <!-- SELECT -->
+                                <template x-if="attr.attribute_type === 'SELECT'">
+                                    <select :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
+                                        :required="attr.is_required"
+                                        @change="attr.is_used_in_name && !nameManuallySet && generateName()"
+                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                        <option value="">-</option>
+                                        <template x-for="opt in getOptions(attr)" :key="opt.value">
+                                            <option :value="opt.value" x-text="opt.label"></option>
+                                        </template>
+                                    </select>
+                                </template>
+
+                                <!-- BOOLEAN -->
+                                <template x-if="attr.attribute_type === 'BOOLEAN'">
+                                    <div class="flex items-center mt-1">
+                                        <input type="checkbox" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
+                                            @change="attr.is_used_in_name && !nameManuallySet && generateName()"
+                                            class="rounded border-gray-300 text-blue-600">
+                                        <span class="ml-1 text-xs text-gray-600 dark:text-gray-400">Yes</span>
+                                    </div>
+                                </template>
                             </div>
                         </template>
-
-                        <!-- DATE type -->
-                        <template x-if="attr.attribute_type === 'DATE'">
-                            <input type="date"
-                                :name="'attr_' + attr.id"
-                                x-model="attributeValues[attr.code]"
-                                :required="attr.is_required"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
-                        </template>
-
-                        <p x-show="attr.min_value || attr.max_value"
-                           class="text-xs text-gray-500 mt-1"
-                           x-text="(attr.min_value ? 'Min: ' + attr.min_value : '') + (attr.min_value && attr.max_value ? ' | ' : '') + (attr.max_value ? 'Max: ' + attr.max_value : '')">
-                        </p>
-                    </div>
-                </template>
-            </div>
-        </div>
-
-        <!-- Cost & Currency Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Cost & Currency</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Standard Cost</label>
-                    <div class="relative">
-                        <input type="number" name="standard_cost" x-model="standardCost" step="0.01"
-                            @input="updateCostConversion()"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                            value="{{ form.standard_cost.value|default:'0' }}">
                     </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Currency</label>
-                    <div class="flex space-x-2">
-                        <button type="button" @click="setCurrency('SAR')"
-                            :class="currency === 'SAR' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'"
-                            class="flex-1 px-4 py-2 rounded-lg font-medium transition-colors">
-                            SAR
-                        </button>
-                        <button type="button" @click="setCurrency('USD')"
-                            :class="currency === 'USD' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'"
-                            class="flex-1 px-4 py-2 rounded-lg font-medium transition-colors">
-                            USD
-                        </button>
-                    </div>
-                    <input type="hidden" name="currency" x-model="currency">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        <span x-text="currency === 'SAR' ? 'In USD' : 'In SAR'"></span>
-                        <span class="text-xs text-gray-500">(calculated)</span>
-                    </label>
-                    <div class="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                        <span x-text="currency === 'SAR' ? '$' : 'SAR '"></span>
-                        <span x-text="convertedCost.toFixed(2)"></span>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-1">Rate: 1 USD = 3.75 SAR</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Cost per Base Unit
-                        <span class="text-xs text-gray-500">(for comparison)</span>
-                    </label>
-                    <div class="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                        <span x-text="currency + ' '"></span>
-                        <span x-text="costPerBaseUnit.toFixed(4)"></span>
-                        <span x-show="purchaseToReleaseFactor > 1" class="text-xs text-gray-500" x-text="'/ ' + releaseUomLabel"></span>
-                    </div>
-                </div>
-            </div>
 
-            <div class="mt-4">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Unit</label>
-                {{ form.unit }}
-            </div>
-        </div>
-
-        <!-- Packaging Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Packaging
-                <span class="text-sm font-normal text-gray-500">(Optional - for items bought in bulk)</span>
-            </h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Purchase UOM</label>
-                    <select name="purchase_uom" x-model="purchaseUom"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
-                        <option value="">Same as release UOM</option>
-                        {% for uom in uoms %}
-                        <option value="{{ uom.pk }}" {% if form.purchase_uom.value|stringformat:"s" == uom.pk|stringformat:"s" %}selected{% endif %}>
-                            {{ uom.code }} - {{ uom.name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1">How you buy (e.g., CARTON, BOX)</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Release UOM</label>
-                    <select name="release_uom" x-model="releaseUom" @change="updateReleaseUomLabel()"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
-                        <option value="">Select release UOM</option>
-                        {% for uom in uoms %}
-                        <option value="{{ uom.pk }}" data-label="{{ uom.code }}" {% if form.release_uom.value|stringformat:"s" == uom.pk|stringformat:"s" %}selected{% endif %}>
-                            {{ uom.code }} - {{ uom.name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1">How you issue (e.g., EACH, PC)</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Conversion Factor</label>
-                    <input type="number" name="purchase_to_release_factor" x-model="purchaseToReleaseFactor" step="0.0001" min="0"
-                        @input="updateCostPerBaseUnit()"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                        placeholder="e.g., 100"
-                        value="{{ form.purchase_to_release_factor.value|default:'' }}">
-                    <p class="text-xs text-gray-500 mt-1" x-show="purchaseUom && purchaseToReleaseFactor > 0">
-                        1 purchase unit = <span x-text="purchaseToReleaseFactor"></span> release units
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Stock Levels -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Stock Levels & Reorder</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Min Stock</label>
-                    {{ form.min_stock }}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Stock</label>
-                    {{ form.max_stock }}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Reorder Point</label>
-                    {{ form.reorder_point }}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Reorder Qty
-                        <button type="button" @click="calculateSmartReorderQty()"
-                            class="ml-1 text-xs text-blue-600 hover:text-blue-800" title="Calculate based on min purchase qty">
-                            [Smart]
-                        </button>
-                    </label>
-                    <input type="number" name="reorder_quantity" x-model="reorderQty" step="0.001"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                        value="{{ form.reorder_quantity.value|default:'0' }}">
-                    <p class="text-xs text-gray-500 mt-1" x-show="purchaseToReleaseFactor > 1">
-                        = <span x-text="(reorderQty / purchaseToReleaseFactor).toFixed(1)"></span> purchase units
-                    </p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Lead Time (days)</label>
-                    {{ form.lead_time_days }}
-                </div>
-            </div>
-        </div>
-
-        <!-- In-Floor Tracking -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                In-Floor Tracking
-                <span class="text-sm font-normal text-gray-500">(Track items issued to production floor)</span>
-            </h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Floor Location</label>
-                    {{ form.floor_location }}
-                    <p class="text-xs text-gray-500 mt-1">e.g., Machine A, Workstation 5</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Issued to Floor</label>
-                    {{ form.issued_to_floor }}
-                    <p class="text-xs text-gray-500 mt-1">Current qty on floor</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Est. Daily Consumption</label>
-                    {{ form.estimated_consumption_per_day }}
-                    <p class="text-xs text-gray-500 mt-1">For forecasting</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Floor Reorder Point</label>
-                    {{ form.floor_reorder_point }}
-                    <p class="text-xs text-gray-500 mt-1">Trigger replenishment</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Similar/Replacement Items -->
-        {% if object %}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Similar & Replacement Items
-                <button type="button" @click="showRelatedItemsModal = true"
-                    class="ml-2 text-sm font-normal text-blue-600 hover:text-blue-800">
-                    + Add Related Item
-                </button>
-            </h2>
-
-            {% if object.related_to.exists or object.related_from.exists %}
-            <div class="space-y-2">
-                {% for rel in object.related_to.all %}
-                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div class="flex items-center space-x-3">
-                        <span class="px-2 py-1 text-xs font-medium rounded
-                            {% if rel.status == 'EQUAL' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300
-                            {% elif rel.status == 'OBSOLETE' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300
-                            {% elif rel.status == 'BLOCKED' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300
-                            {% elif rel.status == 'UNAVAILABLE' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300
-                            {% else %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300{% endif %}">
-                            {{ rel.get_status_display }}
-                        </span>
-                        <span class="text-gray-600 dark:text-gray-400">→</span>
-                        <a href="{% url 'inventory:item_update' rel.to_item.pk %}" class="text-blue-600 hover:underline">
-                            {{ rel.to_item.code }} - {{ rel.to_item.name }}
-                        </a>
-                    </div>
-                    <span class="text-xs text-gray-500">{{ rel.notes|default:"" }}</span>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="text-gray-500 text-sm">No related items configured.</p>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        <!-- Supplier Info -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Supplier Information</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Primary Supplier</label>
-                    {{ form.primary_supplier }}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Supplier Part Number</label>
-                    {{ form.supplier_part_number }}
-                </div>
-            </div>
-        </div>
-
-        <!-- Tracking & Status -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tracking & Status</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="space-y-4">
-                    <div class="flex items-center">
-                        {{ form.is_active }}
-                        <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
-                    </div>
-                    <div class="flex items-center">
-                        {{ form.is_serialized }}
-                        <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Track by Serial Number</label>
-                    </div>
-                    <div class="flex items-center">
-                        {{ form.is_lot_controlled }}
-                        <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Track by Lot/Batch</label>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="flex justify-end space-x-3 pt-6">
-            <a href="{% url 'inventory:item_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
-            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                {% if object %}Update{% else %}Create{% endif %} Item
-            </button>
-        </div>
-    </form>
-</div>
-
-<!-- Add Related Item Modal -->
-<div x-show="showRelatedItemsModal" x-cloak
-     class="fixed inset-0 z-50 overflow-y-auto"
-     @keydown.escape.window="showRelatedItemsModal = false">
-    <div class="flex items-center justify-center min-h-screen px-4">
-        <div class="fixed inset-0 bg-black/50" @click="showRelatedItemsModal = false"></div>
-        <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Related Item</h3>
-
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search Item</label>
-                    <input type="text" x-model="relatedItemSearch" @input="searchRelatedItems()"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
-                        placeholder="Search by code or name...">
-                </div>
-
-                <div x-show="relatedItemResults.length > 0" class="max-h-40 overflow-y-auto border rounded-lg">
-                    <template x-for="item in relatedItemResults" :key="item.id">
-                        <div @click="selectRelatedItem(item)"
-                             class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b last:border-b-0">
-                            <span x-text="item.code" class="font-mono text-sm"></span> -
-                            <span x-text="item.name"></span>
+                <!-- Cost & Stock Section (Merged for compactness) -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <!-- Cost -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Cost</label>
+                            <div class="flex">
+                                <input type="number" name="standard_cost" x-model="standardCost" step="0.01" min="0"
+                                    @input="updateCostConversion()"
+                                    class="flex-1 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-l bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                <button type="button" @click="toggleCurrency()"
+                                    :class="currency === 'SAR' ? 'bg-blue-600 text-white' : 'bg-green-600 text-white'"
+                                    class="px-2 py-1.5 text-xs font-medium rounded-r" x-text="currency"></button>
+                            </div>
+                            <input type="hidden" name="currency" x-model="currency">
+                            <p class="text-xs text-gray-500 mt-0.5" x-text="'≈ ' + (currency === 'SAR' ? '$' + convertedCost.toFixed(2) : 'SAR ' + convertedCost.toFixed(2))"></p>
                         </div>
-                    </template>
+
+                        <!-- Min Stock (replaces Reorder Point) -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Min Stock</label>
+                            <input type="number" name="min_stock" x-model="minStock" min="0" :step="isEachUnit ? 1 : 0.001"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                value="{{ form.min_stock.value|default:'0' }}">
+                            <p class="text-xs text-gray-500">Reorder when below</p>
+                        </div>
+
+                        <!-- Max Stock -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Max Stock</label>
+                            <input type="number" name="max_stock" x-model="maxStock" min="0" :step="isEachUnit ? 1 : 0.001"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                value="{{ form.max_stock.value|default:'' }}">
+                        </div>
+
+                        <!-- Reorder Qty -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Reorder Qty
+                                <button type="button" @click="calculateSmartReorder()" class="text-blue-600 text-xs ml-1">[Auto]</button>
+                            </label>
+                            <input type="number" name="reorder_quantity" x-model="reorderQty" min="0" :step="isEachUnit ? 1 : 0.001"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                value="{{ form.reorder_quantity.value|default:'0' }}">
+                        </div>
+                    </div>
                 </div>
 
-                <div x-show="selectedRelatedItem">
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        Selected: <strong x-text="selectedRelatedItem?.code + ' - ' + selectedRelatedItem?.name"></strong>
+                <!-- Packaging Section (Simplified) -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        Packaging
+                        <span class="text-xs font-normal text-gray-500">(if bought in bulk)</span>
+                    </h3>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Buy As</label>
+                            <select name="purchase_uom" x-model="purchaseUom"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                <option value="">Same as release</option>
+                                {% for uom in packaging_uoms %}
+                                <option value="{{ uom.pk }}" {% if form.purchase_uom.value|stringformat:"s" == uom.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ uom.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Issue As</label>
+                            <select name="release_uom" x-model="releaseUom"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                <option value="">Select unit</option>
+                                {% for uom in packaging_uoms %}
+                                <option value="{{ uom.pk }}" {% if form.release_uom.value|stringformat:"s" == uom.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ uom.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Qty per Package</label>
+                            <input type="number" name="purchase_to_release_factor" x-model="conversionFactor" min="1" step="1"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                placeholder="e.g., 100">
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1" x-show="purchaseUom && conversionFactor > 1" x-cloak>
+                        1 package = <span x-text="conversionFactor"></span> units
                     </p>
                 </div>
 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Relationship Status</label>
-                    <select x-model="relatedItemStatus"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg">
-                        <option value="EQUAL">Equal/Interchangeable</option>
-                        <option value="OBSOLETE">This item is obsolete (use selected as replacement)</option>
-                        <option value="UNAVAILABLE">This item temporarily unavailable</option>
-                        <option value="BLOCKED">This item is blocked</option>
-                        <option value="USE_UNTIL_CONSUME">Use until consumed, then switch</option>
-                    </select>
-                </div>
+                <!-- Legacy References (Collapsible) -->
+                <details class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                    <summary class="p-3 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Legacy System References <span class="text-xs text-gray-500">(optional)</span>
+                    </summary>
+                    <div class="px-4 pb-4 grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">SAP MAT Number</label>
+                            <input type="text" name="mat_number"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                value="{{ form.mat_number.value|default:'' }}">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">ERP Item Number</label>
+                            <input type="text" name="item_number"
+                                class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                value="{{ form.item_number.value|default:'' }}">
+                        </div>
+                    </div>
+                </details>
 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
-                    <input type="text" x-model="relatedItemNotes"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg"
-                        placeholder="Optional notes...">
-                </div>
             </div>
 
-            <div class="flex justify-end space-x-3 mt-6">
-                <button type="button" @click="showRelatedItemsModal = false"
-                    class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
-                <button type="button" @click="addRelatedItem()" :disabled="!selectedRelatedItem"
-                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                    Add Relationship
-                </button>
+            <!-- RIGHT COLUMN: Image, Tracking, Actions (4 cols) -->
+            <div class="lg:col-span-4 space-y-4">
+
+                <!-- Image (Smaller) -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">Image</h3>
+                    <div class="relative aspect-[4/3] max-h-32 mx-auto">
+                        <div class="w-full h-full bg-gray-100 dark:bg-gray-700 rounded border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer"
+                             x-show="!imagePreview && !hasExistingImage"
+                             @click="$refs.imageInput.click()">
+                            <div class="text-center p-2">
+                                <i data-lucide="image-plus" class="w-8 h-8 mx-auto text-gray-400"></i>
+                                <p class="text-xs text-gray-500 mt-1">Click to upload</p>
+                            </div>
+                        </div>
+                        <div x-show="imagePreview" x-cloak class="w-full h-full rounded overflow-hidden relative">
+                            <img :src="imagePreview" class="w-full h-full object-contain">
+                            <button type="button" @click="clearImage()"
+                                class="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600">
+                                <i data-lucide="x" class="w-3 h-3"></i>
+                            </button>
+                        </div>
+                        {% if object.image %}
+                        <div x-show="hasExistingImage && !imagePreview" class="w-full h-full rounded overflow-hidden relative">
+                            <img src="{{ object.image.url }}" class="w-full h-full object-contain">
+                            <button type="button" @click="hasExistingImage = false"
+                                class="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600">
+                                <i data-lucide="x" class="w-3 h-3"></i>
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <input type="file" name="image" x-ref="imageInput" @change="previewImage($event)" accept="image/*" class="hidden">
+                </div>
+
+                <!-- Tracking Options -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">Tracking</h3>
+                    <div class="space-y-2">
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" name="is_active" {% if form.is_active.value %}checked{% endif %}
+                                class="rounded border-gray-300 text-blue-600 mr-2">
+                            Active
+                        </label>
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" name="is_serialized" {% if form.is_serialized.value %}checked{% endif %}
+                                class="rounded border-gray-300 text-blue-600 mr-2">
+                            Serial Number Tracking
+                        </label>
+                        <label class="flex items-center text-sm">
+                            <input type="checkbox" name="is_lot_controlled" {% if form.is_lot_controlled.value %}checked{% endif %}
+                                class="rounded border-gray-300 text-blue-600 mr-2">
+                            Lot/Batch Tracking
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Similar Items (Only on Edit) -->
+                {% if object %}
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        Related Items
+                        <button type="button" @click="showRelatedModal = true" class="text-xs text-blue-600 ml-1">+ Add</button>
+                    </h3>
+                    {% if object.related_to.exists %}
+                    <div class="space-y-1">
+                        {% for rel in object.related_to.all %}
+                        <div class="flex items-center justify-between text-xs p-1.5 bg-gray-50 dark:bg-gray-700 rounded">
+                            <a href="{% url 'inventory:item_update' rel.to_item.pk %}" class="text-blue-600 hover:underline truncate">
+                                {{ rel.to_item.name|truncatechars:25 }}
+                            </a>
+                            <span class="px-1 py-0.5 rounded text-xs
+                                {% if rel.status == 'EQUAL' %}bg-green-100 text-green-800
+                                {% elif rel.status == 'OBSOLETE' %}bg-red-100 text-red-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ rel.get_status_display }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-gray-500">No related items</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Save Button -->
+                <div class="flex flex-col gap-2">
+                    <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                        {% if object %}Update{% else %}Create{% endif %} Item
+                    </button>
+                    <a href="{% url 'inventory:item_list' %}" class="w-full px-4 py-2 text-center text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">
+                        Cancel
+                    </a>
+                </div>
+
             </div>
         </div>
-    </div>
+
+        <!-- Hidden fields for removed/auto-generated fields -->
+        <input type="hidden" name="code" value="{{ form.code.value|default:'' }}">
+        <input type="hidden" name="reorder_point" x-model="minStock">
+        <input type="hidden" name="unit" value="{{ form.unit.value|default:'EA' }}">
+        <input type="hidden" name="lead_time_days" value="{{ form.lead_time_days.value|default:'0' }}">
+        <input type="hidden" name="floor_location" value="">
+        <input type="hidden" name="issued_to_floor" value="0">
+        <input type="hidden" name="estimated_consumption_per_day" value="">
+        <input type="hidden" name="floor_reorder_point" value="">
+    </form>
 </div>
 
 <script>
 function itemForm() {
     return {
         selectedCategory: '{{ form.category.value|default:"" }}',
-        itemType: '{{ form.item_type.value|default:"STOCK_ITEM" }}',
-        itemCode: '{{ form.code.value|default:"" }}',
-        itemName: '{{ form.name.value|default:"" }}',
+        itemType: '{{ form.item_type.value|default:"COMPONENT" }}',
+        itemTypeLabel: '',
+        itemName: '{{ form.name.value|default:""|escapejs }}',
         nameManuallySet: {{ form.instance.name_manually_set|yesno:"true,false,false" }},
         nameTemplate: '',
+        nameTemplateConfig: null,
         attributes: [],
         attributeValues: {},
         existingAttributeValues: {{ existing_attribute_values|safe|default:"{}" }},
 
-        // Cost & Currency
+        // Cost
         standardCost: parseFloat('{{ form.standard_cost.value|default:"0" }}') || 0,
         currency: '{{ form.currency.value|default:"SAR" }}',
         convertedCost: 0,
-        costPerBaseUnit: 0,
         exchangeRate: 3.75,
+
+        // Stock
+        minStock: parseFloat('{{ form.min_stock.value|default:"0" }}') || 0,
+        maxStock: parseFloat('{{ form.max_stock.value|default:"" }}') || '',
+        reorderQty: parseFloat('{{ form.reorder_quantity.value|default:"0" }}') || 0,
+        isEachUnit: true,
 
         // Packaging
         purchaseUom: '{{ form.purchase_uom.value|default:"" }}',
         releaseUom: '{{ form.release_uom.value|default:"" }}',
-        purchaseToReleaseFactor: parseFloat('{{ form.purchase_to_release_factor.value|default:"1" }}') || 1,
-        releaseUomLabel: 'unit',
-
-        // Stock
-        reorderQty: parseFloat('{{ form.reorder_quantity.value|default:"0" }}') || 0,
+        conversionFactor: parseFloat('{{ form.purchase_to_release_factor.value|default:"1" }}') || 1,
 
         // Image
         imagePreview: null,
-        imageCleared: false,
+        hasExistingImage: {{ object.image|yesno:"true,false,false" }},
 
-        // Related Items Modal
-        showRelatedItemsModal: false,
-        relatedItemSearch: '',
-        relatedItemResults: [],
-        selectedRelatedItem: null,
-        relatedItemStatus: 'EQUAL',
-        relatedItemNotes: '',
+        // Modal
+        showRelatedModal: false,
 
         init() {
-            // Load attributes if category is pre-selected
             if (this.selectedCategory) {
                 this.loadAttributes();
+                this.setItemTypeFromCategory();
             }
-
-            // Initial cost conversion
             this.updateCostConversion();
-            this.updateCostPerBaseUnit();
-            this.updateReleaseUomLabel();
+        },
 
-            // Check if name was manually set
-            if (this.itemName && !this.nameManuallySet) {
-                // If we have a name but it wasn't manually set, assume auto-generated
-                // This helps on edit when coming back to form
+        setItemTypeFromCategory() {
+            const select = document.getElementById('id_category');
+            const option = select.options[select.selectedIndex];
+            if (option && option.value) {
+                this.itemType = option.dataset.itemType || 'COMPONENT';
+                this.nameTemplate = option.dataset.nameTemplate || '';
+                try {
+                    this.nameTemplateConfig = option.dataset.nameTemplateConfig ? JSON.parse(option.dataset.nameTemplateConfig) : null;
+                } catch(e) {
+                    this.nameTemplateConfig = null;
+                }
+                // Set human-readable label
+                const typeLabels = {
+                    'RAW_MATERIAL': 'Raw Material',
+                    'COMPONENT': 'Component',
+                    'CONSUMABLE': 'Consumable',
+                    'TOOL': 'Tool',
+                    'SPARE_PART': 'Spare Part',
+                    'FINISHED_GOOD': 'Finished Good',
+                    'STOCK_ITEM': 'Stock Item',
+                    'NON_STOCK': 'Non-Stock Item',
+                    'SERVICE': 'Service'
+                };
+                this.itemTypeLabel = typeLabels[this.itemType] || this.itemType;
             }
         },
 
         onCategoryChange() {
-            const select = document.getElementById('id_category');
-            const option = select.options[select.selectedIndex];
-
-            if (option && option.value) {
-                // Auto-set item type from category
-                const itemType = option.dataset.itemType;
-                if (itemType) {
-                    this.itemType = itemType;
-                }
-
-                // Store name template
-                this.nameTemplate = option.dataset.nameTemplate || '';
-
-                // Load category attributes
+            this.setItemTypeFromCategory();
+            if (this.selectedCategory) {
                 this.loadAttributes();
-
-                // Auto-generate name if not manually set
                 if (!this.nameManuallySet) {
                     this.$nextTick(() => this.generateName());
                 }
             } else {
-                this.nameTemplate = '';
                 this.attributes = [];
                 this.attributeValues = {};
+                this.nameTemplate = '';
             }
         },
 
         async loadAttributes() {
             if (!this.selectedCategory) return;
-
             try {
                 const response = await fetch(`/inventory/api/category/${this.selectedCategory}/attributes/`);
                 const data = await response.json();
                 this.attributes = data.attributes || [];
                 this.nameTemplate = data.name_template || '';
 
-                // Initialize attribute values
                 this.attributeValues = {};
                 this.attributes.forEach(attr => {
                     if (this.existingAttributeValues[attr.code] !== undefined) {
@@ -692,7 +475,6 @@ function itemForm() {
                     }
                 });
 
-                // Generate name after loading attributes
                 if (!this.nameManuallySet && this.nameTemplate) {
                     this.$nextTick(() => this.generateName());
                 }
@@ -701,42 +483,24 @@ function itemForm() {
             }
         },
 
-        async generateCode() {
-            if (!this.selectedCategory) return;
-
-            try {
-                const response = await fetch(`/inventory/api/category/${this.selectedCategory}/generate-code/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                const data = await response.json();
-                if (data.code) {
-                    this.itemCode = data.code;
-                }
-            } catch (error) {
-                console.error('Error generating code:', error);
-            }
-        },
-
         generateName() {
             if (!this.nameTemplate) return;
 
-            let name = this.nameTemplate;
+            // First check if we have structured config
+            if (this.nameTemplateConfig && this.nameTemplateConfig.parts) {
+                this.itemName = this.evaluateStructuredTemplate(this.nameTemplateConfig);
+                return;
+            }
 
-            // Replace placeholders with attribute values
+            // Simple template replacement
+            let name = this.nameTemplate;
             this.attributes.forEach(attr => {
                 const placeholder = '{' + attr.code + '}';
                 let value = this.attributeValues[attr.code] || '';
 
-                // Add unit for number values
                 if (attr.attribute_type === 'NUMBER' && value && attr.unit) {
                     value = value + attr.unit;
                 }
-
-                // For boolean, show Yes/No
                 if (attr.attribute_type === 'BOOLEAN') {
                     value = value ? 'Yes' : 'No';
                 }
@@ -744,82 +508,84 @@ function itemForm() {
                 name = name.replace(placeholder, value);
             });
 
-            // Clean up unreplaced placeholders and extra spaces
             name = name.replace(/\{[^}]+\}/g, '').replace(/\s+/g, ' ').trim();
+            if (name) this.itemName = name;
+        },
 
-            if (name) {
-                this.itemName = name;
+        evaluateStructuredTemplate(config) {
+            if (!config.parts) return '';
+            let result = '';
+            for (const part of config.parts) {
+                result += this.evaluatePart(part);
+            }
+            return result.replace(/\s+/g, ' ').trim();
+        },
+
+        evaluatePart(part) {
+            if (part.type === 'text') {
+                return part.value || '';
+            }
+            if (part.type === 'attr') {
+                const attr = this.attributes.find(a => a.code === part.code);
+                let val = this.attributeValues[part.code] || '';
+                if (attr && attr.attribute_type === 'NUMBER' && val && attr.unit) {
+                    val = val + attr.unit;
+                }
+                return val;
+            }
+            if (part.type === 'conditional') {
+                if (this.evaluateCondition(part.if)) {
+                    return part.then ? this.evaluatePart(part.then) : '';
+                } else {
+                    return part.else ? this.evaluatePart(part.else) : '';
+                }
+            }
+            return '';
+        },
+
+        evaluateCondition(cond) {
+            if (!cond) return false;
+            const val = this.attributeValues[cond.attr];
+            switch (cond.op) {
+                case 'not_empty': return val !== '' && val !== null && val !== undefined;
+                case 'empty': return val === '' || val === null || val === undefined;
+                case 'eq': return val == cond.value;
+                case 'ne': return val != cond.value;
+                default: return false;
             }
         },
 
         getOptions(attr) {
             if (!attr.options) return [];
-            return attr.options.map(opt => {
-                if (typeof opt === 'string') {
-                    return { value: opt, label: opt };
-                }
-                return { value: opt.value, label: opt.label };
-            });
+            return attr.options.map(opt => typeof opt === 'string' ? { value: opt, label: opt } : opt);
         },
 
-        // Cost & Currency methods
-        setCurrency(curr) {
-            this.currency = curr;
+        toggleCurrency() {
+            this.currency = this.currency === 'SAR' ? 'USD' : 'SAR';
             this.updateCostConversion();
         },
 
         updateCostConversion() {
-            if (this.currency === 'SAR') {
-                this.convertedCost = this.standardCost / this.exchangeRate;
-            } else {
-                this.convertedCost = this.standardCost * this.exchangeRate;
-            }
-            this.updateCostPerBaseUnit();
+            this.convertedCost = this.currency === 'SAR'
+                ? this.standardCost / this.exchangeRate
+                : this.standardCost * this.exchangeRate;
         },
 
-        updateCostPerBaseUnit() {
-            if (this.purchaseToReleaseFactor > 0) {
-                this.costPerBaseUnit = this.standardCost / this.purchaseToReleaseFactor;
-            } else {
-                this.costPerBaseUnit = this.standardCost;
+        calculateSmartReorder() {
+            if (this.maxStock && this.minStock) {
+                this.reorderQty = Math.max(0, this.maxStock - this.minStock);
+            } else if (this.conversionFactor > 1) {
+                this.reorderQty = this.conversionFactor;
             }
         },
 
-        updateReleaseUomLabel() {
-            const select = document.querySelector('select[name="release_uom"]');
-            if (select && select.selectedIndex > 0) {
-                const option = select.options[select.selectedIndex];
-                this.releaseUomLabel = option.dataset.label || 'unit';
-            } else {
-                this.releaseUomLabel = 'unit';
-            }
-        },
-
-        calculateSmartReorderQty() {
-            // Calculate reorder qty that's a multiple of purchase units
-            const minStock = parseFloat(document.querySelector('input[name="min_stock"]')?.value) || 0;
-            const maxStock = parseFloat(document.querySelector('input[name="max_stock"]')?.value) || 0;
-            const factor = this.purchaseToReleaseFactor || 1;
-
-            if (maxStock > minStock) {
-                // Calculate ideal qty and round up to nearest purchase unit
-                const idealQty = maxStock - minStock;
-                const purchaseUnits = Math.ceil(idealQty / factor);
-                this.reorderQty = purchaseUnits * factor;
-            } else if (factor > 1) {
-                // Default to 1 purchase unit
-                this.reorderQty = factor;
-            }
-        },
-
-        // Image methods
         previewImage(event) {
             const file = event.target.files[0];
             if (file) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     this.imagePreview = e.target.result;
-                    this.imageCleared = false;
+                    this.hasExistingImage = false;
                 };
                 reader.readAsDataURL(file);
             }
@@ -828,58 +594,6 @@ function itemForm() {
         clearImage() {
             this.imagePreview = null;
             this.$refs.imageInput.value = '';
-        },
-
-        // Related Items methods
-        async searchRelatedItems() {
-            if (this.relatedItemSearch.length < 2) {
-                this.relatedItemResults = [];
-                return;
-            }
-
-            try {
-                const response = await fetch(`/inventory/api/items/search/?q=${encodeURIComponent(this.relatedItemSearch)}`);
-                const data = await response.json();
-                this.relatedItemResults = data.items || [];
-            } catch (error) {
-                console.error('Error searching items:', error);
-            }
-        },
-
-        selectRelatedItem(item) {
-            this.selectedRelatedItem = item;
-            this.relatedItemResults = [];
-            this.relatedItemSearch = item.code + ' - ' + item.name;
-        },
-
-        async addRelatedItem() {
-            if (!this.selectedRelatedItem) return;
-
-            try {
-                const response = await fetch('/inventory/api/item-relationships/', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        from_item: {{ object.pk|default:"null" }},
-                        to_item: this.selectedRelatedItem.id,
-                        status: this.relatedItemStatus,
-                        notes: this.relatedItemNotes
-                    })
-                });
-
-                if (response.ok) {
-                    window.location.reload();
-                } else {
-                    const data = await response.json();
-                    alert(data.error || 'Failed to add relationship');
-                }
-            } catch (error) {
-                console.error('Error adding relationship:', error);
-                alert('Error adding relationship');
-            }
         }
     }
 }

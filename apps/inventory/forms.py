@@ -199,6 +199,8 @@ class InventoryItemForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Make item_type not required - will get from category default if not provided
         self.fields['item_type'].required = False
+        # Make code not required - will be auto-generated from category
+        self.fields['code'].required = False
 
         # Set UOM querysets
         from apps.inventory.models import UnitOfMeasure

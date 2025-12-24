@@ -471,7 +471,12 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-        messages.success(self.request, f"Item '{form.instance.code}' created successfully.")
+
+        # Auto-generate code if not provided
+        if not form.instance.code and form.instance.category:
+            form.instance.code = form.instance.category.generate_next_code()
+
+        messages.success(self.request, f"Item '{form.instance.name}' created successfully.")
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -483,7 +488,12 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         context["form_title"] = "Create Inventory Item"
         context["categories"] = InventoryCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
         context["type_choices"] = InventoryItem.ItemType.choices
-        context["uoms"] = UnitOfMeasure.objects.filter(is_active=True).order_by('name')
+        # Only show packaging/quantity UOMs (CARTON, BOX, EACH, PIECE, etc.)
+        context["packaging_uoms"] = UnitOfMeasure.objects.filter(
+            is_active=True
+        ).filter(
+            Q(unit_type__in=['QUANTITY', 'PACKAGING']) | Q(is_packaging=True)
+        ).order_by('name')
         context["existing_attribute_values"] = "{}"
         return context
 
@@ -559,7 +569,12 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
         context["form_title"] = "Edit Inventory Item"
         context["categories"] = InventoryCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
         context["type_choices"] = InventoryItem.ItemType.choices
-        context["uoms"] = UnitOfMeasure.objects.filter(is_active=True).order_by('name')
+        # Only show packaging/quantity UOMs (CARTON, BOX, EACH, PIECE, etc.)
+        context["packaging_uoms"] = UnitOfMeasure.objects.filter(
+            is_active=True
+        ).filter(
+            Q(unit_type__in=['QUANTITY', 'PACKAGING']) | Q(is_packaging=True)
+        ).order_by('name')
 
         # Pass existing attribute values for pre-populating the form
         if self.object.category:
