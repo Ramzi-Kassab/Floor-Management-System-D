@@ -350,6 +350,7 @@ function attributeSelector() {
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Max</th>
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Options</th>
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Default</th>
+                            <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rules</th>
                             <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Req</th>
                             <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
                             <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Order</th>
@@ -432,6 +433,17 @@ function attributeSelector() {
                                        class="default-input w-24 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                             </td>
 
+                            <!-- Conditional Rules -->
+                            <td class="px-3 py-3 text-center">
+                                <input type="hidden" name="rules_{{ attr.id }}" class="rules-input" value="">
+                                <button type="button"
+                                        onclick="openRuleBuilder({{ attr.id }}, '{{ attr.code|escapejs }}', '{{ attr.name|escapejs }}')"
+                                        class="rules-btn px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400">
+                                    <i data-lucide="git-branch" class="w-3 h-3 inline"></i>
+                                    <span class="rules-count"></span>
+                                </button>
+                            </td>
+
                             <!-- Required -->
                             <td class="px-3 py-3 text-center">
                                 <input type="checkbox" name="required_{{ attr.id }}"
@@ -465,6 +477,7 @@ function attributeSelector() {
                 <li><strong>Min/Max:</strong> For NUMBER type validation</li>
                 <li><strong>Options:</strong> Comma-separated values for dropdown (TEXT) or common values (NUMBER)</li>
                 <li><strong>Default:</strong> Pre-filled value when creating new items</li>
+                <li><strong>Rules:</strong> Conditional formulas (e.g., IF shape=Machete THEN rotatability=0)</li>
                 <li><strong>Req:</strong> Must have a value when creating items</li>
                 <li><strong>Name:</strong> Include in auto-generated item name</li>
             </ul>
@@ -488,6 +501,331 @@ function attributeSelector() {
     </form>
 </div>
 
+<!-- Rule Builder Modal -->
+<div id="ruleBuilderModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
+        <!-- Modal Header -->
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Conditional Rules</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">For: <span id="ruleAttrName" class="font-medium"></span></p>
+            </div>
+            <button type="button" onclick="closeRuleBuilder()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="p-6 overflow-y-auto max-h-[60vh]">
+            <input type="hidden" id="ruleAttrId" value="">
+
+            <!-- Lock Option -->
+            <div class="mb-4 flex items-center gap-3">
+                <input type="checkbox" id="ruleLocked" class="rounded border-gray-300 text-primary-600">
+                <label for="ruleLocked" class="text-sm text-gray-700 dark:text-gray-300">
+                    <strong>Lock value</strong> - User cannot change the calculated value
+                </label>
+            </div>
+
+            <!-- Rules List -->
+            <div id="rulesList" class="space-y-4">
+                <!-- Rules will be dynamically added here -->
+            </div>
+
+            <!-- Add Rule Button -->
+            <button type="button" onclick="addRule()" class="mt-4 px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+                <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Add Rule
+            </button>
+
+            <!-- Help Text -->
+            <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm">
+                <p class="font-medium text-blue-800 dark:text-blue-200 mb-2">How Rules Work:</p>
+                <ul class="text-blue-700 dark:text-blue-300 space-y-1">
+                    <li>• Each rule has conditions (IF) and a result (THEN)</li>
+                    <li>• Multiple conditions in a rule use AND logic</li>
+                    <li>• First matching rule sets the value</li>
+                    <li>• If locked, user sees message but cannot change value</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+            <button type="button" onclick="closeRuleBuilder()" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">
+                Cancel
+            </button>
+            <button type="button" onclick="saveRules()" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                Save Rules
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Rule Template (hidden) -->
+<template id="ruleTemplate">
+    <div class="rule-item p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+        <div class="flex items-center justify-between mb-3">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Rule <span class="rule-number"></span></span>
+            <button type="button" onclick="removeRule(this)" class="text-red-500 hover:text-red-700 text-sm">
+                <i data-lucide="trash-2" class="w-4 h-4 inline"></i>
+            </button>
+        </div>
+
+        <!-- Conditions -->
+        <div class="conditions-list space-y-2 mb-3">
+            <!-- Conditions added dynamically -->
+        </div>
+        <button type="button" onclick="addCondition(this)" class="text-xs text-primary-600 hover:text-primary-800">
+            <i data-lucide="plus" class="w-3 h-3 inline"></i> Add AND condition
+        </button>
+
+        <!-- Result -->
+        <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600 flex items-center gap-2">
+            <span class="text-sm text-gray-600 dark:text-gray-400">THEN set value to:</span>
+            <input type="text" class="rule-result px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-700 w-24" placeholder="value">
+        </div>
+
+        <!-- Lock Message -->
+        <div class="mt-2 flex items-center gap-2">
+            <span class="text-sm text-gray-600 dark:text-gray-400">Message:</span>
+            <input type="text" class="rule-message flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-700" placeholder="Why this value is set (shown when locked)">
+        </div>
+    </div>
+</template>
+
+<!-- Condition Template (hidden) -->
+<template id="conditionTemplate">
+    <div class="condition-item flex items-center gap-2 flex-wrap">
+        <span class="text-xs text-gray-500 condition-prefix hidden">AND</span>
+        <span class="text-xs text-gray-500">IF</span>
+        <select class="cond-attr px-2 py-1 text-xs border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-700">
+            <option value="">Select attribute...</option>
+        </select>
+        <select class="cond-op px-2 py-1 text-xs border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-700">
+            <option value="eq">equals</option>
+            <option value="ne">not equals</option>
+            <option value="in">is one of</option>
+            <option value="nin">is not one of</option>
+            <option value="contains">contains</option>
+            <option value="gt">greater than</option>
+            <option value="gte">greater or equal</option>
+            <option value="lt">less than</option>
+            <option value="lte">less or equal</option>
+            <option value="empty">is empty</option>
+            <option value="not_empty">is not empty</option>
+        </select>
+        <input type="text" class="cond-value px-2 py-1 text-xs border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-700 w-32" placeholder="value(s)">
+        <button type="button" onclick="removeCondition(this)" class="text-red-400 hover:text-red-600">
+            <i data-lucide="x" class="w-3 h-3"></i>
+        </button>
+    </div>
+</template>
+
+<script>
+// Available attributes for rule conditions (populated from selected attributes)
+let availableAttributes = [
+    {% for attr in selected_attributes %}
+    { id: {{ attr.id }}, code: "{{ attr.code|escapejs }}", name: "{{ attr.name|escapejs }}" }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+
+// Current rules being edited
+let currentRules = { rules: [], locked: false };
+let currentAttrId = null;
+
+function openRuleBuilder(attrId, attrCode, attrName) {
+    currentAttrId = attrId;
+    document.getElementById('ruleAttrName').textContent = `${attrName} (${attrCode})`;
+    document.getElementById('ruleAttrId').value = attrId;
+
+    // Load existing rules from hidden input
+    const rulesInput = document.querySelector(`input[name="rules_${attrId}"]`);
+    try {
+        currentRules = rulesInput.value ? JSON.parse(rulesInput.value) : { rules: [], locked: false };
+    } catch {
+        currentRules = { rules: [], locked: false };
+    }
+
+    // Set locked checkbox
+    document.getElementById('ruleLocked').checked = currentRules.locked || false;
+
+    // Render existing rules
+    renderRules();
+
+    // Show modal
+    document.getElementById('ruleBuilderModal').classList.remove('hidden');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeRuleBuilder() {
+    document.getElementById('ruleBuilderModal').classList.add('hidden');
+    currentAttrId = null;
+    currentRules = { rules: [], locked: false };
+}
+
+function renderRules() {
+    const container = document.getElementById('rulesList');
+    container.innerHTML = '';
+
+    if (currentRules.rules && currentRules.rules.length > 0) {
+        currentRules.rules.forEach((rule, idx) => {
+            addRuleElement(rule, idx + 1);
+        });
+    }
+}
+
+function addRule() {
+    const idx = document.querySelectorAll('#rulesList .rule-item').length + 1;
+    addRuleElement({ conditions: [{}], result: '', message: '' }, idx);
+}
+
+function addRuleElement(ruleData, index) {
+    const template = document.getElementById('ruleTemplate');
+    const clone = template.content.cloneNode(true);
+    const ruleEl = clone.querySelector('.rule-item');
+
+    ruleEl.querySelector('.rule-number').textContent = index;
+    ruleEl.querySelector('.rule-result').value = ruleData.result || '';
+    ruleEl.querySelector('.rule-message').value = ruleData.message || '';
+
+    const condList = ruleEl.querySelector('.conditions-list');
+
+    // Add conditions
+    (ruleData.conditions || [{}]).forEach((cond, condIdx) => {
+        addConditionElement(condList, cond, condIdx > 0);
+    });
+
+    document.getElementById('rulesList').appendChild(ruleEl);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function addCondition(btn) {
+    const ruleItem = btn.closest('.rule-item');
+    const condList = ruleItem.querySelector('.conditions-list');
+    addConditionElement(condList, {}, true);
+}
+
+function addConditionElement(container, condData, showAnd) {
+    const template = document.getElementById('conditionTemplate');
+    const clone = template.content.cloneNode(true);
+    const condEl = clone.querySelector('.condition-item');
+
+    // Show AND prefix if not first condition
+    if (showAnd) {
+        condEl.querySelector('.condition-prefix').classList.remove('hidden');
+    }
+
+    // Populate attribute dropdown (exclude current attribute)
+    const attrSelect = condEl.querySelector('.cond-attr');
+    availableAttributes.forEach(attr => {
+        if (attr.id !== currentAttrId) {
+            const opt = document.createElement('option');
+            opt.value = attr.code;
+            opt.textContent = attr.name;
+            if (condData.attr === attr.code) opt.selected = true;
+            attrSelect.appendChild(opt);
+        }
+    });
+
+    // Set operator and value
+    if (condData.op) {
+        condEl.querySelector('.cond-op').value = condData.op;
+    }
+    if (condData.value !== undefined) {
+        const val = Array.isArray(condData.value) ? condData.value.join(', ') : condData.value;
+        condEl.querySelector('.cond-value').value = val;
+    }
+
+    container.appendChild(condEl);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function removeRule(btn) {
+    btn.closest('.rule-item').remove();
+    // Renumber rules
+    document.querySelectorAll('#rulesList .rule-item').forEach((el, idx) => {
+        el.querySelector('.rule-number').textContent = idx + 1;
+    });
+}
+
+function removeCondition(btn) {
+    const condItem = btn.closest('.condition-item');
+    const condList = condItem.closest('.conditions-list');
+    condItem.remove();
+
+    // Update AND prefix visibility
+    const conditions = condList.querySelectorAll('.condition-item');
+    conditions.forEach((c, idx) => {
+        const prefix = c.querySelector('.condition-prefix');
+        if (idx === 0) {
+            prefix.classList.add('hidden');
+        } else {
+            prefix.classList.remove('hidden');
+        }
+    });
+}
+
+function saveRules() {
+    const rules = [];
+
+    document.querySelectorAll('#rulesList .rule-item').forEach(ruleEl => {
+        const conditions = [];
+
+        ruleEl.querySelectorAll('.conditions-list .condition-item').forEach(condEl => {
+            const attr = condEl.querySelector('.cond-attr').value;
+            const op = condEl.querySelector('.cond-op').value;
+            let value = condEl.querySelector('.cond-value').value.trim();
+
+            if (attr) {
+                // Parse comma-separated values for 'in' and 'nin' operators
+                if ((op === 'in' || op === 'nin') && value.includes(',')) {
+                    value = value.split(',').map(v => v.trim());
+                }
+                conditions.push({ attr, op, value });
+            }
+        });
+
+        const result = ruleEl.querySelector('.rule-result').value.trim();
+        const message = ruleEl.querySelector('.rule-message').value.trim();
+
+        if (conditions.length > 0 && result) {
+            rules.push({ conditions, result, message });
+        }
+    });
+
+    currentRules = {
+        rules: rules,
+        locked: document.getElementById('ruleLocked').checked
+    };
+
+    // Save to hidden input
+    const rulesInput = document.querySelector(`input[name="rules_${currentAttrId}"]`);
+    rulesInput.value = rules.length > 0 ? JSON.stringify(currentRules) : '';
+
+    // Update button appearance
+    updateRulesButton(currentAttrId, rules.length);
+
+    closeRuleBuilder();
+}
+
+function updateRulesButton(attrId, ruleCount) {
+    const row = document.querySelector(`tr[data-attr-id="${attrId}"]`);
+    if (row) {
+        const btn = row.querySelector('.rules-btn');
+        const countSpan = btn.querySelector('.rules-count');
+        if (ruleCount > 0) {
+            btn.classList.add('bg-primary-100', 'dark:bg-primary-900/30', 'border-primary-300', 'text-primary-700');
+            btn.classList.remove('border-gray-300', 'text-gray-600');
+            countSpan.textContent = ruleCount;
+        } else {
+            btn.classList.remove('bg-primary-100', 'dark:bg-primary-900/30', 'border-primary-300', 'text-primary-700');
+            btn.classList.add('border-gray-300', 'text-gray-600');
+            countSpan.textContent = '';
+        }
+    }
+}
+</script>
+
 <script>
 function attributeConfigurator() {
     // Existing attribute configurations from server
@@ -500,6 +838,7 @@ function attributeConfigurator() {
             max: "{{ cat_attr.max_value|default:'' }}",
             options: "{% if cat_attr.options %}{{ cat_attr.options|escapejs }}{% endif %}",
             defaultValue: "{{ cat_attr.default_value|default:''|escapejs }}",
+            rules: {% if cat_attr.conditional_rules %}{{ cat_attr.conditional_rules|safe }}{% else %}null{% endif %},
             required: {{ cat_attr.is_required|yesno:"true,false" }},
             inName: {{ cat_attr.is_used_in_name|yesno:"true,false" }},
             order: {{ cat_attr.display_order|default:0 }}
@@ -558,6 +897,17 @@ function attributeConfigurator() {
                     const defaultInput = row.querySelector('.default-input');
                     if (defaultInput && config.defaultValue) {
                         defaultInput.value = config.defaultValue;
+                    }
+
+                    // Set conditional rules
+                    if (config.rules) {
+                        const rulesInput = row.querySelector('.rules-input');
+                        if (rulesInput) {
+                            rulesInput.value = JSON.stringify(config.rules);
+                            // Update button appearance
+                            const ruleCount = config.rules.rules ? config.rules.rules.length : 0;
+                            updateRulesButton(attrId, ruleCount);
+                        }
                     }
 
                     // Set checkboxes

@@ -836,6 +836,30 @@ class CategoryAttribute(models.Model):
         help_text="Default value when creating new items"
     )
 
+    # Conditional rules for computed/dependent values
+    conditional_rules = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='''
+        Rules to auto-set value based on other attributes. Format:
+        {
+            "rules": [
+                {
+                    "conditions": [
+                        {"attr": "cutter_shape", "op": "in", "value": ["Machete", "Chisel"]},
+                        {"attr": "size", "op": "gt", "value": 16}
+                    ],
+                    "logic": "AND",
+                    "result": "0",
+                    "message": "Non-rotatable due to Machete/Chisel shape"
+                }
+            ],
+            "locked": true
+        }
+        Operators: eq, ne, in, nin, contains, gt, gte, lt, lte, empty, not_empty
+        '''
+    )
+
     # Validation
     is_required = models.BooleanField(default=False)
     is_used_in_name = models.BooleanField(default=False, help_text="Include in auto-generated item name")

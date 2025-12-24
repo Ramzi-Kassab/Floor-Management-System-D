@@ -1119,6 +1119,7 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
                     max_val = request.POST.get(f"max_{attr_id}") or None
                     options = request.POST.get(f"options_{attr_id}") or None
                     default_value = request.POST.get(f"default_{attr_id}", "").strip()
+                    rules_json = request.POST.get(f"rules_{attr_id}") or None
                     is_required = request.POST.get(f"required_{attr_id}") == "on"
                     is_used_in_name = request.POST.get(f"in_name_{attr_id}") == "on"
                     display_order = request.POST.get(f"order_{attr_id}") or 0
@@ -1132,6 +1133,15 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
                             # Try comma-separated values
                             options = [o.strip() for o in options.split(",") if o.strip()]
 
+                    # Parse conditional rules if provided
+                    conditional_rules = None
+                    if rules_json:
+                        try:
+                            import json
+                            conditional_rules = json.loads(rules_json)
+                        except json.JSONDecodeError:
+                            pass
+
                     # Create or update CategoryAttribute
                     cat_attr, created = CategoryAttribute.objects.update_or_create(
                         category=category,
@@ -1143,6 +1153,7 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
                             "max_value": max_val if max_val else None,
                             "options": options,
                             "default_value": default_value,
+                            "conditional_rules": conditional_rules,
                             "is_required": is_required,
                             "is_used_in_name": is_used_in_name,
                             "display_order": int(display_order),
