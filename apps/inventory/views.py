@@ -1065,6 +1065,41 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
             return get_object_or_404(InventoryCategory, pk=category_pk)
         return None
 
+    def _serialize_attributes_json(self, attributes, existing_attr_ids):
+        """Serialize attributes list to JSON for safe JavaScript consumption."""
+        import json
+        attrs_list = []
+        for attr in attributes:
+            attrs_list.append({
+                "id": attr.id,
+                "code": attr.code or "",
+                "name": attr.name or "",
+                "classification": attr.classification or "",
+                "dataType": attr.data_type or "",
+                "isLinked": attr.id in existing_attr_ids,
+                "selected": attr.id in existing_attr_ids,
+            })
+        return json.dumps(attrs_list)
+
+    def _serialize_existing_configs_json(self, existing_cat_attrs):
+        """Serialize existing category attribute configs to JSON."""
+        import json
+        configs = {}
+        for attr_id, ca in existing_cat_attrs.items():
+            configs[str(attr_id)] = {
+                "type": ca.attribute_type or "TEXT",
+                "unit": ca.unit_id if ca.unit_id else "",
+                "min": str(ca.min_value) if ca.min_value is not None else "",
+                "max": str(ca.max_value) if ca.max_value is not None else "",
+                "options": ca.options if ca.options else "",
+                "defaultValue": ca.default_value or "",
+                "rules": ca.conditional_rules if ca.conditional_rules else None,
+                "required": ca.is_required,
+                "inName": ca.is_used_in_name,
+                "order": ca.display_order or 0,
+            }
+        return json.dumps(configs)
+
     def get(self, request):
         category = self.get_category()
         if not category:
@@ -1087,6 +1122,7 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
             "attributes": attributes,
             "existing_attr_ids": existing_attr_ids,  # For pre-checking in template
             "existing_cat_attrs": existing_cat_attrs,  # For pre-filling config values
+            "attributes_json": self._serialize_attributes_json(attributes, existing_attr_ids),
             "classifications": Attribute.Classification.choices,
             "attribute_types": CategoryAttribute.AttributeType.choices,
             "units": UnitOfMeasure.objects.filter(is_active=True).order_by("unit_type", "name"),
@@ -1124,6 +1160,7 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
                 "category": category,
                 "selected_attributes": attributes,
                 "existing_cat_attrs": existing_cat_attrs,  # For pre-filling config values
+                "existing_configs_json": self._serialize_existing_configs_json(existing_cat_attrs),
                 "attribute_types": CategoryAttribute.AttributeType.choices,
                 "units": UnitOfMeasure.objects.filter(is_active=True).order_by("unit_type", "name"),
                 "page_title": f"Configure Attributes for {category.name}",

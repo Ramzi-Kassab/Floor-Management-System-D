@@ -199,25 +199,14 @@
 
 <script>
 function attributeSelector() {
-    // Build set of existing attribute IDs (already linked to this category)
-    const existingIds = new Set([{% for id in existing_attr_ids %}{{ id }}{% if not forloop.last %},{% endif %}{% endfor %}]);
+    // Load attributes from server-serialized JSON (handles all escaping safely)
+    const rawAttributes = {{ attributes_json|safe }};
 
-    // Build attributes array from Django template
-    const rawAttributes = [
-        {% for attr in attributes %}
-        {
-            id: {{ attr.id }},
-            code: "{{ attr.code|escapejs }}",
-            name: "{{ attr.name|escapejs }}",
-            classification: "{{ attr.classification }}",
-            type: "{{ attr.data_type }}",
-            typeDisplay: "{{ attr.get_data_type_display }}",
-            visible: true,
-            selected: existingIds.has({{ attr.id }}),  // Pre-check existing
-            existing: existingIds.has({{ attr.id }})   // Flag for badge
-        }{% if not forloop.last %},{% endif %}
-        {% endfor %}
-    ];
+    // Add visibility flag to each attribute
+    rawAttributes.forEach(attr => {
+        attr.visible = true;
+        attr.existing = attr.isLinked;
+    });
 
     return {
         attributes: rawAttributes,
@@ -827,27 +816,12 @@ function updateRulesButton(attrId, ruleCount) {
 </script>
 
 <script>
-// Global existing configs - accessible to row components
-const existingConfigs = {
-    {% for attr_id, cat_attr in existing_cat_attrs.items %}
-    {{ attr_id }}: {
-        type: "{{ cat_attr.attribute_type }}",
-        unit: "{{ cat_attr.unit_id|default:'' }}",
-        min: "{{ cat_attr.min_value|default:'' }}",
-        max: "{{ cat_attr.max_value|default:'' }}",
-        options: "{% if cat_attr.options %}{{ cat_attr.options|escapejs }}{% endif %}",
-        defaultValue: "{{ cat_attr.default_value|default:''|escapejs }}",
-        rules: {% if cat_attr.conditional_rules %}{{ cat_attr.conditional_rules|safe }}{% else %}null{% endif %},
-        required: {{ cat_attr.is_required|yesno:"true,false" }},
-        inName: {{ cat_attr.is_used_in_name|yesno:"true,false" }},
-        order: {{ cat_attr.display_order|default:0 }}
-    }{% if not forloop.last %},{% endif %}
-    {% endfor %}
-};
+// Global existing configs - loaded from server-serialized JSON
+const existingConfigs = {{ existing_configs_json|safe }};
 
 // Row-level Alpine component
 function rowConfig(attrId) {
-    const config = existingConfigs[attrId];
+    const config = existingConfigs[String(attrId)];
     return {
         attrType: config ? config.type : 'TEXT',
         isExisting: !!config,
