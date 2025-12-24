@@ -4272,7 +4272,7 @@ class PocketItemView(View):
         stock_records = InventoryStock.objects.filter(item=item).select_related(
             'location', 'location__warehouse'
         )
-        total_stock = stock_records.aggregate(total=models.Sum('quantity'))['total'] or 0
+        total_stock = stock_records.aggregate(total=Sum('quantity'))['total'] or 0
 
         # Generate QR code
         qr_code = generate_qr_code_base64(item.code, size=6, border=2)
