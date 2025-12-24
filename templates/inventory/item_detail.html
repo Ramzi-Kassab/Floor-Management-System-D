@@ -822,6 +822,82 @@
                         </div>
                     </div>
 
+                    <!-- Layout Arrangement -->
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Layout Arrangement</h4>
+                        <div class="grid grid-cols-2 gap-2">
+                            <!-- Vertical Stack -->
+                            <button @click="$store.labelPrinter.options.layout = 'vertical'"
+                                    :class="$store.labelPrinter.options.layout === 'vertical' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-700'"
+                                    class="p-2 rounded-lg border border-gray-200 dark:border-gray-600 text-center hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                <div class="flex flex-col items-center justify-center h-12 space-y-0.5">
+                                    <div class="w-5 h-5 border border-gray-400 rounded-sm flex items-center justify-center">
+                                        <i data-lucide="qr-code" class="w-3 h-3 text-gray-500"></i>
+                                    </div>
+                                    <div class="w-6 h-1 bg-gray-400 rounded"></div>
+                                    <div class="w-4 h-1 bg-gray-300 rounded"></div>
+                                </div>
+                                <span class="text-xs text-gray-600 dark:text-gray-400 block">Vertical</span>
+                            </button>
+                            <!-- Horizontal (Photo + QR side by side) -->
+                            <button @click="$store.labelPrinter.options.layout = 'horizontal'"
+                                    :class="$store.labelPrinter.options.layout === 'horizontal' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-700'"
+                                    class="p-2 rounded-lg border border-gray-200 dark:border-gray-600 text-center hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                <div class="flex items-center justify-center h-12 space-x-1">
+                                    <div class="w-4 h-4 border border-gray-400 rounded-sm bg-gray-200"></div>
+                                    <div class="w-5 h-5 border border-gray-400 rounded-sm flex items-center justify-center">
+                                        <i data-lucide="qr-code" class="w-3 h-3 text-gray-500"></i>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-gray-600 dark:text-gray-400 block">Side by Side</span>
+                            </button>
+                            <!-- QR Left, Text Right -->
+                            <button @click="$store.labelPrinter.options.layout = 'qr-left'"
+                                    :class="$store.labelPrinter.options.layout === 'qr-left' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-700'"
+                                    class="p-2 rounded-lg border border-gray-200 dark:border-gray-600 text-center hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                <div class="flex items-center justify-center h-12 space-x-1.5">
+                                    <div class="w-6 h-6 border border-gray-400 rounded-sm flex items-center justify-center">
+                                        <i data-lucide="qr-code" class="w-4 h-4 text-gray-500"></i>
+                                    </div>
+                                    <div class="flex flex-col space-y-0.5">
+                                        <div class="w-5 h-1 bg-gray-400 rounded"></div>
+                                        <div class="w-4 h-1 bg-gray-300 rounded"></div>
+                                        <div class="w-3 h-1 bg-gray-300 rounded"></div>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-gray-600 dark:text-gray-400 block">QR + Text</span>
+                            </button>
+                            <!-- Compact Row -->
+                            <button @click="$store.labelPrinter.options.layout = 'compact'"
+                                    :class="$store.labelPrinter.options.layout === 'compact' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-700'"
+                                    class="p-2 rounded-lg border border-gray-200 dark:border-gray-600 text-center hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                <div class="flex items-center justify-center h-12 space-x-1">
+                                    <div class="w-3 h-3 border border-gray-400 rounded-sm bg-gray-200"></div>
+                                    <div class="w-4 h-4 border border-gray-400 rounded-sm flex items-center justify-center">
+                                        <i data-lucide="qr-code" class="w-2 h-2 text-gray-500"></i>
+                                    </div>
+                                    <div class="flex flex-col space-y-0.5">
+                                        <div class="w-4 h-0.5 bg-gray-400 rounded"></div>
+                                        <div class="w-3 h-0.5 bg-gray-300 rounded"></div>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-gray-600 dark:text-gray-400 block">Compact</span>
+                            </button>
+                        </div>
+                        <!-- Text Position (shown for vertical layout) -->
+                        <div x-show="$store.labelPrinter.options.layout === 'vertical'" class="mt-3">
+                            <label class="block text-xs text-gray-500 mb-1.5">Text Position</label>
+                            <div class="flex gap-2">
+                                <button @click="$store.labelPrinter.options.textPosition = 'below'"
+                                        :class="$store.labelPrinter.options.textPosition === 'below' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'"
+                                        class="flex-1 py-1 px-2 rounded text-xs font-medium">Below QR</button>
+                                <button @click="$store.labelPrinter.options.textPosition = 'above'"
+                                        :class="$store.labelPrinter.options.textPosition === 'above' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'"
+                                        class="flex-1 py-1 px-2 rounded text-xs font-medium">Above QR</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Label Shape -->
                     <div>
                         <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Label Shape</h4>
@@ -911,25 +987,88 @@
                 <div>
                     <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Preview</h4>
                     <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-900 min-h-[300px] flex items-center justify-center">
-                        <div class="label-preview text-center p-4 border border-gray-200 dark:border-gray-700 rounded bg-white"
+                        <div class="label-preview p-3 border border-gray-200 dark:border-gray-700 rounded bg-white overflow-hidden"
                              :style="$store.labelPrinter.getPreviewStyle()">
-                            <!-- Photo (if enabled) -->
-                            <div x-show="$store.labelPrinter.options.showPhoto && '{{ item.image.url|default:"" }}'" class="mb-2">
-                                <img src="{% if item.image %}{{ item.image.url }}{% endif %}"
-                                     class="w-12 h-12 object-cover mx-auto rounded"
-                                     alt="Item photo">
-                            </div>
-                            <!-- QR Code -->
-                            <img src="{{ item_qr_code }}"
-                                 :style="'width: ' + ($store.labelPrinter.options.qrSize * 0.6) + 'px; height: ' + ($store.labelPrinter.options.qrSize * 0.6) + 'px;'"
-                                 class="mx-auto mb-2"
-                                 alt="QR Code">
-                            <!-- Code -->
-                            <div x-show="$store.labelPrinter.options.showCode" class="font-mono font-bold text-xs text-gray-900">{{ item.code }}</div>
-                            <!-- Name -->
-                            <div x-show="$store.labelPrinter.options.showName" class="text-xs text-gray-600 mt-1 truncate max-w-full">{{ item.name|truncatechars:30 }}</div>
-                            <!-- Company -->
-                            <div x-show="$store.labelPrinter.options.showCompany" class="text-xs text-gray-400 mt-1">ARDT FMS</div>
+
+                            <!-- VERTICAL LAYOUT -->
+                            <template x-if="$store.labelPrinter.options.layout === 'vertical'">
+                                <div class="flex flex-col items-center justify-center h-full">
+                                    <!-- Text Above (if selected) -->
+                                    <div x-show="$store.labelPrinter.options.textPosition === 'above'" class="text-center mb-2">
+                                        <div x-show="$store.labelPrinter.options.showCode" class="font-mono font-bold text-xs text-gray-900">{{ item.code }}</div>
+                                        <div x-show="$store.labelPrinter.options.showName" class="text-xs text-gray-600 truncate max-w-full">{{ item.name|truncatechars:25 }}</div>
+                                    </div>
+                                    <!-- Photo -->
+                                    <div x-show="$store.labelPrinter.options.showPhoto && '{{ item.image.url|default:"" }}'" class="mb-1">
+                                        <img src="{% if item.image %}{{ item.image.url }}{% endif %}" class="w-10 h-10 object-cover rounded" alt="Photo">
+                                    </div>
+                                    <!-- QR Code -->
+                                    <img src="{{ item_qr_code }}" :style="'width: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px;'" class="mb-1" alt="QR">
+                                    <!-- Text Below (default) -->
+                                    <div x-show="$store.labelPrinter.options.textPosition === 'below'" class="text-center">
+                                        <div x-show="$store.labelPrinter.options.showCode" class="font-mono font-bold text-xs text-gray-900">{{ item.code }}</div>
+                                        <div x-show="$store.labelPrinter.options.showName" class="text-xs text-gray-600 truncate max-w-full">{{ item.name|truncatechars:25 }}</div>
+                                    </div>
+                                    <div x-show="$store.labelPrinter.options.showCompany" class="text-xs text-gray-400 mt-0.5">ARDT FMS</div>
+                                </div>
+                            </template>
+
+                            <!-- HORIZONTAL LAYOUT (Photo + QR side by side) -->
+                            <template x-if="$store.labelPrinter.options.layout === 'horizontal'">
+                                <div class="flex flex-col items-center justify-center h-full">
+                                    <!-- Photo + QR Row -->
+                                    <div class="flex items-center justify-center gap-2 mb-2">
+                                        <div x-show="$store.labelPrinter.options.showPhoto && '{{ item.image.url|default:"" }}'">
+                                            <img src="{% if item.image %}{{ item.image.url }}{% endif %}" :style="'width: ' + ($store.labelPrinter.options.qrSize * 0.4) + 'px; height: ' + ($store.labelPrinter.options.qrSize * 0.4) + 'px;'" class="object-cover rounded" alt="Photo">
+                                        </div>
+                                        <img src="{{ item_qr_code }}" :style="'width: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px;'" alt="QR">
+                                    </div>
+                                    <!-- Text Below -->
+                                    <div class="text-center">
+                                        <div x-show="$store.labelPrinter.options.showCode" class="font-mono font-bold text-xs text-gray-900">{{ item.code }}</div>
+                                        <div x-show="$store.labelPrinter.options.showName" class="text-xs text-gray-600 truncate max-w-full">{{ item.name|truncatechars:25 }}</div>
+                                        <div x-show="$store.labelPrinter.options.showCompany" class="text-xs text-gray-400 mt-0.5">ARDT FMS</div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- QR-LEFT LAYOUT (QR on left, text on right) -->
+                            <template x-if="$store.labelPrinter.options.layout === 'qr-left'">
+                                <div class="flex items-center justify-center h-full gap-3">
+                                    <!-- Left: Photo/QR Stack -->
+                                    <div class="flex flex-col items-center">
+                                        <div x-show="$store.labelPrinter.options.showPhoto && '{{ item.image.url|default:"" }}'" class="mb-1">
+                                            <img src="{% if item.image %}{{ item.image.url }}{% endif %}" class="w-8 h-8 object-cover rounded" alt="Photo">
+                                        </div>
+                                        <img src="{{ item_qr_code }}" :style="'width: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px; height: ' + ($store.labelPrinter.options.qrSize * 0.5) + 'px;'" alt="QR">
+                                    </div>
+                                    <!-- Right: Text -->
+                                    <div class="flex flex-col justify-center text-left">
+                                        <div x-show="$store.labelPrinter.options.showCode" class="font-mono font-bold text-xs text-gray-900">{{ item.code }}</div>
+                                        <div x-show="$store.labelPrinter.options.showName" class="text-xs text-gray-600 max-w-[80px] truncate">{{ item.name|truncatechars:20 }}</div>
+                                        <div x-show="$store.labelPrinter.options.showCompany" class="text-xs text-gray-400 mt-0.5">ARDT FMS</div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- COMPACT LAYOUT (Everything in one row) -->
+                            <template x-if="$store.labelPrinter.options.layout === 'compact'">
+                                <div class="flex items-center justify-center h-full gap-2">
+                                    <!-- Photo -->
+                                    <div x-show="$store.labelPrinter.options.showPhoto && '{{ item.image.url|default:"" }}'">
+                                        <img src="{% if item.image %}{{ item.image.url }}{% endif %}" class="w-8 h-8 object-cover rounded" alt="Photo">
+                                    </div>
+                                    <!-- QR -->
+                                    <img src="{{ item_qr_code }}" :style="'width: ' + ($store.labelPrinter.options.qrSize * 0.35) + 'px; height: ' + ($store.labelPrinter.options.qrSize * 0.35) + 'px;'" alt="QR">
+                                    <!-- Text -->
+                                    <div class="flex flex-col text-left">
+                                        <div x-show="$store.labelPrinter.options.showCode" class="font-mono font-bold text-[10px] text-gray-900">{{ item.code }}</div>
+                                        <div x-show="$store.labelPrinter.options.showName" class="text-[9px] text-gray-600 max-w-[60px] truncate">{{ item.name|truncatechars:15 }}</div>
+                                        <div x-show="$store.labelPrinter.options.showCompany" class="text-[8px] text-gray-400">ARDT FMS</div>
+                                    </div>
+                                </div>
+                            </template>
+
                         </div>
                     </div>
                     <p class="text-xs text-gray-500 text-center mt-2">
@@ -1010,7 +1149,9 @@ document.addEventListener('alpine:init', () => {
             sizePreset: 'medium',
             customWidth: 50,
             customHeight: 50,
-            qrSize: 120
+            qrSize: 120,
+            layout: 'vertical',  // vertical, horizontal, qr-left, compact
+            textPosition: 'below'  // below, beside, above
         },
 
         init() {
@@ -1101,15 +1242,41 @@ document.addEventListener('alpine:init', () => {
             const widthIn = (opts.customWidth / 25.4).toFixed(2);
             const heightIn = (opts.customHeight / 25.4).toFixed(2);
 
-            // Build label content
-            let photoHtml = '';
-            if (opts.showPhoto && item.photo) {
-                photoHtml = `<img src="${item.photo}" class="item-photo" alt="Item photo">`;
-            }
+            // Build element snippets
+            const photoHtml = (opts.showPhoto && item.photo) ?
+                `<img src="${item.photo}" class="item-photo" alt="Photo">` : '';
+            const qrHtml = `<img src="${item.qrCode}" class="qr-code" alt="QR Code">`;
+            const codeHtml = opts.showCode ? `<div class="item-code">${item.code}</div>` : '';
+            const nameHtml = opts.showName ? `<div class="item-name">${item.name}</div>` : '';
+            const companyHtml = opts.showCompany ? `<div class="company">ARDT FMS</div>` : '';
+            const textBlock = `<div class="text-block">${codeHtml}${nameHtml}${companyHtml}</div>`;
 
-            let codeHtml = opts.showCode ? `<div class="item-code">${item.code}</div>` : '';
-            let nameHtml = opts.showName ? `<div class="item-name">${item.name}</div>` : '';
-            let companyHtml = opts.showCompany ? `<div class="company">ARDT FMS</div>` : '';
+            // Generate layout-specific HTML
+            let layoutHtml = '';
+            let layoutClass = opts.layout;
+
+            if (opts.layout === 'vertical') {
+                if (opts.textPosition === 'above') {
+                    layoutHtml = `${textBlock}${photoHtml}${qrHtml}`;
+                } else {
+                    layoutHtml = `${photoHtml}${qrHtml}${textBlock}`;
+                }
+            } else if (opts.layout === 'horizontal') {
+                // Photo + QR side by side, text below
+                layoutHtml = `
+                    <div class="media-row">${photoHtml}${qrHtml}</div>
+                    ${textBlock}
+                `;
+            } else if (opts.layout === 'qr-left') {
+                // QR/Photo on left, text on right
+                layoutHtml = `
+                    <div class="qr-section">${photoHtml}${qrHtml}</div>
+                    ${textBlock}
+                `;
+            } else if (opts.layout === 'compact') {
+                // Everything in one row
+                layoutHtml = `${photoHtml}${qrHtml}${textBlock}`;
+            }
 
             const printContent = `
                 <!DOCTYPE html>
@@ -1135,38 +1302,86 @@ document.addEventListener('alpine:init', () => {
                             height: ${opts.customHeight}mm;
                         }
                         .label-container {
-                            text-align: center;
                             padding: 2mm;
                             width: 100%;
                             height: 100%;
                             display: flex;
-                            flex-direction: column;
                             align-items: center;
                             justify-content: center;
                         }
+                        /* VERTICAL layout */
+                        .label-container.vertical {
+                            flex-direction: column;
+                            text-align: center;
+                        }
+                        .vertical .item-photo { margin-bottom: 1mm; }
+                        .vertical .qr-code { margin-bottom: 1mm; }
+                        .vertical .text-block { text-align: center; }
+
+                        /* HORIZONTAL layout (photo+qr row, text below) */
+                        .label-container.horizontal {
+                            flex-direction: column;
+                            text-align: center;
+                        }
+                        .horizontal .media-row {
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 2mm;
+                            margin-bottom: 1mm;
+                        }
+                        .horizontal .text-block { text-align: center; }
+
+                        /* QR-LEFT layout (qr left, text right) */
+                        .label-container.qr-left {
+                            flex-direction: row;
+                            gap: 2mm;
+                        }
+                        .qr-left .qr-section {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                        }
+                        .qr-left .qr-section .item-photo { margin-bottom: 1mm; }
+                        .qr-left .text-block {
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: center;
+                            text-align: left;
+                        }
+
+                        /* COMPACT layout (everything in row) */
+                        .label-container.compact {
+                            flex-direction: row;
+                            gap: 2mm;
+                        }
+                        .compact .text-block {
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: center;
+                            text-align: left;
+                        }
+
+                        /* Common element styles */
                         .item-photo {
-                            width: ${Math.min(opts.qrSize * 0.4, 40)}px;
-                            height: ${Math.min(opts.qrSize * 0.4, 40)}px;
+                            width: ${Math.min(opts.qrSize * 0.5, 50)}px;
+                            height: ${Math.min(opts.qrSize * 0.5, 50)}px;
                             object-fit: cover;
-                            border-radius: 4px;
-                            margin-bottom: 2mm;
+                            border-radius: 3px;
                         }
                         .qr-code {
                             width: ${opts.qrSize}px;
                             height: ${opts.qrSize}px;
-                            margin-bottom: 2mm;
                         }
                         .item-code {
                             font-size: ${Math.max(10, opts.qrSize * 0.12)}px;
                             font-weight: bold;
                             font-family: monospace;
-                            margin: 1mm 0;
                         }
                         .item-name {
                             font-size: ${Math.max(8, opts.qrSize * 0.09)}px;
                             color: #333;
-                            margin: 1mm 0;
-                            max-width: ${opts.customWidth - 10}mm;
+                            max-width: ${opts.layout === 'vertical' || opts.layout === 'horizontal' ? opts.customWidth - 10 : opts.customWidth * 0.5}mm;
                             overflow: hidden;
                             text-overflow: ellipsis;
                             white-space: nowrap;
@@ -1174,7 +1389,6 @@ document.addEventListener('alpine:init', () => {
                         .company {
                             font-size: ${Math.max(7, opts.qrSize * 0.07)}px;
                             color: #666;
-                            margin-top: 1mm;
                         }
                         @media print {
                             body {
@@ -1185,12 +1399,8 @@ document.addEventListener('alpine:init', () => {
                     </style>
                 </head>
                 <body>
-                    <div class="label-container">
-                        ${photoHtml}
-                        <img src="${item.qrCode}" class="qr-code" alt="QR Code">
-                        ${codeHtml}
-                        ${nameHtml}
-                        ${companyHtml}
+                    <div class="label-container ${layoutClass}">
+                        ${layoutHtml}
                     </div>
                     <script>
                         window.onload = function() {
