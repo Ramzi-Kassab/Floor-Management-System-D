@@ -58,6 +58,7 @@ from .models import (
     QualityStatus,
     AdjustmentReason,
     OwnershipType,
+    ReceiptTolerance,
 )
 
 
@@ -2777,6 +2778,144 @@ class GRNFromPOView(LoginRequiredMixin, View):
             return redirect('inventory:grn_from_po', po_pk=po_pk)
 
 
+class GRNSubmitForQCView(LoginRequiredMixin, View):
+    """Submit GRN for Quality Control inspection."""
+
+    def post(self, request, pk):
+        grn = get_object_or_404(GoodsReceiptNote, pk=pk, status=GoodsReceiptNote.Status.DRAFT)
+
+        if not grn.requires_qc:
+            # Skip QC workflow, go directly to confirmed (ready for posting)
+            grn.status = GoodsReceiptNote.Status.CONFIRMED
+            grn.qc_status = GoodsReceiptNote.QCStatus.NOT_REQUIRED
+            grn.save()
+            messages.success(request, f"GRN {grn.grn_number} confirmed (QC not required). Ready for posting.")
+            return redirect('inventory:grn_detail', pk=pk)
+
+        # Update GRN status to pending QC
+        grn.status = GoodsReceiptNote.Status.PENDING_QC
+        grn.qc_status = GoodsReceiptNote.QCStatus.PENDING
+        grn.save()
+
+        messages.success(request, f"GRN {grn.grn_number} submitted for QC inspection.")
+        return redirect('inventory:grn_qc', pk=pk)
+
+
+class GRNQCView(LoginRequiredMixin, View):
+    """QC inspection interface for GRN."""
+    template_name = "inventory/documents/grn_qc.html"
+
+    def get(self, request, pk):
+        grn = get_object_or_404(
+            GoodsReceiptNote.objects.prefetch_related('lines__item'),
+            pk=pk
+        )
+
+        # Allow viewing QC page for PENDING_QC status, or already inspected
+        if grn.status not in [GoodsReceiptNote.Status.PENDING_QC, GoodsReceiptNote.Status.CONFIRMED]:
+            messages.error(request, "GRN must be submitted for QC first.")
+            return redirect('inventory:grn_detail', pk=pk)
+
+        return render(request, self.template_name, {
+            'grn': grn,
+            'lines': grn.lines.all(),
+            'page_title': f'QC Inspection - {grn.grn_number}',
+        })
+
+    def post(self, request, pk):
+        from decimal import Decimal
+
+        grn = get_object_or_404(GoodsReceiptNote, pk=pk, status=GoodsReceiptNote.Status.PENDING_QC)
+
+        all_passed = True
+        any_failed = False
+
+        for line in grn.lines.all():
+            line_status = request.POST.get(f'qc_status_{line.pk}')
+            qty_accepted_str = request.POST.get(f'qty_accepted_{line.pk}', '0')
+            qty_rejected_str = request.POST.get(f'qty_rejected_{line.pk}', '0')
+            qc_notes = request.POST.get(f'qc_notes_{line.pk}', '')
+
+            try:
+                qty_accepted = Decimal(qty_accepted_str) if qty_accepted_str else Decimal('0')
+                qty_rejected = Decimal(qty_rejected_str) if qty_rejected_str else Decimal('0')
+            except:
+                qty_accepted = Decimal('0')
+                qty_rejected = Decimal('0')
+
+            # Auto-calculate status if not explicitly set
+            if not line_status:
+                if qty_rejected == 0 and qty_accepted == line.qty_received:
+                    line_status = GRNLine.LineQCStatus.PASSED
+                elif qty_accepted == 0:
+                    line_status = GRNLine.LineQCStatus.FAILED
+                else:
+                    line_status = GRNLine.LineQCStatus.PARTIAL
+
+            line.line_qc_status = line_status
+            line.qty_accepted = qty_accepted
+            line.qty_rejected = qty_rejected
+            line.qc_notes = qc_notes
+            line.save()
+
+            if line_status != GRNLine.LineQCStatus.PASSED:
+                all_passed = False
+            if line_status == GRNLine.LineQCStatus.FAILED:
+                any_failed = True
+
+        # Update GRN QC status
+        if all_passed:
+            grn.qc_status = GoodsReceiptNote.QCStatus.PASSED
+            grn.status = GoodsReceiptNote.Status.CONFIRMED
+        elif any_failed and not any(
+            l.line_qc_status in [GRNLine.LineQCStatus.PASSED, GRNLine.LineQCStatus.PARTIAL]
+            for l in grn.lines.all()
+        ):
+            grn.qc_status = GoodsReceiptNote.QCStatus.FAILED
+            # Keep in PENDING_QC for re-inspection or cancellation
+        else:
+            grn.qc_status = GoodsReceiptNote.QCStatus.PARTIAL
+            grn.status = GoodsReceiptNote.Status.CONFIRMED
+
+        grn.qc_completed = True
+        grn.qc_completed_at = timezone.now()
+        grn.qc_completed_by = request.user
+        grn.save()
+
+        if grn.status == GoodsReceiptNote.Status.CONFIRMED:
+            messages.success(request, f"QC inspection completed for {grn.grn_number}. Ready for posting.")
+        else:
+            messages.warning(request, f"QC inspection completed for {grn.grn_number}. All items failed - review required.")
+
+        return redirect('inventory:grn_detail', pk=pk)
+
+
+class GRNApproveVarianceView(LoginRequiredMixin, View):
+    """Approve quantity variances on a GRN to allow posting."""
+
+    def post(self, request, pk):
+        grn = get_object_or_404(GoodsReceiptNote, pk=pk)
+
+        # Only allow variance approval if there are variances
+        if not grn.has_quantity_variance:
+            messages.info(request, "This GRN has no quantity variances.")
+            return redirect("inventory:grn_detail", pk=pk)
+
+        # Already approved?
+        if grn.variance_approved:
+            messages.info(request, "Variances already approved.")
+            return redirect("inventory:grn_detail", pk=pk)
+
+        # Approve the variances
+        grn.variance_approved = True
+        grn.variance_approved_by = request.user
+        grn.variance_approved_at = timezone.now()
+        grn.save(update_fields=['variance_approved', 'variance_approved_by', 'variance_approved_at'])
+
+        messages.success(request, f"Quantity variances approved for {grn.grn_number}.")
+        return redirect("inventory:grn_detail", pk=pk)
+
+
 class GRNPostView(LoginRequiredMixin, View):
     """
     Post a GRN to create ledger entries and update PO quantities.
@@ -4841,3 +4980,104 @@ class PocketLogoutView(View):
             response.delete_cookie('device_token')
 
         return response
+
+
+# =============================================================================
+# PHASE 5: TOLERANCE & VARIANCE MANAGEMENT
+# =============================================================================
+
+
+class ReceiptToleranceListView(LoginRequiredMixin, ListView):
+    """List all receipt tolerance configurations."""
+    model = ReceiptTolerance
+    template_name = "inventory/reference/tolerance_list.html"
+    context_object_name = "tolerances"
+    paginate_by = 20
+
+    def get_queryset(self):
+        return ReceiptTolerance.objects.select_related(
+            'category', 'item', 'vendor'
+        ).order_by('-is_active', 'applies_to', '-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Receipt Tolerance Configuration'
+        return context
+
+
+class ReceiptToleranceCreateView(LoginRequiredMixin, CreateView):
+    """Create new receipt tolerance configuration."""
+    model = ReceiptTolerance
+    template_name = "inventory/reference/tolerance_form.html"
+    fields = [
+        'applies_to', 'category', 'item', 'vendor',
+        'over_receipt_percent', 'under_receipt_percent',
+        'require_qc', 'auto_close_on_tolerance', 'is_active'
+    ]
+    success_url = reverse_lazy('inventory:tolerance_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'New Tolerance Configuration'
+        context['categories'] = InventoryCategory.objects.filter(is_active=True)
+        context['items'] = InventoryItem.objects.filter(is_active=True)[:100]
+        from apps.supplychain.models import Vendor
+        context['vendors'] = Vendor.objects.filter(is_active=True)
+        return context
+
+
+class ReceiptToleranceUpdateView(LoginRequiredMixin, UpdateView):
+    """Update receipt tolerance configuration."""
+    model = ReceiptTolerance
+    template_name = "inventory/reference/tolerance_form.html"
+    fields = [
+        'applies_to', 'category', 'item', 'vendor',
+        'over_receipt_percent', 'under_receipt_percent',
+        'require_qc', 'auto_close_on_tolerance', 'is_active'
+    ]
+    success_url = reverse_lazy('inventory:tolerance_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Edit Tolerance Configuration'
+        context['categories'] = InventoryCategory.objects.filter(is_active=True)
+        context['items'] = InventoryItem.objects.filter(is_active=True)[:100]
+        from apps.supplychain.models import Vendor
+        context['vendors'] = Vendor.objects.filter(is_active=True)
+        return context
+
+
+class VarianceReportView(LoginRequiredMixin, ListView):
+    """List GRNs with pending variance approvals."""
+    model = GoodsReceiptNote
+    template_name = "inventory/reports/variance_report.html"
+    context_object_name = "grns"
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = GoodsReceiptNote.objects.select_related(
+            'warehouse', 'vendor', 'purchase_order'
+        ).filter(
+            has_quantity_variance=True
+        ).order_by('-variance_approved', '-created_at')
+
+        # Filter by approval status
+        status = self.request.GET.get('status')
+        if status == 'pending':
+            qs = qs.filter(variance_approved=False)
+        elif status == 'approved':
+            qs = qs.filter(variance_approved=True)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Receipt Variance Report'
+        context['pending_count'] = GoodsReceiptNote.objects.filter(
+            has_quantity_variance=True, variance_approved=False
+        ).count()
+        context['approved_count'] = GoodsReceiptNote.objects.filter(
+            has_quantity_variance=True, variance_approved=True
+        ).count()
+        context['current_status'] = self.request.GET.get('status', 'all')
+        return context

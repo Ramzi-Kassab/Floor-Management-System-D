@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Quality Control Inspection</p>
+    </div>
+    <a href="{% url 'inventory:grn_detail' grn.pk %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back to GRN
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- GRN Summary -->
+    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-blue-900 dark:text-blue-200 mb-4">
+            <i data-lucide="file-check" class="w-5 h-5 inline mr-2"></i>
+            GRN Information
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <span class="block text-sm font-medium text-blue-700 dark:text-blue-300">GRN Number</span>
+                <span class="text-gray-900 dark:text-white font-semibold">{{ grn.grn_number }}</span>
+            </div>
+            <div>
+                <span class="block text-sm font-medium text-blue-700 dark:text-blue-300">Vendor</span>
+                <span class="text-gray-900 dark:text-white">{{ grn.vendor.name|default:grn.supplier_name|default:"N/A" }}</span>
+            </div>
+            <div>
+                <span class="block text-sm font-medium text-blue-700 dark:text-blue-300">Receipt Date</span>
+                <span class="text-gray-900 dark:text-white">{{ grn.receipt_date|date:"M d, Y" }}</span>
+            </div>
+            <div>
+                <span class="block text-sm font-medium text-blue-700 dark:text-blue-300">Status</span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                    {% if grn.qc_status == 'PASSED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                    {% elif grn.qc_status == 'FAILED' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                    {% elif grn.qc_status == 'PARTIAL' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                    {% else %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200{% endif %}">
+                    {{ grn.get_qc_status_display }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- QC Instructions -->
+    <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4">
+        <div class="flex items-start">
+            <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500 mr-3 mt-0.5"></i>
+            <div>
+                <h3 class="text-sm font-semibold text-amber-800 dark:text-amber-200">Inspection Instructions</h3>
+                <ul class="mt-2 text-sm text-amber-700 dark:text-amber-300 list-disc list-inside space-y-1">
+                    <li>Inspect each line item for quality and quantity</li>
+                    <li>Enter accepted and rejected quantities (must equal received quantity)</li>
+                    <li>Add notes for any issues found</li>
+                    <li>Items that pass QC will be available for posting to inventory</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Line Items for Inspection -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="clipboard-check" class="w-5 h-5 inline mr-2"></i>
+                Line Items for Inspection
+            </h2>
+        </div>
+
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for line in lines %}
+            <div class="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50" x-data="{
+                qtyReceived: {{ line.qty_received|floatformat:0 }},
+                qtyAccepted: {{ line.qty_accepted|default:line.qty_received|floatformat:0 }},
+                qtyRejected: {{ line.qty_rejected|default:0|floatformat:0 }},
+                updateRejected() {
+                    this.qtyRejected = Math.max(0, this.qtyReceived - this.qtyAccepted);
+                },
+                updateAccepted() {
+                    this.qtyAccepted = Math.max(0, this.qtyReceived - this.qtyRejected);
+                }
+            }">
+                <div class="flex flex-col lg:flex-row lg:items-start gap-4">
+                    <!-- Item Info -->
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="text-lg font-semibold text-gray-900 dark:text-white">
+                                {{ line.item.code|default:"N/A" }}
+                            </span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if line.line_qc_status == 'PASSED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                {% elif line.line_qc_status == 'FAILED' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                                {% elif line.line_qc_status == 'PARTIAL' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200{% endif %}">
+                                {{ line.get_line_qc_status_display|default:"Pending" }}
+                            </span>
+                        </div>
+                        <p class="text-gray-600 dark:text-gray-400">{{ line.item.name|default:line.description|truncatechars:60 }}</p>
+                        <div class="mt-2 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                            <span><strong>Received:</strong> {{ line.qty_received|floatformat:0 }} {{ line.unit.symbol|default:"EA" }}</span>
+                            {% if line.lot %}
+                            <span><strong>Lot:</strong> {{ line.lot.lot_number }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- QC Inputs -->
+                    <div class="lg:w-2/3">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <!-- QC Status -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">QC Status</label>
+                                <select name="qc_status_{{ line.pk }}"
+                                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                                    <option value="">Auto-detect</option>
+                                    <option value="PASSED" {% if line.line_qc_status == 'PASSED' %}selected{% endif %}>Passed</option>
+                                    <option value="PARTIAL" {% if line.line_qc_status == 'PARTIAL' %}selected{% endif %}>Partial Pass</option>
+                                    <option value="FAILED" {% if line.line_qc_status == 'FAILED' %}selected{% endif %}>Failed</option>
+                                </select>
+                            </div>
+
+                            <!-- Qty Accepted -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <i data-lucide="check-circle" class="w-4 h-4 inline text-green-500"></i> Accepted
+                                </label>
+                                <input type="number" name="qty_accepted_{{ line.pk }}"
+                                       x-model="qtyAccepted" @input="updateRejected()"
+                                       min="0" max="{{ line.qty_received }}" step="1"
+                                       class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500">
+                            </div>
+
+                            <!-- Qty Rejected -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <i data-lucide="x-circle" class="w-4 h-4 inline text-red-500"></i> Rejected
+                                </label>
+                                <input type="number" name="qty_rejected_{{ line.pk }}"
+                                       x-model="qtyRejected" @input="updateAccepted()"
+                                       min="0" max="{{ line.qty_received }}" step="1"
+                                       class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500">
+                            </div>
+
+                            <!-- Validation indicator -->
+                            <div class="flex items-end pb-2">
+                                <span class="text-sm"
+                                      :class="qtyAccepted + qtyRejected == qtyReceived ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+                                    <i data-lucide="check" class="w-4 h-4 inline" x-show="qtyAccepted + qtyRejected == qtyReceived"></i>
+                                    <i data-lucide="alert-circle" class="w-4 h-4 inline" x-show="qtyAccepted + qtyRejected != qtyReceived"></i>
+                                    <span x-text="qtyAccepted + qtyRejected"></span> / <span x-text="qtyReceived"></span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mt-3">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">QC Notes</label>
+                            <input type="text" name="qc_notes_{{ line.pk }}" value="{{ line.qc_notes|default:'' }}"
+                                   placeholder="Enter any issues, defects, or observations..."
+                                   class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <!-- Common Defect Quick Buttons -->
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <button type="button"
+                                    onclick="addDefectNote(this, 'Damaged packaging')"
+                                    class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">
+                                Damaged packaging
+                            </button>
+                            <button type="button"
+                                    onclick="addDefectNote(this, 'Visual defects')"
+                                    class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">
+                                Visual defects
+                            </button>
+                            <button type="button"
+                                    onclick="addDefectNote(this, 'Wrong specifications')"
+                                    class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">
+                                Wrong specs
+                            </button>
+                            <button type="button"
+                                    onclick="addDefectNote(this, 'Expired/Near expiry')"
+                                    class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">
+                                Expired/Near expiry
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-6 text-center text-gray-500 dark:text-gray-400">
+                No line items found.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex justify-end gap-3">
+        <a href="{% url 'inventory:grn_detail' grn.pk %}"
+           class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600">
+            Cancel
+        </a>
+        {% if grn.status == 'PENDING_QC' %}
+        <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center">
+            <i data-lucide="check-square" class="w-4 h-4 mr-2"></i>
+            Complete QC Inspection
+        </button>
+        {% else %}
+        <span class="px-6 py-2 bg-gray-300 text-gray-600 rounded-lg inline-flex items-center cursor-not-allowed">
+            <i data-lucide="check-circle" class="w-4 h-4 mr-2"></i>
+            QC Already Completed
+        </span>
+        {% endif %}
+    </div>
+</form>
+
+<script>
+function addDefectNote(button, defect) {
+    // Find the notes input in the same line item container
+    const container = button.closest('.p-6');
+    const notesInput = container.querySelector('input[name^="qc_notes_"]');
+    if (notesInput) {
+        if (notesInput.value) {
+            notesInput.value += '; ' + defect;
+        } else {
+            notesInput.value = defect;
+        }
+    }
+}
+</script>
+{% endblock %}

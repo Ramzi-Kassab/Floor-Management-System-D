@@ -2904,6 +2904,30 @@ class GoodsReceiptNote(models.Model):
     )
     variance_approved_at = models.DateTimeField(null=True, blank=True)
 
+    # Three-Way Matching (PO -> GRN -> Invoice)
+    class MatchStatus(models.TextChoices):
+        NOT_APPLICABLE = "NOT_APPLICABLE", "Not Applicable"
+        PENDING = "PENDING", "Pending Match"
+        MATCHED = "MATCHED", "Matched"
+        EXCEPTION = "EXCEPTION", "Exception"
+        RESOLVED = "RESOLVED", "Exception Resolved"
+
+    invoice_match_status = models.CharField(
+        max_length=20, choices=MatchStatus.choices,
+        default=MatchStatus.NOT_APPLICABLE,
+        help_text="Status of three-way match (PO-GRN-Invoice)"
+    )
+    vendor_invoice = models.ForeignKey(
+        "supplychain.VendorInvoice", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="grns",
+        help_text="Linked vendor invoice for three-way matching"
+    )
+    invoice_match = models.ForeignKey(
+        "supplychain.InvoiceMatch", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="grns_matched",
+        help_text="Link to the three-way match record"
+    )
+
     # Audit
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

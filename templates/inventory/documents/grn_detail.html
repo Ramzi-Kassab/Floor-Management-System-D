@@ -19,6 +19,36 @@
         <a href="{% url 'inventory:grn_update' grn.pk %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
             <i data-lucide="edit" class="w-4 h-4 mr-1"></i>Edit
         </a>
+        {% if grn.requires_qc %}
+        <form method="post" action="{% url 'inventory:grn_submit_qc' grn.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm">
+                <i data-lucide="clipboard-check" class="w-4 h-4 mr-1"></i>Submit for QC
+            </button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'inventory:grn_post' grn.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                    onclick="return confirm('Post this GRN? This will create ledger entries and cannot be undone.')">
+                <i data-lucide="check-circle" class="w-4 h-4 mr-1"></i>Post GRN
+            </button>
+        </form>
+        {% endif %}
+        {% elif grn.status == 'PENDING_QC' %}
+        <a href="{% url 'inventory:grn_qc' grn.pk %}" class="inline-flex items-center px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm">
+            <i data-lucide="clipboard-list" class="w-4 h-4 mr-1"></i>Perform QC Inspection
+        </a>
+        {% elif grn.status == 'CONFIRMED' %}
+        {% if grn.has_quantity_variance and not grn.variance_approved %}
+        <form method="post" action="{% url 'inventory:grn_approve_variance' grn.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
+                    onclick="return confirm('Approve quantity variances? This will allow posting despite over/under receipt.')">
+                <i data-lucide="alert-triangle" class="w-4 h-4 mr-1"></i>Approve Variances
+            </button>
+        </form>
+        {% endif %}
         <form method="post" action="{% url 'inventory:grn_post' grn.pk %}" class="inline">
             {% csrf_token %}
             <button type="submit" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
@@ -33,16 +63,46 @@
 
 {% block content %}
 <!-- Status Banner -->
-<div class="mb-6">
+<div class="mb-6 flex flex-wrap items-center gap-3">
     <span class="inline-flex px-3 py-1 text-sm font-medium rounded-full
         {% if grn.status == 'DRAFT' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200
+        {% elif grn.status == 'PENDING_QC' %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
+        {% elif grn.status == 'CONFIRMED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
         {% elif grn.status == 'POSTED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
         {% elif grn.status == 'CANCELLED' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
         {% endif %}">
         {{ grn.get_status_display }}
     </span>
+    {% if grn.requires_qc %}
+    <span class="inline-flex px-3 py-1 text-sm font-medium rounded-full
+        {% if grn.qc_status == 'PASSED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+        {% elif grn.qc_status == 'FAILED' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+        {% elif grn.qc_status == 'PARTIAL' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+        {% elif grn.qc_status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200{% endif %}">
+        <i data-lucide="clipboard-check" class="w-4 h-4 mr-1"></i>QC: {{ grn.get_qc_status_display }}
+    </span>
+    {% endif %}
+    {% if grn.has_quantity_variance %}
+    <span class="inline-flex px-3 py-1 text-sm font-medium rounded-full
+        {% if grn.variance_approved %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+        {% else %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200{% endif %}">
+        <i data-lucide="{% if grn.variance_approved %}check-circle{% else %}alert-triangle{% endif %}" class="w-4 h-4 mr-1"></i>
+        Variance {% if grn.variance_approved %}Approved{% else %}Pending Approval{% endif %}
+    </span>
+    {% endif %}
+    {% if grn.invoice_match_status and grn.invoice_match_status != 'NOT_APPLICABLE' %}
+    <span class="inline-flex items-center px-3 py-1 text-sm font-medium rounded-full
+        {% if grn.invoice_match_status == 'MATCHED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+        {% elif grn.invoice_match_status == 'EXCEPTION' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+        {% elif grn.invoice_match_status == 'RESOLVED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200{% endif %}">
+        <i data-lucide="file-check" class="w-4 h-4 mr-1"></i>
+        3-Way: {{ grn.get_invoice_match_status_display }}
+    </span>
+    {% endif %}
     {% if grn.posted_date %}
-    <span class="ml-2 text-sm text-gray-500 dark:text-gray-400">Posted on {{ grn.posted_date|date:"Y-m-d H:i" }}</span>
+    <span class="text-sm text-gray-500 dark:text-gray-400">Posted on {{ grn.posted_date|date:"Y-m-d H:i" }}</span>
     {% endif %}
 </div>
 
@@ -62,9 +122,25 @@
             <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.receipt_date|date:"Y-m-d" }}</p>
         </div>
         <div>
-            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Supplier</p>
-            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.supplier.name|default:"-" }}</p>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Vendor/Supplier</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.vendor.name|default:grn.supplier.name|default:"-" }}</p>
         </div>
+        {% if grn.purchase_order %}
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Purchase Order</p>
+            <p class="text-sm font-medium text-blue-600 dark:text-blue-400">
+                <a href="{% url 'supplychain:po_detail' grn.purchase_order.pk %}">{{ grn.purchase_order.po_number }}</a>
+            </p>
+        </div>
+        {% endif %}
+        {% if grn.vendor_invoice %}
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Vendor Invoice</p>
+            <p class="text-sm font-medium text-blue-600 dark:text-blue-400">
+                <a href="{% url 'supplychain:vendor_invoice_detail' grn.vendor_invoice.pk %}">{{ grn.vendor_invoice.invoice_number }}</a>
+            </p>
+        </div>
+        {% endif %}
         <div>
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Source Reference</p>
             <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.source_reference|default:"-" }}</p>
@@ -81,6 +157,18 @@
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created By</p>
             <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.created_by.get_full_name|default:grn.created_by.username }}</p>
         </div>
+        {% if grn.qc_completed_by %}
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">QC Completed By</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.qc_completed_by.get_full_name|default:grn.qc_completed_by.username }} on {{ grn.qc_completed_at|date:"Y-m-d H:i" }}</p>
+        </div>
+        {% endif %}
+        {% if grn.posted_by %}
+        <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Posted By</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.posted_by.get_full_name|default:grn.posted_by.username }}</p>
+        </div>
+        {% endif %}
     </div>
     {% if grn.notes %}
     <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -122,7 +210,22 @@
                     <td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-300">{{ line.unit_cost }}</td>
                     <td class="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-white">{{ line.total_cost }}</td>
                     <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ line.condition.code|default:"-" }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ line.quality_status.code|default:"-" }}</td>
+                    <td class="px-4 py-3 text-sm">
+                        {% if line.line_qc_status %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if line.line_qc_status == 'PASSED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                            {% elif line.line_qc_status == 'FAILED' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                            {% elif line.line_qc_status == 'PARTIAL' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                            {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200{% endif %}">
+                            {{ line.get_line_qc_status_display }}
+                        </span>
+                        {% if line.qty_accepted or line.qty_rejected %}
+                        <span class="text-xs text-gray-500 ml-1">({{ line.qty_accepted|default:0|floatformat:0 }}/{{ line.qty_rejected|default:0|floatformat:0 }})</span>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-gray-400">{{ line.quality_status.code|default:"-" }}</span>
+                        {% endif %}
+                    </td>
                     <td class="px-4 py-3 text-center">
                         {% if line.is_posted %}
                         <i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>

@@ -112,6 +112,9 @@ urlpatterns = [
     path("grn/<int:pk>/", views.GRNDetailView.as_view(), name="grn_detail"),
     path("grn/<int:pk>/edit/", views.GRNUpdateView.as_view(), name="grn_update"),
     path("grn/<int:pk>/post/", views.GRNPostView.as_view(), name="grn_post"),
+    path("grn/<int:pk>/submit-qc/", views.GRNSubmitForQCView.as_view(), name="grn_submit_qc"),
+    path("grn/<int:pk>/qc/", views.GRNQCView.as_view(), name="grn_qc"),
+    path("grn/<int:pk>/approve-variance/", views.GRNApproveVarianceView.as_view(), name="grn_approve_variance"),
 
     # Stock Issues
     path("issues/", views.StockIssueListView.as_view(), name="issue_list"),
@@ -200,6 +203,11 @@ urlpatterns = [
     path("ownership-types/create/", views.OwnershipTypeCreateView.as_view(), name="ownership_type_create"),
     path("ownership-types/<int:pk>/edit/", views.OwnershipTypeUpdateView.as_view(), name="ownership_type_update"),
 
+    # Receipt Tolerances
+    path("tolerances/", views.ReceiptToleranceListView.as_view(), name="tolerance_list"),
+    path("tolerances/create/", views.ReceiptToleranceCreateView.as_view(), name="tolerance_create"),
+    path("tolerances/<int:pk>/edit/", views.ReceiptToleranceUpdateView.as_view(), name="tolerance_update"),
+
     # =========================================================================
     # PRINT VIEWS
     # =========================================================================
@@ -214,6 +222,7 @@ urlpatterns = [
     path("reports/stock-valuation/", views.StockValuationReportView.as_view(), name="report_stock_valuation"),
     path("reports/movement-history/", views.MovementHistoryReportView.as_view(), name="report_movement_history"),
     path("reports/low-stock/", views.LowStockReportView.as_view(), name="report_low_stock"),
+    path("reports/variances/", views.VarianceReportView.as_view(), name="report_variances"),
 
     # =========================================================================
     # API ENDPOINTS
