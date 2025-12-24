@@ -670,6 +670,22 @@ class InventoryCategory(models.Model):
         help_text="Template for auto-name: {size}mm {material} {grade} (uses attribute codes)"
     )
 
+    # Advanced name template with conditional logic
+    name_template_config = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='''
+        Structured name template with conditional logic. Format:
+        {
+            "parts": [
+                {"type": "attr", "code": "material"},
+                {"type": "text", "value": " Cutter "},
+                {"type": "conditional", "if": {"attr": "grade", "op": "not_empty"}, "then": {"type": "attr", "code": "grade"}}
+            ]
+        }
+        '''
+    )
+
     class Meta:
         db_table = "inventory_categories"
         ordering = ["code"]

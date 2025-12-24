@@ -72,27 +72,146 @@
                 </div>
 
                 <!-- Name Template -->
-                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6" x-data="nameTemplateBuilder()">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Auto-Generated Name</h3>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name Template</label>
-                        <div @change="trackChange('name_template')">{{ form.name_template }}</div>
-                        <p class="text-xs text-gray-500 mt-1">{{ form.name_template.help_text }}</p>
-                        {% if parent_category and parent_category.name_template %}
-                        <div class="mt-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded text-xs text-blue-700 dark:text-blue-300">
-                            <i data-lucide="git-merge" class="w-3 h-3 inline mr-1"></i>
-                            Inherited from parent: <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">{{ parent_category.name_template }}</code>
+
+                    <!-- Hidden field for the actual template string -->
+                    <input type="hidden" name="name_template" x-model="templateString">
+                    <input type="hidden" name="name_template_config" x-model="templateConfigJson">
+
+                    <!-- Template Preview -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name Template Preview</label>
+                        <div class="p-3 bg-gray-100 dark:bg-gray-700 rounded-lg min-h-[40px] flex flex-wrap items-center gap-1" id="templatePreview">
+                            <template x-if="templateParts.length === 0">
+                                <span class="text-gray-400 text-sm italic">Click attributes below to build the template...</span>
+                            </template>
+                            <template x-for="(part, idx) in templateParts" :key="idx">
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-sm"
+                                      :class="{
+                                          'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200': part.type === 'attr',
+                                          'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300': part.type === 'text',
+                                          'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200': part.type === 'conditional'
+                                      }">
+                                    <span x-text="getPartDisplay(part)"></span>
+                                    <button type="button" @click="removePart(idx)" class="hover:text-red-500">
+                                        <i data-lucide="x" class="w-3 h-3"></i>
+                                    </button>
+                                </span>
+                            </template>
                         </div>
-                        {% endif %}
-                        <div class="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs">
-                            <p class="font-medium text-gray-700 dark:text-gray-300 mb-1">Example templates:</p>
-                            <ul class="text-gray-600 dark:text-gray-400 space-y-1">
-                                <li><code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">{material} Cutter {size}mm {grade}</code> → "PDC Cutter 13mm Premium"</li>
-                                <li><code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">{type} Nozzle {size}/{material}</code> → "Standard Nozzle 12/TC"</li>
-                            </ul>
-                        </div>
-                        {% if form.name_template.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name_template.errors.0 }}</p>{% endif %}
+                        <p class="text-xs text-gray-500 mt-1">Result: <code class="bg-gray-200 dark:bg-gray-600 px-1 rounded" x-text="templateString || '(empty)'"></code></p>
                     </div>
+
+                    <!-- Available Attributes -->
+                    {% if own_attributes %}
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Available Attributes (click to add)</label>
+                        <div class="flex flex-wrap gap-2">
+                            {% for attr in own_attributes %}
+                            <button type="button"
+                                    @click="addAttr('{{ attr.attribute.code }}', '{{ attr.attribute.name }}')"
+                                    class="px-3 py-1.5 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition">
+                                <span class="font-medium">{{ attr.attribute.name }}</span>
+                                <code class="ml-1 text-blue-500">{{ attr.attribute.code }}</code>
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-sm text-amber-700 dark:text-amber-300">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 inline mr-1"></i>
+                        Add attributes to this category first to use them in the name template.
+                    </div>
+                    {% endif %}
+
+                    <!-- Add Text / Conditional -->
+                    <div class="flex gap-2 mb-4">
+                        <button type="button" @click="showTextInput = !showTextInput"
+                                class="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+                            <i data-lucide="type" class="w-3 h-3 inline mr-1"></i>Add Text
+                        </button>
+                        <button type="button" @click="showCondModal = true"
+                                class="px-3 py-1.5 text-xs bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50">
+                            <i data-lucide="git-branch" class="w-3 h-3 inline mr-1"></i>Add Conditional
+                        </button>
+                        <button type="button" @click="clearTemplate()"
+                                class="px-3 py-1.5 text-xs bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 ml-auto">
+                            <i data-lucide="trash-2" class="w-3 h-3 inline mr-1"></i>Clear
+                        </button>
+                    </div>
+
+                    <!-- Text Input (hidden by default) -->
+                    <div x-show="showTextInput" x-cloak class="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div class="flex gap-2">
+                            <input type="text" x-model="newText" placeholder="Enter text (e.g., 'mm', ' - ', 'Cutter ')"
+                                   class="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800">
+                            <button type="button" @click="addText()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded">Add</button>
+                            <button type="button" @click="showTextInput = false" class="px-3 py-1.5 text-gray-500 text-sm">Cancel</button>
+                        </div>
+                    </div>
+
+                    <!-- Conditional Modal -->
+                    <div x-show="showCondModal" x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+                        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
+                            <h4 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Add Conditional Part</h4>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">IF attribute:</label>
+                                    <select x-model="condAttr" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                                        <option value="">Select attribute...</option>
+                                        {% for attr in own_attributes %}
+                                        <option value="{{ attr.attribute.code }}">{{ attr.attribute.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Condition:</label>
+                                    <select x-model="condOp" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                                        <option value="not_empty">is not empty</option>
+                                        <option value="empty">is empty</option>
+                                        <option value="eq">equals value:</option>
+                                    </select>
+                                    <input x-show="condOp === 'eq'" type="text" x-model="condValue" placeholder="value"
+                                           class="mt-2 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">THEN use:</label>
+                                    <select x-model="condThen" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                                        <option value="">Same attribute</option>
+                                        {% for attr in own_attributes %}
+                                        <option value="{{ attr.attribute.code }}">{{ attr.attribute.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">ELSE (optional):</label>
+                                    <select x-model="condElse" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                                        <option value="">Nothing (skip)</option>
+                                        {% for attr in own_attributes %}
+                                        <option value="{{ attr.attribute.code }}">{{ attr.attribute.name }}</option>
+                                        {% endfor %}
+                                        <option value="_text_">Custom text...</option>
+                                    </select>
+                                    <input x-show="condElse === '_text_'" type="text" x-model="condElseText" placeholder="fallback text"
+                                           class="mt-2 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end gap-3 mt-6">
+                                <button type="button" @click="showCondModal = false" class="px-4 py-2 text-gray-600">Cancel</button>
+                                <button type="button" @click="addConditional()" class="px-4 py-2 bg-purple-600 text-white rounded-lg">Add</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if parent_category and parent_category.name_template %}
+                    <div class="mt-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded text-xs text-blue-700 dark:text-blue-300">
+                        <i data-lucide="git-merge" class="w-3 h-3 inline mr-1"></i>
+                        Inherited from parent: <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">{{ parent_category.name_template }}</code>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <!-- Description -->
@@ -358,6 +477,150 @@
 </div>
 
 <script>
+// Name Template Builder
+function nameTemplateBuilder() {
+    // Parse existing template from form
+    const existingTemplate = '{{ object.name_template|default:""|escapejs }}';
+    const existingConfig = {% if object.name_template_config %}{{ object.name_template_config|safe }}{% else %}null{% endif %};
+
+    // Initialize parts from config or parse from string
+    let initialParts = [];
+    if (existingConfig && existingConfig.parts) {
+        initialParts = existingConfig.parts;
+    } else if (existingTemplate) {
+        // Parse simple template string into parts
+        const regex = /\{([^}]+)\}|([^{]+)/g;
+        let match;
+        while ((match = regex.exec(existingTemplate)) !== null) {
+            if (match[1]) {
+                initialParts.push({ type: 'attr', code: match[1] });
+            } else if (match[2]) {
+                initialParts.push({ type: 'text', value: match[2] });
+            }
+        }
+    }
+
+    return {
+        templateParts: initialParts,
+        showTextInput: false,
+        showCondModal: false,
+        newText: '',
+        // Conditional form fields
+        condAttr: '',
+        condOp: 'not_empty',
+        condValue: '',
+        condThen: '',
+        condElse: '',
+        condElseText: '',
+
+        get templateString() {
+            return this.templateParts.map(part => {
+                if (part.type === 'attr') {
+                    return `{${part.code}}`;
+                } else if (part.type === 'text') {
+                    return part.value;
+                } else if (part.type === 'conditional') {
+                    // For simple string, just use the main attribute
+                    return `{${part.if.attr}}`;
+                }
+                return '';
+            }).join('');
+        },
+
+        get templateConfigJson() {
+            if (this.templateParts.length === 0) return '';
+            return JSON.stringify({ parts: this.templateParts });
+        },
+
+        getPartDisplay(part) {
+            if (part.type === 'attr') {
+                return `{${part.code}}`;
+            } else if (part.type === 'text') {
+                return `"${part.value}"`;
+            } else if (part.type === 'conditional') {
+                let display = `IF ${part.if.attr} ${part.if.op}`;
+                if (part.if.value) display += ` "${part.if.value}"`;
+                display += ` → {${part.then.code || part.if.attr}}`;
+                if (part.else) {
+                    display += ` ELSE ${part.else.type === 'text' ? `"${part.else.value}"` : `{${part.else.code}}`}`;
+                }
+                return display;
+            }
+            return '';
+        },
+
+        addAttr(code, name) {
+            this.templateParts.push({ type: 'attr', code: code });
+            this.refreshIcons();
+        },
+
+        addText() {
+            if (this.newText) {
+                this.templateParts.push({ type: 'text', value: this.newText });
+                this.newText = '';
+                this.showTextInput = false;
+                this.refreshIcons();
+            }
+        },
+
+        addConditional() {
+            if (!this.condAttr) return;
+
+            const cond = {
+                type: 'conditional',
+                if: {
+                    attr: this.condAttr,
+                    op: this.condOp
+                },
+                then: {
+                    type: 'attr',
+                    code: this.condThen || this.condAttr
+                }
+            };
+
+            if (this.condOp === 'eq' && this.condValue) {
+                cond.if.value = this.condValue;
+            }
+
+            if (this.condElse) {
+                if (this.condElse === '_text_') {
+                    cond.else = { type: 'text', value: this.condElseText };
+                } else {
+                    cond.else = { type: 'attr', code: this.condElse };
+                }
+            }
+
+            this.templateParts.push(cond);
+
+            // Reset form
+            this.condAttr = '';
+            this.condOp = 'not_empty';
+            this.condValue = '';
+            this.condThen = '';
+            this.condElse = '';
+            this.condElseText = '';
+            this.showCondModal = false;
+            this.refreshIcons();
+        },
+
+        removePart(idx) {
+            this.templateParts.splice(idx, 1);
+            this.refreshIcons();
+        },
+
+        clearTemplate() {
+            this.templateParts = [];
+            this.refreshIcons();
+        },
+
+        refreshIcons() {
+            this.$nextTick(() => {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            });
+        }
+    }
+}
+
 function categoryForm() {
     return {
         showSyncModal: false,
