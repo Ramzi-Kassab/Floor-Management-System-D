@@ -222,7 +222,7 @@
             </div>
         </div>
 
-        {% if object.attributes.exists %}
+        {% if own_attributes %}
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
@@ -237,7 +237,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                    {% for attr in object.attributes.all %}
+                    {% for attr in own_attributes %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                         <td class="py-2 font-mono text-xs">{{ attr.code }}</td>
                         <td class="py-2">{{ attr.name }}</td>

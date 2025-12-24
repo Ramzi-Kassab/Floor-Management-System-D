@@ -165,6 +165,30 @@ class CategoryUpdateView(LoginRequiredMixin, UpdateView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Edit {self.object.name}"
         context["form_title"] = "Edit Category"
+
+        # Child categories
+        context["child_categories"] = self.object.children.all()
+
+        # Own attributes (directly on this category)
+        context["own_attributes"] = self.object.category_attributes.select_related(
+            "attribute", "unit"
+        ).order_by("display_order")
+
+        # Inherited attributes from parent categories
+        inherited = []
+        parent = self.object.parent
+        while parent:
+            for attr in parent.category_attributes.select_related(
+                "attribute", "unit"
+            ).order_by("display_order"):
+                inherited.append(attr)
+            parent = parent.parent
+        context["inherited_attributes"] = inherited
+
+        # Parent category info for code prefix suggestions
+        if self.object.parent:
+            context["parent_category"] = self.object.parent
+
         return context
 
 
