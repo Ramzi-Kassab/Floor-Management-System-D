@@ -269,9 +269,14 @@ def check_seed_data():
     import csv
     print_header("Seed Data Status")
 
-    # Define seed data sources and their expected counts
-    # code_column is used to count unique codes in CSV
-    seed_checks = [
+    # ==========================================================================
+    # SEED DATA DEFINITIONS
+    # Each entry defines: name, model path, expected minimum, seed command
+    # For CSV-based seeds, include csv_path and code_column
+    # ==========================================================================
+
+    # CSV-based seeds (compare against CSV file)
+    csv_seed_checks = [
         {
             'name': 'Units of Measure',
             'csv_path': 'docs/development/units_comprehensive.csv',
@@ -288,10 +293,53 @@ def check_seed_data():
         },
     ]
 
+    # Model-based seeds (check model has minimum expected records)
+    # Format: (name, model_import, expected_min, seed_command, category)
+    model_seed_checks = [
+        # Organization/Core seeds
+        ('Departments', 'from apps.organization.models import Department; print(Department.objects.count())', 10, 'seed_departments', 'Organization'),
+        ('Positions', 'from apps.organization.models import Position; print(Position.objects.count())', 50, 'seed_positions', 'Organization'),
+
+        # Sales seeds
+        ('Customers', 'from apps.sales.models import Customer; print(Customer.objects.count())', 5, 'seed_customers', 'Sales'),
+        ('Rigs', 'from apps.sales.models import Rig; print(Rig.objects.count())', 5, 'seed_rigs', 'Sales'),
+        ('Wells', 'from apps.sales.models import Well; print(Well.objects.count())', 20, 'seed_wells', 'Sales'),
+
+        # Inventory master data seeds
+        ('Condition Types', 'from apps.inventory.models import ConditionType; print(ConditionType.objects.count())', 8, 'seed_condition_types', 'Inventory'),
+        ('Quality Statuses', 'from apps.inventory.models import QualityStatus; print(QualityStatus.objects.count())', 7, 'seed_quality_statuses', 'Inventory'),
+        ('Location Types', 'from apps.inventory.models import LocationType; print(LocationType.objects.count())', 10, 'seed_location_types', 'Inventory'),
+        ('Ownership Types', 'from apps.inventory.models import OwnershipType; print(OwnershipType.objects.count())', 3, 'seed_ownership_types', 'Inventory'),
+        ('Adjustment Reasons', 'from apps.inventory.models import AdjustmentReason; print(AdjustmentReason.objects.count())', 5, 'seed_adjustment_reasons', 'Inventory'),
+        ('Parties', 'from apps.inventory.models import Party; print(Party.objects.count())', 1, 'seed_parties', 'Inventory'),
+
+        # Technology seeds
+        ('Applications', 'from apps.technology.models import Application; print(Application.objects.count())', 15, 'seed_applications', 'Technology'),
+        ('Connection Types', 'from apps.technology.models import ConnectionType; print(ConnectionType.objects.count())', 5, 'seed_connection_types', 'Technology'),
+        ('Connection Sizes', 'from apps.technology.models import ConnectionSize; print(ConnectionSize.objects.count())', 5, 'seed_connection_sizes', 'Technology'),
+        ('Formation Types', 'from apps.technology.models import FormationType; print(FormationType.objects.count())', 5, 'seed_formation_types', 'Technology'),
+        ('IADC Codes', 'from apps.technology.models import IADCCode; print(IADCCode.objects.count())', 10, 'seed_iadc_codes', 'Technology'),
+        ('Pocket Shapes', 'from apps.technology.models import PocketShape; print(PocketShape.objects.count())', 3, 'seed_pocket_shapes', 'Technology'),
+        ('Pocket Sizes', 'from apps.technology.models import PocketSize; print(PocketSize.objects.count())', 5, 'seed_pocket_sizes', 'Technology'),
+        ('Upper Section Types', 'from apps.technology.models import UpperSectionType; print(UpperSectionType.objects.count())', 3, 'seed_upper_section_types', 'Technology'),
+        ('Special Technologies', 'from apps.technology.models import SpecialTechnology; print(SpecialTechnology.objects.count())', 3, 'seed_special_technologies', 'Technology'),
+        ('Breaker Slots', 'from apps.technology.models import BreakerSlot; print(BreakerSlot.objects.count())', 3, 'seed_breaker_slots', 'Technology'),
+
+        # Bit technology seeds (in technology app, managed by workorders commands)
+        ('Bit Sizes', 'from apps.technology.models import BitSize; print(BitSize.objects.count())', 10, 'seed_bit_sizes', 'Technology'),
+        ('Bit Types', 'from apps.technology.models import BitType; print(BitType.objects.count())', 5, 'seed_bit_types', 'Technology'),
+    ]
+
     all_passed = True
     seeds_to_run = []
+    current_category = None
 
-    for seed in seed_checks:
+    # ==========================================================================
+    # Check CSV-based seeds
+    # ==========================================================================
+    print(f"  {CYAN}── CSV-Based Seeds ──{RESET}")
+
+    for seed in csv_seed_checks:
         csv_path = PROJECT_ROOT / seed['csv_path']
 
         # Check if CSV exists
@@ -325,21 +373,60 @@ def check_seed_data():
 
         # Compare counts
         if db_count >= csv_count:
-            print(f"  {GREEN}✓{RESET} {seed['name']}: {db_count} records (CSV has {csv_count})")
+            print(f"  {GREEN}✓{RESET} {seed['name']}: {db_count} records (CSV: {csv_count})")
         else:
             missing = csv_count - db_count
-            print(f"  {YELLOW}⚠{RESET} {seed['name']}: {db_count}/{csv_count} records ({missing} missing)")
-            seeds_to_run.append(seed)
+            print(f"  {YELLOW}⚠{RESET} {seed['name']}: {db_count}/{csv_count} ({missing} missing)")
+            seeds_to_run.append({'name': seed['name'], 'seed_cmd': seed['seed_cmd']})
             all_passed = False
 
+    # ==========================================================================
+    # Check model-based seeds
+    # ==========================================================================
+    print(f"\n  {CYAN}── Model-Based Seeds ──{RESET}")
+
+    for name, count_cmd, expected_min, seed_cmd, category in model_seed_checks:
+        # Print category header if changed
+        if category != current_category:
+            current_category = category
+            print(f"  {BOLD}{category}:{RESET}")
+
+        # Get current database count
+        code, out, err = run_command(f'python -c "import django; django.setup(); {count_cmd}" 2>&1')
+
+        try:
+            db_count = int(out.strip())
+        except ValueError:
+            # Model might not exist or import error
+            if "ModuleNotFoundError" in (out + err) or "ImportError" in (out + err):
+                print(f"    {YELLOW}○{RESET} {name}: Model not found (skip)")
+            else:
+                print(f"    {YELLOW}○{RESET} {name}: Unable to check")
+            continue
+
+        # Compare counts
+        if db_count >= expected_min:
+            print(f"    {GREEN}✓{RESET} {name}: {db_count} records (min: {expected_min})")
+        elif db_count == 0:
+            print(f"    {RED}✗{RESET} {name}: Empty (needs {expected_min}+)")
+            seeds_to_run.append({'name': name, 'seed_cmd': f'python manage.py {seed_cmd}'})
+            all_passed = False
+        else:
+            print(f"    {YELLOW}⚠{RESET} {name}: {db_count} records (expected {expected_min}+)")
+            seeds_to_run.append({'name': name, 'seed_cmd': f'python manage.py {seed_cmd}'})
+            all_passed = False
+
+    # ==========================================================================
     # Offer to run missing seeds
+    # ==========================================================================
     if seeds_to_run:
         print()
         if ask_yes_no(f"Apply {len(seeds_to_run)} pending seed(s) now?"):
             print()
             for seed in seeds_to_run:
-                print(f"  Running: {seed['seed_cmd']}")
-                code = run_interactive(seed['seed_cmd'])
+                cmd = seed['seed_cmd'] if seed['seed_cmd'].startswith('python') else f"python manage.py {seed['seed_cmd']}"
+                print(f"  Running: {cmd}")
+                code = run_interactive(cmd)
                 if code == 0:
                     print(f"  {GREEN}✓{RESET} {seed['name']} seeded successfully\n")
                 else:
