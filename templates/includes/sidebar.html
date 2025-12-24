@@ -19,17 +19,17 @@
            '-translate-x-full lg:translate-x-0': !sidebarOpen
        }">
 
-    <nav class="p-4 space-y-2">
+    <nav class="p-4 space-y-1">
         <!-- Dashboard -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'dashboard' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: false }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700
                            {% if request.resolver_match.app_name == 'dashboard' %}bg-primary-50 dark:bg-primary-900/50 text-primary-700 dark:text-primary-200{% endif %}">
-                <div class="flex items-center">
-                    <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Dashboard</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0 text-indigo-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Dashboard</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'dashboard:main' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -69,14 +69,14 @@
         <!-- ============================================================ -->
         <!-- SALES - Sales & Commercial -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'sales' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'sales' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="briefcase" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Sales</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="briefcase" class="w-5 h-5 flex-shrink-0 text-emerald-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Sales</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <!-- Customer Master Data -->
@@ -122,14 +122,14 @@
         <!-- ============================================================ -->
         <!-- PRODUCTION - Manufacturing Floor -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'workorders' or request.resolver_match.app_name == 'execution' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'workorders' or request.resolver_match.app_name == 'execution' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="factory" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Production</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="factory" class="w-5 h-5 flex-shrink-0 text-orange-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Production</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'workorders:list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Work Orders</a>
@@ -168,14 +168,14 @@
         <!-- ============================================================ -->
         <!-- FC PRODUCTION & REPAIR - Separate Department -->
         <!-- ============================================================ -->
-        <div x-data="{ open: false }" class="space-y-1">
+        <div x-data="{ open: false }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="disc-3" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">FC Production</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="disc-3" class="w-5 h-5 flex-shrink-0 text-amber-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">FC Production</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'workorders:list' %}?type=FC" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">FC Work Orders</a>
@@ -187,14 +187,14 @@
         <!-- ============================================================ -->
         <!-- TECHNICAL - Technical Department -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'technology' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'technology' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="cog" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Technical</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="cog" class="w-5 h-5 flex-shrink-0 text-slate-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Technical</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'technology:design_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Designs</a>
@@ -231,14 +231,14 @@
         <!-- ============================================================ -->
         <!-- QUALITY - Quality Management System -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'quality' or request.resolver_match.app_name == 'compliance' or request.resolver_match.app_name == 'procedures' or request.resolver_match.app_name == 'forms_engine' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'quality' or request.resolver_match.app_name == 'compliance' or request.resolver_match.app_name == 'procedures' or request.resolver_match.app_name == 'forms_engine' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Quality</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-green-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Quality</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'quality:inspection_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Inspections</a>
@@ -267,14 +267,14 @@
         <!-- ============================================================ -->
         <!-- LOGISTICS - Inventory, Purchasing, DRSS, Dispatch -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'inventory' or request.resolver_match.app_name == 'supplychain' or request.resolver_match.app_name == 'dispatch' or request.resolver_match.app_name == 'drss' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'inventory' or request.resolver_match.app_name == 'supplychain' or request.resolver_match.app_name == 'dispatch' or request.resolver_match.app_name == 'drss' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="truck" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Logistics</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="truck" class="w-5 h-5 flex-shrink-0 text-blue-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Logistics</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'inventory:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium">
@@ -423,14 +423,14 @@
         <!-- ============================================================ -->
         <!-- HSSE - Health, Safety, Security, Environment -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'hsse' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'hsse' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="hard-hat" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">HSSE</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="hard-hat" class="w-5 h-5 flex-shrink-0 text-yellow-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">HSSE</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'hsse:incident-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Incidents</a>
@@ -442,14 +442,14 @@
         <!-- ============================================================ -->
         <!-- HR & ADMINISTRATION -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'hr' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'hr' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="users" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">HR & Admin</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="users" class="w-5 h-5 flex-shrink-0 text-pink-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">HR & Admin</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'hr:employee-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Employees</a>
@@ -466,14 +466,14 @@
         <!-- ============================================================ -->
         <!-- PLANNING - Project Management -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'planning' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'planning' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="calendar" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Planning</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="calendar" class="w-5 h-5 flex-shrink-0 text-teal-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Planning</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'planning:board_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Boards</a>
@@ -485,14 +485,14 @@
         <!-- ============================================================ -->
         <!-- DOCUMENTS - Document Control -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'documents' or request.resolver_match.app_name == 'scancodes' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'documents' or request.resolver_match.app_name == 'scancodes' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="file-text" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Documents</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="file-text" class="w-5 h-5 flex-shrink-0 text-cyan-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Documents</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'documents:document_list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Document List</a>
@@ -503,14 +503,14 @@
         <!-- ============================================================ -->
         <!-- REPORTS - Analytics & Reporting -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'reports' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'reports' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="bar-chart-2" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Reports</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="bar-chart-2" class="w-5 h-5 flex-shrink-0 text-purple-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Reports</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'reports:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Dashboard</a>
@@ -525,14 +525,14 @@
         <!-- ============================================================ -->
         <!-- ERP AUTOMATION - Browser Automation -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'erp_automation' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'erp_automation' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="bot" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">ERP Automation</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="bot" class="w-5 h-5 flex-shrink-0 text-rose-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">ERP Automation</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'erp_automation:dashboard' %}" class="block px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium">
@@ -557,14 +557,14 @@
         <!-- ============================================================ -->
         <!-- ORGANIZATION - Settings -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'organization' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'organization' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="building-2" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Organization</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="building-2" class="w-5 h-5 flex-shrink-0 text-stone-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Organization</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'organization:department-list' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Departments</a>
@@ -576,14 +576,14 @@
         <!-- ============================================================ -->
         <!-- ACCOUNT - User Account -->
         <!-- ============================================================ -->
-        <div x-data="{ open: {% if request.resolver_match.app_name == 'accounts' or request.resolver_match.app_name == 'notifications' %}true{% else %}false{% endif %} }" class="space-y-1">
+        <div x-data="{ open: {% if request.resolver_match.app_name == 'accounts' or request.resolver_match.app_name == 'notifications' %}true{% else %}false{% endif %} }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="user" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Account</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="user" class="w-5 h-5 flex-shrink-0 text-sky-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Account</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'accounts:profile' %}" class="block px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">My Profile</a>
@@ -595,14 +595,14 @@
         <!-- ADMIN - Administration (Staff Only) -->
         <!-- ============================================================ -->
         {% if user.is_staff %}
-        <div x-data="{ open: false }" class="space-y-1">
+        <div x-data="{ open: false }" class="space-y-0.5">
             <button @click="open = !open"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center">
-                    <i data-lucide="settings" class="w-5 h-5 flex-shrink-0"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3">Admin</span>
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="settings" class="w-5 h-5 flex-shrink-0 text-red-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate">Admin</span>
                 </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="open && sidebarOpen" x-collapse class="pl-8 space-y-1">
                 <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium">Django Admin</a>

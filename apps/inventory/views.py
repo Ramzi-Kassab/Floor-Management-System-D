@@ -476,8 +476,42 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         if not form.instance.code and form.instance.category:
             form.instance.code = form.instance.category.generate_next_code()
 
+        # Save the form first to get the item object
+        response = super().form_valid(form)
+        item = self.object
+
+        # Process attribute values from POST data
+        for key, value in self.request.POST.items():
+            if key.startswith('attr_') and value:
+                try:
+                    attr_id = int(key.replace('attr_', ''))
+                    category_attr = CategoryAttribute.objects.get(pk=attr_id)
+
+                    # Create the attribute value
+                    attr_value = ItemAttributeValue(
+                        item=item,
+                        attribute=category_attr
+                    )
+
+                    # Set the appropriate value field based on type
+                    if category_attr.attribute_type == 'NUMBER':
+                        attr_value.number_value = value
+                        attr_value.text_value = ''
+                    elif category_attr.attribute_type == 'BOOLEAN':
+                        attr_value.boolean_value = value.lower() in ('true', '1', 'yes', 'on')
+                        attr_value.text_value = ''
+                    elif category_attr.attribute_type == 'DATE':
+                        attr_value.date_value = value
+                        attr_value.text_value = ''
+                    else:
+                        attr_value.text_value = value
+
+                    attr_value.save()
+                except (ValueError, CategoryAttribute.DoesNotExist) as e:
+                    print(f"Error saving attribute {key}: {e}")
+
         messages.success(self.request, f"Item '{form.instance.name}' created successfully.")
-        return super().form_valid(form)
+        return response
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.object.pk})
@@ -1838,10 +1872,30 @@ class CategoryAttributesAPIView(LoginRequiredMixin, View):
 
     def get(self, request, category_pk):
         category = get_object_or_404(InventoryCategory, pk=category_pk)
-        attributes = category.category_attributes.select_related("attribute", "unit").order_by("display_order")
+
+        # Collect all attributes (own + inherited from parents)
+        all_attributes = []
+        seen_codes = set()  # Prevent duplicates
+
+        # Get own attributes first
+        for attr in category.category_attributes.select_related("attribute", "unit").order_by("display_order"):
+            code = attr.attribute.code if attr.attribute else str(attr.pk)
+            if code not in seen_codes:
+                seen_codes.add(code)
+                all_attributes.append(attr)
+
+        # Get inherited attributes from parent categories
+        parent = category.parent
+        while parent:
+            for attr in parent.category_attributes.select_related("attribute", "unit").order_by("display_order"):
+                code = attr.attribute.code if attr.attribute else str(attr.pk)
+                if code not in seen_codes:
+                    seen_codes.add(code)
+                    all_attributes.append(attr)
+            parent = parent.parent
 
         data = []
-        for attr in attributes:
+        for attr in all_attributes:
             data.append({
                 "id": attr.id,
                 "code": attr.attribute.code if attr.attribute else "",
