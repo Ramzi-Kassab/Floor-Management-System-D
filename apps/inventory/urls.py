@@ -220,4 +220,12 @@ urlpatterns = [
     path("api/items/lookup/", views.ItemLookupAPIView.as_view(), name="api_item_lookup"),
     path("api/ledger/entries/", views.LedgerEntriesAPIView.as_view(), name="api_ledger_entries"),
     path("api/low-stock/", views.LowStockAPIView.as_view(), name="api_low_stock"),
+
+    # =========================================================================
+    # POCKET/MOBILE ACCESS (QR Code Scan)
+    # =========================================================================
+    path("pocket/login/", views.PocketLoginView.as_view(), name="pocket_login"),
+    path("pocket/logout/", views.PocketLogoutView.as_view(), name="pocket_logout"),
+    path("pocket/item/<int:pk>/", views.PocketItemView.as_view(), name="pocket_item"),
+    path("pocket/item/<int:pk>/action/", views.PocketQuickActionView.as_view(), name="pocket_action"),
 ]

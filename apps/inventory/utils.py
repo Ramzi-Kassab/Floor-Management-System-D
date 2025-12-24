@@ -111,26 +111,32 @@ def generate_placeholder_barcode():
     return f"data:image/svg+xml;base64,{encoded}"
 
 
-def generate_inventory_item_qr(item, base_url=None):
+def generate_inventory_item_qr(item, base_url=None, use_pocket=True):
     """
     Generate QR code for an inventory item.
 
     Args:
         item: InventoryItem instance
-        base_url: Base URL for the site
+        base_url: Base URL for the site (required for scannable URLs)
+        use_pocket: If True, generates pocket/mobile URL (default True)
 
     Returns:
         Base64-encoded QR code data URL
     """
     from django.urls import reverse
 
-    relative_url = reverse("inventory:item_detail", kwargs={"pk": item.pk})
+    # Use pocket URL for mobile-friendly scanning, or item_detail for desktop
+    if use_pocket:
+        relative_url = reverse("inventory:pocket_item", kwargs={"pk": item.pk})
+    else:
+        relative_url = reverse("inventory:item_detail", kwargs={"pk": item.pk})
 
     if base_url:
         url = f"{base_url.rstrip('/')}{relative_url}"
     else:
-        # Use item code for offline scanning
-        url = f"ARDT-INV:{item.code}"
+        # Use relative URL with protocol hint for scanning
+        # Format: ARDT-INV:item_code:item_pk (for offline scanning)
+        url = f"ARDT-INV:{item.code}:{item.pk}"
 
     return generate_qr_code_base64(url)
 

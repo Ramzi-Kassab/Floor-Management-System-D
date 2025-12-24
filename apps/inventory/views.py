@@ -418,8 +418,9 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
             })
         context["identifiers"] = identifiers_with_images
 
-        # Generate default QR code for the item itself
-        context["item_qr_code"] = generate_inventory_item_qr(item)
+        # Generate default QR code for the item itself (pointing to pocket/mobile view)
+        base_url = self.request.build_absolute_uri('/')[:-1]  # Get base URL like https://example.com
+        context["item_qr_code"] = generate_inventory_item_qr(item, base_url=base_url)
 
         # NEW: Bit Spec (if exists)
         try:
@@ -4176,3 +4177,342 @@ class LowStockAPIView(LoginRequiredMixin, View):
             })
 
         return JsonResponse({"low_stock_items": data, "count": len(data)})
+
+
+# =============================================================================
+# POCKET/MOBILE VIEWS
+# =============================================================================
+
+
+class PocketItemView(View):
+    """
+    Mobile-optimized item view accessed via QR code scan.
+    Supports device-based authentication for returning users.
+    """
+    template_name = "inventory/pocket/item_detail.html"
+
+    def get_client_ip(self, request):
+        """Get client IP address from request."""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR')
+
+    def get_device_info(self, request):
+        """Extract device info from user agent."""
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        device_type = 'desktop'
+        device_os = 'Unknown'
+
+        ua_lower = user_agent.lower()
+        if 'mobile' in ua_lower or 'android' in ua_lower:
+            device_type = 'mobile'
+        elif 'tablet' in ua_lower or 'ipad' in ua_lower:
+            device_type = 'tablet'
+
+        if 'iphone' in ua_lower or 'ipad' in ua_lower:
+            device_os = 'iOS'
+        elif 'android' in ua_lower:
+            device_os = 'Android'
+        elif 'windows' in ua_lower:
+            device_os = 'Windows'
+        elif 'mac' in ua_lower:
+            device_os = 'macOS'
+        elif 'linux' in ua_lower:
+            device_os = 'Linux'
+
+        return {
+            'type': device_type,
+            'os': device_os,
+            'user_agent': user_agent[:500]
+        }
+
+    def check_device_auth(self, request):
+        """Check if device is trusted and return user if authenticated."""
+        from apps.accounts.models import TrustedDevice
+
+        device_token = request.COOKIES.get('device_token')
+        if not device_token:
+            return None
+
+        try:
+            trusted = TrustedDevice.objects.select_related('user').get(
+                device_token=device_token,
+                is_active=True
+            )
+            if trusted.is_valid:
+                trusted.update_last_used(self.get_client_ip(request))
+                return trusted.user
+        except TrustedDevice.DoesNotExist:
+            pass
+
+        return None
+
+    def get(self, request, pk):
+        from apps.inventory.utils import generate_qr_code_base64
+
+        # Check device-based auth first
+        device_user = self.check_device_auth(request)
+
+        # If not device authenticated and not logged in, redirect to pocket login
+        if not device_user and not request.user.is_authenticated:
+            return redirect(f"{reverse('inventory:pocket_login')}?next={request.path}&item={pk}")
+
+        # Use device user or logged-in user
+        current_user = device_user or request.user
+
+        # Get item
+        item = get_object_or_404(InventoryItem.objects.select_related(
+            'category', 'primary_supplier'
+        ), pk=pk, is_active=True)
+
+        # Get stock info
+        stock_records = InventoryStock.objects.filter(item=item).select_related(
+            'location', 'location__warehouse'
+        )
+        total_stock = stock_records.aggregate(total=models.Sum('quantity'))['total'] or 0
+
+        # Generate QR code
+        qr_code = generate_qr_code_base64(item.code, size=6, border=2)
+
+        # Get device info
+        device_info = self.get_device_info(request)
+
+        context = {
+            'item': item,
+            'total_stock': total_stock,
+            'stock_records': stock_records[:5],
+            'qr_code': qr_code,
+            'current_user': current_user,
+            'device_info': device_info,
+            'is_mobile': device_info['type'] in ('mobile', 'tablet'),
+        }
+
+        return render(request, self.template_name, context)
+
+
+class PocketLoginView(View):
+    """Login page for pocket/mobile access with device trust option."""
+    template_name = "inventory/pocket/login.html"
+
+    def get(self, request):
+        if request.user.is_authenticated:
+            next_url = request.GET.get('next', reverse('inventory:item_list'))
+            return redirect(next_url)
+
+        context = {
+            'next': request.GET.get('next', ''),
+            'item_id': request.GET.get('item', ''),
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request):
+        from django.contrib.auth import authenticate, login
+        from apps.accounts.models import TrustedDevice
+
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+        remember_device = request.POST.get('remember_device') == 'on'
+        next_url = request.POST.get('next', '') or reverse('inventory:item_list')
+
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            login(request, user)
+
+            response = redirect(next_url)
+
+            # Create trusted device if requested
+            if remember_device:
+                user_agent = request.META.get('HTTP_USER_AGENT', '')
+                device_type = 'mobile' if 'mobile' in user_agent.lower() else 'desktop'
+                device_os = 'Unknown'
+                if 'android' in user_agent.lower():
+                    device_os = 'Android'
+                elif 'iphone' in user_agent.lower() or 'ipad' in user_agent.lower():
+                    device_os = 'iOS'
+
+                device_token = TrustedDevice.generate_token()
+                TrustedDevice.objects.create(
+                    user=user,
+                    device_token=device_token,
+                    device_name=f"{device_os} {device_type.title()}",
+                    device_type=device_type,
+                    device_os=device_os,
+                    user_agent=user_agent[:500],
+                    last_ip=request.META.get('REMOTE_ADDR'),
+                )
+
+                # Set cookie (1 year expiry)
+                response.set_cookie(
+                    'device_token',
+                    device_token,
+                    max_age=365 * 24 * 60 * 60,
+                    httponly=True,
+                    samesite='Lax',
+                    secure=request.is_secure()
+                )
+
+            return response
+        else:
+            context = {
+                'error': 'Invalid username or password',
+                'next': next_url,
+                'username': username,
+            }
+            return render(request, self.template_name, context)
+
+
+class PocketQuickActionView(View):
+    """API endpoint for quick actions from pocket view."""
+
+    def check_auth(self, request):
+        """Check if user is authenticated (either via session or device token)."""
+        from apps.accounts.models import TrustedDevice
+
+        if request.user.is_authenticated:
+            return request.user
+
+        device_token = request.COOKIES.get('device_token')
+        if device_token:
+            try:
+                trusted = TrustedDevice.objects.select_related('user').get(
+                    device_token=device_token,
+                    is_active=True
+                )
+                if trusted.is_valid:
+                    return trusted.user
+            except TrustedDevice.DoesNotExist:
+                pass
+
+        return None
+
+    def post(self, request, pk):
+        import json
+
+        user = self.check_auth(request)
+        if not user:
+            return JsonResponse({'success': False, 'error': 'Authentication required'}, status=401)
+
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            data = {}
+
+        action = data.get('action') or request.POST.get('action')
+        quantity = data.get('quantity') or request.POST.get('quantity')
+        location_id = data.get('location_id') or request.POST.get('location_id')
+        notes = data.get('notes') or request.POST.get('notes', '')
+
+        if not action:
+            return JsonResponse({'success': False, 'error': 'Action required'}, status=400)
+
+        item = get_object_or_404(InventoryItem, pk=pk, is_active=True)
+
+        if action == 'view':
+            # Just return item info
+            return JsonResponse({
+                'success': True,
+                'item': {
+                    'id': item.pk,
+                    'code': item.code,
+                    'name': item.name,
+                    'category': item.category.name if item.category else None,
+                    'unit': item.unit,
+                    'total_stock': float(item.total_stock),
+                }
+            })
+
+        elif action in ('consume', 'add', 'adjust'):
+            if not quantity:
+                return JsonResponse({'success': False, 'error': 'Quantity required'}, status=400)
+
+            try:
+                qty = Decimal(str(quantity))
+                if qty <= 0:
+                    raise ValueError("Quantity must be positive")
+            except (ValueError, InvalidOperation) as e:
+                return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+            # Get or create default location
+            if location_id:
+                location = get_object_or_404(InventoryLocation, pk=location_id)
+            else:
+                location = InventoryLocation.objects.filter(is_default=True).first()
+                if not location:
+                    return JsonResponse({'success': False, 'error': 'No location specified and no default location set'}, status=400)
+
+            # Determine transaction type
+            if action == 'consume':
+                trans_type = 'ISSUE'
+                qty = -abs(qty)
+            elif action == 'add':
+                trans_type = 'RECEIPT'
+                qty = abs(qty)
+            else:
+                trans_type = 'ADJUSTMENT'
+
+            # Create transaction
+            transaction = InventoryTransaction.objects.create(
+                item=item,
+                location=location,
+                transaction_type=trans_type,
+                quantity=qty,
+                reference_number=f"POCKET-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                notes=f"[Pocket] {notes}" if notes else "[Pocket Quick Action]",
+                created_by=user,
+            )
+
+            # Update stock
+            stock, _ = InventoryStock.objects.get_or_create(
+                item=item,
+                location=location,
+                defaults={'quantity': 0}
+            )
+            stock.quantity = F('quantity') + qty
+            stock.save()
+            stock.refresh_from_db()
+
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully {"consumed" if action == "consume" else "added"} {abs(qty)} {item.unit}',
+                'transaction_id': transaction.pk,
+                'new_stock': float(stock.quantity),
+            })
+
+        elif action == 'conserve':
+            # Mark item for conservation/review
+            return JsonResponse({
+                'success': True,
+                'message': f'Item {item.code} marked for conservation review',
+                'action': 'conserve',
+            })
+
+        else:
+            return JsonResponse({'success': False, 'error': f'Unknown action: {action}'}, status=400)
+
+
+class PocketLogoutView(View):
+    """Logout and optionally remove device trust."""
+
+    def post(self, request):
+        from django.contrib.auth import logout
+        from apps.accounts.models import TrustedDevice
+
+        remove_trust = request.POST.get('remove_trust') == 'on'
+
+        # Remove device trust if requested
+        if remove_trust:
+            device_token = request.COOKIES.get('device_token')
+            if device_token:
+                TrustedDevice.objects.filter(device_token=device_token).update(is_active=False)
+
+        logout(request)
+
+        response = redirect(reverse('inventory:pocket_login'))
+
+        # Clear device cookie if removing trust
+        if remove_trust:
+            response.delete_cookie('device_token')
+
+        return response
