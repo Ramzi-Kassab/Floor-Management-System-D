@@ -115,7 +115,7 @@
         </div>
         <div>
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Warehouse</p>
-            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.warehouse.name }}</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{% if grn.warehouse %}{{ grn.warehouse.name }}{% else %}-{% endif %}</p>
         </div>
         <div>
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Receipt Date</p>
@@ -123,7 +123,7 @@
         </div>
         <div>
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Vendor/Supplier</p>
-            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.vendor.name|default:grn.supplier.name|default:"-" }}</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{% if grn.vendor %}{{ grn.vendor.name }}{% elif grn.supplier %}{{ grn.supplier.name }}{% else %}-{% endif %}</p>
         </div>
         {% if grn.purchase_order %}
         <div>
@@ -147,11 +147,11 @@
         </div>
         <div>
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Owner Party</p>
-            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.owner_party.name|default:"-" }}</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{% if grn.owner_party %}{{ grn.owner_party.name }}{% else %}-{% endif %}</p>
         </div>
         <div>
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ownership Type</p>
-            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ grn.ownership_type.name|default:"-" }}</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{% if grn.ownership_type %}{{ grn.ownership_type.name }}{% else %}-{% endif %}</p>
         </div>
         <div>
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created By</p>
@@ -202,14 +202,14 @@
             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                 {% for line in lines %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{{ line.item.code }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ line.location.code }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ line.lot.lot_number|default:"-" }}</td>
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{% if line.item %}{{ line.item.code }}{% else %}-{% endif %}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{% if line.location %}{{ line.location.code }}{% else %}-{% endif %}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{% if line.lot %}{{ line.lot.lot_number }}{% else %}-{% endif %}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-300">{{ line.qty_expected }}</td>
                     <td class="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-white">{{ line.qty_received }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-300">{{ line.unit_cost }}</td>
                     <td class="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-white">{{ line.total_cost }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ line.condition.code|default:"-" }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{% if line.condition %}{{ line.condition.code }}{% else %}-{% endif %}</td>
                     <td class="px-4 py-3 text-sm">
                         {% if line.line_qc_status %}
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
@@ -223,7 +223,7 @@
                         <span class="text-xs text-gray-500 ml-1">({{ line.qty_accepted|default:0|floatformat:0 }}/{{ line.qty_rejected|default:0|floatformat:0 }})</span>
                         {% endif %}
                         {% else %}
-                        <span class="text-gray-400">{{ line.quality_status.code|default:"-" }}</span>
+                        <span class="text-gray-400">{% if line.quality_status %}{{ line.quality_status.code }}{% else %}-{% endif %}</span>
                         {% endif %}
                     </td>
                     <td class="px-4 py-3 text-center">
