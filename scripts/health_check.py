@@ -326,8 +326,8 @@ def check_seed_data():
         ('Breaker Slots', 'from apps.technology.models import BreakerSlot; print(BreakerSlot.objects.count())', 3, 'seed_breaker_slots', 'Technology'),
 
         # Bit technology seeds (in technology app, managed by workorders commands)
-        ('Bit Sizes', 'from apps.technology.models import BitSize; print(BitSize.objects.count())', 10, 'seed_bit_sizes', 'Technology'),
-        ('Bit Types', 'from apps.technology.models import BitType; print(BitType.objects.count())', 5, 'seed_bit_types', 'Technology'),
+        ('Bit Sizes', 'from apps.technology.models import BitSize; print(BitSize.objects.count())', 15, 'seed_bit_sizes', 'Technology'),
+        ('Bit Types', 'from apps.technology.models import BitType; print(BitType.objects.count())', 30, 'seed_bit_types', 'Technology'),
 
         # Procurement/Supply Chain seeds (test data for PR→PO→GRN workflow)
         ('Vendors', 'from apps.supplychain.models import Vendor; print(Vendor.objects.count())', 1, 'seed_procurement_workflow', 'Procurement'),
