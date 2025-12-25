@@ -33,6 +33,14 @@ DEBUG = env('DEBUG')
 
 ALLOWED_HOSTS = env('ALLOWED_HOSTS')
 
+# CSRF trusted origins for GitHub Codespaces and other proxy environments
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.app.github.dev',
+    'https://*.github.dev',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+
 # =============================================================================
 # APPLICATION DEFINITION
 # =============================================================================
