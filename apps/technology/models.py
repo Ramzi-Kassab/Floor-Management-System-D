@@ -1277,3 +1277,196 @@ class DesignPocket(models.Model):
 
     def __str__(self):
         return f"{self.design.hdbs_type} - B{self.blade_number}R{self.row_number}P{self.position_in_row}"
+
+
+# =============================================================================
+# ACCOUNT & DESIGN-TYPE JUNCTION TABLES
+# =============================================================================
+
+
+class Account(models.Model):
+    """
+    Aramco division accounts.
+    Accounts are used to track which SMI types are used by which Aramco division.
+    Examples: Oil, Gas, LSTK, Offshore
+    """
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        verbose_name='Account Code',
+        help_text='Short code (e.g., OIL, GAS, LSTK, OFFSHORE)'
+    )
+    name = models.CharField(
+        max_length=100,
+        verbose_name='Account Name',
+        help_text='Full name (e.g., Oil Division, Gas Division)'
+    )
+    name_ar = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name='Arabic Name',
+        help_text='Name in Arabic'
+    )
+    sales_leader = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='led_accounts',
+        verbose_name='Sales Leader',
+        help_text='Primary sales contact for this account'
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "accounts"
+        ordering = ['code']
+        verbose_name = "Account"
+        verbose_name_plural = "Accounts"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class DesignHDBS(models.Model):
+    """
+    Junction table linking Design (MAT NO) to HDBSType.
+    One Design has ONE current HDBS type (1:1 relationship).
+    Historical HDBS assignments are kept with is_current=False.
+    """
+    design = models.ForeignKey(
+        Design,
+        on_delete=models.CASCADE,
+        related_name='hdbs_assignments',
+        verbose_name='Design'
+    )
+    hdbs_type = models.ForeignKey(
+        HDBSType,
+        on_delete=models.CASCADE,
+        related_name='design_assignments',
+        verbose_name='HDBS Type'
+    )
+    is_current = models.BooleanField(
+        default=True,
+        verbose_name='Is Current',
+        help_text='Whether this is the current HDBS type for this design'
+    )
+    assigned_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Assigned At'
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='hdbs_assignments',
+        verbose_name='Assigned By'
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "design_hdbs"
+        ordering = ['design', '-assigned_at']
+        verbose_name = "Design HDBS Assignment"
+        verbose_name_plural = "Design HDBS Assignments"
+        # Only one current HDBS per design
+        constraints = [
+            models.UniqueConstraint(
+                fields=['design'],
+                condition=models.Q(is_current=True),
+                name='unique_current_hdbs_per_design'
+            )
+        ]
+
+    def __str__(self):
+        status = "(current)" if self.is_current else "(historical)"
+        return f"{self.design.mat_no} -> {self.hdbs_type.hdbs_name} {status}"
+
+    def save(self, *args, **kwargs):
+        # If this is being set as current, mark other assignments as not current
+        if self.is_current:
+            DesignHDBS.objects.filter(
+                design=self.design,
+                is_current=True
+            ).exclude(pk=self.pk).update(is_current=False)
+        super().save(*args, **kwargs)
+
+
+class DesignSMI(models.Model):
+    """
+    Junction table linking Design (MAT NO) to SMIType.
+    One Design has ONE current SMI type per Account (or global if no account).
+    Changing SMI type creates a new design variant (new MAT NO).
+    """
+    design = models.ForeignKey(
+        Design,
+        on_delete=models.CASCADE,
+        related_name='smi_assignments',
+        verbose_name='Design'
+    )
+    smi_type = models.ForeignKey(
+        SMIType,
+        on_delete=models.CASCADE,
+        related_name='design_assignments',
+        verbose_name='SMI Type'
+    )
+    account = models.ForeignKey(
+        Account,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='smi_assignments',
+        verbose_name='Account',
+        help_text='Aramco division (leave blank for global SMI)'
+    )
+    is_current = models.BooleanField(
+        default=True,
+        verbose_name='Is Current',
+        help_text='Whether this is the current SMI type for this design/account'
+    )
+    assigned_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Assigned At'
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='smi_assignments',
+        verbose_name='Assigned By'
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "design_smi"
+        ordering = ['design', 'account', '-assigned_at']
+        verbose_name = "Design SMI Assignment"
+        verbose_name_plural = "Design SMI Assignments"
+        # Only one current SMI per design+account combination
+        constraints = [
+            models.UniqueConstraint(
+                fields=['design', 'account'],
+                condition=models.Q(is_current=True),
+                name='unique_current_smi_per_design_account'
+            )
+        ]
+
+    def __str__(self):
+        account_str = f" [{self.account.code}]" if self.account else " [Global]"
+        status = "(current)" if self.is_current else "(historical)"
+        return f"{self.design.mat_no} -> {self.smi_type.smi_name}{account_str} {status}"
+
+    def save(self, *args, **kwargs):
+        # If this is being set as current, mark other assignments for same design+account as not current
+        if self.is_current:
+            DesignSMI.objects.filter(
+                design=self.design,
+                account=self.account,
+                is_current=True
+            ).exclude(pk=self.pk).update(is_current=False)
+        super().save(*args, **kwargs)

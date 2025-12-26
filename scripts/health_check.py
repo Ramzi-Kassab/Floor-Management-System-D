@@ -329,6 +329,8 @@ def check_seed_data():
         ('Bit Sizes', 'from apps.technology.models import BitSize; print(BitSize.objects.count())', 15, 'seed_bit_sizes', 'Technology'),
         # NOTE: BitType is DEPRECATED - use HDBSType/SMIType instead. Setting min=0 to make optional.
         ('Bit Types (Legacy)', 'from apps.technology.models import BitType; print(BitType.objects.count())', 0, 'seed_bit_types', 'Technology'),
+        # Aramco division accounts (Oil, Gas, LSTK, Offshore)
+        ('Accounts', 'from apps.technology.models import Account; print(Account.objects.count())', 4, 'seed_accounts', 'Technology'),
 
         # Procurement/Supply Chain seeds (test data for PR→PO→GRN workflow)
         ('Vendors', 'from apps.supplychain.models import Vendor; print(Vendor.objects.count())', 1, 'seed_procurement_workflow', 'Procurement'),

@@ -7,7 +7,10 @@ Forms for Design, BOM, and Cutter Layout management.
 
 from django import forms
 
-from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, Design, DesignCutterLayout, HDBSType, SMIType
+from .models import (
+    BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, Design,
+    DesignCutterLayout, HDBSType, SMIType, Account, DesignHDBS, DesignSMI
+)
 
 # Tailwind CSS classes
 TAILWIND_INPUT = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -437,3 +440,107 @@ class SMITypeForm(forms.ModelForm):
         self.fields["size"].required = True  # Size is required for SMI types
         # Only show active sizes
         self.fields["size"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+
+
+class AccountForm(forms.ModelForm):
+    """Form for creating and editing Aramco Division Accounts."""
+
+    class Meta:
+        model = Account
+        fields = [
+            "code",
+            "name",
+            "name_ar",
+            "sales_leader",
+            "description",
+            "is_active",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., OIL, GAS"}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., Oil Division"}),
+            "name_ar": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Arabic name", "dir": "rtl"}),
+            "sales_leader": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
+        }
+        labels = {
+            "code": "Account Code",
+            "name": "Account Name",
+            "name_ar": "Arabic Name",
+            "sales_leader": "Sales Leader",
+            "description": "Description",
+            "is_active": "Active",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["name_ar"].required = False
+        self.fields["sales_leader"].required = False
+        self.fields["description"].required = False
+
+
+class DesignHDBSForm(forms.ModelForm):
+    """Form for assigning HDBS Type to a Design."""
+
+    class Meta:
+        model = DesignHDBS
+        fields = [
+            "design",
+            "hdbs_type",
+            "is_current",
+            "notes",
+        ]
+        widgets = {
+            "design": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "hdbs_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "is_current": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+        }
+        labels = {
+            "design": "Design (MAT No.)",
+            "hdbs_type": "HDBS Type",
+            "is_current": "Current Assignment",
+            "notes": "Notes",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["notes"].required = False
+        # Only show active HDBS types
+        self.fields["hdbs_type"].queryset = HDBSType.objects.filter(is_active=True).order_by("hdbs_name")
+
+
+class DesignSMIForm(forms.ModelForm):
+    """Form for assigning SMI Type to a Design (with optional Account)."""
+
+    class Meta:
+        model = DesignSMI
+        fields = [
+            "design",
+            "smi_type",
+            "account",
+            "is_current",
+            "notes",
+        ]
+        widgets = {
+            "design": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "smi_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "account": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "is_current": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+        }
+        labels = {
+            "design": "Design (MAT No.)",
+            "smi_type": "SMI Type",
+            "account": "Account (Aramco Division)",
+            "is_current": "Current Assignment",
+            "notes": "Notes",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["account"].required = False  # Global if no account
+        self.fields["notes"].required = False
+        # Only show active SMI types and accounts
+        self.fields["smi_type"].queryset = SMIType.objects.filter(is_active=True).select_related("hdbs_type", "size")
+        self.fields["account"].queryset = Account.objects.filter(is_active=True).order_by("code")
