@@ -325,9 +325,10 @@ def check_seed_data():
         ('Special Technologies', 'from apps.technology.models import SpecialTechnology; print(SpecialTechnology.objects.count())', 3, 'seed_special_technologies', 'Technology'),
         ('Breaker Slots', 'from apps.technology.models import BreakerSlot; print(BreakerSlot.objects.count())', 3, 'seed_breaker_slots', 'Technology'),
 
-        # Bit technology seeds (in technology app, managed by workorders commands)
+        # Bit technology seeds
         ('Bit Sizes', 'from apps.technology.models import BitSize; print(BitSize.objects.count())', 15, 'seed_bit_sizes', 'Technology'),
-        ('Bit Types', 'from apps.technology.models import BitType; print(BitType.objects.count())', 30, 'seed_bit_types', 'Technology'),
+        # NOTE: BitType is DEPRECATED - use HDBSType/SMIType instead. Setting min=0 to make optional.
+        ('Bit Types (Legacy)', 'from apps.technology.models import BitType; print(BitType.objects.count())', 0, 'seed_bit_types', 'Technology'),
 
         # Procurement/Supply Chain seeds (test data for PR→PO→GRN workflow)
         ('Vendors', 'from apps.supplychain.models import Vendor; print(Vendor.objects.count())', 1, 'seed_procurement_workflow', 'Procurement'),
