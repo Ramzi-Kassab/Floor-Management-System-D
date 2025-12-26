@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center gap-4 mb-6">
+    <a href="{% url 'technology:account_list' %}" class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+    </a>
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Aramco Division Account</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Main Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="building-2" class="w-5 h-5"></i>
+                    Account Information
+                </h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Account Code <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.code }}</div>
+                        <p class="mt-1 text-xs text-gray-500">e.g., OIL, GAS, LSTK, OFFSHORE</p>
+                        {% if form.code.errors %}<p class="mt-1 text-sm text-red-600">{{ form.code.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Account Name <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.name }}</div>
+                        {% if form.name.errors %}<p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Arabic Name</label>
+                        <div class="mt-1">{{ form.name_ar }}</div>
+                        {% if form.name_ar.errors %}<p class="mt-1 text-sm text-red-600">{{ form.name_ar.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Sales Leader</label>
+                        <div class="mt-1">{{ form.sales_leader }}</div>
+                        {% if form.sales_leader.errors %}<p class="mt-1 text-sm text-red-600">{{ form.sales_leader.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                    <div class="mt-1">{{ form.description }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                    Settings
+                </h3>
+            </div>
+            <div class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                    {{ form.is_active }}
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Active</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'technology:account_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</a>
+            <button type="submit" class="px-6 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                {{ submit_text }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
