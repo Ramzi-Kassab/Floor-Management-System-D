@@ -70,7 +70,7 @@ class HDBSType(models.Model):
     """
     HDBS Type - Internal Halliburton naming for bit types.
     One HDBS type can have multiple SMI names (1-to-many).
-    One HDBS type can work with multiple sizes (M2M).
+    One HDBS type can work with multiple sizes (M2M) - at least one required.
     """
     hdbs_name = models.CharField(
         max_length=50,
@@ -80,10 +80,9 @@ class HDBSType(models.Model):
     )
     sizes = models.ManyToManyField(
         'BitSize',
-        blank=True,
         related_name="hdbs_types",
         verbose_name="Compatible Sizes",
-        help_text="Bit sizes this type is available in"
+        help_text="Bit sizes this type is available in (at least one required)"
     )
     description = models.TextField(
         blank=True,
@@ -106,7 +105,7 @@ class HDBSType(models.Model):
 class SMIType(models.Model):
     """
     SMI Type - Client-facing naming for bit types.
-    Linked to HDBS Type and optionally to a specific Size.
+    Linked to HDBS Type and a specific Size.
     Different sizes of the same HDBS type can have different SMI names.
     """
     smi_name = models.CharField(
@@ -126,9 +125,7 @@ class SMIType(models.Model):
         on_delete=models.CASCADE,
         related_name="smi_types",
         verbose_name="Size",
-        null=True,
-        blank=True,
-        help_text="Specific size for this SMI name (leave blank for all sizes)"
+        help_text="Specific size for this SMI name (required)"
     )
     description = models.TextField(
         blank=True,

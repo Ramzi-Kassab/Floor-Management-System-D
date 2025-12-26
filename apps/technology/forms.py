@@ -391,10 +391,17 @@ class HDBSTypeForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["sizes"].required = False
+        self.fields["sizes"].required = True  # At least one size is required
         self.fields["description"].required = False
         # Only show active sizes
         self.fields["sizes"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+
+    def clean_sizes(self):
+        """Validate that at least one size is selected."""
+        sizes = self.cleaned_data.get("sizes")
+        if not sizes or sizes.count() == 0:
+            raise forms.ValidationError("At least one size must be selected.")
+        return sizes
 
 
 class SMITypeForm(forms.ModelForm):
@@ -427,6 +434,6 @@ class SMITypeForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["description"].required = False
-        self.fields["size"].required = False
+        self.fields["size"].required = True  # Size is required for SMI types
         # Only show active sizes
         self.fields["size"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")
