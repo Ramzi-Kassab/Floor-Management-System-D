@@ -1,0 +1,586 @@
+{% extends 'base.html' %}
+
+{% block title %}Dictionaries Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Dictionaries Management</h2>
+    
+    <!-- =========================================
+         1) EDIT DICTIONARY SECTION (HIDDEN)
+         A table-based editor for an existing dictionary
+    ========================================== -->
+    <div class="card mb-4" id="edit-dictionary-section" style="display: none;">
+        <div class="card-header">
+            <h3>Edit Dictionary</h3>
+        </div>
+        <div class="card-body">
+            {% if error and edit_mode %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endif %}
+            
+            <form method="post" action="{{ url_for('dictionaries_route') }}" id="editDictionaryForm">
+                <!-- "action=update" => updating an existing dictionary. -->
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" id="edit-dict-name" name="dict_name">
+                
+                <div class="mt-3">
+                    <label><strong>Dictionary Template (Editing Key/Value pairs)</strong></label>
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="editTemplateTable">
+                            <thead>
+                                <tr>
+                                    <th width="30%">Key</th>
+                                    <th width="60%">Value</th>
+                                    <th width="10%">Type</th>
+                                </tr>
+                            </thead>
+                            <tbody id="editTemplateTableBody">
+                                <!-- Populated by JavaScript when user clicks "Edit Dictionary" -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary mt-3">Save Changes</button>
+                <button type="button" class="btn btn-secondary mt-3" onclick="hideEditForm()">Cancel</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- =========================================
+         2) "ADD NEW DICTIONARY" (COLLAPSIBLE)
+         Expand/Collapse with a Bootstrap Accordion
+    ========================================== -->
+    <div class="accordion mb-4" id="addDictionaryAccordion">
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingAddDict">
+          <button class="accordion-button collapsed" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#collapseAddDict"
+                  aria-expanded="false" aria-controls="collapseAddDict">
+            <strong>Add New Dictionary</strong>
+          </button>
+        </h2>
+        <div id="collapseAddDict" class="accordion-collapse collapse"
+             aria-labelledby="headingAddDict" data-bs-parent="#addDictionaryAccordion">
+          <div class="accordion-body">
+            
+            {% if error and not edit_mode %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endif %}
+
+            <form method="post" action="{{ url_for('dictionaries_route') }}" id="addDictionaryForm">
+                <input type="hidden" name="action" value="save">
+                
+                <div class="mb-3">
+                    <label for="dict_name" class="form-label">Dictionary Name</label>
+                    <input type="text" class="form-control" id="dict_name" name="dict_name" required>
+                </div>
+                
+                <!-- FULL TABLE WITH ALL PARAMETERS -->
+                <div class="mt-3">
+                    <label><strong>Dictionary Template (All Parameters)</strong></label>
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="templateTable">
+                            <thead>
+                                <tr>
+                                    <th width="30%">Key</th>
+                                    <th width="60%">Value</th>
+                                    <th width="10%">Type</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- EXACTLY ALL FIELDS you used in old approach -->
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="name" readonly></td>
+                                    <td><input type="text" class="form-control" name="template_values[]"></td>
+                                    <td><span class="badge bg-info">text</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="locator" readonly></td>
+                                    <td>
+									<select class="form-select locator-dropdown" name="template_values[]">
+									  <option value="">--None--</option>
+									  {% for loc_name in locator_names %}
+										<option value="{{ loc_name }}">{{ loc_name }}</option>
+									  {% endfor %}
+									</select>
+									</td>
+                                    <td><span class="badge bg-info">text</span></td>
+                                    <td><span class="badge bg-info">text</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="option" readonly></td>
+									<td>
+									  <div class="input-group">
+										<input type="text" class="form-control" name="template_values[]">
+										<button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" tabindex="-1">Insert</button>
+										<ul class="dropdown-menu">
+										  {% for col in session.get('last_column_order', []) %}
+											<li><a class="dropdown-item" href="#" onclick="insertAtCursor(this, '{{ '{{' }}{{ col }}{{ '}}' }}')">{{ col }}</a></li>
+										  {% endfor %}
+										</ul>
+									  </div>
+									</td>
+                                    <td><span class="badge bg-info">text</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="enter" readonly></td>
+                                    <td><input type="text" class="form-control" name="template_values[]"></td>
+                                    <td><span class="badge bg-info">text</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="key1" readonly></td>
+                                    <td><input type="text" class="form-control" name="template_values[]"></td>
+                                    <td><span class="badge bg-info">text</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="key2" readonly></td>
+                                    <td><input type="text" class="form-control" name="template_values[]"></td>
+                                    <td><span class="badge bg-info">text</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="key3" readonly></td>
+                                    <td><input type="text" class="form-control" name="template_values[]"></td>
+                                    <td><span class="badge bg-info">text</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="max_retries" readonly></td>
+                                    <td><input type="number" class="form-control" name="template_values[]" value="3"></td>
+                                    <td><span class="badge bg-warning">number</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="manual_option" readonly></td>
+                                    <td>
+                                        <select class="form-control" name="template_values[]">
+                                            <option value="true">True</option>
+                                            <option value="false" selected>False</option>
+                                        </select>
+                                    </td>
+                                    <td><span class="badge bg-success">boolean</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="clear_option" readonly></td>
+                                    <td>
+                                        <select class="form-control" name="template_values[]">
+                                            <option value="true">True</option>
+                                            <option value="false" selected>False</option>
+                                        </select>
+                                    </td>
+                                    <td><span class="badge bg-success">boolean</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="delay" readonly></td>
+                                    <td><input type="number" class="form-control" name="template_values[]" value="1" step="0.1"></td>
+                                    <td><span class="badge bg-warning">number</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="sleep1" readonly></td>
+                                    <td><input type="number" class="form-control" name="template_values[]" value="0.5" step="0.1"></td>
+                                    <td><span class="badge bg-warning">number</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="value1" readonly></td>
+                                    <td><input type="text" class="form-control" name="template_values[]"></td>
+                                    <td><span class="badge bg-info">text</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="counter" readonly></td>
+                                    <td><input type="number" class="form-control" name="template_values[]" value="1"></td>
+                                    <td><span class="badge bg-warning">number</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="dependent_click_check" readonly></td>
+                                    <td>
+                                        <select class="form-control" name="template_values[]">
+                                            <option value="true">True</option>
+                                            <option value="false" selected>False</option>
+                                        </select>
+                                    </td>
+                                    <td><span class="badge bg-success">boolean</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="dependent_send_check" readonly></td>
+                                    <td>
+                                        <select class="form-control" name="template_values[]">
+                                            <option value="true">True</option>
+                                            <option value="false" selected>False</option>
+                                        </select>
+                                    </td>
+                                    <td><span class="badge bg-success">boolean</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="dependent_multi_check" readonly></td>
+                                    <td>
+                                        <select class="form-control" name="template_values[]">
+                                            <option value="true">True</option>
+                                            <option value="false" selected>False</option>
+                                        </select>
+                                    </td>
+                                    <td><span class="badge bg-success">boolean</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="dependent_val" readonly></td>
+                                    <td><input type="text" class="form-control" name="template_values[]"></td>
+                                    <td><span class="badge bg-info">text</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="dependent_loc1" readonly></td>
+                                    <td>
+									<select class="form-select locator-dropdown" name="template_values[]">
+									  <option value="">--None--</option>
+									  {% for loc_name in locator_names %}
+										<option value="{{ loc_name }}">{{ loc_name }}</option>
+									  {% endfor %}
+									</select>
+									</td>
+                                    <td><span class="badge bg-info">text</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="dependent_loc2" readonly></td>
+                                    <td>
+									<select class="form-select locator-dropdown" name="template_values[]">
+									  <option value="">--None--</option>
+									  {% for loc_name in locator_names %}
+										<option value="{{ loc_name }}">{{ loc_name }}</option>
+									  {% endfor %}
+									</select>
+									</td>
+									<td><span class="badge bg-info">text</span></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" class="form-control" name="template_keys[]" value="max_dependent_retries" readonly></td>
+                                    <td><input type="number" class="form-control" name="template_values[]" value="3"></td>
+                                    <td><span class="badge bg-warning">number</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary mt-3">Save Dictionary</button>
+            </form>
+            
+          </div> <!-- accordion-body -->
+        </div> <!-- collapseAddDict -->
+      </div> <!-- accordion-item -->
+    </div> <!-- accordion -->
+
+    <!-- =========================================
+         3) EXISTING DICTIONARIES SECTION
+    ========================================== -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Existing Dictionaries</h3>
+        </div>
+        <div class="card-body">
+            <div class="accordion" id="dictionariesAccordion">
+                {% for dict_name, dict_content in dictionaries.items() %}
+                <div class="accordion-item mb-2">
+                    <h2 class="accordion-header" id="heading{{ loop.index }}">
+                        <button class="accordion-button collapsed" type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#collapse{{ loop.index }}"
+                                aria-expanded="false"
+                                aria-controls="collapse{{ loop.index }}">
+                            <strong>{{ dict_name }}</strong>
+                            {% if dict_content.name is defined %}
+                              <span class="ms-3 text-muted">{{ dict_content.name }}</span>
+                            {% endif %}
+                        </button>
+                    </h2>
+                    <div id="collapse{{ loop.index }}" class="accordion-collapse collapse"
+                         aria-labelledby="heading{{ loop.index }}" data-bs-parent="#dictionariesAccordion">
+                        <div class="accordion-body">
+                            <!-- View dictionary content in a table -->
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th width="30%">Key</th>
+                                            <th width="70%">Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for key, value in dict_content.items() %}
+                                        <tr>
+                                            <td>{{ key }}</td>
+                                            <td>
+                                                {% if value is mapping %}
+                                                    <pre>{{ value | tojson(indent=2) }}</pre>
+                                                {% else %}
+                                                    {{ value }}
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="d-flex justify-content-end">
+                                <button type="button" class="btn btn-info me-2"
+                                        onclick="editDictionary('{{ dict_name }}')">
+                                    Edit Dictionary
+                                </button>
+                                <form method="post" action="{{ url_for('dictionaries_route') }}">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="dict_name" value="{{ dict_name }}">
+                                    <button type="submit" class="btn btn-danger"
+                                            onclick="return confirm('Are you sure to delete this dictionary?')">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div> <!-- d-flex -->
+                        </div> <!-- accordion-body -->
+                    </div> <!-- accordion-collapse -->
+                </div> <!-- accordion-item -->
+                {% endfor %}
+            </div> <!-- accordion -->
+        </div> <!-- card-body -->
+    </div> <!-- card -->
+</div> <!-- container -->
+{% endblock %}
+
+{% block scripts %}
+<!-- jQuery (required by Select2) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+const availableColumns = {{ last_column_order|tojson }};
+const locatorNames = {{ locator_names|tojson }};
+
+// ========== ADD NEW DICTIONARY ==========
+document.getElementById('addDictionaryForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const dictName = document.getElementById('dict_name').value.trim();
+    const keyInputs = document.getElementsByName('template_keys[]');
+    const valInputs = document.getElementsByName('template_values[]');
+    const dictContent = {};
+    for (let i = 0; i < keyInputs.length; i++) {
+        const key = keyInputs[i].value.trim();
+        let val;
+        // Handle locators as select
+        if (key === "dependent_loc1" || key === "dependent_loc2") {
+            val = valInputs[i].value;
+        } else if (valInputs[i].tagName === 'SELECT') {
+            val = (valInputs[i].value === 'true');
+        } else if (valInputs[i].type === 'number') {
+            val = (valInputs[i].value === '' ? '' : Number(valInputs[i].value));
+        } else {
+            val = valInputs[i].value;
+        }
+        dictContent[key] = val;
+    }
+    const jsonInput = document.createElement('input');
+    jsonInput.type = 'hidden';
+    jsonInput.name = 'dict_content';
+    jsonInput.value = JSON.stringify(dictContent);
+    this.appendChild(jsonInput);
+    this.submit();
+});
+
+// ========== EDIT DICTIONARY ==========
+function editDictionary(dictName) {
+    event.preventDefault();
+    fetch(`/get_dictionary/${dictName}`)
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('edit-dict-name').value = dictName;
+        const tableBody = document.getElementById('editTemplateTableBody');
+        tableBody.innerHTML = '';
+        Object.keys(data).forEach(key => {
+            const value = data[key];
+            const row = document.createElement('tr');
+            // Key cell
+            const keyCell = document.createElement('td');
+            const keyInput = document.createElement('input');
+            keyInput.type = 'text';
+            keyInput.className = 'form-control';
+            keyInput.name = 'edit_keys[]';
+            keyInput.value = key;
+            keyInput.readOnly = true;
+            keyCell.appendChild(keyInput);
+
+			// Value cell (dropdowns for locators, otherwise text/select)
+			const valueCell = document.createElement('td');
+			let valueInput;
+
+			if (key === "dependent_loc1" || key === "dependent_loc2" || key === "locator") {
+				valueInput = document.createElement('select');
+				valueInput.className = 'form-select locator-dropdown';
+				valueInput.name = 'edit_values[]';
+				// Add empty option at top
+				const emptyOpt = document.createElement('option');
+				emptyOpt.value = "";
+				emptyOpt.textContent = '--None--';
+				valueInput.appendChild(emptyOpt);
+				locatorNames.forEach(loc => {
+					const opt = document.createElement('option');
+					opt.value = loc;
+					opt.textContent = loc;
+					if (value === loc) opt.selected = true;
+					valueInput.appendChild(opt);
+				});
+				valueCell.appendChild(valueInput);
+			}
+
+			else if (typeof value === 'boolean') {
+				valueInput = document.createElement('select');
+				valueInput.className = 'form-select';
+				valueInput.name = 'edit_values[]';
+				const trueOpt = document.createElement('option');
+				trueOpt.value = 'true';
+				trueOpt.textContent = 'True';
+				trueOpt.selected = (value === true);
+				const falseOpt = document.createElement('option');
+				falseOpt.value = 'false';
+				falseOpt.textContent = 'False';
+				falseOpt.selected = (value === false);
+				valueInput.appendChild(trueOpt);
+				valueInput.appendChild(falseOpt);
+				valueCell.appendChild(valueInput);
+			}
+			else if (typeof value === 'number') {
+				valueInput = document.createElement('input');
+				valueInput.type = 'number';
+				valueInput.className = 'form-control';
+				valueInput.name = 'edit_values[]';
+				valueInput.value = value;
+				valueInput.step = '0.1';
+				valueCell.appendChild(valueInput);
+			}
+			else {
+				// normal text input with Insert dropdown
+				const groupDiv = document.createElement('div');
+				groupDiv.className = 'input-group';
+				valueInput = document.createElement('input');
+				valueInput.type = 'text';
+				valueInput.className = 'form-control';
+				valueInput.name = 'edit_values[]';
+				valueInput.value = (value || '');
+				const dropdownBtn = document.createElement('button');
+				dropdownBtn.type = 'button';
+				dropdownBtn.className = 'btn btn-outline-secondary dropdown-toggle';
+				dropdownBtn.setAttribute('data-bs-toggle', 'dropdown');
+				dropdownBtn.setAttribute('aria-expanded', 'false');
+				dropdownBtn.tabIndex = -1;
+				dropdownBtn.textContent = 'Insert';
+				const dropdownMenu = document.createElement('ul');
+				dropdownMenu.className = 'dropdown-menu';
+				availableColumns.forEach(col => {
+					const li = document.createElement('li');
+					const a = document.createElement('a');
+					a.className = 'dropdown-item';
+					a.href = '#';
+					a.textContent = col;
+					a.onclick = function(event) {
+						event.preventDefault();
+						insertAtCursor(valueInput, '{' + '{' + col + '}' + '}');
+
+					};
+					li.appendChild(a);
+					dropdownMenu.appendChild(li);
+				});
+				groupDiv.appendChild(valueInput);
+				groupDiv.appendChild(dropdownBtn);
+				groupDiv.appendChild(dropdownMenu);
+				valueCell.appendChild(groupDiv);
+			}
+
+			// Type cell
+			const typeCell = document.createElement('td');
+			const badge = document.createElement('span');
+			badge.className = 'badge ';
+			if (key === "dependent_loc1" || key === "dependent_loc2") {
+				badge.classList.add('bg-primary');
+				badge.textContent = 'locator';
+			} else if (typeof value === 'boolean') {
+				badge.classList.add('bg-success');
+				badge.textContent = 'boolean';
+			} else if (typeof value === 'number') {
+				badge.classList.add('bg-warning');
+				badge.textContent = 'number';
+			} else {
+				badge.classList.add('bg-info');
+				badge.textContent = 'text';
+			}
+			typeCell.appendChild(badge);
+
+            row.appendChild(keyCell);
+            row.appendChild(valueCell);
+            row.appendChild(typeCell);
+            tableBody.appendChild(row);
+        });
+		enableLocatorSelect2();
+
+        document.getElementById('edit-dictionary-section').style.display = 'block';
+        document.getElementById('edit-dictionary-section').scrollIntoView({behavior: 'smooth'});
+      })
+      .catch(err => {
+        console.error('Error fetching dictionary:', err);
+        alert('Failed to load dictionary. Check console for details.');
+      });
+}
+
+// ========== EDIT DICTIONARY FORM SUBMIT ==========
+document.getElementById('editDictionaryForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const dictName = document.getElementById('edit-dict-name').value;
+    const keyInputs = this.querySelectorAll('input[name="edit_keys[]"]');
+    const valInputs = this.querySelectorAll('[name="edit_values[]"]');
+    const dictContent = {};
+    for (let i = 0; i < keyInputs.length; i++) {
+        const k = keyInputs[i].value;
+        let v;
+        // Handle locators as select
+        if (k === "dependent_loc1" || k === "dependent_loc2") {
+            v = valInputs[i].value;
+        } else if (valInputs[i].tagName === 'SELECT') {
+            v = (valInputs[i].value === 'true');
+        } else if (valInputs[i].type === 'number') {
+            v = (valInputs[i].value === '' ? '' : Number(valInputs[i].value));
+        } else {
+            v = valInputs[i].value;
+        }
+        dictContent[k] = v;
+    }
+    const hiddenJson = document.createElement('input');
+    hiddenJson.type = 'hidden';
+    hiddenJson.name = 'dict_content';
+    hiddenJson.value = JSON.stringify(dictContent);
+    this.appendChild(hiddenJson);
+    this.submit();
+});
+
+// ========== HELPERS ==========
+function hideEditForm() {
+    document.getElementById('edit-dictionary-section').style.display = 'none';
+}
+function insertAtCursor(input, text) {
+    if (!input) return;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    input.value = input.value.substring(0, start) + text + input.value.substring(end);
+    input.selectionStart = input.selectionEnd = start + text.length;
+    input.focus();
+}
+
+// Initialize Select2 on locator dropdowns
+function enableLocatorSelect2() {
+    $('.locator-dropdown').select2({
+        width: '100%',
+        placeholder: '--None--',
+        allowClear: true
+    });
+}
+
+// Call after table render (e.g. after you build the edit dictionary table)
+setTimeout(enableLocatorSelect2, 0);
+
+</script>
+{% endblock %}
+

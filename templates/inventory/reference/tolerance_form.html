@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Configure receipt variance thresholds</p>
+    </div>
+    <a href="{% url 'inventory:tolerance_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6" x-data="{
+    appliesTo: '{{ form.applies_to.value|default:'SYSTEM' }}'
+}">
+    {% csrf_token %}
+
+    <!-- Scope Selection -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tolerance Scope</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Applies To <span class="text-red-500">*</span>
+                </label>
+                <select name="applies_to" x-model="appliesTo" required
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    <option value="SYSTEM" {% if form.applies_to.value == 'SYSTEM' %}selected{% endif %}>System Default</option>
+                    <option value="CATEGORY" {% if form.applies_to.value == 'CATEGORY' %}selected{% endif %}>Category</option>
+                    <option value="ITEM" {% if form.applies_to.value == 'ITEM' %}selected{% endif %}>Specific Item</option>
+                    <option value="VENDOR" {% if form.applies_to.value == 'VENDOR' %}selected{% endif %}>Vendor</option>
+                </select>
+            </div>
+
+            <!-- Category Selection (shown when appliesTo == CATEGORY) -->
+            <div x-show="appliesTo === 'CATEGORY'" x-cloak>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                <select name="category"
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    <option value="">Select Category</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.pk }}" {% if form.category.value == cat.pk %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Item Selection (shown when appliesTo == ITEM) -->
+            <div x-show="appliesTo === 'ITEM'" x-cloak>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Item</label>
+                <select name="item"
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    <option value="">Select Item</option>
+                    {% for item in items %}
+                    <option value="{{ item.pk }}" {% if form.item.value == item.pk %}selected{% endif %}>{{ item.code }} - {{ item.name|truncatechars:30 }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Vendor Selection (shown when appliesTo == VENDOR) -->
+            <div x-show="appliesTo === 'VENDOR'" x-cloak>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor</label>
+                <select name="vendor"
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    <option value="">Select Vendor</option>
+                    {% for v in vendors %}
+                    <option value="{{ v.pk }}" {% if form.vendor.value == v.pk %}selected{% endif %}>{{ v.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tolerance Thresholds -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tolerance Thresholds</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <i data-lucide="trending-up" class="w-4 h-4 inline text-green-500 mr-1"></i>
+                    Over Receipt Tolerance (%)
+                </label>
+                <input type="number" name="over_receipt_percent" value="{{ form.over_receipt_percent.value|default:'10.00' }}"
+                       min="0" max="100" step="0.01"
+                       class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Maximum percentage over the ordered quantity that can be received without approval.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <i data-lucide="trending-down" class="w-4 h-4 inline text-red-500 mr-1"></i>
+                    Under Receipt Tolerance (%)
+                </label>
+                <input type="number" name="under_receipt_percent" value="{{ form.under_receipt_percent.value|default:'5.00' }}"
+                       min="0" max="100" step="0.01"
+                       class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Maximum percentage under the ordered quantity that can be accepted without approval.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Options -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Options</h2>
+        <div class="space-y-4">
+            <label class="flex items-start">
+                <input type="checkbox" name="require_qc" {% if form.require_qc.value %}checked{% endif %}
+                       class="w-5 h-5 mt-0.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                <div class="ml-3">
+                    <span class="block text-sm font-medium text-gray-900 dark:text-white">Require QC Inspection</span>
+                    <span class="block text-sm text-gray-500 dark:text-gray-400">All receipts matching this rule must pass QC inspection before posting.</span>
+                </div>
+            </label>
+            <label class="flex items-start">
+                <input type="checkbox" name="auto_close_on_tolerance" {% if form.auto_close_on_tolerance.value %}checked{% endif %}
+                       class="w-5 h-5 mt-0.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                <div class="ml-3">
+                    <span class="block text-sm font-medium text-gray-900 dark:text-white">Auto-close PO Line on Tolerance</span>
+                    <span class="block text-sm text-gray-500 dark:text-gray-400">Automatically close PO lines when received quantity is within tolerance (even if under-received).</span>
+                </div>
+            </label>
+            <label class="flex items-start">
+                <input type="checkbox" name="is_active" {% if form.is_active.value %}checked{% endif %}
+                       class="w-5 h-5 mt-0.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                <div class="ml-3">
+                    <span class="block text-sm font-medium text-gray-900 dark:text-white">Active</span>
+                    <span class="block text-sm text-gray-500 dark:text-gray-400">Only active rules are applied during receipt processing.</span>
+                </div>
+            </label>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex justify-end gap-3">
+        <a href="{% url 'inventory:tolerance_list' %}" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300">
+            Cancel
+        </a>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center">
+            <i data-lucide="save" class="w-4 h-4 mr-2"></i>Save
+        </button>
+    </div>
+</form>
+{% endblock %}

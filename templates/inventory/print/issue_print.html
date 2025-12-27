@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Issue {{ issue.issue_number }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; padding: 20px; }
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+        .company { font-size: 18px; font-weight: bold; }
+        .doc-title { font-size: 16px; font-weight: bold; text-align: right; }
+        .doc-number { font-size: 14px; color: #333; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .info-box { border: 1px solid #ccc; padding: 10px; }
+        .info-box h3 { font-size: 11px; text-transform: uppercase; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 3px; }
+        .info-row { display: flex; margin: 3px 0; }
+        .info-label { width: 100px; font-weight: bold; color: #555; }
+        .info-value { flex: 1; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+        th { background: #f5f5f5; font-size: 10px; text-transform: uppercase; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .status { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+        .status-posted { background: #d4edda; color: #155724; }
+        .status-draft { background: #e2e3e5; color: #383d41; }
+        .footer { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        .signature-box { border-top: 1px solid #000; padding-top: 5px; text-align: center; margin-top: 40px; }
+        .signature-label { font-size: 10px; color: #666; }
+        @media print { body { padding: 0; } @page { margin: 1cm; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <div class="company">ARDT Floor Management System</div>
+            <div style="color: #666; font-size: 11px;">Stock Issue Document</div>
+        </div>
+        <div class="doc-title">
+            <div>ISSUE</div>
+            <div class="doc-number">{{ issue.issue_number }}</div>
+            <span class="status {% if issue.status == 'POSTED' %}status-posted{% else %}status-draft{% endif %}">{{ issue.get_status_display }}</span>
+        </div>
+    </div>
+
+    <div class="info-grid">
+        <div class="info-box">
+            <h3>Issue Details</h3>
+            <div class="info-row"><span class="info-label">Issue Date:</span><span class="info-value">{{ issue.issue_date|date:"Y-m-d" }}</span></div>
+            <div class="info-row"><span class="info-label">Warehouse:</span><span class="info-value">{{ issue.warehouse.name }}</span></div>
+            <div class="info-row"><span class="info-label">Issue Type:</span><span class="info-value">{{ issue.get_issue_type_display }}</span></div>
+        </div>
+        <div class="info-box">
+            <h3>Reference</h3>
+            <div class="info-row"><span class="info-label">Reference:</span><span class="info-value">{{ issue.reference_type }}: {{ issue.reference_id|default:"-" }}</span></div>
+            <div class="info-row"><span class="info-label">Recipient:</span><span class="info-value">{{ issue.recipient_party.name|default:"-" }}</span></div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width:5%">#</th>
+                <th style="width:15%">Item Code</th>
+                <th style="width:30%">Description</th>
+                <th style="width:15%">Location</th>
+                <th style="width:10%">Lot</th>
+                <th class="text-right" style="width:10%">Qty Requested</th>
+                <th class="text-right" style="width:10%">Qty Issued</th>
+                <th class="text-center" style="width:5%">Posted</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in lines %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ line.item.code }}</td>
+                <td>{{ line.item.name }}</td>
+                <td>{{ line.location.code }}</td>
+                <td>{{ line.lot.lot_number|default:"-" }}</td>
+                <td class="text-right">{{ line.qty_requested }}</td>
+                <td class="text-right">{{ line.qty_issued }}</td>
+                <td class="text-center">{% if line.is_posted %}Y{% else %}N{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        <div>
+            <div class="signature-box"><div class="signature-label">Issued By</div></div>
+        </div>
+        <div>
+            <div class="signature-box"><div class="signature-label">Received By</div></div>
+        </div>
+        <div>
+            <div class="signature-box"><div class="signature-label">Approved By</div></div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; font-size: 10px; color: #999; text-align: center;">
+        Printed: {% now "Y-m-d H:i" %} | {{ issue.issue_number }}
+    </div>
+</body>
+</html>

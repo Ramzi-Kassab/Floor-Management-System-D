@@ -74,7 +74,7 @@ def drill_bit(db, base_user):
     from apps.workorders.models import DrillBit
     return DrillBit.objects.create(
         serial_number='FC-TEST-001',
-        bit_type=DrillBit.BitType.FC,
+        bit_type=DrillBit.BitCategory.FC,
         size=Decimal('8.500'),
         iadc_code='M423',
         status=DrillBit.Status.IN_STOCK,
@@ -88,7 +88,7 @@ def drill_bit_rc(db, base_user):
     from apps.workorders.models import DrillBit
     return DrillBit.objects.create(
         serial_number='RC-TEST-001',
-        bit_type=DrillBit.BitType.RC,
+        bit_type=DrillBit.BitCategory.RC,
         size=Decimal('12.250'),
         iadc_code='447',
         status=DrillBit.Status.NEW,
@@ -102,7 +102,7 @@ def drill_bit_aramco(db, base_user):
     from apps.workorders.models import DrillBit
     return DrillBit.objects.create(
         serial_number='ARAMCO-001',
-        bit_type=DrillBit.BitType.FC,
+        bit_type=DrillBit.BitCategory.FC,
         size=Decimal('8.500'),
         status=DrillBit.Status.IN_STOCK,
         is_aramco_contract=True,

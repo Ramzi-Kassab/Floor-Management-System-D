@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}Execute {{ workflow_name }}{% endblock %}
+
+{% block content %}
+<h1>Execute Workflow: {{ workflow_name }}</h1>
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Description</h5>
+        <p>{{ workflow.description }}</p>
+    </div>
+</div>
+
+<form method="post" action="/execute/{{ workflow_name }}">
+    <div class="card">
+        <div class="card-header">
+            <h5>Input Parameters</h5>
+        </div>
+        <div class="card-body">
+            {% for input_name, input_details in workflow.get('inputs', {}).items() %}
+            <div class="mb-3">
+                <label for="{{ input_name }}" class="form-label">{{ input_details.label or input_name }}</label>
+                <input 
+                    type="{{ input_details.type or 'text' }}" 
+                    class="form-control" 
+                    id="{{ input_name }}" 
+                    name="{{ input_name }}"
+                    {% if input_details.required %}required{% endif %}
+                    {% if input_details.default %}value="{{ input_details.default }}"{% endif %}
+                >
+                {% if input_details.description %}
+                <div class="form-text">{{ input_details.description }}</div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p>This workflow doesn't require any input parameters.</p>
+            {% endfor %}
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary">Execute Workflow</button>
+            <a href="/workflows" class="btn btn-secondary">Cancel</a>
+        </div>
+    </div>
+</form>
+{% endblock %}

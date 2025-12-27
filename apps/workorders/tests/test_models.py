@@ -24,7 +24,7 @@ class TestDrillBitModel:
         from apps.workorders.models import DrillBit
         bit = DrillBit.objects.create(
             serial_number='FC-2024-001',
-            bit_type=DrillBit.BitType.FC,
+            bit_type=DrillBit.BitCategory.FC,
             size=Decimal('8.500'),
             iadc_code='M423',
             status=DrillBit.Status.NEW,
@@ -45,7 +45,7 @@ class TestDrillBitModel:
         with pytest.raises(IntegrityError):
             DrillBit.objects.create(
                 serial_number=drill_bit.serial_number,
-                bit_type=DrillBit.BitType.FC,
+                bit_type=DrillBit.BitCategory.FC,
                 size=Decimal('8.500'),
                 created_by=base_user
             )
@@ -55,7 +55,7 @@ class TestDrillBitModel:
         from apps.workorders.models import DrillBit
         bit = DrillBit.objects.create(
             serial_number='QR-TEST-001',
-            bit_type=DrillBit.BitType.FC,
+            bit_type=DrillBit.BitCategory.FC,
             size=Decimal('8.500'),
             created_by=base_user
         )
@@ -64,7 +64,7 @@ class TestDrillBitModel:
     def test_bit_type_choices(self, drill_bit):
         """Test bit type choices."""
         from apps.workorders.models import DrillBit
-        assert drill_bit.bit_type in [choice[0] for choice in DrillBit.BitType.choices]
+        assert drill_bit.bit_type in [choice[0] for choice in DrillBit.BitCategory.choices]
 
     def test_status_choices(self, drill_bit):
         """Test status choices."""

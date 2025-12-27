@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    Account,
     Customer,
     CustomerContact,
     CustomerDocumentRequirement,
@@ -10,6 +11,13 @@ from .models import (
     Warehouse,
     Well,
 )
+
+
+@admin.register(Account)
+class AccountAdmin(admin.ModelAdmin):
+    list_display = ["code", "name", "name_ar", "sales_leader", "is_active"]
+    list_filter = ["is_active"]
+    search_fields = ["code", "name", "name_ar"]
 
 
 class CustomerContactInline(admin.TabularInline):

@@ -23,6 +23,9 @@
         <p class="text-gray-600 dark:text-gray-400">QR codes and barcodes registry</p>
     </div>
     <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'scancodes:generate-code' %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+            <i data-lucide="qr-code" class="w-4 h-4 mr-2"></i>Generate
+        </a>
         <a href="{% url 'scancodes:scanner' %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
             <i data-lucide="scan" class="w-4 h-4 mr-2"></i>Scanner
         </a>

@@ -26,4 +26,5 @@ urlpatterns = [
     path('scanner/', views.ScannerView.as_view(), name='scanner'),
     path('verify/', views.VerifyScanView.as_view(), name='verify-scan'),
     path('generate/', views.GenerateCodeView.as_view(), name='generate-code'),
+    path('generate/batch/', views.BatchGenerateView.as_view(), name='batch-generate'),
 ]

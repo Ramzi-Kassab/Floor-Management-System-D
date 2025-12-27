@@ -8,7 +8,10 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         <p class="text-gray-600 dark:text-gray-400">Material lists for drill bit designs</p>
     </div>
-    <div class="mt-4 md:mt-0">
+    <div class="mt-4 md:mt-0 flex gap-2">
+        <a href="{% url 'inventory:item_list' %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="package" class="w-4 h-4 mr-2"></i>Inventory
+        </a>
         <a href="{% url 'technology:bom_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New BOM
         </a>
@@ -39,7 +42,7 @@
 </div>
 
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-    {% if boms %}
+    {% if boms_with_status %}
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
             <thead>
@@ -47,38 +50,57 @@
                     <th class="px-6 py-3 font-medium">BOM Code</th>
                     <th class="px-6 py-3 font-medium">Name</th>
                     <th class="px-6 py-3 font-medium">Design</th>
-                    <th class="px-6 py-3 font-medium">Rev</th>
+                    <th class="px-6 py-3 font-medium text-center">Items</th>
+                    <th class="px-6 py-3 font-medium text-center">Materials</th>
                     <th class="px-6 py-3 font-medium">Status</th>
                     <th class="px-6 py-3 font-medium text-right">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                {% for bom in boms %}
+                {% for item in boms_with_status %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                     <td class="px-6 py-4">
-                        <a href="{% url 'technology:bom_detail' bom.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                            {{ bom.code }}
+                        <a href="{% url 'technology:bom_detail' item.bom.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                            {{ item.bom.code }}
                         </a>
+                        <span class="text-xs text-gray-400 ml-1">Rev {{ item.bom.revision }}</span>
                     </td>
-                    <td class="px-6 py-4 text-gray-900 dark:text-white">{{ bom.name }}</td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white">
+                        <div class="max-w-[200px] truncate" title="{{ item.bom.name }}">{{ item.bom.name }}</div>
+                    </td>
                     <td class="px-6 py-4">
-                        <a href="{% url 'technology:design_detail' bom.design.pk %}" class="text-gray-600 dark:text-gray-400 hover:underline font-mono">
-                            {{ bom.design.code }}
+                        <a href="{% url 'technology:design_detail' item.bom.design.pk %}" class="text-gray-600 dark:text-gray-400 hover:underline font-mono text-xs">
+                            {{ item.bom.design.code }}
                         </a>
                     </td>
-                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ bom.revision }}</td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="text-gray-600 dark:text-gray-400">{{ item.line_count }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        {% if item.materials_ready == True %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                            <i data-lucide="check" class="w-3 h-3 mr-1"></i>Ready
+                        </span>
+                        {% elif item.materials_ready == False %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                            <i data-lucide="alert-triangle" class="w-3 h-3 mr-1"></i>Shortage
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400 text-xs">--</span>
+                        {% endif %}
+                    </td>
                     <td class="px-6 py-4">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                            {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% elif bom.status == 'DRAFT' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                            {{ bom.get_status_display }}
+                            {% if item.bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% elif item.bom.status == 'DRAFT' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ item.bom.get_status_display }}
                         </span>
                     </td>
                     <td class="px-6 py-4 text-right">
                         <div class="flex items-center justify-end space-x-2">
-                            <a href="{% url 'technology:bom_detail' bom.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
+                            <a href="{% url 'technology:bom_detail' item.bom.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
                                 <i data-lucide="eye" class="w-4 h-4"></i>
                             </a>
-                            <a href="{% url 'technology:bom_update' bom.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
+                            <a href="{% url 'technology:bom_update' item.bom.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
                                 <i data-lucide="edit" class="w-4 h-4"></i>
                             </a>
                         </div>
@@ -88,14 +110,48 @@
             </tbody>
         </table>
     </div>
+    {% if page_obj.has_other_pages %}
+    <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+        <div class="flex items-center justify-between">
+            <p class="text-sm text-gray-500">
+                Showing {{ page_obj.start_index }} - {{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+            </p>
+            <div class="flex space-x-2">
+                {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                   class="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">Previous</a>
+                {% endif %}
+                <span class="px-3 py-1.5 text-sm text-gray-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                   class="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">Next</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
     {% else %}
     <div class="text-center py-16">
         <i data-lucide="list" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No BOMs found</h3>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Create a bill of materials for your designs</p>
         <a href="{% url 'technology:bom_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create BOM
         </a>
     </div>
     {% endif %}
+</div>
+
+<!-- Quick Links -->
+<div class="mt-6 flex flex-wrap gap-3">
+    <a href="{% url 'technology:design_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
+        <i data-lucide="layers" class="w-4 h-4 mr-2"></i>Designs
+    </a>
+    <a href="{% url 'technology:connection_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
+        <i data-lucide="link" class="w-4 h-4 mr-2"></i>Connections
+    </a>
+    <a href="{% url 'technology:breaker_slot_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
+        <i data-lucide="box" class="w-4 h-4 mr-2"></i>Breaker Slots
+    </a>
 </div>
 {% endblock %}

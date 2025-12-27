@@ -127,13 +127,29 @@
     </div>
     <div class="space-y-6">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">QR Preview</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ scancode.get_code_type_display }} Preview</h2>
             <div class="bg-white p-4 rounded-lg flex items-center justify-center">
+                {% if code_image %}
+                <img src="{{ code_image }}" alt="{{ scancode.code }}" class="max-w-full h-auto">
+                {% else %}
                 <div class="w-32 h-32 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center">
                     <i data-lucide="qr-code" class="w-20 h-20 text-gray-400"></i>
                 </div>
+                {% endif %}
             </div>
-            <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">QR code preview</p>
+            <p class="text-xs font-mono text-gray-600 dark:text-gray-400 text-center mt-3 break-all">{{ scancode.code }}</p>
+            {% if code_image %}
+            <div class="mt-4 flex gap-2">
+                <button onclick="downloadCode('{{ code_image }}', '{{ scancode.code }}')"
+                        class="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                    <i data-lucide="download" class="w-4 h-4 inline mr-1"></i>Download
+                </button>
+                <button onclick="printCode('{{ code_image }}', '{{ scancode.code }}', '{{ scancode.get_entity_type_display }}')"
+                        class="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                    <i data-lucide="printer" class="w-4 h-4 inline mr-1"></i>Print
+                </button>
+            </div>
+            {% endif %}
         </div>
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Info</h2>
@@ -162,4 +178,92 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function downloadCode(imageSrc, code) {
+    const link = document.createElement('a');
+    link.href = imageSrc;
+    link.download = `Code-${code}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function printCode(imageSrc, code, entityType) {
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+
+    const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Print - ${code}</title>
+            <style>
+                @page {
+                    size: 2in 3in;
+                    margin: 0.25in;
+                }
+                body {
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    padding: 10px;
+                    margin: 0;
+                }
+                .label-container {
+                    border: 1px solid #ccc;
+                    padding: 15px;
+                    display: inline-block;
+                }
+                .code-image {
+                    max-width: 150px;
+                    max-height: 150px;
+                    margin: 0 auto 10px;
+                }
+                .code {
+                    font-size: 11px;
+                    font-weight: bold;
+                    font-family: monospace;
+                    margin: 5px 0;
+                    word-break: break-all;
+                }
+                .entity-type {
+                    font-size: 10px;
+                    color: #666;
+                    margin: 5px 0;
+                }
+                .company {
+                    font-size: 9px;
+                    color: #999;
+                    margin-top: 10px;
+                }
+                @media print {
+                    body { padding: 0; }
+                    .label-container { border: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="label-container">
+                <img src="${imageSrc}" class="code-image" alt="Code">
+                <div class="code">${code}</div>
+                <div class="entity-type">${entityType}</div>
+                <div class="company">ARDT FMS</div>
+            </div>
+            <script>
+                window.onload = function() {
+                    setTimeout(function() {
+                        window.print();
+                        window.close();
+                    }, 250);
+                };
+            <\/script>
+        </body>
+        </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+}
+</script>
 {% endblock %}

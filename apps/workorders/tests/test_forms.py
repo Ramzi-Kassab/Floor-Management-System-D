@@ -154,7 +154,7 @@ class TestDrillBitForm:
         from apps.workorders.models import DrillBit
         form_data = {
             'serial_number': 'FC-NEW-001',
-            'bit_type': DrillBit.BitType.FC,
+            'bit_type': DrillBit.BitCategory.FC,
             'size': '8.500',
             'iadc_code': 'M423',
             'status': DrillBit.Status.NEW,
@@ -167,7 +167,7 @@ class TestDrillBitForm:
         from apps.workorders.forms import DrillBitForm
         from apps.workorders.models import DrillBit
         form_data = {
-            'bit_type': DrillBit.BitType.FC,
+            'bit_type': DrillBit.BitCategory.FC,
             'size': '8.500',
         }
         form = DrillBitForm(data=form_data)
@@ -180,7 +180,7 @@ class TestDrillBitForm:
         from apps.workorders.models import DrillBit
         form_data = {
             'serial_number': 'FC-TEST',
-            'bit_type': DrillBit.BitType.FC,
+            'bit_type': DrillBit.BitCategory.FC,
         }
         form = DrillBitForm(data=form_data)
         assert not form.is_valid()
@@ -192,7 +192,7 @@ class TestDrillBitForm:
         from apps.workorders.models import DrillBit
         form_data = {
             'serial_number': '  fc-lower-001  ',
-            'bit_type': DrillBit.BitType.FC,
+            'bit_type': DrillBit.BitCategory.FC,
             'size': '8.500',
             'status': DrillBit.Status.NEW,
         }
@@ -206,7 +206,7 @@ class TestDrillBitForm:
         from apps.workorders.models import DrillBit
         form_data = {
             'serial_number': drill_bit.serial_number,
-            'bit_type': DrillBit.BitType.FC,
+            'bit_type': DrillBit.BitCategory.FC,
             'size': '8.500',
             'status': DrillBit.Status.NEW,
         }
@@ -220,7 +220,7 @@ class TestDrillBitForm:
         from apps.workorders.models import DrillBit
         form_data = {
             'serial_number': drill_bit.serial_number,
-            'bit_type': DrillBit.BitType.FC,
+            'bit_type': DrillBit.BitCategory.FC,
             'size': '8.500',
             'status': DrillBit.Status.IN_STOCK,
         }
@@ -231,7 +231,7 @@ class TestDrillBitForm:
         """Test all bit_type choices are valid."""
         from apps.workorders.forms import DrillBitForm
         from apps.workorders.models import DrillBit
-        for choice in DrillBit.BitType.choices:
+        for choice in DrillBit.BitCategory.choices:
             form_data = {
                 'serial_number': f'BT-{choice[0]}-001',
                 'bit_type': choice[0],
@@ -248,7 +248,7 @@ class TestDrillBitForm:
         for i, choice in enumerate(DrillBit.Status.choices):
             form_data = {
                 'serial_number': f'ST-{i:03d}',
-                'bit_type': DrillBit.BitType.FC,
+                'bit_type': DrillBit.BitCategory.FC,
                 'size': '8.500',
                 'status': choice[0],
             }
@@ -281,7 +281,7 @@ class TestDrillBitFilterForm:
         """Test bit_type filter is valid."""
         from apps.workorders.forms import DrillBitFilterForm
         from apps.workorders.models import DrillBit
-        form_data = {'bit_type': DrillBit.BitType.FC}
+        form_data = {'bit_type': DrillBit.BitCategory.FC}
         form = DrillBitFilterForm(data=form_data)
         assert form.is_valid()
 

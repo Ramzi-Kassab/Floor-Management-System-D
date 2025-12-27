@@ -30,6 +30,10 @@ bleach>=6.0
 
 # Excel Export
 openpyxl>=3.1
+pandas>=2.0
+
+# Browser Automation (ERP Automation)
+playwright>=1.40
 
 # PDF Generation
 reportlab>=4.0

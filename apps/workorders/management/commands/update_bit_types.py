@@ -6,7 +6,7 @@ Run: python manage.py update_bit_types
 
 from django.core.management.base import BaseCommand
 
-from apps.workorders.models import BitSize, BitType
+from apps.technology.models import BitSize, BitType
 
 
 class Command(BaseCommand):

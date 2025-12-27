@@ -3,7 +3,7 @@
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto">
+<div class="max-w-5xl mx-auto">
     <div class="mb-6">
         <div class="flex items-center gap-4">
             <a href="{% url 'technology:design_list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">
@@ -13,39 +13,405 @@
         </div>
     </div>
 
-    <form method="post" class="space-y-6">
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
         {% csrf_token %}
 
+        <!-- Form Errors -->
+        {% if form.errors %}
+        <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <div class="flex items-start">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 mr-3"></i>
+                <div>
+                    <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Please correct the errors below:</h3>
+                    <ul class="mt-2 text-sm text-red-700 dark:text-red-300 list-disc list-inside">
+                        {% for field in form %}
+                            {% for error in field.errors %}
+                            <li>{{ field.label }}: {{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                        {% for error in form.non_field_errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- IDENTITY (Merged Section) -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Basic Information</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="tag" class="w-5 h-5"></i>
+                    Design Identity
+                </h3>
             </div>
             <div class="px-6 py-4 space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Row 1: Order Level, Category, MAT No., Ref MAT No. -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Code <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.code }}</div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Order Level</label>
+                        <div class="mt-1">{{ form.order_level }}</div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Name <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.name }}</div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Category <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.category }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">MAT No. <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.mat_no }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Ref MAT No.</label>
+                        <div class="mt-1">{{ form.ref_mat_no }}</div>
                     </div>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                <!-- Row 2: Size, HDBS Type, SMI Type, IADC Code -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Bit Type <span class="text-red-500">*</span></label>
-                        <div class="mt-1">{{ form.bit_type }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Size (inches) <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Size</label>
                         <div class="mt-1">{{ form.size }}</div>
                     </div>
                     <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">HDBS Type <span class="text-red-500">*</span></label>
+                        <div class="mt-1 flex gap-2">
+                            {{ form.hdbs_type }}
+                            <button type="button" id="btn-pick-hdbs" class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600" title="Pick from existing types or create new">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">Auto-fills fields below</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">SMI Type</label>
+                        <div class="mt-1 flex gap-2">
+                            {{ form.smi_type }}
+                            <button type="button" id="btn-pick-smi" class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600" title="Pick from SMI types for selected HDBS">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">IADC Code</label>
-                        <div class="mt-1">{{ form.iadc_code }}</div>
+                        <div class="mt-1">{{ form.iadc_code_ref }}</div>
                     </div>
                 </div>
+
+                <!-- Row 3: ARDT Item No. -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">ARDT Item No.</label>
+                        <div class="mt-1">{{ form.ardt_item_no }}</div>
+                    </div>
+                </div>
+
+                <!-- Row 4: Auto-filled from HDBS Type -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                    <p class="text-xs text-gray-500 mb-3 flex items-center gap-1">
+                        <i data-lucide="zap" class="w-3 h-3"></i>
+                        Auto-filled from HDBS Type
+                    </p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Body Material</label>
+                            <div class="mt-1">{{ form.body_material }}</div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Series</label>
+                            <div class="mt-1">{{ form.series }}</div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">No. of Blades</label>
+                            <div class="mt-1">{{ form.no_of_blades }}</div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Cutter Size Grade</label>
+                            <div class="mt-1">{{ form.cutter_size }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row 5: Total Cutters Count, Gage specs -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Total Cutters Count</label>
+                        <div class="mt-1">{{ form.total_pockets_count }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Length (in)</label>
+                        <div class="mt-1">{{ form.gage_length }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gage Relief (thou)</label>
+                        <div class="mt-1">{{ form.gage_relief }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HYDRAULICS -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="droplets" class="w-5 h-5"></i>
+                    Hydraulics
+                </h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Count</label>
+                        <div class="mt-1">{{ form.nozzle_count }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Bore Size</label>
+                        <div class="mt-1">{{ form.nozzle_bore_size }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Port Count</label>
+                        <div class="mt-1">{{ form.port_count }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Port Size</label>
+                        <div class="mt-1">{{ form.port_size }}</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Config</label>
+                        <div class="mt-1">{{ form.nozzle_config }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Layout of nozzles (see Milling Drawing)</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Milling Drawing (PDF)</label>
+                        <div class="mt-1">{{ form.milling_drawing }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONNECTION -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="link" class="w-5 h-5"></i>
+                    Connection
+                </h3>
+            </div>
+            <div class="px-6 py-4">
+                {{ form.connection_ref }}
+                <div class="flex items-center gap-4">
+                    <button type="button" id="btn-select-connection" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                        Select Connection
+                    </button>
+                    <div id="selected-connection-display" class="flex-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span class="text-gray-500 dark:text-gray-400" id="connection-placeholder">No connection selected</span>
+                        <div id="connection-details" class="hidden">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="font-medium text-gray-900 dark:text-white" id="conn-mat-no"></span>
+                                    <span class="text-gray-500 dark:text-gray-400 mx-2">|</span>
+                                    <span class="text-gray-600 dark:text-gray-300" id="conn-type"></span>
+                                    <span class="text-gray-600 dark:text-gray-300 ml-1" id="conn-size"></span>
+                                </div>
+                                <button type="button" id="btn-clear-connection" class="text-red-500 hover:text-red-700">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BREAKER SLOT -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="wrench" class="w-5 h-5"></i>
+                    Breaker Slot
+                </h3>
+            </div>
+            <div class="px-6 py-4">
+                {{ form.breaker_slot }}
+                <div class="flex items-center gap-4">
+                    <button type="button" id="btn-select-breaker" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                        Select Breaker Slot
+                    </button>
+                    <div id="selected-breaker-display" class="flex-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span class="text-gray-500 dark:text-gray-400" id="breaker-placeholder">No breaker slot selected</span>
+                        <div id="breaker-details" class="hidden">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="font-medium text-gray-900 dark:text-white" id="breaker-mat-no"></span>
+                                    <span class="text-gray-500 dark:text-gray-400 mx-2">|</span>
+                                    <span class="text-gray-600 dark:text-gray-300" id="breaker-dims"></span>
+                                    <span class="text-gray-600 dark:text-gray-300 ml-1" id="breaker-material"></span>
+                                </div>
+                                <button type="button" id="btn-clear-breaker" class="text-red-500 hover:text-red-700">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- POCKETS LAYOUT -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="grid-3x3" class="w-5 h-5"></i>
+                    Pockets Layout
+                </h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <!-- Pocket Layout Number -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Pocket Layout No.</label>
+                        <div class="mt-1">{{ form.pocket_layout_number }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Auto-incremented for new designs</p>
+                    </div>
+                </div>
+
+                {% if object %}
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-4 flex items-center justify-between">
+                    <div class="text-sm text-gray-600 dark:text-gray-400">
+                        <p>Configure pocket sizes, shapes, and layout positions for this design.</p>
+                        {% if object.total_pockets_count %}
+                        <p class="mt-2">
+                            <span class="font-medium text-gray-900 dark:text-white">{{ object.total_pockets_count }}</span> total pockets ·
+                            <span class="font-medium text-gray-900 dark:text-white">{{ object.pocket_rows_count|default:1 }}</span> row{{ object.pocket_rows_count|default:1|pluralize }}
+                        </p>
+                        {% endif %}
+                    </div>
+                    <a href="{% url 'technology:design_pockets' object.pk %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                        <i data-lucide="grid-3x3" class="w-4 h-4 mr-2"></i>
+                        Configure Pockets
+                    </a>
+                </div>
+                {% else %}
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-center">
+                        <i data-lucide="info" class="w-8 h-8 mx-auto mb-2 text-blue-500"></i>
+                        <p class="text-blue-700 dark:text-blue-300 font-medium">Save the design first</p>
+                        <p class="text-blue-600 dark:text-blue-400 text-sm mt-1">
+                            After saving, the "Configure Pockets" button will appear here to set up the pocket layout grid.
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- BILLS OF MATERIALS (Level 5) -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="package" class="w-5 h-5"></i>
+                    Bills of Materials (Level 5)
+                </h3>
+                {% if object %}
+                <a href="{% url 'technology:bom_create' %}?design={{ object.pk }}" class="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Add BOM
+                </a>
+                {% endif %}
+            </div>
+            <div class="px-6 py-4">
+                {% if object %}
+                    {% if object.boms.exists %}
+                    <div class="space-y-2">
+                        {% for bom in object.boms.all %}
+                        <a href="{% url 'technology:bom_detail' bom.pk %}" class="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <span class="font-medium text-gray-900 dark:text-white">{{ bom.code }}</span>
+                                    <span class="text-sm text-gray-600 dark:text-gray-400 ml-2">{{ bom.name }}</span>
+                                </div>
+                                <span class="text-xs px-2 py-1 rounded {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                    {{ bom.get_status_display }}
+                                </span>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-gray-500 dark:text-gray-400 text-center py-4">No BOMs defined for this design</p>
+                    {% endif %}
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="text-gray-500 dark:text-gray-400">
+                        <i data-lucide="info" class="w-4 h-4 inline-block mr-1"></i>
+                        Save the design first to add Bills of Materials
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- SPECIAL TECHNOLOGIES & FEATURES -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-5 h-5"></i>
+                    Special Technologies & Features
+                </h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-500 mb-3">Select all applicable (includes Erosion Sleeve, Crush & Shear):</p>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {% for checkbox in form.special_technologies %}
+                    <div class="flex items-center">
+                        {{ checkbox.tag }}
+                        <label for="{{ checkbox.id_for_label }}" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                            {{ checkbox.choice_label }}
+                        </label>
+                    </div>
+                    {% empty %}
+                    <p class="text-sm text-gray-400 col-span-4">Run: python manage.py seed_special_technologies</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- APPLICATION -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="target" class="w-5 h-5"></i>
+                    Application
+                </h3>
+            </div>
+            <div class="px-6 py-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Formation Type</label>
+                        <div class="mt-1">{{ form.formation_type_ref }}</div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Application</label>
+                        <div class="mt-1">{{ form.application_ref }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STATUS -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                    Status
+                </h3>
+            </div>
+            <div class="px-6 py-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Status <span class="text-red-500">*</span></label>
                         <div class="mt-1">{{ form.status }}</div>
@@ -54,56 +420,23 @@
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Revision</label>
                         <div class="mt-1">{{ form.revision }}</div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Blade Count (FC)</label>
-                        <div class="mt-1">{{ form.blade_count }}</div>
-                    </div>
                 </div>
             </div>
         </div>
 
+        <!-- NOTES -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Technical Details</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-5 h-5"></i>
+                    Notes
+                </h3>
             </div>
             <div class="px-6 py-4 space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection Type</label>
-                        <div class="mt-1">{{ form.connection_type }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Connection Size</label>
-                        <div class="mt-1">{{ form.connection_size }}</div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Formation Type</label>
-                        <div class="mt-1">{{ form.formation_type }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Application</label>
-                        <div class="mt-1">{{ form.application }}</div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nozzle Config</label>
-                        <div class="mt-1">{{ form.nozzle_config }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">TFA</label>
-                        <div class="mt-1">{{ form.tfa }}</div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gauge Protection</label>
-                        <div class="mt-1">{{ form.gauge_protection }}</div>
-                    </div>
-                </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
                     <div class="mt-1">{{ form.description }}</div>
+                    <p class="mt-1 text-xs text-gray-500">Auto-generated: Size - SMI Type (or HDBS Type) - MAT No.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
@@ -112,12 +445,1892 @@
             </div>
         </div>
 
-        <div class="flex justify-end gap-3">
-            <a href="{% url 'technology:design_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Cancel</a>
-            <button type="submit" class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
-                {{ submit_text|default:"Save" }}
-            </button>
+        <!-- Actions -->
+        <div class="flex justify-between items-center sticky bottom-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg shadow-lg">
+            <!-- Left side: Reset button (only for create mode) -->
+            <div>
+                {% if not object %}
+                <button type="button" id="reset-form-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 bg-white hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 flex items-center gap-2" title="Clear the form and start fresh">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    Reset
+                </button>
+                {% endif %}
+            </div>
+            <!-- Right side: Cancel, Save as Draft, Create/Update -->
+            <div class="flex gap-3">
+                <a href="{% url 'technology:design_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</a>
+                <button type="button" id="save-draft-btn" class="px-4 py-2 border border-yellow-400 rounded-lg text-sm font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-700 flex items-center gap-2" title="Save as draft and continue editing (enables pockets, BOMs)">
+                    <i data-lucide="file-edit" class="w-4 h-4"></i>
+                    Save as Draft
+                </button>
+                <button type="submit" class="px-6 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2" title="Save and go to list">
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                    {% if object %}Update{% else %}Create{% endif %} Design
+                </button>
+            </div>
         </div>
     </form>
 </div>
+
+<!-- Connection Selection Modal -->
+<div id="connection-modal" class="fixed inset-0 z-50 hidden">
+    <div class="fixed inset-0 bg-black/50" id="connection-modal-backdrop"></div>
+    <div class="fixed inset-4 md:inset-10 bg-white dark:bg-gray-800 rounded-lg shadow-xl flex flex-col">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Select Connection</h3>
+                <!-- Tab buttons -->
+                <div class="flex border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                    <button type="button" id="conn-tab-select" class="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white">
+                        Select Existing
+                    </button>
+                    <button type="button" id="conn-tab-create" class="px-4 py-1.5 text-sm font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+                        Quick Create
+                    </button>
+                </div>
+            </div>
+            <button type="button" id="close-connection-modal" class="text-gray-500 hover:text-gray-700">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Select Existing Tab Content -->
+        <div id="conn-content-select">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search MAT No.</label>
+                        <input type="text" id="conn-search" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Search...">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Type</label>
+                        <select id="conn-filter-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="">All Types</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Size</label>
+                        <select id="conn-filter-size" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="">All Sizes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Can Replace in KSA</label>
+                        <select id="conn-filter-ksa" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="">All</option>
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1 overflow-auto px-6 py-4" style="max-height: calc(100vh - 300px);">
+                <table class="w-full">
+                    <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Size</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">KSA</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Features</th>
+                            <th class="px-4 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="connection-results" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Create Tab Content -->
+        <div id="conn-content-create" class="hidden px-6 py-6 overflow-auto" style="max-height: calc(100vh - 200px);">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="info" class="w-5 h-5 text-blue-500 mt-0.5"></i>
+                        <div>
+                            <p class="text-sm text-blue-800 dark:text-blue-200 font-medium">Quick Create Connection</p>
+                            <p class="text-xs text-blue-600 dark:text-blue-300 mt-1">Create a new connection without leaving this page. Your design form data is preserved.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <!-- Connection Information -->
+                    <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <i data-lucide="link" class="w-4 h-4"></i>
+                            Connection Information
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">MAT No. <span class="text-red-500">*</span></label>
+                                <input type="text" id="new-conn-mat-no" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., 1754845">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Connection Type <span class="text-red-500">*</span></label>
+                                <select id="new-conn-type" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <option value="">Select Type...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Connection Size <span class="text-red-500">*</span></label>
+                            <select id="new-conn-size" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">Select Size...</option>
+                            </select>
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Special Features</label>
+                            <textarea id="new-conn-features" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Any special features or modifications"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Settings -->
+                    <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <i data-lucide="settings" class="w-4 h-4"></i>
+                            Settings
+                        </h4>
+                        <div class="space-y-3">
+                            <div class="flex items-center">
+                                <input type="checkbox" id="new-conn-ksa" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <label for="new-conn-ksa" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Can Replace in KSA</label>
+                            </div>
+                            <p class="text-xs text-gray-500 ml-6">Check if this connection can be replaced/repaired in Saudi Arabia</p>
+                            <div class="flex items-center pt-2">
+                                <input type="checkbox" id="new-conn-active" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
+                                <label for="new-conn-active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Remarks -->
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-4 h-4"></i>
+                            Remarks
+                        </h4>
+                        <textarea id="new-conn-remarks" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Additional notes..."></textarea>
+                    </div>
+
+                    <div id="conn-create-error" class="hidden bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                        <p class="text-sm text-red-600 dark:text-red-400"></p>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <button type="button" id="conn-create-cancel" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                            Cancel
+                        </button>
+                        <button type="button" id="conn-create-submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            Create & Select
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Breaker Slot Selection Modal -->
+<div id="breaker-modal" class="fixed inset-0 z-50 hidden">
+    <div class="fixed inset-0 bg-black/50" id="breaker-modal-backdrop"></div>
+    <div class="fixed inset-4 md:inset-10 bg-white dark:bg-gray-800 rounded-lg shadow-xl flex flex-col">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Select Breaker Slot</h3>
+                <!-- Tab buttons -->
+                <div class="flex border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                    <button type="button" id="breaker-tab-select" class="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white">
+                        Select Existing
+                    </button>
+                    <button type="button" id="breaker-tab-create" class="px-4 py-1.5 text-sm font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+                        Quick Create
+                    </button>
+                </div>
+            </div>
+            <button type="button" id="close-breaker-modal" class="text-gray-500 hover:text-gray-700">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Select Existing Tab Content -->
+        <div id="breaker-content-select">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search MAT No.</label>
+                        <input type="text" id="breaker-search" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Search...">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Material</label>
+                        <select id="breaker-filter-material" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="">All Materials</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Width Range (in)</label>
+                        <div class="flex gap-2">
+                            <input type="number" id="breaker-min-width" class="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Min">
+                            <input type="number" id="breaker-max-width" class="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Max">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1 overflow-auto px-6 py-4" style="max-height: calc(100vh - 300px);">
+                <table class="w-full">
+                    <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">MAT No.</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Width (in)</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Depth (in)</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Material</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hardness</th>
+                            <th class="px-4 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="breaker-results" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Create Tab Content -->
+        <div id="breaker-content-create" class="hidden px-6 py-6 overflow-auto" style="max-height: calc(100vh - 200px);">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="info" class="w-5 h-5 text-blue-500 mt-0.5"></i>
+                        <div>
+                            <p class="text-sm text-blue-800 dark:text-blue-200 font-medium">Quick Create Breaker Slot</p>
+                            <p class="text-xs text-blue-600 dark:text-blue-300 mt-1">Create a new breaker slot without leaving this page. Your design form data is preserved.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <!-- Breaker Slot Information -->
+                    <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <i data-lucide="wrench" class="w-4 h-4"></i>
+                            Breaker Slot Information
+                        </h4>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">MAT No. <span class="text-red-500">*</span></label>
+                            <input type="text" id="new-breaker-mat-no" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., BS-001">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slot Width (in) <span class="text-red-500">*</span></label>
+                                <input type="number" step="0.001" min="0" id="new-breaker-width" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., 0.250">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slot Depth (in) <span class="text-red-500">*</span></label>
+                                <input type="number" step="0.001" min="0" id="new-breaker-depth" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., 0.125">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Slot Length (in)</label>
+                                <input type="number" step="0.001" min="0" id="new-breaker-length" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Optional">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Material <span class="text-red-500">*</span></label>
+                                <select id="new-breaker-material" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <option value="">Select Material...</option>
+                                    <option value="TC">Tungsten Carbide</option>
+                                    <option value="NC">Natural Diamond</option>
+                                    <option value="PDC">PDC</option>
+                                    <option value="TSP">TSP</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hardness (HRC)</label>
+                                <input type="text" id="new-breaker-hardness" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., 28-32 HRC">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Compatible Bit Sizes -->
+                    <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <i data-lucide="ruler" class="w-4 h-4"></i>
+                            Compatible Bit Sizes
+                        </h4>
+                        <p class="text-xs text-gray-500 mb-3">Select bit sizes this breaker slot is compatible with:</p>
+                        <div id="new-breaker-sizes-container" class="grid grid-cols-3 md:grid-cols-6 gap-3">
+                            <!-- Will be populated dynamically -->
+                            <span class="text-sm text-gray-400">Loading sizes...</span>
+                        </div>
+                    </div>
+
+                    <!-- Settings & Remarks -->
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <i data-lucide="settings" class="w-4 h-4"></i>
+                            Settings & Remarks
+                        </h4>
+                        <div class="flex items-center mb-4">
+                            <input type="checkbox" id="new-breaker-active" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
+                            <label for="new-breaker-active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Remarks</label>
+                            <textarea id="new-breaker-remarks" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Additional notes..."></textarea>
+                        </div>
+                    </div>
+
+                    <div id="breaker-create-error" class="hidden bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                        <p class="text-sm text-red-600 dark:text-red-400"></p>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <button type="button" id="breaker-create-cancel" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                            Cancel
+                        </button>
+                        <button type="button" id="breaker-create-submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            Create & Select
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Type Picker Modal (HDBS/SMI) -->
+<div id="type-modal" class="fixed inset-0 z-50 hidden">
+    <div class="fixed inset-0 bg-black/50" id="type-modal-backdrop"></div>
+    <div class="fixed inset-4 md:inset-10 lg:inset-20 bg-white dark:bg-gray-800 rounded-lg shadow-xl flex flex-col">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white" id="type-modal-title">Select Type</h3>
+                <!-- Tab buttons -->
+                <div class="flex border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                    <button type="button" id="type-tab-select" class="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white">
+                        Select Existing
+                    </button>
+                    <button type="button" id="type-tab-create" class="px-4 py-1.5 text-sm font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+                        Quick Create
+                    </button>
+                </div>
+            </div>
+            <button type="button" id="close-type-modal" class="text-gray-500 hover:text-gray-700">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Select Existing Tab Content -->
+        <div id="type-content-select">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <!-- Size filter indicator -->
+                <div id="type-size-filter-info" class="hidden mb-3 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <div class="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-200">
+                        <i data-lucide="filter" class="w-4 h-4"></i>
+                        <span>Showing types for size: <strong id="type-size-filter-value"></strong></span>
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search</label>
+                        <input type="text" id="type-search" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Search HDBS or SMI name...">
+                    </div>
+                    <div class="flex items-end">
+                        <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            <input type="checkbox" id="type-show-inactive" class="rounded border-gray-300 text-blue-600">
+                            Show Inactive
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1 overflow-auto px-6 py-4" style="max-height: calc(100vh - 350px);">
+                <table class="w-full">
+                    <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700">
+                        <tr>
+                            <th id="type-col1-header" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">HDBS Name</th>
+                            <th id="type-col2-header" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SMI Names</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sizes</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                            <th class="px-4 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="type-results" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Create Tab Content -->
+        <div id="type-content-create" class="hidden px-6 py-6 overflow-auto" style="max-height: calc(100vh - 200px);">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="info" class="w-5 h-5 text-blue-500 mt-0.5"></i>
+                        <div>
+                            <p class="text-sm text-blue-800 dark:text-blue-200 font-medium">Quick Create Type</p>
+                            <p class="text-xs text-blue-600 dark:text-blue-300 mt-1">Create a new HDBS type (internal) and optionally add SMI types (client-facing). Your design form data is preserved.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Create Type Toggle -->
+                <div class="flex gap-4 mb-6">
+                    <button type="button" id="create-hdbs-toggle" class="flex-1 py-3 px-4 border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-purple-700 dark:text-purple-300 font-medium flex items-center justify-center gap-2">
+                        <i data-lucide="tag" class="w-5 h-5"></i>
+                        Create HDBS Type
+                    </button>
+                    <button type="button" id="create-smi-toggle" class="flex-1 py-3 px-4 border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 font-medium flex items-center justify-center gap-2">
+                        <i data-lucide="git-branch" class="w-5 h-5"></i>
+                        Add SMI to Existing
+                    </button>
+                </div>
+
+                <!-- HDBS Create Form -->
+                <div id="hdbs-create-form" class="space-y-4">
+                    <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <i data-lucide="tag" class="w-4 h-4 text-purple-500"></i>
+                            HDBS Type Information
+                        </h4>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">HDBS Name <span class="text-red-500">*</span></label>
+                            <input type="text" id="new-hdbs-name" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., FM2555">
+                            <p class="mt-1 text-xs text-gray-500">Internal Halliburton designation</p>
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                            <textarea id="new-hdbs-description" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Optional notes..."></textarea>
+                        </div>
+                        <div class="mt-4 flex items-center">
+                            <input type="checkbox" id="new-hdbs-active" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
+                            <label for="new-hdbs-active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                        </div>
+                    </div>
+
+                    <!-- Optionally add SMI to new HDBS -->
+                    <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <input type="checkbox" id="add-smi-with-hdbs" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <label for="add-smi-with-hdbs" class="text-sm font-medium text-gray-700 dark:text-gray-300">Also add an SMI Type</label>
+                        </div>
+                        <div id="smi-with-hdbs-fields" class="hidden pl-6 space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMI Name</label>
+                                <input type="text" id="new-hdbs-smi-name" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., FX55">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SMI Create Form (Add to Existing HDBS) -->
+                <div id="smi-create-form" class="hidden space-y-4">
+                    <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <i data-lucide="git-branch" class="w-4 h-4 text-blue-500"></i>
+                            Add SMI Type to Existing HDBS
+                        </h4>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select HDBS Type <span class="text-red-500">*</span></label>
+                            <select id="smi-for-hdbs" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">Select HDBS Type...</option>
+                            </select>
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMI Name <span class="text-red-500">*</span></label>
+                            <input type="text" id="new-smi-name" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="e.g., FX55">
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                            <textarea id="new-smi-description" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Optional notes..."></textarea>
+                        </div>
+                        <div class="mt-4 flex items-center">
+                            <input type="checkbox" id="new-smi-active" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
+                            <label for="new-smi-active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="type-create-error" class="hidden bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                    <p class="text-sm text-red-600 dark:text-red-400"></p>
+                </div>
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <button type="button" id="type-create-cancel" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                        Cancel
+                    </button>
+                    <button type="button" id="type-create-submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        Create & Select
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const hdbsInput = document.getElementById('id_hdbs_type');
+    const smiInput = document.getElementById('id_smi_type');
+    const matNoInput = document.getElementById('id_mat_no');
+    const sizeSelect = document.getElementById('id_size');
+    const seriesInput = document.getElementById('id_series');
+    const bladesInput = document.getElementById('id_no_of_blades');
+    const cutterSizeInput = document.getElementById('id_cutter_size');
+    const bodyMaterialSelect = document.getElementById('id_body_material');
+    const descriptionInput = document.getElementById('id_description');
+
+    function parseHDBSType(hdbsType) {
+        const match = hdbsType.match(/^([A-Z]+)(\d)(\d)?/i);
+        if (match) {
+            return {
+                series: match[1].toUpperCase(),
+                blades: parseInt(match[2]),
+                cutterGrade: match[3] ? parseInt(match[3]) : null
+            };
+        }
+        return null;
+    }
+
+    function detectBodyMaterial(hdbsType) {
+        // Steel if S at start or end (before suffix like -1)
+        const baseType = hdbsType.split('-')[0];
+        const upper = baseType.toUpperCase();
+        return (upper.startsWith('S') || upper.endsWith('S')) ? 'S' : 'M';
+    }
+
+    function updateDescription() {
+        // Get size text from select
+        let sizeText = '';
+        if (sizeSelect && sizeSelect.selectedIndex > 0) {
+            sizeText = sizeSelect.options[sizeSelect.selectedIndex].text;
+        }
+
+        // Get type (SMI if available, else HDBS)
+        const smiType = smiInput ? smiInput.value.trim() : '';
+        const hdbsType = hdbsInput ? hdbsInput.value.trim() : '';
+        const typeText = smiType || hdbsType;
+
+        // Get MAT No.
+        const matNo = matNoInput ? matNoInput.value.trim() : '';
+
+        // Build description: Size - Type - MAT No.
+        const parts = [sizeText, typeText, matNo].filter(p => p);
+        if (descriptionInput && parts.length > 0) {
+            descriptionInput.value = parts.join(' - ');
+        }
+    }
+
+    function updateAutoFields() {
+        const hdbsType = hdbsInput ? hdbsInput.value.trim() : '';
+        if (!hdbsType) return;
+
+        const parsed = parseHDBSType(hdbsType);
+        if (parsed) {
+            if (seriesInput) seriesInput.value = parsed.series;
+            if (bladesInput) bladesInput.value = parsed.blades;
+            if (parsed.cutterGrade !== null && cutterSizeInput) {
+                cutterSizeInput.value = parsed.cutterGrade;
+            }
+        }
+
+        if (bodyMaterialSelect) {
+            bodyMaterialSelect.value = detectBodyMaterial(hdbsType);
+        }
+
+        // Update description
+        updateDescription();
+    }
+
+    // HDBS Type triggers auto-fill
+    if (hdbsInput) {
+        hdbsInput.addEventListener('input', updateAutoFields);
+        hdbsInput.addEventListener('blur', updateAutoFields);
+        if (hdbsInput.value) updateAutoFields();
+    }
+
+    // SMI Type, Size, MAT No. changes update description
+    if (smiInput) {
+        smiInput.addEventListener('input', updateDescription);
+        smiInput.addEventListener('blur', updateDescription);
+    }
+    if (sizeSelect) {
+        sizeSelect.addEventListener('change', function() {
+            updateDescription();
+            // Clear HDBS and SMI type fields when size changes
+            if (hdbsInput) {
+                hdbsInput.value = '';
+                hdbsInput.dispatchEvent(new Event('input'));
+            }
+            if (smiInput) {
+                smiInput.value = '';
+                smiInput.dispatchEvent(new Event('input'));
+            }
+        });
+    }
+    if (matNoInput) {
+        matNoInput.addEventListener('input', updateDescription);
+        matNoInput.addEventListener('blur', updateDescription);
+    }
+
+    // Initial description update
+    updateDescription();
+
+    // =========================================================================
+    // CONNECTION MODAL
+    // =========================================================================
+    const connModal = document.getElementById('connection-modal');
+    const connBtn = document.getElementById('btn-select-connection');
+    const connClose = document.getElementById('close-connection-modal');
+    const connBackdrop = document.getElementById('connection-modal-backdrop');
+    const connInput = document.getElementById('id_connection_ref');
+    const connDetails = document.getElementById('connection-details');
+    const connPlaceholder = document.getElementById('connection-placeholder');
+    const connClear = document.getElementById('btn-clear-connection');
+
+    function openConnectionModal() {
+        connModal.classList.remove('hidden');
+        loadConnections();
+        loadConnectionFilters();
+    }
+
+    function closeConnectionModal() {
+        connModal.classList.add('hidden');
+    }
+
+    function loadConnectionFilters() {
+        fetch('{% url "technology:api_connections" %}')
+            .then(r => r.json())
+            .then(data => {
+                const typeSelect = document.getElementById('conn-filter-type');
+                const sizeSelect = document.getElementById('conn-filter-size');
+
+                if (data.filters) {
+                    typeSelect.innerHTML = '<option value="">All Types</option>';
+                    data.filters.types.forEach(t => {
+                        typeSelect.innerHTML += `<option value="${t.id}">${t.code} - ${t.name}</option>`;
+                    });
+
+                    sizeSelect.innerHTML = '<option value="">All Sizes</option>';
+                    data.filters.sizes.forEach(s => {
+                        sizeSelect.innerHTML += `<option value="${s.id}">${s.size}</option>`;
+                    });
+                }
+            })
+            .catch(err => console.error('Error loading connection filters:', err));
+    }
+
+    function loadConnections() {
+        const params = new URLSearchParams();
+        const search = document.getElementById('conn-search').value;
+        const type = document.getElementById('conn-filter-type').value;
+        const size = document.getElementById('conn-filter-size').value;
+        const ksa = document.getElementById('conn-filter-ksa').value;
+
+        if (search) params.append('q', search);
+        if (type) params.append('type', type);
+        if (size) params.append('size', size);
+        if (ksa) params.append('can_replace', ksa);
+
+        fetch(`{% url "technology:api_connections" %}?${params.toString()}`)
+            .then(r => r.json())
+            .then(data => {
+                const tbody = document.getElementById('connection-results');
+                if (!data.connections || data.connections.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No connections found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.connections.map(c => `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" data-id="${c.id}" data-mat="${c.mat_no}" data-type="${c.type_name}" data-size="${c.size}">
+                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">${c.mat_no}</td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${c.type} - ${c.type_name}</td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${c.size}</td>
+                        <td class="px-4 py-3">
+                            ${c.can_replace_in_ksa
+                                ? '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Yes</span>'
+                                : '<span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">No</span>'}
+                        </td>
+                        <td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">${c.special_features || '-'}</td>
+                        <td class="px-4 py-3">
+                            <button type="button" class="select-conn-btn px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">Select</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                // Add click handlers
+                tbody.querySelectorAll('.select-conn-btn').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const row = this.closest('tr');
+                        selectConnection(row.dataset.id, row.dataset.mat, row.dataset.type, row.dataset.size);
+                    });
+                });
+
+                tbody.querySelectorAll('tr[data-id]').forEach(row => {
+                    row.addEventListener('click', function() {
+                        selectConnection(this.dataset.id, this.dataset.mat, this.dataset.type, this.dataset.size);
+                    });
+                });
+            })
+            .catch(err => {
+                console.error('Error loading connections:', err);
+                document.getElementById('connection-results').innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-red-500">Error loading connections</td></tr>';
+            });
+    }
+
+    function selectConnection(id, mat, type, size) {
+        connInput.value = id;
+        document.getElementById('conn-mat-no').textContent = mat;
+        document.getElementById('conn-type').textContent = type;
+        document.getElementById('conn-size').textContent = size;
+        connDetails.classList.remove('hidden');
+        connPlaceholder.classList.add('hidden');
+        closeConnectionModal();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function clearConnection() {
+        connInput.value = '';
+        connDetails.classList.add('hidden');
+        connPlaceholder.classList.remove('hidden');
+    }
+
+    if (connBtn) connBtn.addEventListener('click', openConnectionModal);
+    if (connClose) connClose.addEventListener('click', closeConnectionModal);
+    if (connBackdrop) connBackdrop.addEventListener('click', closeConnectionModal);
+    if (connClear) connClear.addEventListener('click', clearConnection);
+
+    // Connection filter listeners
+    ['conn-search', 'conn-filter-type', 'conn-filter-size', 'conn-filter-ksa'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', loadConnections);
+            if (el.tagName === 'INPUT') el.addEventListener('input', debounce(loadConnections, 300));
+        }
+    });
+
+    // =========================================================================
+    // BREAKER SLOT MODAL
+    // =========================================================================
+    const breakerModal = document.getElementById('breaker-modal');
+    const breakerBtn = document.getElementById('btn-select-breaker');
+    const breakerClose = document.getElementById('close-breaker-modal');
+    const breakerBackdrop = document.getElementById('breaker-modal-backdrop');
+    const breakerInput = document.getElementById('id_breaker_slot');
+    const breakerDetails = document.getElementById('breaker-details');
+    const breakerPlaceholder = document.getElementById('breaker-placeholder');
+    const breakerClear = document.getElementById('btn-clear-breaker');
+
+    function openBreakerModal() {
+        breakerModal.classList.remove('hidden');
+        loadBreakerSlots();
+        loadBreakerFilters();
+    }
+
+    function closeBreakerModal() {
+        breakerModal.classList.add('hidden');
+    }
+
+    function loadBreakerFilters() {
+        fetch('{% url "technology:api_breaker_slots" %}')
+            .then(r => r.json())
+            .then(data => {
+                const materialSelect = document.getElementById('breaker-filter-material');
+
+                if (data.filters) {
+                    materialSelect.innerHTML = '<option value="">All Materials</option>';
+                    data.filters.materials.forEach(m => {
+                        materialSelect.innerHTML += `<option value="${m.code}">${m.name}</option>`;
+                    });
+                }
+            })
+            .catch(err => console.error('Error loading breaker slot filters:', err));
+    }
+
+    function loadBreakerSlots() {
+        const params = new URLSearchParams();
+        const search = document.getElementById('breaker-search').value;
+        const material = document.getElementById('breaker-filter-material').value;
+        const minWidth = document.getElementById('breaker-min-width').value;
+        const maxWidth = document.getElementById('breaker-max-width').value;
+
+        if (search) params.append('q', search);
+        if (material) params.append('material', material);
+        if (minWidth) params.append('min_width', minWidth);
+        if (maxWidth) params.append('max_width', maxWidth);
+
+        fetch(`{% url "technology:api_breaker_slots" %}?${params.toString()}`)
+            .then(r => r.json())
+            .then(data => {
+                const tbody = document.getElementById('breaker-results');
+                if (!data.breaker_slots || data.breaker_slots.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No breaker slots found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.breaker_slots.map(b => `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" data-id="${b.id}" data-mat="${b.mat_no}" data-dims="${b.slot_width}x${b.slot_depth}"" data-material="${b.material_display}">
+                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">${b.mat_no}</td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${b.slot_width}</td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${b.slot_depth}</td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${b.material_display}</td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${b.hardness || '-'}</td>
+                        <td class="px-4 py-3">
+                            <button type="button" class="select-breaker-btn px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">Select</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                // Add click handlers
+                tbody.querySelectorAll('.select-breaker-btn').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const row = this.closest('tr');
+                        selectBreakerSlot(row.dataset.id, row.dataset.mat, row.dataset.dims, row.dataset.material);
+                    });
+                });
+
+                tbody.querySelectorAll('tr[data-id]').forEach(row => {
+                    row.addEventListener('click', function() {
+                        selectBreakerSlot(this.dataset.id, this.dataset.mat, this.dataset.dims, this.dataset.material);
+                    });
+                });
+            })
+            .catch(err => {
+                console.error('Error loading breaker slots:', err);
+                document.getElementById('breaker-results').innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-red-500">Error loading breaker slots</td></tr>';
+            });
+    }
+
+    function selectBreakerSlot(id, mat, dims, material) {
+        breakerInput.value = id;
+        document.getElementById('breaker-mat-no').textContent = mat;
+        document.getElementById('breaker-dims').textContent = dims;
+        document.getElementById('breaker-material').textContent = material;
+        breakerDetails.classList.remove('hidden');
+        breakerPlaceholder.classList.add('hidden');
+        closeBreakerModal();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function clearBreakerSlot() {
+        breakerInput.value = '';
+        breakerDetails.classList.add('hidden');
+        breakerPlaceholder.classList.remove('hidden');
+    }
+
+    if (breakerBtn) breakerBtn.addEventListener('click', openBreakerModal);
+    if (breakerClose) breakerClose.addEventListener('click', closeBreakerModal);
+    if (breakerBackdrop) breakerBackdrop.addEventListener('click', closeBreakerModal);
+    if (breakerClear) breakerClear.addEventListener('click', clearBreakerSlot);
+
+    // Breaker slot filter listeners
+    ['breaker-search', 'breaker-filter-material', 'breaker-min-width', 'breaker-max-width'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', loadBreakerSlots);
+            if (el.tagName === 'INPUT') el.addEventListener('input', debounce(loadBreakerSlots, 300));
+        }
+    });
+
+    // =========================================================================
+    // UTILITY FUNCTIONS
+    // =========================================================================
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // =========================================================================
+    // INITIALIZE EXISTING SELECTIONS (for edit mode)
+    // =========================================================================
+    function initializeExistingConnection() {
+        if (connInput && connInput.value) {
+            const connId = connInput.value;
+            fetch(`{% url "technology:api_connections" %}?id=${connId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.connections && data.connections.length > 0) {
+                        const c = data.connections[0];
+                        document.getElementById('conn-mat-no').textContent = c.mat_no;
+                        document.getElementById('conn-type').textContent = c.type_name || c.type;
+                        document.getElementById('conn-size').textContent = c.size;
+                        connDetails.classList.remove('hidden');
+                        connPlaceholder.classList.add('hidden');
+                    }
+                })
+                .catch(err => console.error('Error loading existing connection:', err));
+        }
+    }
+
+    function initializeExistingBreakerSlot() {
+        if (breakerInput && breakerInput.value) {
+            const breakerId = breakerInput.value;
+            fetch(`{% url "technology:api_breaker_slots" %}?id=${breakerId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.breaker_slots && data.breaker_slots.length > 0) {
+                        const b = data.breaker_slots[0];
+                        document.getElementById('breaker-mat-no').textContent = b.mat_no;
+                        document.getElementById('breaker-dims').textContent = `${b.slot_width}x${b.slot_depth}"`;
+                        document.getElementById('breaker-material').textContent = b.material_display;
+                        breakerDetails.classList.remove('hidden');
+                        breakerPlaceholder.classList.add('hidden');
+                    }
+                })
+                .catch(err => console.error('Error loading existing breaker slot:', err));
+        }
+    }
+
+    // Initialize existing selections on page load
+    initializeExistingConnection();
+    initializeExistingBreakerSlot();
+
+    // =========================================================================
+    // CONNECTION MODAL TABS & QUICK CREATE
+    // =========================================================================
+    const connTabSelect = document.getElementById('conn-tab-select');
+    const connTabCreate = document.getElementById('conn-tab-create');
+    const connContentSelect = document.getElementById('conn-content-select');
+    const connContentCreate = document.getElementById('conn-content-create');
+
+    function switchConnTab(tab) {
+        if (tab === 'select') {
+            connTabSelect.classList.add('bg-blue-600', 'text-white');
+            connTabSelect.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            connTabCreate.classList.remove('bg-blue-600', 'text-white');
+            connTabCreate.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            connContentSelect.classList.remove('hidden');
+            connContentCreate.classList.add('hidden');
+        } else {
+            connTabCreate.classList.add('bg-blue-600', 'text-white');
+            connTabCreate.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            connTabSelect.classList.remove('bg-blue-600', 'text-white');
+            connTabSelect.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            connContentCreate.classList.remove('hidden');
+            connContentSelect.classList.add('hidden');
+            // Populate dropdowns for quick create
+            populateConnCreateDropdowns();
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function populateConnCreateDropdowns() {
+        fetch('{% url "technology:api_connections" %}')
+            .then(r => r.json())
+            .then(data => {
+                if (data.filters) {
+                    const typeSelect = document.getElementById('new-conn-type');
+                    const sizeSelect = document.getElementById('new-conn-size');
+
+                    typeSelect.innerHTML = '<option value="">Select Type...</option>';
+                    data.filters.types.forEach(t => {
+                        typeSelect.innerHTML += `<option value="${t.id}">${t.code} - ${t.name}</option>`;
+                    });
+
+                    sizeSelect.innerHTML = '<option value="">Select Size...</option>';
+                    data.filters.sizes.forEach(s => {
+                        sizeSelect.innerHTML += `<option value="${s.id}">${s.size}</option>`;
+                    });
+                }
+            });
+    }
+
+    function createConnection() {
+        const errorDiv = document.getElementById('conn-create-error');
+        errorDiv.classList.add('hidden');
+
+        const data = {
+            mat_no: document.getElementById('new-conn-mat-no').value,
+            connection_type: document.getElementById('new-conn-type').value,
+            connection_size: document.getElementById('new-conn-size').value,
+            can_replace_in_ksa: document.getElementById('new-conn-ksa').checked,
+            special_features: document.getElementById('new-conn-features').value,
+            is_active: document.getElementById('new-conn-active').checked,
+            remarks: document.getElementById('new-conn-remarks').value,
+        };
+
+        fetch('{% url "technology:api_connection_create" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify(data),
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                // Select the newly created connection
+                const c = result.connection;
+                selectConnection(c.id, c.mat_no, c.type_name, c.size);
+                // Clear the form
+                document.getElementById('new-conn-mat-no').value = '';
+                document.getElementById('new-conn-type').value = '';
+                document.getElementById('new-conn-size').value = '';
+                document.getElementById('new-conn-ksa').checked = false;
+                document.getElementById('new-conn-active').checked = true;
+                document.getElementById('new-conn-features').value = '';
+                document.getElementById('new-conn-remarks').value = '';
+                switchConnTab('select');
+                // Reload connection list to show the new one
+                loadConnections();
+            } else {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = result.error || 'Failed to create connection';
+            }
+        })
+        .catch(err => {
+            errorDiv.classList.remove('hidden');
+            errorDiv.querySelector('p').textContent = 'Network error: ' + err.message;
+        });
+    }
+
+    if (connTabSelect) connTabSelect.addEventListener('click', () => switchConnTab('select'));
+    if (connTabCreate) connTabCreate.addEventListener('click', () => switchConnTab('create'));
+    document.getElementById('conn-create-submit')?.addEventListener('click', createConnection);
+    document.getElementById('conn-create-cancel')?.addEventListener('click', () => switchConnTab('select'));
+
+    // =========================================================================
+    // BREAKER SLOT MODAL TABS & QUICK CREATE
+    // =========================================================================
+    const breakerTabSelect = document.getElementById('breaker-tab-select');
+    const breakerTabCreate = document.getElementById('breaker-tab-create');
+    const breakerContentSelect = document.getElementById('breaker-content-select');
+    const breakerContentCreate = document.getElementById('breaker-content-create');
+
+    function switchBreakerTab(tab) {
+        if (tab === 'select') {
+            breakerTabSelect.classList.add('bg-blue-600', 'text-white');
+            breakerTabSelect.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            breakerTabCreate.classList.remove('bg-blue-600', 'text-white');
+            breakerTabCreate.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            breakerContentSelect.classList.remove('hidden');
+            breakerContentCreate.classList.add('hidden');
+        } else {
+            breakerTabCreate.classList.add('bg-blue-600', 'text-white');
+            breakerTabCreate.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            breakerTabSelect.classList.remove('bg-blue-600', 'text-white');
+            breakerTabSelect.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            breakerContentCreate.classList.remove('hidden');
+            breakerContentSelect.classList.add('hidden');
+            // Load bit sizes for checkboxes
+            loadBitSizesForQuickCreate();
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    let bitSizesLoaded = false;
+    function loadBitSizesForQuickCreate() {
+        if (bitSizesLoaded) return;
+        fetch('{% url "technology:api_breaker_slots" %}')
+            .then(r => r.json())
+            .then(data => {
+                if (data.filters && data.filters.sizes) {
+                    const container = document.getElementById('new-breaker-sizes-container');
+                    container.innerHTML = data.filters.sizes.map(s => `
+                        <div class="flex items-center">
+                            <input type="checkbox" id="new-breaker-size-${s.id}" value="${s.id}" class="new-breaker-size-cb rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <label for="new-breaker-size-${s.id}" class="ml-2 text-sm text-gray-700 dark:text-gray-300">${s.display}</label>
+                        </div>
+                    `).join('');
+                    bitSizesLoaded = true;
+                }
+            });
+    }
+
+    function createBreakerSlot() {
+        const errorDiv = document.getElementById('breaker-create-error');
+        errorDiv.classList.add('hidden');
+
+        // Gather selected compatible sizes
+        const selectedSizes = [];
+        document.querySelectorAll('.new-breaker-size-cb:checked').forEach(cb => {
+            selectedSizes.push(parseInt(cb.value));
+        });
+
+        const data = {
+            mat_no: document.getElementById('new-breaker-mat-no').value,
+            material: document.getElementById('new-breaker-material').value,
+            slot_width: document.getElementById('new-breaker-width').value,
+            slot_depth: document.getElementById('new-breaker-depth').value,
+            slot_length: document.getElementById('new-breaker-length').value || null,
+            hardness: document.getElementById('new-breaker-hardness').value,
+            is_active: document.getElementById('new-breaker-active').checked,
+            remarks: document.getElementById('new-breaker-remarks').value,
+            compatible_sizes: selectedSizes,
+        };
+
+        fetch('{% url "technology:api_breaker_slot_create" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify(data),
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                // Select the newly created breaker slot
+                const b = result.breaker_slot;
+                selectBreakerSlot(b.id, b.mat_no, `${b.slot_width}x${b.slot_depth}`, b.material_display);
+                // Clear the form
+                document.getElementById('new-breaker-mat-no').value = '';
+                document.getElementById('new-breaker-material').value = '';
+                document.getElementById('new-breaker-width').value = '';
+                document.getElementById('new-breaker-depth').value = '';
+                document.getElementById('new-breaker-length').value = '';
+                document.getElementById('new-breaker-hardness').value = '';
+                document.getElementById('new-breaker-active').checked = true;
+                document.getElementById('new-breaker-remarks').value = '';
+                document.querySelectorAll('.new-breaker-size-cb').forEach(cb => cb.checked = false);
+                switchBreakerTab('select');
+                // Reload breaker slot list to show the new one
+                loadBreakerSlots();
+            } else {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = result.error || 'Failed to create breaker slot';
+            }
+        })
+        .catch(err => {
+            errorDiv.classList.remove('hidden');
+            errorDiv.querySelector('p').textContent = 'Network error: ' + err.message;
+        });
+    }
+
+    if (breakerTabSelect) breakerTabSelect.addEventListener('click', () => switchBreakerTab('select'));
+    if (breakerTabCreate) breakerTabCreate.addEventListener('click', () => switchBreakerTab('create'));
+    document.getElementById('breaker-create-submit')?.addEventListener('click', createBreakerSlot);
+    document.getElementById('breaker-create-cancel')?.addEventListener('click', () => switchBreakerTab('select'));
+
+    // =========================================================================
+    // TYPE PICKER MODAL (HDBS/SMI)
+    // =========================================================================
+    const typeModal = document.getElementById('type-modal');
+    const typeBackdrop = document.getElementById('type-modal-backdrop');
+    const typeClose = document.getElementById('close-type-modal');
+    const btnPickHdbs = document.getElementById('btn-pick-hdbs');
+    const btnPickSmi = document.getElementById('btn-pick-smi');
+
+    let typePickerMode = 'hdbs'; // 'hdbs' or 'smi'
+
+    function openTypeModal(mode) {
+        typePickerMode = mode;
+        document.getElementById('type-modal-title').textContent = mode === 'hdbs' ? 'Select HDBS Type' : 'Select SMI Type';
+        // Update table headers based on mode
+        const col1Header = document.getElementById('type-col1-header');
+        const col2Header = document.getElementById('type-col2-header');
+        if (mode === 'hdbs') {
+            if (col1Header) col1Header.textContent = 'HDBS Name';
+            if (col2Header) col2Header.textContent = 'SMI Names';
+        } else {
+            if (col1Header) col1Header.textContent = 'HDBS Type';
+            if (col2Header) col2Header.textContent = 'SMI Name';
+        }
+        typeModal.classList.remove('hidden');
+        loadTypes();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function closeTypeModal() {
+        typeModal.classList.add('hidden');
+    }
+
+    function loadTypes() {
+        const params = new URLSearchParams();
+        const search = document.getElementById('type-search').value;
+        const showInactive = document.getElementById('type-show-inactive').checked;
+        const sizeSelect = document.getElementById('id_size');
+        const selectedSize = sizeSelect ? sizeSelect.value : '';
+        const currentHdbs = hdbsInput ? hdbsInput.value : '';
+
+        // Show/hide size filter indicator
+        const sizeFilterInfo = document.getElementById('type-size-filter-info');
+        const sizeFilterValue = document.getElementById('type-size-filter-value');
+        if (selectedSize && sizeSelect) {
+            const selectedOption = sizeSelect.options[sizeSelect.selectedIndex];
+            if (sizeFilterInfo && sizeFilterValue) {
+                sizeFilterValue.textContent = selectedOption.text;
+                sizeFilterInfo.classList.remove('hidden');
+            }
+        } else if (sizeFilterInfo) {
+            sizeFilterInfo.classList.add('hidden');
+        }
+
+        if (search) params.append('q', search);
+        if (showInactive) params.append('show_inactive', '1');
+        if (selectedSize) params.append('size', selectedSize);
+
+        fetch(`{% url "technology:api_hdbs_types" %}?${params.toString()}`)
+            .then(r => r.json())
+            .then(data => {
+                const tbody = document.getElementById('type-results');
+                if (!data.hdbs_types || data.hdbs_types.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No types found</td></tr>';
+                    return;
+                }
+
+                if (typePickerMode === 'hdbs') {
+                    // HDBS mode - show HDBS types with Select button, SMI as info only
+                    tbody.innerHTML = data.hdbs_types.map(h => {
+                        const smiNames = h.smi_types.map(s => s.smi_name).join(', ') || '-';
+                        const sizes = h.sizes.map(s => s.display).join(', ') || 'Any';
+                        return `
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50" data-hdbs="${h.hdbs_name}">
+                            <td class="px-4 py-3">
+                                <span class="font-medium text-purple-600 dark:text-purple-400">${h.hdbs_name}</span>
+                                ${h.description ? `<p class="text-xs text-gray-500 mt-0.5">${h.description}</p>` : ''}
+                            </td>
+                            <td class="px-4 py-3 text-gray-500 text-sm">${smiNames}</td>
+                            <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">${sizes}</td>
+                            <td class="px-4 py-3">
+                                ${h.is_active
+                                    ? '<span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>'
+                                    : '<span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>'}
+                            </td>
+                            <td class="px-4 py-3">
+                                <button type="button" class="select-hdbs-btn px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700">Select</button>
+                            </td>
+                        </tr>
+                    `}).join('');
+
+                    // Add click handlers for HDBS selection
+                    tbody.querySelectorAll('.select-hdbs-btn').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            const row = this.closest('tr');
+                            selectHdbs(row.dataset.hdbs);
+                        });
+                    });
+                } else {
+                    // SMI mode - show SMI types with Select buttons, filter by current HDBS if set
+                    let filteredTypes = data.hdbs_types;
+                    if (currentHdbs) {
+                        filteredTypes = data.hdbs_types.filter(h => h.hdbs_name === currentHdbs);
+                    }
+
+                    if (filteredTypes.length === 0 || filteredTypes.every(h => h.smi_types.length === 0)) {
+                        tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                            ${currentHdbs ? `No SMI types found for ${currentHdbs}` : 'Select an HDBS type first, or search for SMI types'}
+                        </td></tr>`;
+                        return;
+                    }
+
+                    tbody.innerHTML = filteredTypes.flatMap(h =>
+                        h.smi_types.map(s => `
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                <td class="px-4 py-3 text-gray-500 text-sm">${h.hdbs_name}</td>
+                                <td class="px-4 py-3">
+                                    <span class="font-medium text-blue-600 dark:text-blue-400">${s.smi_name}</span>
+                                </td>
+                                <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">${h.sizes.map(sz => sz.display).join(', ') || 'Any'}</td>
+                                <td class="px-4 py-3">
+                                    ${s.is_active
+                                        ? '<span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>'
+                                        : '<span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>'}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <button type="button" class="select-smi-btn px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700" data-hdbs="${h.hdbs_name}" data-smi="${s.smi_name}">Select</button>
+                                </td>
+                            </tr>
+                        `)
+                    ).join('');
+
+                    // Add click handlers for SMI selection
+                    tbody.querySelectorAll('.select-smi-btn').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            selectSmi(this.dataset.hdbs, this.dataset.smi);
+                        });
+                    });
+                }
+            })
+            .catch(err => {
+                console.error('Error loading types:', err);
+                document.getElementById('type-results').innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">Error loading types</td></tr>';
+            });
+    }
+
+    function selectHdbs(hdbsName) {
+        if (hdbsInput) {
+            hdbsInput.value = hdbsName;
+            hdbsInput.dispatchEvent(new Event('input'));
+        }
+        closeTypeModal();
+    }
+
+    function selectSmi(hdbsName, smiName) {
+        if (hdbsInput) {
+            hdbsInput.value = hdbsName;
+            hdbsInput.dispatchEvent(new Event('input'));
+        }
+        if (smiInput) {
+            smiInput.value = smiName;
+            smiInput.dispatchEvent(new Event('input'));
+        }
+        closeTypeModal();
+    }
+
+    if (btnPickHdbs) btnPickHdbs.addEventListener('click', () => openTypeModal('hdbs'));
+    if (btnPickSmi) btnPickSmi.addEventListener('click', () => openTypeModal('smi'));
+    if (typeClose) typeClose.addEventListener('click', closeTypeModal);
+    if (typeBackdrop) typeBackdrop.addEventListener('click', closeTypeModal);
+
+    // Type search listener
+    const typeSearch = document.getElementById('type-search');
+    if (typeSearch) {
+        typeSearch.addEventListener('input', debounce(loadTypes, 300));
+    }
+    const typeShowInactive = document.getElementById('type-show-inactive');
+    if (typeShowInactive) {
+        typeShowInactive.addEventListener('change', loadTypes);
+    }
+
+    // =========================================================================
+    // TYPE MODAL TABS & QUICK CREATE
+    // =========================================================================
+    const typeTabSelect = document.getElementById('type-tab-select');
+    const typeTabCreate = document.getElementById('type-tab-create');
+    const typeContentSelect = document.getElementById('type-content-select');
+    const typeContentCreate = document.getElementById('type-content-create');
+
+    function switchTypeTab(tab) {
+        if (tab === 'select') {
+            typeTabSelect.classList.add('bg-blue-600', 'text-white');
+            typeTabSelect.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            typeTabCreate.classList.remove('bg-blue-600', 'text-white');
+            typeTabCreate.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            typeContentSelect.classList.remove('hidden');
+            typeContentCreate.classList.add('hidden');
+        } else {
+            typeTabCreate.classList.add('bg-blue-600', 'text-white');
+            typeTabCreate.classList.remove('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            typeTabSelect.classList.remove('bg-blue-600', 'text-white');
+            typeTabSelect.classList.add('bg-gray-100', 'text-gray-700', 'dark:bg-gray-700', 'dark:text-gray-300');
+            typeContentCreate.classList.remove('hidden');
+            typeContentSelect.classList.add('hidden');
+            populateHdbsDropdown();
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    // Toggle between HDBS and SMI create forms
+    const createHdbsToggle = document.getElementById('create-hdbs-toggle');
+    const createSmiToggle = document.getElementById('create-smi-toggle');
+    const hdbsCreateForm = document.getElementById('hdbs-create-form');
+    const smiCreateForm = document.getElementById('smi-create-form');
+
+    function showHdbsCreateForm() {
+        createHdbsToggle.classList.add('border-purple-500', 'bg-purple-50', 'dark:bg-purple-900/20', 'text-purple-700', 'dark:text-purple-300');
+        createHdbsToggle.classList.remove('border-gray-300', 'dark:border-gray-600', 'bg-white', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+        createSmiToggle.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-700', 'dark:text-blue-300');
+        createSmiToggle.classList.add('border-gray-300', 'dark:border-gray-600', 'bg-white', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+        hdbsCreateForm.classList.remove('hidden');
+        smiCreateForm.classList.add('hidden');
+    }
+
+    function showSmiCreateForm() {
+        createSmiToggle.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-700', 'dark:text-blue-300');
+        createSmiToggle.classList.remove('border-gray-300', 'dark:border-gray-600', 'bg-white', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+        createHdbsToggle.classList.remove('border-purple-500', 'bg-purple-50', 'dark:bg-purple-900/20', 'text-purple-700', 'dark:text-purple-300');
+        createHdbsToggle.classList.add('border-gray-300', 'dark:border-gray-600', 'bg-white', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+        smiCreateForm.classList.remove('hidden');
+        hdbsCreateForm.classList.add('hidden');
+        populateHdbsDropdown();
+    }
+
+    if (createHdbsToggle) createHdbsToggle.addEventListener('click', showHdbsCreateForm);
+    if (createSmiToggle) createSmiToggle.addEventListener('click', showSmiCreateForm);
+
+    // Toggle SMI fields when checkbox is checked
+    const addSmiWithHdbs = document.getElementById('add-smi-with-hdbs');
+    const smiWithHdbsFields = document.getElementById('smi-with-hdbs-fields');
+    if (addSmiWithHdbs) {
+        addSmiWithHdbs.addEventListener('change', function() {
+            if (this.checked) {
+                smiWithHdbsFields.classList.remove('hidden');
+            } else {
+                smiWithHdbsFields.classList.add('hidden');
+            }
+        });
+    }
+
+    function populateHdbsDropdown() {
+        fetch('{% url "technology:api_hdbs_types" %}')
+            .then(r => r.json())
+            .then(data => {
+                const select = document.getElementById('smi-for-hdbs');
+                if (select && data.hdbs_types) {
+                    select.innerHTML = '<option value="">Select HDBS Type...</option>';
+                    data.hdbs_types.forEach(h => {
+                        select.innerHTML += `<option value="${h.id}">${h.hdbs_name}</option>`;
+                    });
+                }
+            });
+    }
+
+    function createType() {
+        const errorDiv = document.getElementById('type-create-error');
+        errorDiv.classList.add('hidden');
+
+        // Check which form is active
+        if (!hdbsCreateForm.classList.contains('hidden')) {
+            // Creating HDBS Type
+            const hdbsName = document.getElementById('new-hdbs-name').value.trim();
+            if (!hdbsName) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'HDBS Name is required';
+                return;
+            }
+
+            const data = {
+                hdbs_name: hdbsName,
+                description: document.getElementById('new-hdbs-description').value,
+                is_active: document.getElementById('new-hdbs-active').checked,
+            };
+
+            // Check if also adding SMI
+            if (addSmiWithHdbs && addSmiWithHdbs.checked) {
+                data.smi_name = document.getElementById('new-hdbs-smi-name').value.trim();
+                // Pass the size from the design form for SMI creation
+                const sizeSelect = document.getElementById('id_size');
+                if (sizeSelect && sizeSelect.value) {
+                    data.size_id = sizeSelect.value;
+                }
+            }
+
+            fetch('{% url "technology:api_hdbs_type_create" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+                body: JSON.stringify(data),
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    // Fill the form fields
+                    if (hdbsInput) hdbsInput.value = result.hdbs_type.hdbs_name;
+                    if (result.smi_type && smiInput) smiInput.value = result.smi_type.smi_name;
+                    if (hdbsInput) hdbsInput.dispatchEvent(new Event('input'));
+                    // Clear and close
+                    document.getElementById('new-hdbs-name').value = '';
+                    document.getElementById('new-hdbs-description').value = '';
+                    document.getElementById('new-hdbs-smi-name').value = '';
+                    addSmiWithHdbs.checked = false;
+                    smiWithHdbsFields.classList.add('hidden');
+                    closeTypeModal();
+                    loadTypes();
+                } else {
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.querySelector('p').textContent = result.error || 'Failed to create HDBS type';
+                }
+            })
+            .catch(err => {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'Network error: ' + err.message;
+            });
+        } else {
+            // Creating SMI Type
+            const hdbsId = document.getElementById('smi-for-hdbs').value;
+            const smiName = document.getElementById('new-smi-name').value.trim();
+
+            if (!hdbsId) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'Please select an HDBS type';
+                return;
+            }
+            if (!smiName) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'SMI Name is required';
+                return;
+            }
+
+            // Get size from the design form
+            const sizeSelect = document.getElementById('id_size');
+            if (!sizeSelect || !sizeSelect.value) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'Please select a Size in the design form first';
+                return;
+            }
+
+            const data = {
+                hdbs_type_id: hdbsId,
+                smi_name: smiName,
+                size_id: sizeSelect.value,
+                description: document.getElementById('new-smi-description').value,
+                is_active: document.getElementById('new-smi-active').checked,
+            };
+
+            fetch('{% url "technology:api_smi_type_create" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+                body: JSON.stringify(data),
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    // Fill the form fields
+                    if (hdbsInput) hdbsInput.value = result.hdbs_name;
+                    if (smiInput) smiInput.value = result.smi_type.smi_name;
+                    if (hdbsInput) hdbsInput.dispatchEvent(new Event('input'));
+                    // Clear and close
+                    document.getElementById('smi-for-hdbs').value = '';
+                    document.getElementById('new-smi-name').value = '';
+                    document.getElementById('new-smi-description').value = '';
+                    closeTypeModal();
+                    loadTypes();
+                } else {
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.querySelector('p').textContent = result.error || 'Failed to create SMI type';
+                }
+            })
+            .catch(err => {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'Network error: ' + err.message;
+            });
+        }
+    }
+
+    if (typeTabSelect) typeTabSelect.addEventListener('click', () => switchTypeTab('select'));
+    if (typeTabCreate) typeTabCreate.addEventListener('click', () => switchTypeTab('create'));
+    document.getElementById('type-create-submit')?.addEventListener('click', createType);
+    document.getElementById('type-create-cancel')?.addEventListener('click', () => switchTypeTab('select'));
+
+    // =========================================================================
+    // AUTO-SAVE TO LOCALSTORAGE (Safety Net)
+    // =========================================================================
+    const STORAGE_KEY = 'design_form_autosave_{{ object.pk|default:"new" }}';
+    const form = document.querySelector('form');
+
+    function saveFormToStorage() {
+        const formData = {};
+        const inputs = form.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            if (input.name && input.type !== 'file') {
+                if (input.type === 'checkbox') {
+                    formData[input.name] = input.checked;
+                } else {
+                    formData[input.name] = input.value;
+                }
+            }
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
+    }
+
+    function loadFormFromStorage() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return false;
+
+        try {
+            const formData = JSON.parse(saved);
+            let hasData = false;
+
+            for (const [name, value] of Object.entries(formData)) {
+                const input = form.querySelector(`[name="${name}"]`);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = value;
+                    } else if (input.value === '' && value) {
+                        input.value = value;
+                        hasData = true;
+                    }
+                }
+            }
+
+            return hasData;
+        } catch (e) {
+            console.error('Error loading form from storage:', e);
+            return false;
+        }
+    }
+
+    function clearFormStorage() {
+        localStorage.removeItem(STORAGE_KEY);
+    }
+
+    // Auto-save on input changes (debounced)
+    const debouncedSave = debounce(saveFormToStorage, 1000);
+    form.addEventListener('input', debouncedSave);
+    form.addEventListener('change', debouncedSave);
+
+    // Clear storage on successful form submission
+    form.addEventListener('submit', function() {
+        clearFormStorage();
+    });
+
+    // Show restore prompt if we have saved data
+    {% if not object %}
+    const hasRestoredData = loadFormFromStorage();
+    if (hasRestoredData) {
+        // Show a small notification that data was restored
+        const notification = document.createElement('div');
+        notification.className = 'fixed bottom-20 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50';
+        notification.innerHTML = `
+            <i data-lucide="check-circle" class="w-5 h-5"></i>
+            <span>Form data restored from previous session</span>
+            <button type="button" class="ml-2 text-green-200 hover:text-white" onclick="this.parentElement.remove()">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        `;
+        document.body.appendChild(notification);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Auto-hide after 5 seconds
+        setTimeout(() => notification.remove(), 5000);
+    }
+    {% endif %}
+
+    // =========================================================================
+    // SAVE AS DRAFT & RESET FUNCTIONALITY
+    // =========================================================================
+    const saveDraftBtn = document.getElementById('save-draft-btn');
+    const resetFormBtn = document.getElementById('reset-form-btn');
+
+    function gatherFormData() {
+        const formData = {};
+        const inputs = form.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            if (input.name && input.type !== 'file') {
+                if (input.type === 'checkbox') {
+                    // For checkboxes, only include if checked
+                    if (input.checked) formData[input.name] = input.value || true;
+                } else if (input.value) {
+                    formData[input.name] = input.value;
+                }
+            }
+        });
+        // Add design_id if editing
+        {% if object %}
+        formData.design_id = {{ object.pk }};
+        {% endif %}
+        return formData;
+    }
+
+    function saveDraft() {
+        const data = gatherFormData();
+
+        // Check if there's any data to save
+        if (!data.mat_no && !data.hdbs_type) {
+            alert('Please enter at least a MAT No. or HDBS Type to save as draft.');
+            return;
+        }
+
+        // Disable button to prevent double-click
+        saveDraftBtn.disabled = true;
+        saveDraftBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Saving...';
+
+        fetch('{% url "technology:api_design_save_draft" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify(data),
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                // Clear localStorage since we saved to database
+                clearFormStorage();
+                // Redirect to the edit page so pockets, BOMs become available
+                window.location.href = '/technology/designs/' + result.design.id + '/edit/';
+            } else {
+                alert('Error saving draft: ' + (result.error || 'Unknown error'));
+                saveDraftBtn.disabled = false;
+                saveDraftBtn.innerHTML = '<i data-lucide="file-edit" class="w-4 h-4"></i> Save as Draft';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+        })
+        .catch(err => {
+            alert('Network error: ' + err.message);
+            saveDraftBtn.disabled = false;
+            saveDraftBtn.innerHTML = '<i data-lucide="file-edit" class="w-4 h-4"></i> Save as Draft';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        });
+    }
+
+    function resetForm() {
+        // Just clear the form without saving
+        form.reset();
+        // Clear connection and breaker slot selections
+        if (connInput) {
+            connInput.value = '';
+            connDetails.classList.add('hidden');
+            connPlaceholder.classList.remove('hidden');
+        }
+        if (breakerInput) {
+            breakerInput.value = '';
+            breakerDetails.classList.add('hidden');
+            breakerPlaceholder.classList.remove('hidden');
+        }
+        // Clear localStorage
+        clearFormStorage();
+        // Show notification
+        const notification = document.createElement('div');
+        notification.className = 'fixed bottom-20 right-4 bg-blue-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50';
+        notification.innerHTML = `
+            <i data-lucide="check-circle" class="w-5 h-5"></i>
+            <span>Form has been reset</span>
+            <button type="button" class="ml-2 text-blue-200 hover:text-white" onclick="this.parentElement.remove()">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        `;
+        document.body.appendChild(notification);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        setTimeout(() => notification.remove(), 3000);
+    }
+
+    if (saveDraftBtn) {
+        saveDraftBtn.addEventListener('click', saveDraft);
+    }
+
+    if (resetFormBtn) {
+        resetFormBtn.addEventListener('click', function() {
+            if (confirm('This will clear the form. Any unsaved data will be lost. Continue?')) {
+                resetForm();
+            }
+        });
+    }
+
+    // =========================================================================
+    // TYPE VALIDATION - Check if entered type exists
+    // =========================================================================
+    let typesCache = null;
+
+    function fetchTypesCache() {
+        if (typesCache) return Promise.resolve(typesCache);
+        return fetch(`{% url "technology:api_hdbs_types" %}?show_inactive=1`)
+            .then(r => r.json())
+            .then(data => {
+                typesCache = data;
+                return data;
+            });
+    }
+
+    function validateHdbsType() {
+        const value = hdbsInput ? hdbsInput.value.trim() : '';
+        if (!value) return;
+
+        fetchTypesCache().then(data => {
+            const exists = data.hdbs_types.some(h => h.hdbs_name.toLowerCase() === value.toLowerCase());
+            if (!exists) {
+                showTypeNotFoundDialog('HDBS', value, hdbsInput);
+            }
+        });
+    }
+
+    function validateSmiType() {
+        const value = smiInput ? smiInput.value.trim() : '';
+        const hdbsValue = hdbsInput ? hdbsInput.value.trim() : '';
+        if (!value) return;
+
+        fetchTypesCache().then(data => {
+            let exists = false;
+            for (const h of data.hdbs_types) {
+                if (h.smi_types.some(s => s.smi_name.toLowerCase() === value.toLowerCase())) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                showTypeNotFoundDialog('SMI', value, smiInput, hdbsValue);
+            }
+        });
+    }
+
+    function showTypeNotFoundDialog(typeKind, value, inputElement, hdbsValue) {
+        // Create modal dialog
+        const dialog = document.createElement('div');
+        dialog.className = 'fixed inset-0 z-[100] flex items-center justify-center';
+        dialog.innerHTML = `
+            <div class="fixed inset-0 bg-black/50" id="type-validation-backdrop"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+                <div class="flex items-start gap-4">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 dark:text-yellow-400"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${typeKind} Type Not Found</h3>
+                        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            The ${typeKind} type "<strong>${value}</strong>" is not registered in the system.
+                        </p>
+                        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            Would you like to create it as a new ${typeKind} type?
+                        </p>
+                    </div>
+                </div>
+                <div class="mt-6 flex gap-3 justify-end">
+                    <button type="button" id="type-validation-cancel" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+                        No, Clear Field
+                    </button>
+                    <button type="button" id="type-validation-create" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                        Yes, Create New
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        const backdrop = dialog.querySelector('#type-validation-backdrop');
+        const cancelBtn = dialog.querySelector('#type-validation-cancel');
+        const createBtn = dialog.querySelector('#type-validation-create');
+
+        function closeDialog() {
+            dialog.remove();
+        }
+
+        backdrop.addEventListener('click', function() {
+            inputElement.value = '';
+            closeDialog();
+        });
+
+        cancelBtn.addEventListener('click', function() {
+            inputElement.value = '';
+            closeDialog();
+        });
+
+        createBtn.addEventListener('click', function() {
+            closeDialog();
+            if (typeKind === 'HDBS') {
+                // Open HDBS create page in new tab with return flag
+                window.open('{% url "technology:hdbs_type_create" %}?from=design', '_blank');
+            } else {
+                // Open SMI create page with return flag
+                let url = '{% url "technology:smi_type_create_standalone" %}?from=design';
+                window.open(url, '_blank');
+            }
+            // Clear the field since they're creating new
+            inputElement.value = '';
+        });
+    }
+
+    // Add blur validation to HDBS and SMI inputs
+    if (hdbsInput) {
+        hdbsInput.addEventListener('blur', debounce(validateHdbsType, 500));
+    }
+    if (smiInput) {
+        smiInput.addEventListener('blur', debounce(validateSmiType, 500));
+    }
+
+    // Initialize icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+</script>
 {% endblock %}

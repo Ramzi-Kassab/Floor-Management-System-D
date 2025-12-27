@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow Execution Results{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2>Workflow Execution Results</h2>
+  <table class="table table-bordered table-striped">
+    <thead>
+      <tr>
+        <th>Step</th>
+        <th>Success</th>
+        <th>Message</th>
+      </tr>
+    </thead>
+    <tbody id="progressTableBody">
+      <tr><td colspan="3" style="color: #888;">Waiting for steps...</td></tr>
+    </tbody>
+  </table>
+  <a href="{{ url_for('workflows_route') }}" class="btn btn-primary" id="backBtn" disabled>Back to Workflows</a>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+  var socket = io();
+
+  // Start workflow run
+  socket.emit('run_workflow', {
+    workflow_name: "{{ workflow_name|e }}"
+  });
+
+  socket.on('workflow_update', function(data) {
+    let table = document.getElementById('progressTableBody');
+    // Clear placeholder row on first update
+    if (table.children.length === 1 && table.children[0].textContent.includes('Waiting')) {
+      table.innerHTML = "";
+    }
+    let tr = document.createElement('tr');
+    tr.innerHTML = `<td>${data.step}</td><td>${data.success}</td><td>${data.message}</td>`;
+    table.appendChild(tr);
+  });
+
+  socket.on('workflow_done', function(data) {
+    // Enable the back button or show "Done" as you like
+    document.getElementById('backBtn').disabled = false;
+    alert("Workflow complete!");
+  });
+</script>
+{% endblock %}
+

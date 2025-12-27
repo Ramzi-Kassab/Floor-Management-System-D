@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div><h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ session.session_number }}</h1></div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'inventory:cyclecount_session_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm"><i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back</a>
+        {% if session.status != 'FINALIZED' %}
+        <form method="post" action="{% url 'inventory:cyclecount_session_finalize' session.pk %}" class="inline">{% csrf_token %}<button type="submit" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm" onclick="return confirm('Finalize this session? Adjustments will be created.')"><i data-lucide="check-circle" class="w-4 h-4 mr-1"></i>Finalize</button></form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="mb-6"><span class="inline-flex px-3 py-1 text-sm font-medium rounded-full {% if session.status == 'FINALIZED' %}bg-green-100 text-green-800{% elif session.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ session.get_status_display }}</span></div>
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div><p class="text-xs font-medium text-gray-500 uppercase">Plan</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ session.plan.name|default:"-" }}</p></div>
+        <div><p class="text-xs font-medium text-gray-500 uppercase">Count Date</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ session.count_date|date:"Y-m-d" }}</p></div>
+        <div><p class="text-xs font-medium text-gray-500 uppercase">Counted By</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ session.counted_by.username|default:"-" }}</p></div>
+        <div><p class="text-xs font-medium text-gray-500 uppercase">Finalized</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ session.finalized_at|date:"Y-m-d H:i"|default:"-" }}</p></div>
+    </div>
+    {% if session.notes %}
+    <div class="mt-4"><p class="text-xs font-medium text-gray-500 uppercase">Notes</p><p class="text-sm text-gray-600 dark:text-gray-400">{{ session.notes }}</p></div>
+    {% endif %}
+</div>
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700"><h2 class="text-lg font-semibold text-gray-900 dark:text-white">Count Lines</h2></div>
+    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-700"><tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lot</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">System Qty</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Counted Qty</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Variance</th>
+            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Adjusted</th>
+        </tr></thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+        {% for line in lines %}
+        <tr>
+            <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{{ line.item.code }}</td>
+            <td class="px-4 py-3 text-sm text-gray-600">{{ line.location.code }}</td>
+            <td class="px-4 py-3 text-sm text-gray-600">{{ line.lot.lot_number|default:"-" }}</td>
+            <td class="px-4 py-3 text-sm text-right text-gray-600">{{ line.qty_system }}</td>
+            <td class="px-4 py-3 text-sm text-right text-gray-600">{{ line.qty_counted|default:"-" }}</td>
+            <td class="px-4 py-3 text-sm text-right font-medium {% if line.variance > 0 %}text-green-600{% elif line.variance < 0 %}text-red-600{% else %}text-gray-600{% endif %}">{% if line.variance > 0 %}+{% endif %}{{ line.variance|default:"-" }}</td>
+            <td class="px-4 py-3 text-center">{% if line.is_adjusted %}<i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>{% else %}-{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No lines.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

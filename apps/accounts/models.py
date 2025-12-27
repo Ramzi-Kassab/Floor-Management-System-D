@@ -9,10 +9,13 @@ Tables:
 - role_permissions (P1)
 - user_roles (P1)
 - user_preferences (P1)
+- trusted_devices (P1) - Device-based authentication
 """
 
+import secrets
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
@@ -270,3 +273,78 @@ class UserPreference(models.Model):
 
     def __str__(self):
         return f"Preferences for {self.user}"
+
+
+class TrustedDevice(models.Model):
+    """
+    🟢 P1: Trusted devices for mobile/pocket access.
+
+    When a user scans a QR code and logs in from a mobile device,
+    we can "trust" that device so they don't need to re-authenticate.
+    """
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="trusted_devices")
+
+    # Device identification
+    device_token = models.CharField(max_length=64, unique=True, db_index=True)
+    device_name = models.CharField(max_length=100, blank=True, help_text="User-friendly device name")
+    device_type = models.CharField(max_length=50, blank=True, help_text="mobile, tablet, desktop")
+    device_os = models.CharField(max_length=50, blank=True, help_text="iOS, Android, Windows, etc.")
+    user_agent = models.CharField(max_length=500, blank=True)
+
+    # Browser fingerprint (optional additional security)
+    fingerprint_hash = models.CharField(max_length=64, blank=True, help_text="Browser fingerprint hash")
+
+    # Trust status
+    is_active = models.BooleanField(default=True)
+    trust_level = models.CharField(
+        max_length=20,
+        choices=[
+            ("FULL", "Full Access"),
+            ("LIMITED", "Limited Access (view only)"),
+            ("PENDING", "Pending Approval"),
+        ],
+        default="FULL"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True, help_text="Optional expiration")
+
+    # Location (optional)
+    last_ip = models.GenericIPAddressField(null=True, blank=True)
+    last_location = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        db_table = "trusted_devices"
+        ordering = ["-last_used_at", "-created_at"]
+        verbose_name = "Trusted Device"
+        verbose_name_plural = "Trusted Devices"
+
+    def __str__(self):
+        return f"{self.user.username}'s {self.device_name or 'device'}"
+
+    @classmethod
+    def generate_token(cls):
+        """Generate a secure random device token."""
+        return secrets.token_urlsafe(48)
+
+    def update_last_used(self, ip_address=None):
+        """Update the last used timestamp."""
+        self.last_used_at = timezone.now()
+        if ip_address:
+            self.last_ip = ip_address
+        self.save(update_fields=["last_used_at", "last_ip"])
+
+    @property
+    def is_expired(self):
+        """Check if this device trust has expired."""
+        if not self.expires_at:
+            return False
+        return timezone.now() > self.expires_at
+
+    @property
+    def is_valid(self):
+        """Check if this trusted device is still valid."""
+        return self.is_active and not self.is_expired

@@ -13,6 +13,15 @@ app_name = "sales"
 
 urlpatterns = [
     # ==========================================================================
+    # ACCOUNT URLS (Aramco Divisions)
+    # ==========================================================================
+    path("accounts/", views.AccountListView.as_view(), name="account_list"),
+    path("accounts/create/", views.AccountCreateView.as_view(), name="account_create"),
+    path("accounts/<int:pk>/", views.AccountDetailView.as_view(), name="account_detail"),
+    path("accounts/<int:pk>/edit/", views.AccountUpdateView.as_view(), name="account_update"),
+    path("accounts/<int:pk>/delete/", views.AccountDeleteView.as_view(), name="account_delete"),
+    path("api/accounts/", views.APIAccountsView.as_view(), name="api_accounts"),
+    # ==========================================================================
     # CUSTOMER URLS
     # ==========================================================================
     path("customers/", views.CustomerListView.as_view(), name="customer_list"),

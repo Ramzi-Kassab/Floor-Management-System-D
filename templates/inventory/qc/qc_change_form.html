@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div><h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1></div>
+    <a href="{% url 'inventory:qc_change_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm"><i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back</a>
+</div>
+{% endblock %}
+{% block content %}
+<form method="post" class="space-y-6">{% csrf_token %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quality Status Change</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Item</label>{{ form.item }}</div>
+        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>{{ form.location }}</div>
+        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lot</label>{{ form.lot }}</div>
+        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Status</label>{{ form.from_status }}</div>
+        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">To Status</label>{{ form.to_status }}</div>
+        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Qty Affected</label>{{ form.qty_affected }}</div>
+        <div class="md:col-span-3"><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>{{ form.reason }}</div>
+    </div>
+</div>
+<div class="flex justify-end gap-3">
+    <a href="{% url 'inventory:qc_change_list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">Cancel</a>
+    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"><i data-lucide="save" class="w-4 h-4 inline mr-1"></i>Save</button>
+</div>
+</form>
+{% endblock %}

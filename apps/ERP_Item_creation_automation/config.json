@@ -1,0 +1,6 @@
+{
+  "default_url": "https://prod.alrushaid.net/namespaces/AXSF/?cmp=ardt&mi=PurchReqPreparedByMe",
+  "default_workflow": "login_flow",
+  "default_excel_folder": "E:/PycharmProjects/ERP_automation/EXCEL BITS TRACKING",
+  "default_excel_filename": "BITS TRACKING"
+}

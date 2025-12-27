@@ -1,0 +1,170 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "ARDT: Backup (zip workspace)",
+            "type": "shell",
+            "command": "./backup.sh",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "ARDT: Restore (latest zip)",
+            "type": "shell",
+            "command": "./restore.sh",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "ARDT: Fresh Setup (reset DB + seeds)",
+            "type": "shell",
+            "command": "rm -f db.sqlite3 && python manage.py migrate && python manage.py seed_bit_sizes && python manage.py seed_connection_types && python manage.py seed_connection_sizes && python manage.py seed_formation_types && python manage.py seed_applications && python manage.py seed_special_technologies && python manage.py seed_upper_section_types && python manage.py seed_iadc_codes && python manage.py seed_pocket_sizes && python manage.py seed_pocket_shapes && python manage.py seed_connections && python manage.py seed_breaker_slots && python manage.py seed_test_designs && python manage.py seed_units && python manage.py seed_attributes && python manage.py seed_variant_cases && python manage.py seed_quality_statuses && python manage.py seed_condition_types && python manage.py seed_adjustment_reasons && python manage.py seed_ownership_types && python manage.py seed_location_types && python manage.py seed_parties && python manage.py create_default_admin && echo '✅ Fresh setup complete! Admin: admin / ra@mzi@123'",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Django: Run Server",
+            "type": "shell",
+            "command": "python manage.py runserver 0.0.0.0:8000",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Django: Migrate",
+            "type": "shell",
+            "command": "python manage.py migrate",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Django: Make Migrations",
+            "type": "shell",
+            "command": "python manage.py makemigrations",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Django: Collect Static",
+            "type": "shell",
+            "command": "python manage.py collectstatic --noinput",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Django: Test All",
+            "type": "shell",
+            "command": "python manage.py test --verbosity=2",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Django: Seed All Data",
+            "type": "shell",
+            "command": "python manage.py seed_all",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Django: Clear Seed Data",
+            "type": "shell",
+            "command": "python manage.py clear_seed_data",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Django: Create Superuser",
+            "type": "shell",
+            "command": "python manage.py createsuperuser",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Django: Shell",
+            "type": "shell",
+            "command": "python manage.py shell",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Django: Show Migrations",
+            "type": "shell",
+            "command": "python manage.py showmigrations",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Django: Check",
+            "type": "shell",
+            "command": "python manage.py check",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Pip: Install Requirements",
+            "type": "shell",
+            "command": "pip install -r requirements.txt",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Full Setup: Install + Migrate + Seed",
+            "type": "shell",
+            "command": "pip install -r requirements.txt && python manage.py migrate && python manage.py seed_all",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

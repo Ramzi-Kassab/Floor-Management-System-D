@@ -23,6 +23,250 @@ from django.db import models
 
 
 # =============================================================================
+# BIT REFERENCE TABLES (Moved from workorders)
+# =============================================================================
+
+
+class BitSize(models.Model):
+    """
+    Reference table for standard bit sizes.
+    Simple list: 8 1/2", 12 1/4", etc.
+    """
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        help_text="e.g., '8.500'"
+    )
+    size_decimal = models.DecimalField(
+        max_digits=6,
+        decimal_places=3,
+        help_text="Size in decimal inches (e.g., 8.500)"
+    )
+    size_display = models.CharField(
+        max_length=20,
+        help_text="Display format (e.g., '8 1/2\"')"
+    )
+    size_inches = models.CharField(
+        max_length=20,
+        help_text="Fraction format (e.g., '8 1/2')"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional remarks or description"
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "bit_sizes"
+        ordering = ["size_decimal"]
+        verbose_name = "Bit Size"
+        verbose_name_plural = "Bit Sizes"
+
+    def __str__(self):
+        return self.size_display
+
+
+class HDBSType(models.Model):
+    """
+    HDBS Type - Internal Halliburton naming for bit types.
+    One HDBS type can have multiple SMI names (1-to-many).
+    One HDBS type can work with multiple sizes (M2M) - at least one required.
+    """
+    hdbs_name = models.CharField(
+        max_length=50,
+        unique=True,
+        verbose_name="HDBS Name",
+        help_text="Internal HDBS type name (e.g., GT65RHS)"
+    )
+    sizes = models.ManyToManyField(
+        'BitSize',
+        related_name="hdbs_types",
+        verbose_name="Compatible Sizes",
+        help_text="Bit sizes this type is available in (at least one required)"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional description or remarks"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "hdbs_types"
+        ordering = ["hdbs_name"]
+        verbose_name = "HDBS Type"
+        verbose_name_plural = "HDBS Types"
+
+    def __str__(self):
+        return self.hdbs_name
+
+
+class SMIType(models.Model):
+    """
+    SMI Type - Client-facing naming for bit types.
+    Linked to HDBS Type and a specific Size.
+    Different sizes of the same HDBS type can have different SMI names.
+    """
+    smi_name = models.CharField(
+        max_length=50,
+        verbose_name="SMI Name",
+        help_text="Client-facing type name (e.g., GT65RHs-1)"
+    )
+    hdbs_type = models.ForeignKey(
+        'HDBSType',
+        on_delete=models.CASCADE,
+        related_name="smi_types",
+        verbose_name="HDBS Type",
+        help_text="The internal HDBS type this SMI name maps to"
+    )
+    size = models.ForeignKey(
+        'BitSize',
+        on_delete=models.CASCADE,
+        related_name="smi_types",
+        verbose_name="Size",
+        help_text="Specific size for this SMI name (required)"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional description or remarks"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "smi_types"
+        ordering = ["hdbs_type__hdbs_name", "size__size_decimal", "smi_name"]
+        verbose_name = "SMI Type"
+        verbose_name_plural = "SMI Types"
+        # Same SMI name can exist for same HDBS but different sizes
+        unique_together = [["smi_name", "hdbs_type", "size"]]
+
+    def __str__(self):
+        if self.size:
+            return f"{self.smi_name} ({self.hdbs_type.hdbs_name} - {self.size.size_display})"
+        return f"{self.smi_name} ({self.hdbs_type.hdbs_name})"
+
+
+class BitType(models.Model):
+    """
+    DEPRECATED - Legacy reference table for bit product types.
+    Kept for backward compatibility. Use HDBSType and SMIType instead.
+    """
+    class Category(models.TextChoices):
+        FC = "FC", "Fixed Cutter"
+        MT = "MT", "Mill Tooth"
+        TCI = "TCI", "Tri Cone Inserts"
+
+    class BodyMaterial(models.TextChoices):
+        MATRIX = "M", "Matrix"
+        STEEL = "S", "Steel"
+        NA = "", "N/A"
+
+    class OrderLevel(models.TextChoices):
+        LEVEL_3 = "3", "Level 3 - No cutters, upper section separate"
+        LEVEL_4 = "4", "Level 4 - No cutters, upper section welded/machined"
+        LEVEL_5 = "5", "Level 5 - With cutters brazed"
+        LEVEL_6 = "6", "Level 6 - Painted and ready for use"
+
+    # Core fields
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Model code (e.g., 'GT65RHS')"
+    )
+    name = models.CharField(max_length=100, blank=True)
+    series = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Series (GT, HD, MM, FX, EM, etc.)"
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    # Phase 2 fields
+    category = models.CharField(
+        max_length=10,
+        choices=Category.choices,
+        default=Category.FC,
+        help_text="FC=Fixed Cutter, MT=Mill Tooth, TCI=Tri Cone Inserts"
+    )
+    smi_name = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="SMI/Client-facing name (e.g., 'GT65RHs-1')"
+    )
+    hdbs_name = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Internal HDBS name"
+    )
+    hdbs_mn = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="HDBS SAP Material Number"
+    )
+    ref_hdbs_mn = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Parent/Reference HDBS Material Number"
+    )
+    ardt_item_number = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="ARDT ERP Item Number"
+    )
+    body_material = models.CharField(
+        max_length=1,
+        choices=BodyMaterial.choices,
+        default=BodyMaterial.NA,
+        blank=True,
+        help_text="Body material: M=Matrix, S=Steel"
+    )
+    no_of_blades = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of blades (FC only)"
+    )
+    cutter_size = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Cutter size in mm (FC only)"
+    )
+    gage_length = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Gage length in inches (FC only)"
+    )
+    order_level = models.CharField(
+        max_length=5,
+        choices=OrderLevel.choices,
+        blank=True,
+        help_text="JV Production Level: 3-6"
+    )
+    size = models.ForeignKey(
+        'BitSize',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="bit_types",
+        help_text="Standard bit size"
+    )
+
+    class Meta:
+        db_table = "bit_types"  # Keep same table name
+        ordering = ["category", "series", "smi_name", "code"]
+        verbose_name = "Bit Type"
+        verbose_name_plural = "Bit Types"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+# =============================================================================
 # REFERENCE DATA MODELS (Phase 2)
 # =============================================================================
 
@@ -271,7 +515,7 @@ class BreakerSlot(models.Model):
         help_text='Rockwell hardness rating (e.g., 28-32 HRC)'
     )
     compatible_sizes = models.ManyToManyField(
-        'workorders.BitSize',
+        'BitSize',
         blank=True,
         verbose_name='Compatible Bit Sizes',
         related_name='breaker_slots',
@@ -414,7 +658,7 @@ class Design(models.Model):
         default=Category.FC
     )
     size = models.ForeignKey(
-        'workorders.BitSize',
+        'BitSize',
         on_delete=models.PROTECT,
         verbose_name='Size',
         null=True,
@@ -1033,3 +1277,149 @@ class DesignPocket(models.Model):
 
     def __str__(self):
         return f"{self.design.hdbs_type} - B{self.blade_number}R{self.row_number}P{self.position_in_row}"
+
+
+# =============================================================================
+# DESIGN-TYPE JUNCTION TABLES
+# =============================================================================
+
+
+class DesignHDBS(models.Model):
+    """
+    Junction table linking Design (MAT NO) to HDBSType.
+    One Design has ONE current HDBS type (1:1 relationship).
+    Historical HDBS assignments are kept with is_current=False.
+    """
+    design = models.ForeignKey(
+        Design,
+        on_delete=models.CASCADE,
+        related_name='hdbs_assignments',
+        verbose_name='Design'
+    )
+    hdbs_type = models.ForeignKey(
+        HDBSType,
+        on_delete=models.CASCADE,
+        related_name='design_assignments',
+        verbose_name='HDBS Type'
+    )
+    is_current = models.BooleanField(
+        default=True,
+        verbose_name='Is Current',
+        help_text='Whether this is the current HDBS type for this design'
+    )
+    assigned_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Assigned At'
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='hdbs_assignments',
+        verbose_name='Assigned By'
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "design_hdbs"
+        ordering = ['design', '-assigned_at']
+        verbose_name = "Design HDBS Assignment"
+        verbose_name_plural = "Design HDBS Assignments"
+        # Only one current HDBS per design
+        constraints = [
+            models.UniqueConstraint(
+                fields=['design'],
+                condition=models.Q(is_current=True),
+                name='unique_current_hdbs_per_design'
+            )
+        ]
+
+    def __str__(self):
+        status = "(current)" if self.is_current else "(historical)"
+        return f"{self.design.mat_no} -> {self.hdbs_type.hdbs_name} {status}"
+
+    def save(self, *args, **kwargs):
+        # If this is being set as current, mark other assignments as not current
+        if self.is_current:
+            DesignHDBS.objects.filter(
+                design=self.design,
+                is_current=True
+            ).exclude(pk=self.pk).update(is_current=False)
+        super().save(*args, **kwargs)
+
+
+class DesignSMI(models.Model):
+    """
+    Junction table linking Design (MAT NO) to SMIType.
+    One Design has ONE current SMI type per Account (or global if no account).
+    Changing SMI type creates a new design variant (new MAT NO).
+    """
+    design = models.ForeignKey(
+        Design,
+        on_delete=models.CASCADE,
+        related_name='smi_assignments',
+        verbose_name='Design'
+    )
+    smi_type = models.ForeignKey(
+        SMIType,
+        on_delete=models.CASCADE,
+        related_name='design_assignments',
+        verbose_name='SMI Type'
+    )
+    account = models.ForeignKey(
+        'sales.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='smi_assignments',
+        verbose_name='Account',
+        help_text='Aramco division (leave blank for global SMI)'
+    )
+    is_current = models.BooleanField(
+        default=True,
+        verbose_name='Is Current',
+        help_text='Whether this is the current SMI type for this design/account'
+    )
+    assigned_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Assigned At'
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='smi_assignments',
+        verbose_name='Assigned By'
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "design_smi"
+        ordering = ['design', 'account', '-assigned_at']
+        verbose_name = "Design SMI Assignment"
+        verbose_name_plural = "Design SMI Assignments"
+        # Only one current SMI per design+account combination
+        constraints = [
+            models.UniqueConstraint(
+                fields=['design', 'account'],
+                condition=models.Q(is_current=True),
+                name='unique_current_smi_per_design_account'
+            )
+        ]
+
+    def __str__(self):
+        account_str = f" [{self.account.code}]" if self.account else " [Global]"
+        status = "(current)" if self.is_current else "(historical)"
+        return f"{self.design.mat_no} -> {self.smi_type.smi_name}{account_str} {status}"
+
+    def save(self, *args, **kwargs):
+        # If this is being set as current, mark other assignments for same design+account as not current
+        if self.is_current:
+            DesignSMI.objects.filter(
+                design=self.design,
+                account=self.account,
+                is_current=True
+            ).exclude(pk=self.pk).update(is_current=False)
+        super().save(*args, **kwargs)

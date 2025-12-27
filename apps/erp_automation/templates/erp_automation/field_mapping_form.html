@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Field Mapping - ERP Automation{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                {% if form.instance.pk %}Edit Field Mapping{% else %}Add Field Mapping{% endif %}
+            </h1>
+            <p class="text-gray-600 dark:text-gray-400">Map an Excel column to an ERP form field</p>
+        </div>
+        <a href="{% url 'erp_automation:field_mapping_list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back
+        </a>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="link" class="w-5 h-5 mr-2 text-gray-400"></i>
+                    Mapping Configuration
+                </h2>
+            </div>
+            <div class="p-6 space-y-6">
+                <!-- Workflow -->
+                <div>
+                    <label for="id_workflow" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Workflow <span class="text-red-500">*</span>
+                    </label>
+                    <select name="workflow" id="id_workflow" required
+                            class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">Select a workflow...</option>
+                        {% for workflow in workflows %}
+                        <option value="{{ workflow.pk }}" {% if form.instance.workflow_id == workflow.pk %}selected{% endif %}>
+                            {{ workflow.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Which workflow this mapping belongs to
+                    </p>
+                </div>
+
+                <!-- Excel Column & ERP Field side by side -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="id_excel_column" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Excel Column <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="excel_column" id="id_excel_column" required
+                               value="{{ form.instance.excel_column|default:'' }}"
+                               placeholder="e.g., LVS MAT NO."
+                               class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Exact column name from your Excel file
+                        </p>
+                        {% if excel_columns %}
+                        <div class="mt-2">
+                            <span class="text-xs text-gray-500 dark:text-gray-400">Available columns:</span>
+                            <div class="flex flex-wrap gap-1 mt-1">
+                                {% for col in excel_columns %}
+                                <button type="button" onclick="document.getElementById('id_excel_column').value='{{ col }}'"
+                                        class="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded hover:bg-gray-200 dark:hover:bg-gray-600">
+                                    {{ col }}
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="id_erp_field" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            ERP Field Name <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="erp_field" id="id_erp_field" required
+                               value="{{ form.instance.erp_field|default:'' }}"
+                               placeholder="e.g., material_number"
+                               class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Internal field name for the ERP system
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Locator -->
+                <div>
+                    <label for="id_locator" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Locator (optional)
+                    </label>
+                    <select name="locator" id="id_locator"
+                            class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">No locator</option>
+                        {% for locator in locators %}
+                        <option value="{{ locator.pk }}" {% if form.instance.locator_id == locator.pk %}selected{% endif %}>
+                            {{ locator.name }} ({{ locator.application }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        The UI element locator for this field in the ERP system
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transformation Options -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="wand-2" class="w-5 h-5 mr-2 text-gray-400"></i>
+                    Transformation Options
+                </h2>
+            </div>
+            <div class="p-6 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="id_transform_function" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Transform Function
+                        </label>
+                        <select name="transform_function" id="id_transform_function"
+                                class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">No transformation</option>
+                            <option value="uppercase" {% if form.instance.transform_function == 'uppercase' %}selected{% endif %}>Uppercase</option>
+                            <option value="lowercase" {% if form.instance.transform_function == 'lowercase' %}selected{% endif %}>Lowercase</option>
+                            <option value="trim" {% if form.instance.transform_function == 'trim' %}selected{% endif %}>Trim Whitespace</option>
+                            <option value="date_format" {% if form.instance.transform_function == 'date_format' %}selected{% endif %}>Format Date</option>
+                            <option value="number_format" {% if form.instance.transform_function == 'number_format' %}selected{% endif %}>Format Number</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="id_default_value" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Default Value
+                        </label>
+                        <input type="text" name="default_value" id="id_default_value"
+                               value="{{ form.instance.default_value|default:'' }}"
+                               placeholder="Value if Excel cell is empty"
+                               class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <!-- Checkboxes -->
+                <div class="flex flex-wrap gap-6">
+                    <div class="flex items-center">
+                        <input type="checkbox" name="is_required" id="id_is_required"
+                               {% if form.instance.is_required %}checked{% endif %}
+                               class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                        <label for="id_is_required" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                            Required field
+                        </label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" name="is_active" id="id_is_active"
+                               {% if form.instance.is_active or not form.instance.pk %}checked{% endif %}
+                               class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                        <label for="id_is_active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                            Active
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'erp_automation:field_mapping_list' %}"
+               class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+            </a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i data-lucide="save" class="w-4 h-4 inline mr-2"></i>
+                {% if form.instance.pk %}Update{% else %}Create{% endif %} Mapping
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        lucide.createIcons();
+    });
+</script>
+{% endblock %}

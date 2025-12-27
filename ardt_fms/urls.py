@@ -69,6 +69,9 @@ urlpatterns = [
     # Inventory
     path('inventory/', include('apps.inventory.urls', namespace='inventory')),
 
+    # ERP Automation
+    path('erp-automation/', include('apps.erp_automation.urls', namespace='erp_automation')),
+
     # Support Systems
     path('scan/', include('apps.scancodes.urls', namespace='scancodes')),
     path('notifications/', include('apps.notifications.urls', namespace='notifications')),

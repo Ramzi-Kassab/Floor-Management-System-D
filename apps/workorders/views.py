@@ -253,7 +253,7 @@ class DrillBitListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Drill Bits"
         context["status_choices"] = DrillBit.Status.choices
-        context["type_choices"] = DrillBit.BitType.choices
+        context["type_choices"] = DrillBit.BitCategory.choices
         context["current_status"] = self.request.GET.get("status", "")
         context["current_type"] = self.request.GET.get("type", "")
         context["search_query"] = self.request.GET.get("q", "")

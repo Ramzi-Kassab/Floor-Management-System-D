@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+
+{% block title %}Workflows Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2>Workflows Management</h2>
+
+  <!-- =====================
+       CREATE WORKFLOW
+  ====================== -->
+  <div class="card mb-4">
+    <div class="card-header">Create New Workflow</div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('workflows_route') }}">
+        <input type="hidden" name="action" value="create">
+        <div class="mb-3">
+          <label for="workflow_name" class="form-label">Workflow Name</label>
+          <input type="text" class="form-control" id="workflow_name" name="workflow_name" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Select Steps (Dictionaries)</label>
+          <div class="list-group" id="steps_container"></div>
+          <div class="mt-2">
+            <select class="form-select" id="available_steps">
+              {% for dict_name in dictionaries.keys() %}
+              <option value="{{ dict_name }}">{{ dict_name }}</option>
+              {% endfor %}
+            </select>
+            <button type="button" class="btn btn-secondary mt-2" id="add_step_btn">Add Step</button>
+			
+			<div class="mt-2">
+			  <button type="button" class="btn btn-link" id="toggleAdvancedStep">Add Account-Based Step</button>
+			  <div id="advancedStepSection" style="display:none;">
+				<label>Add step for specific account (FROM):</label>
+				<div id="accountStepFields">
+				  <div class="input-group mb-2">
+					<input type="text" class="form-control" placeholder="Account (FROM)" name="account_name[]" />
+					<select class="form-select" name="account_step[]">
+					  {% for dict_name in dictionaries.keys() %}
+					  <option value="{{ dict_name }}">{{ dict_name }}</option>
+					  {% endfor %}
+					</select>
+					<button type="button" class="btn btn-danger remove-account-step">Remove</button>
+				  </div>
+				</div>
+				<button type="button" class="btn btn-sm btn-secondary" id="addAccountStepField">Add Another Account</button>
+				<button type="button" class="btn btn-primary mt-2" id="addAdvancedStepBtn">Add Account-Based Step</button>
+			  </div>
+			</div>
+
+			
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="valid_sheets" class="form-label">Valid Sheets for this Workflow</label>
+          <select class="form-select" id="valid_sheets" name="valid_sheets" multiple required>
+            {% set all_possible_sheets = ["LSTK", "UR", "L3", "L4", "RC-LSTK", "WFD", "ARDT", "REAMERS", "HALLIBURTON", "Hal_Regional", "ARAMCO"] %}
+            {% for sheet in all_possible_sheets %}
+            <option value="{{ sheet }}">{{ sheet }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">Hold Ctrl or Cmd to select multiple sheets.</div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Create Workflow</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- =====================
+       EXISTING WORKFLOWS
+  ====================== -->
+  <div class="card">
+    <div class="card-header">Existing Workflows</div>
+    <div class="card-body">
+      {% if workflows %}
+        {% set selected_sheets = session.get('selected_rows_by_sheet', {}).keys() | list %}
+        {% for wf in workflows %}
+			{% set is_visible = (wf.valid_sheets | select('in', selected_sheets) | list | length > 0) or (selected_sheets | length == 0) %}
+			{% set selected_rows_by_sheet = session.get('selected_rows_by_sheet', {}) %}
+			{% set ns = namespace(has_valid_rows=false) %}
+			{% for valid_sheet in wf.valid_sheets %}
+			  {% if selected_rows_by_sheet.get(valid_sheet) and selected_rows_by_sheet[valid_sheet]|length > 0 %}
+				{% set ns.has_valid_rows = true %}
+			  {% endif %}
+			{% endfor %}
+
+
+			<pre style="color:#888; font-size:small;">
+			valid_sheets: {{ wf.valid_sheets }}
+			selected_rows_by_sheet: {{ selected_rows_by_sheet }}
+			for each valid_sheet:
+			{% for valid_sheet in wf.valid_sheets %}
+			  {{ valid_sheet }} -> rows: {{ selected_rows_by_sheet.get(valid_sheet)|length if selected_rows_by_sheet.get(valid_sheet) else 0 }}
+			{% endfor %}
+			</pre>
+
+
+          <div class="card mb-3">
+            <div class="card-header">
+              <h5 class="mb-0">{{ wf.workflow_name }}</h5>
+            </div>
+            <div class="card-body">
+              <details>
+                <summary class="mb-2">View Steps ({{ wf.steps | length }})</summary>
+                <p class="mb-2">Steps: {{ wf.steps | join(', ') }}</p>
+              </details>
+              <p class="text-muted small">Valid Sheets: {{ wf.valid_sheets | join(', ') }}</p>
+
+			<div class="d-flex justify-content-end flex-wrap gap-2">
+				{% if ns.has_valid_rows %}
+				  <form method="post" action="{{ url_for('workflows_route') }}">
+					<input type="hidden" name="action" value="execute">
+					<input type="hidden" name="workflow_name" value="{{ wf.workflow_name }}">
+					<button type="submit" class="btn btn-success">Execute</button>
+				  </form>
+				{% else %}
+				  <p class="text-warning me-auto mb-0">
+					Cannot execute. Make sure valid Excel rows are selected.
+				  </p>
+				{% endif %}
+
+
+
+                <button type="button" class="btn btn-info"
+                        onclick="editWorkflow('{{ wf.workflow_name }}')">
+                  Edit
+                </button>
+
+                <form method="post" action="{{ url_for('workflows_route') }}">
+                  <input type="hidden" name="action" value="delete_workflow">
+                  <input type="hidden" name="workflow_name" value="{{ wf.workflow_name }}">
+                  <button type="submit" class="btn btn-danger"
+                          onclick="return confirm('Delete this workflow?');">
+                    Delete
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p>No workflows found.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- =====================
+       SELECTED ROWS PREVIEW
+  ====================== -->
+  {% set col_order = session.get('last_column_order', []) %}
+  <div class="card mt-4">
+    <div class="card-header">Selected Excel Rows (Grouped by Sheet)</div>
+    <div class="card-body">
+      {% for sheet, rows in session.get('selected_rows_by_sheet', {}).items() %}
+      <div class="mb-4">
+        <h5 class="text-primary">Sheet: {{ sheet }}</h5>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered">
+            <thead>
+              <tr>
+                <th>Excel Row</th>
+                {% for key in col_order %}
+                <th>{{ key }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows[:5] %}
+              <tr>
+                <td>{{ row['__excel_row__'] }}</td>
+                {% for key in col_order %}
+                <td>{{ row.get(key, '') }}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if rows|length > 5 %}
+          <p class="text-muted fst-italic">(+{{ rows|length - 5 }} more rows)</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- =====================
+       EDIT WORKFLOW SECTION
+  ====================== -->
+  <div class="card mt-4" id="editWorkflowSection" style="display:none;">
+    <div class="card-header">Edit Workflow</div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('workflows_route') }}" id="editWorkflowForm">
+        <input type="hidden" name="action" value="update_workflow">
+        <input type="hidden" id="old_workflow_name" name="old_workflow_name">
+
+        <div class="mb-3">
+          <label for="new_workflow_name" class="form-label">Workflow Name</label>
+          <input type="text" class="form-control" id="new_workflow_name" name="new_workflow_name" required>
+        </div>
+
+		<div class="mb-3">
+		  <label for="edit_valid_sheets" class="form-label">Valid Sheets for this Workflow</label>
+		  <select class="form-select" id="edit_valid_sheets" name="valid_sheets" multiple required>
+			{% set all_possible_sheets = ["LSTK", "UR", "L3", "L4", "RC-LSTK", "WFD", "ARDT", "REAMERS", "HALLIBURTON", "Hal_Regional", "ARAMCO"] %}
+			{% for sheet in all_possible_sheets %}
+			  <option value="{{ sheet }}">{{ sheet }}</option>
+			{% endfor %}
+		  </select>
+		  <div class="form-text">Hold Ctrl or Cmd to select multiple sheets.</div>
+		</div>
+
+        <label class="form-label">Workflow Steps (Dictionaries)</label>
+        <div class="list-group mb-3" id="editStepsContainer"></div>
+
+        <div class="mt-2">
+          <select class="form-select" id="editAvailableSteps">
+            {% for dict_name in dictionaries.keys() %}
+            <option value="{{ dict_name }}">{{ dict_name }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn btn-secondary mt-2" id="addStepEditBtn">Add Step</button>
+		  
+			<div class="mt-2">
+			  <button type="button" class="btn btn-link" id="editToggleAdvancedStep">Add Account-Based Step</button>
+			  <div id="editAdvancedStepSection" style="display:none;">
+				<label>Add step for specific account (FROM):</label>
+				<div id="editAccountStepFields">
+				  <div class="input-group mb-2">
+					<input type="text" class="form-control" placeholder="Account (FROM)" name="account_name[]" />
+					<select class="form-select" name="account_step[]">
+					  {% for dict_name in dictionaries.keys() %}
+					  <option value="{{ dict_name }}">{{ dict_name }}</option>
+					  {% endfor %}
+					</select>
+					<button type="button" class="btn btn-danger remove-account-step">Remove</button>
+				  </div>
+				</div>
+				<button type="button" class="btn btn-sm btn-secondary" id="editAddAccountStepField">Add Another Account</button>
+				<button type="button" class="btn btn-primary mt-2" id="editAddAdvancedStepBtn">Add Account-Based Step</button>
+			  </div>
+			</div>
+
+
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-3">Save Changes</button>
+        <button type="button" class="btn btn-secondary mt-3" onclick="hideEditWorkflow()">Cancel</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+
+document.addEventListener('DOMContentLoaded', function () {
+  // ---- CREATE SECTION ----
+  const addBtn = document.getElementById('add_step_btn');
+  const selectEl = document.getElementById('available_steps');
+  const container = document.getElementById('steps_container');
+
+  if (addBtn && selectEl && container) {
+    addBtn.addEventListener('click', function () {
+      const stepName = selectEl.value;
+      const count = container.children.length;
+      const div = document.createElement('div');
+      div.className = 'list-group-item d-flex justify-content-between align-items-center mb-1';
+      div.innerHTML = `
+        <div>
+          <span class="badge bg-primary me-2">${count + 1}</span>
+          ${stepName}
+          <input type="hidden" name="workflow_steps" value="${stepName}">
+        </div>
+        <button type="button" class="btn btn-sm btn-danger remove-step">Remove</button>
+      `;
+      container.appendChild(div);
+
+      div.querySelector('.remove-step').addEventListener('click', function () {
+        div.remove();
+        const items = container.querySelectorAll('.list-group-item');
+        items.forEach((child, idx) => {
+          child.querySelector('.badge').textContent = idx + 1;
+        });
+      });
+    });
+  }
+
+  // ---- EDIT SECTION ----
+  const addStepEditBtn = document.getElementById('addStepEditBtn');
+  const editAvailableSteps = document.getElementById('editAvailableSteps');
+  const editStepsContainer = document.getElementById('editStepsContainer');
+
+  if (addStepEditBtn && editAvailableSteps && editStepsContainer) {
+    addStepEditBtn.addEventListener('click', function () {
+      const stepName = editAvailableSteps.value;
+      const count = editStepsContainer.children.length;
+      const div = document.createElement('div');
+      div.className = 'list-group-item d-flex justify-content-between align-items-center mb-1';
+      div.innerHTML = `
+        <div>
+          <span class="badge bg-primary me-2">${count + 1}</span>
+          ${stepName}
+          <input type="hidden" name="workflow_steps" value="${stepName}">
+        </div>
+        <button type="button" class="btn btn-sm btn-danger remove-step">Remove</button>
+      `;
+      editStepsContainer.appendChild(div);
+
+      div.querySelector('.remove-step').addEventListener('click', function () {
+        div.remove();
+        const items = editStepsContainer.querySelectorAll('.list-group-item');
+        items.forEach((child, idx) => {
+          child.querySelector('.badge').textContent = idx + 1;
+        });
+      });
+    });
+  }
+
+  // ---- EDIT MODAL ADVANCED ACCOUNT-BASED STEP SECTION ----
+  var editToggleAdvancedBtn = document.getElementById('editToggleAdvancedStep');
+  if (editToggleAdvancedBtn) {
+    editToggleAdvancedBtn.onclick = function() {
+      var sec = document.getElementById('editAdvancedStepSection');
+      if (sec) sec.style.display = (sec.style.display === 'none') ? 'block' : 'none';
+    };
+  }
+
+  var editAddAccountBtn = document.getElementById('editAddAccountStepField');
+  if (editAddAccountBtn) {
+    editAddAccountBtn.onclick = function() {
+      var container = document.getElementById('editAccountStepFields');
+      if (!container) return;
+      var div = document.createElement('div');
+      div.className = "input-group mb-2";
+      div.innerHTML = `
+        <input type="text" class="form-control" placeholder="Account (FROM)" name="account_name[]" />
+        <select class="form-select" name="account_step[]">
+          ${Array.from(document.querySelectorAll('#editAvailableSteps option')).map(opt => `<option value="${opt.value}">${opt.textContent}</option>`).join('')}
+        </select>
+        <button type="button" class="btn btn-danger remove-account-step">Remove</button>
+      `;
+      container.appendChild(div);
+
+      div.querySelector('.remove-account-step').onclick = function() {
+        div.remove();
+      };
+    };
+  }
+
+  var editAddAdvancedStepBtn = document.getElementById('editAddAdvancedStepBtn');
+  if (editAddAdvancedStepBtn) {
+    editAddAdvancedStepBtn.onclick = function() {
+      console.log("Edit: Add Account-Based Step clicked"); // Debug for edit
+      var accounts = Array.from(document.getElementsByName('account_name[]')).map(i => i.value.trim());
+      var steps = Array.from(document.getElementsByName('account_step[]')).map(i => i.value.trim());
+      var accountMap = {};
+      for (let i = 0; i < accounts.length; ++i) {
+        if (accounts[i]) accountMap[accounts[i]] = steps[i];
+      }
+      accountMap['default'] = steps[0] || "";
+      var container = document.getElementById('editStepsContainer');
+      if (!container) return;
+      var count = container.children.length;
+      var div = document.createElement('div');
+      div.className = 'list-group-item d-flex justify-content-between align-items-center mb-1';
+      div.innerHTML = `
+        <div>
+          <span class="badge bg-primary me-2">${count + 1}</span>
+          <pre>${JSON.stringify({locator_by_account: accountMap}, null, 2)}</pre>
+          <input type="hidden" name="workflow_steps" value='${JSON.stringify({locator_by_account: accountMap})}'>
+        </div>
+        <button type="button" class="btn btn-sm btn-danger remove-step">Remove</button>
+      `;
+      container.appendChild(div);
+      div.querySelector('.remove-step').onclick = function () {
+        div.remove();
+        const items = container.querySelectorAll('.list-group-item');
+        items.forEach((child, idx) => {
+          child.querySelector('.badge').textContent = idx + 1;
+        });
+      };
+      var advSection = document.getElementById('editAdvancedStepSection');
+      if (advSection) advSection.style.display = 'none';
+    };
+  }
+});
+
+// ---- WORKFLOW EDIT POPUP ----
+function editWorkflow(workflowName) {
+  fetch(`/get_workflow/${workflowName}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      document.getElementById('editWorkflowSection').style.display = 'block';
+      document.getElementById('editWorkflowSection').scrollIntoView({ behavior: 'smooth' });
+      document.getElementById('old_workflow_name').value = data.workflow_name;
+      document.getElementById('new_workflow_name').value = data.workflow_name;
+
+      const container = document.getElementById('editStepsContainer');
+      container.innerHTML = '';
+
+      data.steps.forEach((step, index) => {
+        const count = index + 1;
+        let stepDisplay = step;
+        let stepValue = step;
+        // If step is an object (account-based), display as JSON string
+        if (typeof step === "object" && step !== null) {
+          stepDisplay = `<pre>${JSON.stringify(step, null, 2)}</pre>`;
+          stepValue = JSON.stringify(step);
+        }
+        const div = document.createElement('div');
+        div.className = 'list-group-item d-flex justify-content-between align-items-center mb-1';
+        div.innerHTML = `
+          <div>
+            <span class="badge bg-primary me-2">${count}</span>
+            ${stepDisplay}
+            <input type="hidden" name="workflow_steps" value='${stepValue}'>
+          </div>
+          <button type="button" class="btn btn-sm btn-danger remove-step">Remove</button>
+        `;
+        container.appendChild(div);
+
+        div.querySelector('.remove-step').addEventListener('click', function () {
+          div.remove();
+          const items = container.querySelectorAll('.list-group-item');
+          items.forEach((child, idx) => {
+            child.querySelector('.badge').textContent = idx + 1;
+          });
+        });
+      });
+
+      let validSheetsSelect = document.getElementById('edit_valid_sheets');
+      if (validSheetsSelect && data.valid_sheets) {
+          for (let option of validSheetsSelect.options) {
+              option.selected = data.valid_sheets.includes(option.value);
+          }
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Failed to load workflow for editing");
+    });
+}
+
+function hideEditWorkflow() {
+  document.getElementById('editWorkflowSection').style.display = 'none';
+}
+</script>
+{% endblock %}
