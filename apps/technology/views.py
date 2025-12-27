@@ -2047,7 +2047,7 @@ class APIHDBSTypeCreateView(LoginRequiredMixin, View):
 
 
 class APISMITypeCreateView(LoginRequiredMixin, View):
-    """API endpoint to quick create an SMI type."""
+    """API endpoint to quick create an SMI type (uses size from design form)."""
 
     def post(self, request):
         import json
@@ -2055,6 +2055,7 @@ class APISMITypeCreateView(LoginRequiredMixin, View):
             data = json.loads(request.body)
             smi_name = data.get('smi_name', '').strip()
             hdbs_type_id = data.get('hdbs_type_id')
+            size_id = data.get('size_id')
 
             if not smi_name:
                 return JsonResponse({'success': False, 'error': 'SMI Name is required'}, status=400)
@@ -2062,14 +2063,22 @@ class APISMITypeCreateView(LoginRequiredMixin, View):
             if not hdbs_type_id:
                 return JsonResponse({'success': False, 'error': 'HDBS Type is required'}, status=400)
 
-            hdbs_type = get_object_or_404(HDBSType, pk=hdbs_type_id)
+            if not size_id:
+                return JsonResponse({'success': False, 'error': 'Please select a Size in the design form first'}, status=400)
 
-            if SMIType.objects.filter(smi_name=smi_name, hdbs_type=hdbs_type).exists():
-                return JsonResponse({'success': False, 'error': 'SMI Type already exists for this HDBS'}, status=400)
+            hdbs_type = get_object_or_404(HDBSType, pk=hdbs_type_id)
+            size = get_object_or_404(BitSize, pk=size_id)
+
+            if SMIType.objects.filter(smi_name=smi_name, hdbs_type=hdbs_type, size=size).exists():
+                return JsonResponse({'success': False, 'error': 'SMI Type already exists for this HDBS and size'}, status=400)
+
+            # Add size to HDBS type's compatible sizes if not already there
+            hdbs_type.sizes.add(size)
 
             smi_type = SMIType.objects.create(
                 smi_name=smi_name,
                 hdbs_type=hdbs_type,
+                size=size,
                 description=data.get('description', ''),
                 is_active=True
             )

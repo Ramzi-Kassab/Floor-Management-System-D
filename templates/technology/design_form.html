@@ -1956,9 +1956,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            // Get size from the design form
+            const sizeSelect = document.getElementById('id_size');
+            if (!sizeSelect || !sizeSelect.value) {
+                errorDiv.classList.remove('hidden');
+                errorDiv.querySelector('p').textContent = 'Please select a Size in the design form first';
+                return;
+            }
+
             const data = {
                 hdbs_type_id: hdbsId,
                 smi_name: smiName,
+                size_id: sizeSelect.value,
                 description: document.getElementById('new-smi-description').value,
                 is_active: document.getElementById('new-smi-active').checked,
             };
