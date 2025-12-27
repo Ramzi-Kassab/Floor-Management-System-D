@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from .models import (
     BOM, BOMLine, Design, DesignCutterLayout,
-    Account, DesignHDBS, DesignSMI, HDBSType, SMIType
+    DesignHDBS, DesignSMI, HDBSType, SMIType
 )
 
 
@@ -44,13 +44,6 @@ class BOMAdmin(admin.ModelAdmin):
     list_filter = ["status", "design"]
     search_fields = ["code", "name"]
     inlines = [BOMLineInline]
-
-
-@admin.register(Account)
-class AccountAdmin(admin.ModelAdmin):
-    list_display = ["code", "name", "name_ar", "sales_leader", "is_active"]
-    list_filter = ["is_active"]
-    search_fields = ["code", "name", "name_ar"]
 
 
 @admin.register(HDBSType)

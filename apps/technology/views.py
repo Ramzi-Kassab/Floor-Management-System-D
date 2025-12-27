@@ -14,8 +14,9 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from django.http import JsonResponse
 
-from .forms import BOMForm, BOMLineForm, BitSizeForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm, HDBSTypeForm, SMITypeForm, AccountForm, DesignHDBSForm, DesignSMIForm
-from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout, HDBSType, SMIType, Account, DesignHDBS, DesignSMI
+from .forms import BOMForm, BOMLineForm, BitSizeForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm, HDBSTypeForm, SMITypeForm, DesignHDBSForm, DesignSMIForm
+from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout, HDBSType, SMIType, DesignHDBS, DesignSMI
+from apps.sales.models import Account
 
 
 # =============================================================================
@@ -2087,112 +2088,6 @@ class APISMITypeCreateView(LoginRequiredMixin, View):
 
 
 # =============================================================================
-# ACCOUNT VIEWS (Aramco Division Accounts)
-# =============================================================================
-
-
-class AccountListView(LoginRequiredMixin, ListView):
-    """List all Aramco division accounts."""
-
-    model = Account
-    template_name = "technology/account_list.html"
-    context_object_name = "accounts"
-    paginate_by = 25
-
-    def get_queryset(self):
-        queryset = Account.objects.select_related('sales_leader').order_by('code')
-
-        search = self.request.GET.get("q")
-        if search:
-            queryset = queryset.filter(
-                Q(code__icontains=search) |
-                Q(name__icontains=search) |
-                Q(name_ar__icontains=search)
-            )
-
-        if not self.request.GET.get("show_inactive"):
-            queryset = queryset.filter(is_active=True)
-
-        return queryset
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Accounts (Aramco Divisions)"
-        return context
-
-
-class AccountDetailView(LoginRequiredMixin, DetailView):
-    """View account details with related SMI assignments."""
-
-    model = Account
-    template_name = "technology/account_detail.html"
-    context_object_name = "account"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Account: {self.object.name}"
-        # Get SMI assignments for this account
-        context["smi_assignments"] = self.object.smi_assignments.filter(
-            is_current=True
-        ).select_related(
-            "design", "design__size", "smi_type", "smi_type__hdbs_type"
-        ).order_by("design__mat_no")
-        return context
-
-
-class AccountCreateView(LoginRequiredMixin, CreateView):
-    """Create a new account."""
-
-    model = Account
-    form_class = AccountForm
-    template_name = "technology/account_form.html"
-    success_url = reverse_lazy("technology:account_list")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Add Account"
-        context["submit_text"] = "Create Account"
-        return context
-
-    def form_valid(self, form):
-        messages.success(self.request, f"Account {form.instance.code} created successfully.")
-        return super().form_valid(form)
-
-
-class AccountUpdateView(LoginRequiredMixin, UpdateView):
-    """Update an existing account."""
-
-    model = Account
-    form_class = AccountForm
-    template_name = "technology/account_form.html"
-
-    def get_success_url(self):
-        return reverse_lazy("technology:account_detail", kwargs={"pk": self.object.pk})
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Edit Account {self.object.code}"
-        context["submit_text"] = "Save Changes"
-        return context
-
-    def form_valid(self, form):
-        messages.success(self.request, f"Account {self.object.code} updated successfully.")
-        return super().form_valid(form)
-
-
-class AccountDeleteView(LoginRequiredMixin, DeleteView):
-    """Delete an account."""
-
-    model = Account
-    template_name = "technology/account_confirm_delete.html"
-    success_url = reverse_lazy("technology:account_list")
-
-    def form_valid(self, form):
-        messages.success(self.request, f"Account {self.object.code} deleted.")
-        return super().form_valid(form)
-
-
-# =============================================================================
 # DESIGN HDBS/SMI ASSIGNMENT VIEWS
 # =============================================================================
 
@@ -2282,29 +2177,3 @@ class DesignSMIDeleteView(LoginRequiredMixin, View):
         assignment.delete()
         messages.success(request, f"SMI assignment {smi_name} removed.")
         return redirect("technology:design_detail", pk=design_pk)
-
-
-# =============================================================================
-# API VIEWS FOR ACCOUNTS
-# =============================================================================
-
-
-class APIAccountsView(LoginRequiredMixin, View):
-    """API endpoint for accounts list."""
-
-    def get(self, request):
-        accounts = Account.objects.filter(is_active=True).order_by('code')
-
-        data = {
-            'accounts': [
-                {
-                    'id': a.id,
-                    'code': a.code,
-                    'name': a.name,
-                    'name_ar': a.name_ar,
-                }
-                for a in accounts
-            ]
-        }
-
-        return JsonResponse(data)

@@ -6,7 +6,7 @@ Usage: python manage.py seed_accounts
 """
 
 from django.core.management.base import BaseCommand
-from apps.technology.models import Account
+from apps.sales.models import Account
 
 
 class Command(BaseCommand):

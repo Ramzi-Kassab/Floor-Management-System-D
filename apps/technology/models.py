@@ -1280,55 +1280,8 @@ class DesignPocket(models.Model):
 
 
 # =============================================================================
-# ACCOUNT & DESIGN-TYPE JUNCTION TABLES
+# DESIGN-TYPE JUNCTION TABLES
 # =============================================================================
-
-
-class Account(models.Model):
-    """
-    Aramco division accounts.
-    Accounts are used to track which SMI types are used by which Aramco division.
-    Examples: Oil, Gas, LSTK, Offshore
-    """
-    code = models.CharField(
-        max_length=20,
-        unique=True,
-        verbose_name='Account Code',
-        help_text='Short code (e.g., OIL, GAS, LSTK, OFFSHORE)'
-    )
-    name = models.CharField(
-        max_length=100,
-        verbose_name='Account Name',
-        help_text='Full name (e.g., Oil Division, Gas Division)'
-    )
-    name_ar = models.CharField(
-        max_length=100,
-        blank=True,
-        verbose_name='Arabic Name',
-        help_text='Name in Arabic'
-    )
-    sales_leader = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='led_accounts',
-        verbose_name='Sales Leader',
-        help_text='Primary sales contact for this account'
-    )
-    description = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = "accounts"
-        ordering = ['code']
-        verbose_name = "Account"
-        verbose_name_plural = "Accounts"
-
-    def __str__(self):
-        return f"{self.code} - {self.name}"
 
 
 class DesignHDBS(models.Model):
@@ -1415,7 +1368,7 @@ class DesignSMI(models.Model):
         verbose_name='SMI Type'
     )
     account = models.ForeignKey(
-        Account,
+        'sales.Account',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

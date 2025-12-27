@@ -9,7 +9,7 @@
         <p class="text-gray-600 dark:text-gray-400">Manage Aramco division accounts for SMI type assignments</p>
     </div>
     <div class="mt-4 md:mt-0">
-        <a href="{% url 'technology:account_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <a href="{% url 'sales:account_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Account
         </a>
     </div>
@@ -55,7 +55,7 @@
                 {% for account in accounts %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                     <td class="px-6 py-4">
-                        <a href="{% url 'technology:account_detail' account.pk %}" class="font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                        <a href="{% url 'sales:account_detail' account.pk %}" class="font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
                             {{ account.code }}
                         </a>
                     </td>
@@ -73,13 +73,13 @@
                     </td>
                     <td class="px-6 py-4 text-right">
                         <div class="flex items-center justify-end space-x-2">
-                            <a href="{% url 'technology:account_detail' account.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
+                            <a href="{% url 'sales:account_detail' account.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
                                 <i data-lucide="eye" class="w-4 h-4"></i>
                             </a>
-                            <a href="{% url 'technology:account_update' account.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
+                            <a href="{% url 'sales:account_update' account.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
                                 <i data-lucide="edit" class="w-4 h-4"></i>
                             </a>
-                            <a href="{% url 'technology:account_delete' account.pk %}" class="p-1 text-gray-400 hover:text-red-600" title="Delete">
+                            <a href="{% url 'sales:account_delete' account.pk %}" class="p-1 text-gray-400 hover:text-red-600" title="Delete">
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </a>
                         </div>
@@ -94,7 +94,7 @@
         <i data-lucide="building-2" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No accounts found</h3>
         <p class="text-gray-500 dark:text-gray-400 mb-4">Create your first Aramco division account</p>
-        <a href="{% url 'technology:account_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <a href="{% url 'sales:account_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Account
         </a>
     </div>
