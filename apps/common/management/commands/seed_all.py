@@ -19,8 +19,11 @@ class Command(BaseCommand):
         ("seed_users", "Users (27)"),
         ("seed_permissions", "Permissions & Roles"),
         ("seed_customers", "Customers (8)"),
+        ("seed_accounts", "Accounts (4 Aramco Divisions)"),
         ("seed_rigs", "Rigs (5)"),
         ("seed_wells", "Wells (21)"),
+        ("seed_hdbs_types", "HDBS Types (8)"),
+        ("seed_smi_types", "SMI Types (23)"),
     ]
 
     def add_arguments(self, parser):
@@ -73,7 +76,10 @@ class Command(BaseCommand):
         self.stdout.write("  - 54 Positions")
         self.stdout.write("  - 27 Employees")
         self.stdout.write("  - 8 Companies")
+        self.stdout.write("  - 4 Accounts (Aramco Divisions)")
         self.stdout.write("  - 5 Rigs")
         self.stdout.write("  - 21 Wells")
+        self.stdout.write("  - 8 HDBS Types")
+        self.stdout.write("  - 23 SMI Types")
 
         self.stdout.write(self.style.SUCCESS("\n✓ All seeding complete! System is ready.\n"))
