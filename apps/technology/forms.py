@@ -9,9 +9,8 @@ from django import forms
 
 from .models import (
     BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, Design,
-    DesignCutterLayout, HDBSType, SMIType, DesignHDBS, DesignSMI
+    DesignCutterLayout, HDBSType, SMIType
 )
-from apps.sales.models import Account
 
 # Tailwind CSS classes
 TAILWIND_INPUT = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -441,70 +440,3 @@ class SMITypeForm(forms.ModelForm):
         self.fields["size"].required = True  # Size is required for SMI types
         # Only show active sizes
         self.fields["size"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")
-
-
-class DesignHDBSForm(forms.ModelForm):
-    """Form for assigning HDBS Type to a Design."""
-
-    class Meta:
-        model = DesignHDBS
-        fields = [
-            "design",
-            "hdbs_type",
-            "is_current",
-            "notes",
-        ]
-        widgets = {
-            "design": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "hdbs_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "is_current": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
-            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
-        }
-        labels = {
-            "design": "Design (MAT No.)",
-            "hdbs_type": "HDBS Type",
-            "is_current": "Current Assignment",
-            "notes": "Notes",
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["notes"].required = False
-        # Only show active HDBS types
-        self.fields["hdbs_type"].queryset = HDBSType.objects.filter(is_active=True).order_by("hdbs_name")
-
-
-class DesignSMIForm(forms.ModelForm):
-    """Form for assigning SMI Type to a Design (with optional Account)."""
-
-    class Meta:
-        model = DesignSMI
-        fields = [
-            "design",
-            "smi_type",
-            "account",
-            "is_current",
-            "notes",
-        ]
-        widgets = {
-            "design": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "smi_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "account": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "is_current": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
-            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
-        }
-        labels = {
-            "design": "Design (MAT No.)",
-            "smi_type": "SMI Type",
-            "account": "Account (Aramco Division)",
-            "is_current": "Current Assignment",
-            "notes": "Notes",
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["account"].required = False  # Global if no account
-        self.fields["notes"].required = False
-        # Only show active SMI types and accounts
-        self.fields["smi_type"].queryset = SMIType.objects.filter(is_active=True).select_related("hdbs_type", "size")
-        self.fields["account"].queryset = Account.objects.filter(is_active=True).order_by("code")

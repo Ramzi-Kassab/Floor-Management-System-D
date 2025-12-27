@@ -14,9 +14,8 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from django.http import JsonResponse
 
-from .forms import BOMForm, BOMLineForm, BitSizeForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm, HDBSTypeForm, SMITypeForm, DesignHDBSForm, DesignSMIForm
-from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout, HDBSType, SMIType, DesignHDBS, DesignSMI
-from apps.sales.models import Account
+from .forms import BOMForm, BOMLineForm, BitSizeForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm, HDBSTypeForm, SMITypeForm
+from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout, HDBSType, SMIType
 
 
 # =============================================================================
@@ -125,28 +124,6 @@ class DesignDetailView(LoginRequiredMixin, DetailView):
         context["boms"] = self.object.boms.select_related("created_by").order_by("-created_at")
         context["cutter_layouts"] = self.object.cutter_layouts.order_by("blade_number", "position_number")
         context["work_orders_count"] = self.object.work_orders.count()
-
-        # HDBS/SMI Assignments
-        context["hdbs_assignments"] = self.object.hdbs_assignments.select_related(
-            "hdbs_type", "assigned_by"
-        ).order_by("-is_current", "-assigned_at")
-        context["smi_assignments"] = self.object.smi_assignments.select_related(
-            "smi_type", "smi_type__hdbs_type", "smi_type__size", "account", "assigned_by"
-        ).order_by("-is_current", "account__code", "-assigned_at")
-
-        # Current assignments for quick access
-        context["current_hdbs"] = self.object.hdbs_assignments.filter(is_current=True).first()
-        context["current_smi_global"] = self.object.smi_assignments.filter(is_current=True, account__isnull=True).first()
-        context["current_smi_by_account"] = self.object.smi_assignments.filter(
-            is_current=True, account__isnull=False
-        ).select_related("account", "smi_type")
-
-        # Available accounts for SMI assignment dropdown
-        context["accounts"] = Account.objects.filter(is_active=True).order_by("code")
-
-        # Available types for assignment dropdowns
-        context["hdbs_types"] = HDBSType.objects.filter(is_active=True).order_by("hdbs_name")
-        context["smi_types"] = SMIType.objects.filter(is_active=True).select_related("hdbs_type", "size").order_by("hdbs_type__hdbs_name", "smi_name")
 
         # Pocket statistics
         pocket_configs = self.object.pocket_configs.all()
@@ -2085,95 +2062,3 @@ class APISMITypeCreateView(LoginRequiredMixin, View):
             return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
-
-# =============================================================================
-# DESIGN HDBS/SMI ASSIGNMENT VIEWS
-# =============================================================================
-
-
-class DesignHDBSCreateView(LoginRequiredMixin, View):
-    """Assign HDBS Type to a Design."""
-
-    def post(self, request, design_pk):
-        design = get_object_or_404(Design, pk=design_pk)
-        hdbs_type_id = request.POST.get('hdbs_type')
-
-        if not hdbs_type_id:
-            messages.error(request, "Please select an HDBS Type.")
-            return redirect("technology:design_detail", pk=design_pk)
-
-        hdbs_type = get_object_or_404(HDBSType, pk=hdbs_type_id)
-
-        # Create assignment (the save() method will handle marking others as not current)
-        DesignHDBS.objects.create(
-            design=design,
-            hdbs_type=hdbs_type,
-            is_current=True,
-            assigned_by=request.user,
-            notes=request.POST.get('notes', '')
-        )
-
-        # Also update the legacy field on Design for backwards compatibility
-        design.hdbs_type = hdbs_type.hdbs_name
-        design.save(update_fields=['hdbs_type'])
-
-        messages.success(request, f"HDBS Type {hdbs_type.hdbs_name} assigned to design.")
-        return redirect("technology:design_detail", pk=design_pk)
-
-
-class DesignSMICreateView(LoginRequiredMixin, View):
-    """Assign SMI Type to a Design (with optional Account)."""
-
-    def post(self, request, design_pk):
-        design = get_object_or_404(Design, pk=design_pk)
-        smi_type_id = request.POST.get('smi_type')
-        account_id = request.POST.get('account')
-
-        if not smi_type_id:
-            messages.error(request, "Please select an SMI Type.")
-            return redirect("technology:design_detail", pk=design_pk)
-
-        smi_type = get_object_or_404(SMIType, pk=smi_type_id)
-        account = get_object_or_404(Account, pk=account_id) if account_id else None
-
-        # Create assignment
-        DesignSMI.objects.create(
-            design=design,
-            smi_type=smi_type,
-            account=account,
-            is_current=True,
-            assigned_by=request.user,
-            notes=request.POST.get('notes', '')
-        )
-
-        # Update legacy field if this is global (no account)
-        if not account:
-            design.smi_type = smi_type.smi_name
-            design.save(update_fields=['smi_type'])
-
-        account_label = f" for {account.code}" if account else " (Global)"
-        messages.success(request, f"SMI Type {smi_type.smi_name} assigned{account_label}.")
-        return redirect("technology:design_detail", pk=design_pk)
-
-
-class DesignHDBSDeleteView(LoginRequiredMixin, View):
-    """Remove HDBS assignment from Design."""
-
-    def post(self, request, design_pk, pk):
-        assignment = get_object_or_404(DesignHDBS, pk=pk, design_id=design_pk)
-        hdbs_name = assignment.hdbs_type.hdbs_name
-        assignment.delete()
-        messages.success(request, f"HDBS assignment {hdbs_name} removed.")
-        return redirect("technology:design_detail", pk=design_pk)
-
-
-class DesignSMIDeleteView(LoginRequiredMixin, View):
-    """Remove SMI assignment from Design."""
-
-    def post(self, request, design_pk, pk):
-        assignment = get_object_or_404(DesignSMI, pk=pk, design_id=design_pk)
-        smi_name = assignment.smi_type.smi_name
-        assignment.delete()
-        messages.success(request, f"SMI assignment {smi_name} removed.")
-        return redirect("technology:design_detail", pk=design_pk)

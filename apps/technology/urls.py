@@ -70,9 +70,4 @@ urlpatterns = [
     path("api/breaker-slots/create/", views.APIBreakerSlotCreateView.as_view(), name="api_breaker_slot_create"),
     # API endpoint (for design draft save)
     path("api/designs/save-draft/", views.APIDesignSaveDraftView.as_view(), name="api_design_save_draft"),
-    # Design HDBS/SMI Assignments
-    path("designs/<int:design_pk>/hdbs/assign/", views.DesignHDBSCreateView.as_view(), name="design_hdbs_create"),
-    path("designs/<int:design_pk>/hdbs/<int:pk>/delete/", views.DesignHDBSDeleteView.as_view(), name="design_hdbs_delete"),
-    path("designs/<int:design_pk>/smi/assign/", views.DesignSMICreateView.as_view(), name="design_smi_create"),
-    path("designs/<int:design_pk>/smi/<int:pk>/delete/", views.DesignSMIDeleteView.as_view(), name="design_smi_delete"),
 ]
