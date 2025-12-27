@@ -1981,7 +1981,7 @@ class APIHDBSTypesView(LoginRequiredMixin, View):
 
 
 class APIHDBSTypeCreateView(LoginRequiredMixin, View):
-    """API endpoint to quick create an HDBS type."""
+    """API endpoint to quick create an HDBS type (optionally with SMI type)."""
 
     def post(self, request):
         import json
@@ -2006,13 +2006,39 @@ class APIHDBSTypeCreateView(LoginRequiredMixin, View):
             if size_ids:
                 hdbs_type.sizes.set(size_ids)
 
-            return JsonResponse({
+            response_data = {
                 'success': True,
                 'hdbs_type': {
                     'id': hdbs_type.id,
                     'hdbs_name': hdbs_type.hdbs_name,
                 }
-            })
+            }
+
+            # Also create SMI type if smi_name is provided
+            smi_name = data.get('smi_name', '').strip()
+            size_id = data.get('size_id')
+            if smi_name and size_id:
+                try:
+                    size = BitSize.objects.get(pk=size_id)
+                    # Add the size to HDBS type if not already added
+                    hdbs_type.sizes.add(size)
+
+                    smi_type = SMIType.objects.create(
+                        smi_name=smi_name,
+                        hdbs_type=hdbs_type,
+                        size=size,
+                        description=data.get('smi_description', ''),
+                        is_active=True
+                    )
+                    response_data['smi_type'] = {
+                        'id': smi_type.id,
+                        'smi_name': smi_type.smi_name,
+                    }
+                except BitSize.DoesNotExist:
+                    # Size not found, skip SMI creation but don't fail
+                    pass
+
+            return JsonResponse(response_data)
 
         except json.JSONDecodeError:
             return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)

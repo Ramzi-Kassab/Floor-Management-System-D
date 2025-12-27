@@ -1901,6 +1901,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // Check if also adding SMI
             if (addSmiWithHdbs && addSmiWithHdbs.checked) {
                 data.smi_name = document.getElementById('new-hdbs-smi-name').value.trim();
+                // Pass the size from the design form for SMI creation
+                const sizeSelect = document.getElementById('id_size');
+                if (sizeSelect && sizeSelect.value) {
+                    data.size_id = sizeSelect.value;
+                }
             }
 
             fetch('{% url "technology:api_hdbs_type_create" %}', {
