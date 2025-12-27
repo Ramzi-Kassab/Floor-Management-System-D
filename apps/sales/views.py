@@ -2971,7 +2971,7 @@ class AccountListView(LoginRequiredMixin, ListView):
 
 
 class AccountDetailView(LoginRequiredMixin, DetailView):
-    """View account details with related SMI assignments."""
+    """View account details."""
 
     model = Account
     template_name = "sales/account_detail.html"
@@ -2980,12 +2980,6 @@ class AccountDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Account: {self.object.name}"
-        # Get SMI assignments for this account
-        context["smi_assignments"] = self.object.smi_assignments.filter(
-            is_current=True
-        ).select_related(
-            "design", "design__size", "smi_type", "smi_type__hdbs_type"
-        ).order_by("design__mat_no")
         return context
 
 

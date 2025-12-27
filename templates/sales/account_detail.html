@@ -20,102 +20,48 @@
 {% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="max-w-2xl">
     <!-- Account Info -->
-    <div class="lg:col-span-1">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="building-2" class="w-5 h-5"></i>
-                    Account Details
-                </h3>
-            </div>
-            <div class="px-6 py-4 space-y-4">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                <i data-lucide="building-2" class="w-5 h-5"></i>
+                Account Details
+            </h3>
+        </div>
+        <div class="px-6 py-4">
+            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="text-xs text-gray-500 dark:text-gray-400">Account Code</label>
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">{{ account.code }}</p>
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Account Code</dt>
+                    <dd class="text-lg font-bold text-gray-900 dark:text-white">{{ account.code }}</dd>
                 </div>
                 <div>
-                    <label class="text-xs text-gray-500 dark:text-gray-400">Name</label>
-                    <p class="text-gray-900 dark:text-white">{{ account.name }}</p>
-                </div>
-                {% if account.name_ar %}
-                <div>
-                    <label class="text-xs text-gray-500 dark:text-gray-400">Arabic Name</label>
-                    <p class="text-gray-900 dark:text-white" dir="rtl">{{ account.name_ar }}</p>
-                </div>
-                {% endif %}
-                <div>
-                    <label class="text-xs text-gray-500 dark:text-gray-400">Sales Leader</label>
-                    <p class="text-gray-900 dark:text-white">
-                        {% if account.sales_leader %}{{ account.sales_leader.get_full_name|default:account.sales_leader.username }}{% else %}-{% endif %}
-                    </p>
-                </div>
-                <div>
-                    <label class="text-xs text-gray-500 dark:text-gray-400">Status</label>
-                    <p class="mt-1">
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Status</dt>
+                    <dd class="mt-1">
                         {% if account.is_active %}
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
                         {% else %}
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
                         {% endif %}
-                    </p>
+                    </dd>
+                </div>
+                <div class="sm:col-span-2">
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Name</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ account.name }}</dd>
+                </div>
+                <div class="sm:col-span-2">
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Sales Leader</dt>
+                    <dd class="text-gray-900 dark:text-white">
+                        {% if account.sales_leader %}{{ account.sales_leader.get_full_name|default:account.sales_leader.username }}{% else %}<span class="text-gray-400">Not assigned</span>{% endif %}
+                    </dd>
                 </div>
                 {% if account.description %}
-                <div>
-                    <label class="text-xs text-gray-500 dark:text-gray-400">Description</label>
-                    <p class="text-gray-600 dark:text-gray-400 text-sm">{{ account.description }}</p>
+                <div class="sm:col-span-2">
+                    <dt class="text-xs text-gray-500 dark:text-gray-400">Description</dt>
+                    <dd class="text-gray-600 dark:text-gray-400 text-sm">{{ account.description }}</dd>
                 </div>
                 {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- SMI Assignments for this Account -->
-    <div class="lg:col-span-2">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="tag" class="w-5 h-5"></i>
-                    SMI Type Assignments
-                    <span class="ml-2 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full text-sm">{{ smi_assignments.count }}</span>
-                </h3>
-            </div>
-            {% if smi_assignments %}
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
-                            <th class="px-6 py-3 font-medium">Design (MAT No.)</th>
-                            <th class="px-6 py-3 font-medium">HDBS Type</th>
-                            <th class="px-6 py-3 font-medium">SMI Type</th>
-                            <th class="px-6 py-3 font-medium">Size</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                        {% for assignment in smi_assignments %}
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                            <td class="px-6 py-4">
-                                <a href="{% url 'technology:design_detail' assignment.design.pk %}" class="font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
-                                    {{ assignment.design.mat_no }}
-                                </a>
-                            </td>
-                            <td class="px-6 py-4 text-gray-900 dark:text-white">{{ assignment.smi_type.hdbs_type.hdbs_name }}</td>
-                            <td class="px-6 py-4 text-gray-900 dark:text-white">{{ assignment.smi_type.smi_name }}</td>
-                            <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
-                                {% if assignment.design.size %}{{ assignment.design.size.size_display }}{% else %}-{% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="text-center py-12">
-                <i data-lucide="inbox" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
-                <p class="text-gray-500 dark:text-gray-400">No SMI assignments for this account yet</p>
-            </div>
-            {% endif %}
+            </dl>
         </div>
     </div>
 </div>
