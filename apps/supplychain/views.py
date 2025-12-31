@@ -441,7 +441,7 @@ class PRLinesExportView(LoginRequiredMixin, View):
 
         # Query lines
         lines = PurchaseRequisitionLine.objects.select_related(
-            "requisition", "requisition__requested_by", "requisition__department", "inventory_item"
+            "requisition", "requisition__requested_by", "inventory_item"
         ).order_by("requisition__requisition_number", "line_number")
 
         if status:
@@ -483,7 +483,7 @@ class PRLinesExportView(LoginRequiredMixin, View):
                 line.requisition.requisition_number,
                 line.requisition.title,
                 line.requisition.get_status_display(),
-                line.requisition.department.name if line.requisition.department else "",
+                str(line.requisition.department) if line.requisition.department else "",
                 line.requisition.requested_by.get_full_name() or line.requisition.requested_by.username,
                 line.line_number,
                 line.inventory_item.code if line.inventory_item else "",
