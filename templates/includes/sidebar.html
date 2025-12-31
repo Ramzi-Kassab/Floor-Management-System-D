@@ -331,45 +331,15 @@
             </button>
             <div x-show="isOpen('logistics') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
                 <a href="{% url 'inventory:dashboard' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-blue-600 dark:text-blue-400 font-medium hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="layout-dashboard" class="w-4 h-4 mr-2 text-blue-500"></i><span class="truncate">Inv. Dashboard</span>
+                    <i data-lucide="layout-dashboard" class="w-4 h-4 mr-2 text-blue-500"></i><span class="truncate">Dashboard</span>
                 </a>
-                <!-- Master Data -->
+                <!-- Items & Stock -->
                 <div class="pt-1">
-                    <button @click="toggle('log_master')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
-                        <span>Master Data</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_master') ? 'rotate-90' : ''"></i>
+                    <button @click="toggle('log_stock')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
+                        <span>Items & Stock</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_stock') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="isOpen('log_master')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
-                        <a href="{% url 'inventory:category_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="folder-tree" class="w-3 h-3 mr-2 text-blue-400"></i>Categories
-                        </a>
-                        <a href="{% url 'inventory:attribute_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="tag" class="w-3 h-3 mr-2 text-blue-400"></i>Attributes
-                        </a>
-                        <a href="{% url 'inventory:variant_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="copy" class="w-3 h-3 mr-2 text-blue-400"></i>Variants
-                        </a>
-                        <a href="{% url 'inventory:uom_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="ruler" class="w-3 h-3 mr-2 text-blue-400"></i>UoM
-                        </a>
-                        <a href="{% url 'inventory:lot_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="box" class="w-3 h-3 mr-2 text-blue-400"></i>Lots
-                        </a>
-                        <a href="{% url 'inventory:party_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="building" class="w-3 h-3 mr-2 text-blue-400"></i>Parties
-                        </a>
-                        <a href="{% url 'inventory:tolerance_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="sliders" class="w-3 h-3 mr-2 text-blue-400"></i>Receipt Tolerances
-                        </a>
-                    </div>
-                </div>
-                <!-- Inventory -->
-                <div class="pt-1">
-                    <button @click="toggle('log_inv')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
-                        <span>Inventory</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_inv') ? 'rotate-90' : ''"></i>
-                    </button>
-                    <div x-show="isOpen('log_inv')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                    <div x-show="isOpen('log_stock')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
                         <a href="{% url 'inventory:item_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
                             <i data-lucide="package" class="w-3 h-3 mr-2 text-blue-400"></i>Items
                         </a>
@@ -379,29 +349,32 @@
                         <a href="{% url 'inventory:stock_ledger_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
                             <i data-lucide="book" class="w-3 h-3 mr-2 text-blue-400"></i>Stock Ledger
                         </a>
+                        <a href="{% url 'inventory:asset_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="hard-drive" class="w-3 h-3 mr-2 text-blue-400"></i>Assets
+                        </a>
+                        <a href="{% url 'inventory:reservation_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="bookmark" class="w-3 h-3 mr-2 text-blue-400"></i>Reservations
+                        </a>
                     </div>
                 </div>
-                <!-- Inv Documents -->
+                <!-- Transactions -->
                 <div class="pt-1">
-                    <button @click="toggle('log_docs')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
-                        <span>Inv Documents</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_docs') ? 'rotate-90' : ''"></i>
+                    <button @click="toggle('log_trans')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
+                        <span>Transactions</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_trans') ? 'rotate-90' : ''"></i>
                     </button>
-                    <div x-show="isOpen('log_docs')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                    <div x-show="isOpen('log_trans')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
                         <a href="{% url 'inventory:grn_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="download" class="w-3 h-3 mr-2 text-blue-400"></i>GRN
+                            <i data-lucide="download" class="w-3 h-3 mr-2 text-green-400"></i>Goods Receipt (GRN)
                         </a>
                         <a href="{% url 'inventory:issue_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="upload" class="w-3 h-3 mr-2 text-blue-400"></i>Issues
+                            <i data-lucide="upload" class="w-3 h-3 mr-2 text-red-400"></i>Issues
                         </a>
                         <a href="{% url 'inventory:transfer_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="arrow-right-left" class="w-3 h-3 mr-2 text-blue-400"></i>Transfers
+                            <i data-lucide="arrow-right-left" class="w-3 h-3 mr-2 text-purple-400"></i>Transfers
                         </a>
                         <a href="{% url 'inventory:adjustment_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="settings-2" class="w-3 h-3 mr-2 text-blue-400"></i>Adjustments
-                        </a>
-                        <a href="{% url 'inventory:report_variances' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="alert-triangle" class="w-3 h-3 mr-2 text-orange-400"></i>Variances
+                            <i data-lucide="settings-2" class="w-3 h-3 mr-2 text-orange-400"></i>Adjustments
                         </a>
                     </div>
                 </div>
@@ -416,13 +389,46 @@
                             <i data-lucide="building-2" class="w-3 h-3 mr-2 text-blue-400"></i>Vendors
                         </a>
                         <a href="{% url 'supplychain:pr_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="file-input" class="w-3 h-3 mr-2 text-blue-400"></i>Requisitions
+                            <i data-lucide="file-input" class="w-3 h-3 mr-2 text-blue-400"></i>Requisitions (PR)
                         </a>
                         <a href="{% url 'supplychain:po_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="file-output" class="w-3 h-3 mr-2 text-blue-400"></i>POs
+                            <i data-lucide="file-output" class="w-3 h-3 mr-2 text-blue-400"></i>Purchase Orders
                         </a>
-                        <a href="{% url 'supplychain:grn_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="package-check" class="w-3 h-3 mr-2 text-blue-400"></i>Goods Receipts
+                    </div>
+                </div>
+                <!-- Operations -->
+                <div class="pt-1">
+                    <button @click="toggle('log_ops')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
+                        <span>Operations</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_ops') ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="isOpen('log_ops')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'inventory:cyclecount_plan_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="clipboard-check" class="w-3 h-3 mr-2 text-blue-400"></i>Cycle Count
+                        </a>
+                        <a href="{% url 'inventory:bom_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="list-tree" class="w-3 h-3 mr-2 text-blue-400"></i>Bill of Materials
+                        </a>
+                    </div>
+                </div>
+                <!-- Reports -->
+                <div class="pt-1">
+                    <button @click="toggle('log_reports')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
+                        <span>Reports</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_reports') ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="isOpen('log_reports')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'inventory:report_stock_valuation' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="dollar-sign" class="w-3 h-3 mr-2 text-green-400"></i>Stock Valuation
+                        </a>
+                        <a href="{% url 'inventory:report_movement_history' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="activity" class="w-3 h-3 mr-2 text-blue-400"></i>Movement History
+                        </a>
+                        <a href="{% url 'inventory:report_low_stock' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="alert-triangle" class="w-3 h-3 mr-2 text-orange-400"></i>Low Stock
+                        </a>
+                        <a href="{% url 'inventory:report_variances' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="git-compare" class="w-3 h-3 mr-2 text-red-400"></i>Variances
                         </a>
                     </div>
                 </div>
@@ -456,6 +462,48 @@
                         </a>
                         <a href="{% url 'drss:drss_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
                             <i data-lucide="file-search" class="w-3 h-3 mr-2 text-blue-400"></i>DRSS
+                        </a>
+                    </div>
+                </div>
+                <!-- Setup (Master Data) -->
+                <div class="pt-1">
+                    <button @click="toggle('log_setup')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
+                        <span>Setup</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_setup') ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="isOpen('log_setup')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'inventory:category_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="folder-tree" class="w-3 h-3 mr-2 text-gray-400"></i>Categories
+                        </a>
+                        <a href="{% url 'inventory:attribute_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="tag" class="w-3 h-3 mr-2 text-gray-400"></i>Attributes
+                        </a>
+                        <a href="{% url 'inventory:variant_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="copy" class="w-3 h-3 mr-2 text-gray-400"></i>Variant Cases
+                        </a>
+                        <a href="{% url 'inventory:uom_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="ruler" class="w-3 h-3 mr-2 text-gray-400"></i>Units of Measure
+                        </a>
+                        <a href="{% url 'inventory:lot_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="box" class="w-3 h-3 mr-2 text-gray-400"></i>Material Lots
+                        </a>
+                        <a href="{% url 'inventory:party_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="building" class="w-3 h-3 mr-2 text-gray-400"></i>Parties
+                        </a>
+                        <a href="{% url 'inventory:tolerance_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="sliders" class="w-3 h-3 mr-2 text-gray-400"></i>Receipt Tolerances
+                        </a>
+                        <a href="{% url 'inventory:condition_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="thermometer" class="w-3 h-3 mr-2 text-gray-400"></i>Condition Types
+                        </a>
+                        <a href="{% url 'inventory:quality_status_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="shield-check" class="w-3 h-3 mr-2 text-gray-400"></i>Quality Statuses
+                        </a>
+                        <a href="{% url 'inventory:adjustment_reason_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="help-circle" class="w-3 h-3 mr-2 text-gray-400"></i>Adjustment Reasons
+                        </a>
+                        <a href="{% url 'inventory:ownership_type_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="key" class="w-3 h-3 mr-2 text-gray-400"></i>Ownership Types
                         </a>
                     </div>
                 </div>
