@@ -585,6 +585,23 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
                 except (ValueError, CategoryAttribute.DoesNotExist) as e:
                     print(f"Error saving attribute {key}: {e}")
 
+        # Auto-create the default "New Purchased" variant for new items
+        try:
+            default_variant_case = VariantCase.objects.filter(code='NEW-PUR', is_active=True).first()
+            if default_variant_case:
+                # Create the default variant
+                ItemVariant.objects.create(
+                    base_item=item,
+                    variant_case=default_variant_case,
+                    code=f"{item.code}-{default_variant_case.code}",
+                    standard_cost=item.standard_cost or 0,
+                    legacy_mat_no=item.mat_number or "",
+                    is_active=True,
+                )
+        except Exception as e:
+            # Don't fail item creation if variant creation fails
+            print(f"Warning: Could not create default variant: {e}")
+
         messages.success(self.request, f"Item '{form.instance.name}' created successfully.")
         return response
 
