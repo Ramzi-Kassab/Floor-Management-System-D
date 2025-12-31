@@ -3584,7 +3584,7 @@ class StockIssueListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = StockIssue.objects.select_related(
-            "warehouse", "issued_to_party", "created_by"
+            "warehouse", "issue_to_party", "created_by"
         ).order_by("-issue_date", "-issue_number")
 
         status = self.request.GET.get("status")
