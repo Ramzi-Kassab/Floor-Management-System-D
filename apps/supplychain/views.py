@@ -554,7 +554,10 @@ class PRConvertToPOView(LoginRequiredMixin, View):
 
     def get(self, request, pk):
         pr = get_object_or_404(PurchaseRequisition, pk=pk, status=PurchaseRequisition.Status.APPROVED)
-        vendors = Vendor.objects.filter(status="ACTIVE").order_by("name")
+        # Exclude vendors that cannot receive orders (suspended, disqualified, inactive)
+        vendors = Vendor.objects.exclude(
+            status__in=[Vendor.Status.SUSPENDED, Vendor.Status.DISQUALIFIED, Vendor.Status.INACTIVE]
+        ).order_by("name")
         return render(request, "supplychain/pr_convert_to_po.html", {
             "pr": pr,
             "vendors": vendors,
