@@ -554,31 +554,42 @@ class PRConvertToPOView(LoginRequiredMixin, View):
 
     def get(self, request, pk):
         pr = get_object_or_404(PurchaseRequisition, pk=pk, status=PurchaseRequisition.Status.APPROVED)
-        # Exclude vendors that cannot receive orders (suspended, disqualified, inactive)
+        # Get vendors (new model) - exclude suspended, disqualified, inactive
         vendors = Vendor.objects.exclude(
             status__in=[Vendor.Status.SUSPENDED, Vendor.Status.DISQUALIFIED, Vendor.Status.INACTIVE]
         ).order_by("name")
+        # Get suppliers (legacy model) - only active ones
+        suppliers = Supplier.objects.filter(is_active=True).order_by("name")
         return render(request, "supplychain/pr_convert_to_po.html", {
             "pr": pr,
             "vendors": vendors,
+            "suppliers": suppliers,
             "page_title": f"Convert {pr.requisition_number} to PO"
         })
 
     def post(self, request, pk):
         pr = get_object_or_404(PurchaseRequisition, pk=pk, status=PurchaseRequisition.Status.APPROVED)
-        vendor_id = request.POST.get("vendor")
+        selection = request.POST.get("supplier")  # Combined field
 
-        if not vendor_id:
-            messages.error(request, "Please select a vendor.")
+        if not selection:
+            messages.error(request, "Please select a vendor or supplier.")
             return redirect("supplychain:pr_convert_to_po", pk=pk)
 
-        vendor = get_object_or_404(Vendor, pk=vendor_id)
+        vendor = None
+        supplier = None
+        # Check if selection is a vendor (prefixed with "vendor_") or supplier (plain ID)
+        if selection.startswith("vendor_"):
+            vendor_id = selection.replace("vendor_", "")
+            vendor = get_object_or_404(Vendor, pk=vendor_id)
+        else:
+            supplier = get_object_or_404(Supplier, pk=selection)
 
         # Create PO
         po = PurchaseOrder.objects.create(
             vendor=vendor,
+            supplier=supplier,
             order_date=timezone.now().date(),
-            required_date=pr.required_date,
+            required_date=pr.required_date or timezone.now().date(),
             requisition=pr,
             work_order=pr.work_order,
             created_by=request.user,
@@ -591,12 +602,13 @@ class PRConvertToPOView(LoginRequiredMixin, View):
             PurchaseOrderLine.objects.create(
                 purchase_order=po,
                 line_number=pr_line.line_number,
-                item_description=pr_line.item_description,
-                part_number=pr_line.part_number,
+                item_description=pr_line.item_description or (pr_line.inventory_item.name if pr_line.inventory_item else ""),
+                part_number=pr_line.part_number or "",
                 inventory_item=pr_line.inventory_item,
                 quantity_ordered=pr_line.quantity_requested,
                 unit_of_measure=pr_line.unit_of_measure,
-                unit_price=pr_line.estimated_unit_price or Decimal('0.00')
+                unit_price=pr_line.estimated_unit_price or Decimal('0.00'),
+                required_date=pr.required_date or timezone.now().date()
             )
 
         # Calculate totals
