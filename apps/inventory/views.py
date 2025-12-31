@@ -463,6 +463,22 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
             context["category_attributes"] = []
             context["attribute_values"] = []
 
+        # Item Variants with stock totals and QR codes
+        variants = item.variants.select_related("variant_case", "customer").prefetch_related("stock_records")
+        variants_data = []
+        for variant in variants:
+            # Calculate total stock for this variant
+            total_stock = sum(s.quantity_on_hand for s in variant.stock_records.all())
+            # Generate QR code for variant
+            variant_qr = generate_inventory_item_qr(variant, base_url=base_url, is_variant=True)
+            variants_data.append({
+                'variant': variant,
+                'total_stock': total_stock,
+                'qr_code': variant_qr,
+            })
+        context["variants"] = variants_data
+        context["has_variants"] = len(variants_data) > 0
+
         return context
 
 
@@ -1793,6 +1809,24 @@ class ItemVariantCreateView(LoginRequiredMixin, CreateView):
     template_name = "inventory/item_variant_form.html"
     fields = ["variant_case", "customer", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
 
+    def get_initial(self):
+        """Pre-fill fields from base item."""
+        initial = super().get_initial()
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+
+        # Pre-fill Legacy MAT Number from base item
+        if item.mat_number:
+            initial['legacy_mat_no'] = item.mat_number
+
+        # Pre-fill ERP Item Number from base item
+        if item.item_number:
+            initial['erp_item_no'] = item.item_number
+
+        # Default to active
+        initial['is_active'] = True
+
+        return initial
+
     def get_context_data(self, **kwargs):
         from apps.sales.models import Customer
         context = super().get_context_data(**kwargs)
@@ -1802,17 +1836,55 @@ class ItemVariantCreateView(LoginRequiredMixin, CreateView):
         context["form_title"] = f"Create Variant for {item.name}"
         context["variant_cases"] = VariantCase.objects.filter(is_active=True).order_by("display_order", "code")
         context["customers"] = Customer.objects.filter(is_active=True).order_by("name")
+
+        # Pass base item cost for default calculations
+        context["base_cost"] = item.standard_cost
+
+        # Cost multipliers for variant cases (percentage of base cost)
+        # Used for JS auto-calculation when no cost is entered
+        context["cost_rules"] = {
+            'NEW': 1.0,           # 100% of base cost
+            'USED': 0.7,          # 70% of base cost (general used)
+            'RETROFIT': 0.9,      # 90% of base cost (like-new condition)
+            'E_AND_O': 0.5,       # 50% of base cost (excess/obsolete discount)
+            'GROUND': 0.6,        # 60% of base cost (surface damage)
+            'STANDARD': 0.7,      # 70% of base cost (standard reclaim)
+            'CLIENT': 0.0,        # Client-owned - no cost to us
+        }
         return context
 
     def form_valid(self, form):
         item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
         form.instance.base_item = item
+
         # Auto-generate code if not provided
         if not form.instance.code:
             parts = [item.code, form.instance.variant_case.code]
             if form.instance.customer:
                 parts.append(form.instance.customer.code[:6] if hasattr(form.instance.customer, 'code') else "CLI")
             form.instance.code = "-".join(parts)
+
+        # If no cost provided, calculate from base item and variant case rules
+        if not form.instance.standard_cost and item.standard_cost:
+            variant_case = form.instance.variant_case
+            if variant_case:
+                multiplier = 1.0
+                if variant_case.ownership == 'CLIENT':
+                    multiplier = 0.0  # Client-owned, no cost to us
+                elif variant_case.reclaim_category == 'RETROFIT':
+                    multiplier = 0.9
+                elif variant_case.reclaim_category == 'E_AND_O':
+                    multiplier = 0.5
+                elif variant_case.reclaim_category == 'GROUND':
+                    multiplier = 0.6
+                elif variant_case.reclaim_category == 'STANDARD':
+                    multiplier = 0.7
+                elif variant_case.condition == 'USED':
+                    multiplier = 0.7
+
+                from decimal import Decimal
+                form.instance.standard_cost = Decimal(str(item.standard_cost)) * Decimal(str(multiplier))
+
         messages.success(self.request, f"Variant '{form.instance.code}' created.")
         return super().form_valid(form)
 

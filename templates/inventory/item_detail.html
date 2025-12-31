@@ -566,6 +566,98 @@
             {% endif %}
         </div>
 
+        <!-- Item Variants Section -->
+        {% if variants %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="layers" class="w-5 h-5 mr-2 text-purple-500"></i>
+                    Variants
+                    <span class="ml-2 px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded-full">{{ variants|length }}</span>
+                </h2>
+                <a href="{% url 'inventory:item_variant_create' item.pk %}" class="text-sm text-purple-600 hover:underline">+ Add Variant</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                            <th class="px-4 py-3 font-medium w-20">QR</th>
+                            <th class="px-4 py-3 font-medium">Code</th>
+                            <th class="px-4 py-3 font-medium">Variant Case</th>
+                            <th class="px-4 py-3 font-medium">Condition</th>
+                            <th class="px-4 py-3 font-medium">Owner</th>
+                            <th class="px-4 py-3 font-medium">Customer</th>
+                            <th class="px-4 py-3 font-medium text-right">Qty On Hand</th>
+                            <th class="px-4 py-3 font-medium text-right">Cost</th>
+                            <th class="px-4 py-3 font-medium text-center">Status</th>
+                            <th class="px-4 py-3 font-medium"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for v_data in variants %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                            <td class="px-4 py-3">
+                                <img src="{{ v_data.qr_code }}" alt="QR for {{ v_data.variant.code }}" class="w-12 h-12 cursor-pointer hover:scale-150 transition-transform">
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="font-mono text-xs text-gray-900 dark:text-white">{{ v_data.variant.code }}</span>
+                            </td>
+                            <td class="px-4 py-3">
+                                {% if v_data.variant.variant_case %}
+                                <span class="font-medium text-gray-900 dark:text-white">{{ v_data.variant.variant_case.name }}</span>
+                                {% else %}
+                                <span class="text-gray-400">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                                {% if v_data.variant.variant_case %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                    {% if v_data.variant.variant_case.condition == 'NEW' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                    {{ v_data.variant.variant_case.condition }}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                                {% if v_data.variant.variant_case %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                    {% if v_data.variant.variant_case.ownership == 'ARDT' %}bg-purple-100 text-purple-800{% else %}bg-orange-100 text-orange-800{% endif %}">
+                                    {{ v_data.variant.variant_case.ownership }}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400">
+                                {{ v_data.variant.customer.name|default:"-" }}
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <span class="font-mono font-medium {% if v_data.total_stock > 0 %}text-green-600{% else %}text-gray-400{% endif %}">
+                                    {{ v_data.total_stock }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400">
+                                {% if v_data.variant.standard_cost %}
+                                SAR {{ v_data.variant.standard_cost }}
+                                {% else %}
+                                <span class="text-gray-400 text-xs">Base price</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                {% if v_data.variant.is_active %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                                {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <a href="{% url 'inventory:item_variant_update' item.pk v_data.variant.pk %}" class="text-blue-600 hover:underline text-xs">Edit</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Recent Transactions -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
