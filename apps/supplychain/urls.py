@@ -21,6 +21,8 @@ urlpatterns = [
     path("requisitions/<int:pk>/", views.PRDetailView.as_view(), name="pr_detail"),
     path("requisitions/<int:pk>/approve/", views.PRApproveView.as_view(), name="pr_approve"),
     path("requisitions/<int:pk>/add-line/", views.PRAddLineView.as_view(), name="pr_add_line"),
+    path("requisitions/<int:pk>/lines/<int:line_pk>/edit/", views.PREditLineView.as_view(), name="pr_edit_line"),
+    path("requisitions/<int:pk>/lines/<int:line_pk>/delete/", views.PRDeleteLineView.as_view(), name="pr_delete_line"),
     # Purchase Orders
     path("orders/", views.POListView.as_view(), name="po_list"),
     path("orders/create/", views.POCreateView.as_view(), name="po_create"),

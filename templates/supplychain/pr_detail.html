@@ -68,6 +68,9 @@
                             <th class="px-6 py-3 font-medium">UoM</th>
                             <th class="px-6 py-3 font-medium text-right">Est. Price</th>
                             <th class="px-6 py-3 font-medium text-right">Subtotal</th>
+                            {% if pr.status == 'DRAFT' %}
+                            <th class="px-6 py-3 font-medium text-center">Actions</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -109,13 +112,33 @@
                                 {{ line.estimated_total|default:"-" }}
                                 {% else %}-{% endif %}
                             </td>
+                            {% if pr.status == 'DRAFT' %}
+                            <td class="px-6 py-4 text-center">
+                                <div class="flex items-center justify-center gap-1">
+                                    <a href="{% url 'supplychain:pr_edit_line' pr.pk line.pk %}"
+                                       class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                                       title="Edit">
+                                        <i data-lucide="edit-2" class="w-4 h-4"></i>
+                                    </a>
+                                    <form method="post" action="{% url 'supplychain:pr_delete_line' pr.pk line.pk %}"
+                                          class="inline" onsubmit="return confirm('Delete this line item?');">
+                                        {% csrf_token %}
+                                        <button type="submit"
+                                                class="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="Delete">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                     </tbody>
                     {% if pr.estimated_total %}
                     <tfoot class="bg-gray-50 dark:bg-gray-700/50">
                         <tr>
-                            <td colspan="5" class="px-6 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Estimated Total:</td>
+                            <td colspan="{% if pr.status == 'DRAFT' %}6{% else %}5{% endif %}" class="px-6 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Estimated Total:</td>
                             <td class="px-6 py-3 text-right font-mono font-bold text-gray-900 dark:text-white">SAR {{ pr.estimated_total }}</td>
                         </tr>
                     </tfoot>

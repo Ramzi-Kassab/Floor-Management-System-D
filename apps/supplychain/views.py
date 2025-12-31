@@ -365,6 +365,64 @@ class PRAddLineView(LoginRequiredMixin, CreateView):
         return reverse_lazy("supplychain:pr_detail", kwargs={"pk": self.kwargs["pk"]})
 
 
+class PREditLineView(LoginRequiredMixin, UpdateView):
+    """Edit PR line."""
+
+    model = PurchaseRequisitionLine
+    form_class = PurchaseRequisitionLineForm
+    template_name = "supplychain/pr_line_form.html"
+    pk_url_kwarg = "line_pk"
+
+    def get_queryset(self):
+        # Only allow editing lines from DRAFT PRs
+        return PurchaseRequisitionLine.objects.filter(
+            requisition__status="DRAFT"
+        ).select_related("requisition")
+
+    def get_context_data(self, **kwargs):
+        from apps.inventory.models import InventoryCategory
+
+        context = super().get_context_data(**kwargs)
+        context["pr"] = self.object.requisition
+        context["page_title"] = "Edit Line"
+        context["is_edit"] = True
+        context["categories"] = InventoryCategory.objects.filter(is_active=True).order_by("name")
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Line updated successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("supplychain:pr_detail", kwargs={"pk": self.object.requisition.pk})
+
+
+class PRDeleteLineView(LoginRequiredMixin, View):
+    """Delete PR line."""
+
+    def post(self, request, pk, line_pk):
+        line = get_object_or_404(
+            PurchaseRequisitionLine,
+            pk=line_pk,
+            requisition_id=pk,
+            requisition__status="DRAFT"
+        )
+        pr_pk = line.requisition.pk
+        line_number = line.line_number
+        line.delete()
+
+        # Renumber remaining lines
+        remaining_lines = PurchaseRequisitionLine.objects.filter(
+            requisition_id=pr_pk, line_number__gt=line_number
+        ).order_by("line_number")
+        for i, ln in enumerate(remaining_lines, start=line_number):
+            ln.line_number = i
+            ln.save(update_fields=["line_number"])
+
+        messages.success(request, "Line deleted successfully.")
+        return redirect("supplychain:pr_detail", pk=pr_pk)
+
+
 # =============================================================================
 # Purchase Order Views
 # =============================================================================
