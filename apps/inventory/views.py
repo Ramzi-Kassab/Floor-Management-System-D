@@ -4999,7 +4999,7 @@ class ItemLookupAPIView(LoginRequiredMixin, View):
         if category_id:
             queryset = queryset.filter(category_id=category_id)
 
-        queryset = queryset.select_related("category", "primary_uom")[:limit]
+        queryset = queryset.select_related("category", "base_uom")[:limit]
 
         data = []
         for item in queryset:
@@ -5008,7 +5008,7 @@ class ItemLookupAPIView(LoginRequiredMixin, View):
                 "code": item.code,
                 "name": item.name,
                 "category": item.category.name if item.category else None,
-                "uom": item.primary_uom.symbol if item.primary_uom else None,
+                "uom": item.base_uom.symbol if item.base_uom else None,
                 "description": item.description or "",
                 "mat_number": item.mat_number or "",
                 "item_number": item.item_number or "",
