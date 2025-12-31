@@ -265,6 +265,8 @@ function searchItems() {
     if (query) url += `&q=${encodeURIComponent(query)}`;
     if (categoryId) url += `&category=${categoryId}`;
 
+    console.log('Fetching items from:', url);
+
     fetch(url, {
         headers: {
             'X-Requested-With': 'XMLHttpRequest',
@@ -272,15 +274,22 @@ function searchItems() {
         credentials: 'same-origin'
     })
     .then(response => {
-        if (!response.ok) throw new Error('Network error');
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('Response body:', text);
+                throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+            });
+        }
         return response.json();
     })
     .then(data => {
+        console.log('Items received:', data);
         document.getElementById('searchSpinner').classList.add('hidden');
         renderItems(data.items || []);
     })
     .catch(error => {
-        console.error('Error:', error);
+        console.error('Fetch error:', error);
         document.getElementById('searchSpinner').classList.add('hidden');
         document.getElementById('itemsList').innerHTML = `
             <div class="flex flex-col items-center justify-center py-16 text-red-500">
@@ -288,7 +297,10 @@ function searchItems() {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                 </svg>
                 <p class="text-lg font-medium">Error loading items</p>
-                <p class="text-sm mt-1">Please try again or enter item manually</p>
+                <p class="text-sm mt-1 text-gray-500">${error.message}</p>
+                <button type="button" onclick="searchItems()" class="mt-3 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Retry
+                </button>
             </div>
         `;
     });
