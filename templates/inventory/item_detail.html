@@ -530,7 +530,7 @@
                             <th class="px-4 py-3 font-medium text-right">Qty On Hand</th>
                             <th class="px-4 py-3 font-medium text-right">Cost</th>
                             <th class="px-4 py-3 font-medium text-center">Status</th>
-                            <th class="px-4 py-3 font-medium"></th>
+                            <th class="px-4 py-3 font-medium text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -587,8 +587,9 @@
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Inactive</span>
                                 {% endif %}
                             </td>
-                            <td class="px-4 py-3 text-right">
+                            <td class="px-4 py-3 text-right space-x-2">
                                 <a href="{% url 'inventory:item_variant_update' item.pk v_data.variant.pk %}" class="text-blue-600 hover:underline text-xs">Edit</a>
+                                <a href="{% url 'inventory:item_variant_delete' item.pk v_data.variant.pk %}" class="text-red-600 hover:underline text-xs">Delete</a>
                             </td>
                         </tr>
                         {% endfor %}

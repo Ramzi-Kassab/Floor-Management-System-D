@@ -2012,6 +2012,9 @@ class BulkVariantCreateView(LoginRequiredMixin, TemplateView):
             messages.error(request, "Please select at least one variant case.")
             return self.get(request, *args, **kwargs)
 
+        # Get ERP Item Number (applies to all variants)
+        erp_item_no = request.POST.get("erp_item_no", "").strip()
+
         created_count = 0
         skipped_count = 0
 
@@ -2059,6 +2062,7 @@ class BulkVariantCreateView(LoginRequiredMixin, TemplateView):
                     customer=customer,
                     standard_cost=standard_cost,
                     legacy_mat_no=item.mat_number or "",
+                    erp_item_no=erp_item_no,  # Apply ERP Item Number to all variants
                     is_active=True,
                 )
                 created_count += 1

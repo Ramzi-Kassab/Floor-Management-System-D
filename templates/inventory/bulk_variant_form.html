@@ -45,6 +45,22 @@
         </div>
     </div>
 
+    <!-- ERP Item Number (applies to all variants) -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">ERP Item Number</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">This ERP Item Number will be applied to all variants created below.</p>
+        <div class="max-w-md">
+            <label for="erp_item_no" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ERP Item Number</label>
+            <input type="text"
+                   name="erp_item_no"
+                   id="erp_item_no"
+                   value="{{ item.item_number|default:'' }}"
+                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                   placeholder="Enter ERP Item Number for all variants">
+            <p class="text-xs text-gray-500 mt-1">Leave blank if not applicable. Pre-filled from base item if available.</p>
+        </div>
+    </div>
+
     <!-- Variant Cases Selection -->
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
