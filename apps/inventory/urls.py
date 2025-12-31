@@ -35,6 +35,7 @@ urlpatterns = [
     path("items/create/", views.ItemCreateView.as_view(), name="item_create"),
     path("items/<int:pk>/", views.ItemDetailView.as_view(), name="item_detail"),
     path("items/<int:pk>/edit/", views.ItemUpdateView.as_view(), name="item_update"),
+    path("items/<int:pk>/clone/", views.ItemCloneView.as_view(), name="item_clone"),
     # Variants (Variant Cases - Master Data) - shows the 10 standard cases
     path("variants/", views.VariantCaseListView.as_view(), name="variant_list"),
     path("variants/create/", views.VariantCaseCreateView.as_view(), name="variant_create"),

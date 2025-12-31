@@ -103,24 +103,8 @@
                                     <span x-show="attr.unit" class="text-gray-400" x-text="'(' + attr.unit + ')'"></span>
                                 </label>
 
-                                <!-- TEXT -->
-                                <template x-if="attr.attribute_type === 'TEXT'">
-                                    <input type="text" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
-                                        :required="attr.is_required"
-                                        @input="onAttributeChange(attr)"
-                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                </template>
-
-                                <!-- NUMBER -->
-                                <template x-if="attr.attribute_type === 'NUMBER'">
-                                    <input type="number" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
-                                        :required="attr.is_required" :min="attr.min_value" :max="attr.max_value" step="any"
-                                        @input="onAttributeChange(attr)"
-                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                </template>
-
-                                <!-- SELECT -->
-                                <template x-if="attr.attribute_type === 'SELECT'">
+                                <!-- SELECT/DROPDOWN: Show when has options (regardless of type) -->
+                                <template x-if="hasOptions(attr)">
                                     <select :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
                                         :required="attr.is_required"
                                         @change="onAttributeChange(attr)"
@@ -132,14 +116,47 @@
                                     </select>
                                 </template>
 
+                                <!-- TEXT: No options -->
+                                <template x-if="!hasOptions(attr) && attr.attribute_type === 'TEXT'">
+                                    <input type="text" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
+                                        :required="attr.is_required"
+                                        @input="onAttributeChange(attr)"
+                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                </template>
+
+                                <!-- NUMBER: No options, with min/max validation -->
+                                <template x-if="!hasOptions(attr) && attr.attribute_type === 'NUMBER'">
+                                    <div>
+                                        <input type="number" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
+                                            :required="attr.is_required" :min="attr.min_value" :max="attr.max_value" step="any"
+                                            @input="onAttributeChange(attr); validateNumber($event, attr)"
+                                            class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                        <template x-if="attr.min_value || attr.max_value">
+                                            <p class="text-xs text-gray-400 mt-0.5">
+                                                <span x-show="attr.min_value" x-text="'Min: ' + attr.min_value"></span>
+                                                <span x-show="attr.min_value && attr.max_value"> - </span>
+                                                <span x-show="attr.max_value" x-text="'Max: ' + attr.max_value"></span>
+                                            </p>
+                                        </template>
+                                    </div>
+                                </template>
+
                                 <!-- BOOLEAN -->
-                                <template x-if="attr.attribute_type === 'BOOLEAN'">
+                                <template x-if="!hasOptions(attr) && attr.attribute_type === 'BOOLEAN'">
                                     <div class="flex items-center mt-1">
                                         <input type="checkbox" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
                                             @change="onAttributeChange(attr)"
                                             class="rounded border-gray-300 text-blue-600">
                                         <span class="ml-1 text-xs text-gray-600 dark:text-gray-400">Yes</span>
                                     </div>
+                                </template>
+
+                                <!-- DATE -->
+                                <template x-if="!hasOptions(attr) && attr.attribute_type === 'DATE'">
+                                    <input type="date" :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
+                                        :required="attr.is_required"
+                                        @input="onAttributeChange(attr)"
+                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                                 </template>
                             </div>
                         </template>
@@ -383,6 +400,9 @@
 
 <script>
 function itemForm() {
+    // Clone data passed from server (if cloning an item)
+    const cloneData = {{ clone_data|safe|default:"{}" }};
+
     return {
         selectedCategory: '{{ form.category.value|default:"" }}',
         itemType: '{{ form.item_type.value|default:"COMPONENT" }}',
@@ -424,12 +444,89 @@ function itemForm() {
         showRelatedModal: false,
 
         init() {
+            // Apply clone data if present
+            if (cloneData && cloneData.category_id) {
+                this.applyCloneData(cloneData);
+            }
+
             if (this.selectedCategory) {
                 this.loadAttributes();
                 this.setItemTypeFromCategory();
             }
             this.updateCostConversion();
             this.syncLegacyReferences();
+        },
+
+        applyCloneData(data) {
+            // Set category (will trigger attribute loading)
+            if (data.category_id) {
+                this.selectedCategory = String(data.category_id);
+            }
+            // Set basic fields
+            if (data.name) {
+                this.itemName = data.name;
+                this.nameManuallySet = true; // Don't auto-generate for cloned items
+            }
+            if (data.item_type) {
+                this.itemType = data.item_type;
+            }
+
+            // Cost fields
+            if (data.standard_cost !== null && data.standard_cost !== undefined) {
+                this.standardCost = parseFloat(data.standard_cost) || 0;
+            }
+            if (data.currency) {
+                this.currency = data.currency;
+            }
+
+            // Stock fields
+            if (data.min_stock !== null && data.min_stock !== undefined) {
+                this.minStock = parseFloat(data.min_stock) || 0;
+            }
+            if (data.max_stock !== null && data.max_stock !== undefined) {
+                this.maxStock = parseFloat(data.max_stock) || '';
+            }
+            if (data.reorder_quantity !== null && data.reorder_quantity !== undefined) {
+                this.reorderQty = parseFloat(data.reorder_quantity) || 0;
+            }
+
+            // Packaging
+            if (data.purchase_uom_id) {
+                this.purchaseUom = String(data.purchase_uom_id);
+            }
+            if (data.release_uom_id) {
+                this.releaseUom = String(data.release_uom_id);
+            }
+            if (data.purchase_to_release_factor) {
+                this.conversionFactor = parseFloat(data.purchase_to_release_factor) || 1;
+            }
+
+            // Legacy refs
+            if (data.mat_number) {
+                this.sapMatNumber = data.mat_number;
+            }
+            if (data.item_number) {
+                this.erpItemNumber = data.item_number;
+            }
+
+            // Pre-fill description textarea
+            if (data.description) {
+                const descField = document.querySelector('textarea[name="description"]');
+                if (descField) descField.value = data.description;
+            }
+
+            // Set checkbox states
+            this.$nextTick(() => {
+                const checkboxes = {
+                    'is_active': data.is_active,
+                    'is_serialized': data.is_serialized,
+                    'is_lot_controlled': data.is_lot_controlled
+                };
+                for (const [name, checked] of Object.entries(checkboxes)) {
+                    const cb = document.querySelector(`input[name="${name}"]`);
+                    if (cb) cb.checked = !!checked;
+                }
+            });
         },
 
         setItemTypeFromCategory() {
@@ -694,6 +791,43 @@ function itemForm() {
         getOptions(attr) {
             if (!attr.options) return [];
             return attr.options.map(opt => typeof opt === 'string' ? { value: opt, label: opt } : opt);
+        },
+
+        hasOptions(attr) {
+            return attr.options && Array.isArray(attr.options) && attr.options.length > 0;
+        },
+
+        validateNumber(event, attr) {
+            const input = event.target;
+            const value = parseFloat(input.value);
+
+            if (isNaN(value)) return;
+
+            let error = '';
+            if (attr.min_value !== null && value < parseFloat(attr.min_value)) {
+                error = `Value must be at least ${attr.min_value}`;
+                input.classList.add('border-red-500');
+            } else if (attr.max_value !== null && value > parseFloat(attr.max_value)) {
+                error = `Value must be at most ${attr.max_value}`;
+                input.classList.add('border-red-500');
+            } else {
+                input.classList.remove('border-red-500');
+            }
+
+            // Update validation message
+            const errorEl = input.parentElement.querySelector('.validation-error');
+            if (error) {
+                if (!errorEl) {
+                    const msg = document.createElement('p');
+                    msg.className = 'validation-error text-xs text-red-500 mt-0.5';
+                    msg.textContent = error;
+                    input.parentElement.appendChild(msg);
+                } else {
+                    errorEl.textContent = error;
+                }
+            } else if (errorEl) {
+                errorEl.remove();
+            }
         },
 
         toggleCurrency() {

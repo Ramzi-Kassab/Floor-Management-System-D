@@ -521,6 +521,7 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.object.pk})
 
     def get_context_data(self, **kwargs):
+        import json
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Create Item"
         context["form_title"] = "Create Inventory Item"
@@ -532,7 +533,17 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         ).filter(
             Q(unit_type__in=['QUANTITY', 'PACKAGING']) | Q(is_packaging=True)
         ).order_by('name')
-        context["existing_attribute_values"] = "{}"
+
+        # Check for clone data in session
+        clone_data = self.request.session.pop('item_clone_data', None)
+        if clone_data:
+            context["clone_data"] = json.dumps(clone_data)
+            context["existing_attribute_values"] = json.dumps(clone_data.get('attribute_values', {}))
+            context["page_title"] = "Clone Item"
+            context["form_title"] = "Clone Inventory Item"
+        else:
+            context["clone_data"] = "{}"
+            context["existing_attribute_values"] = "{}"
         return context
 
 
@@ -629,6 +640,54 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
         else:
             context["existing_attribute_values"] = "{}"
         return context
+
+
+class ItemCloneView(LoginRequiredMixin, View):
+    """Clone an existing inventory item - opens create form with pre-filled data."""
+
+    def get(self, request, pk):
+        import json
+        # Get the item to clone
+        source_item = get_object_or_404(InventoryItem, pk=pk)
+
+        # Build clone data to pass to create form via session
+        clone_data = {
+            'category_id': source_item.category_id if source_item.category else None,
+            'name': f"Copy of {source_item.name}",
+            'description': source_item.description,
+            'item_type': source_item.item_type,
+            'is_active': source_item.is_active,
+            'is_serialized': source_item.is_serialized,
+            'is_lot_controlled': source_item.is_lot_controlled,
+            'standard_cost': str(source_item.standard_cost) if source_item.standard_cost else '',
+            'currency': source_item.currency,
+            'min_stock': str(source_item.min_stock) if source_item.min_stock else '',
+            'max_stock': str(source_item.max_stock) if source_item.max_stock else '',
+            'reorder_point': str(source_item.reorder_point) if source_item.reorder_point else '',
+            'reorder_quantity': str(source_item.reorder_quantity) if source_item.reorder_quantity else '',
+            'purchase_uom_id': source_item.purchase_uom_id if source_item.purchase_uom else None,
+            'release_uom_id': source_item.release_uom_id if source_item.release_uom else None,
+            'purchase_to_release_factor': str(source_item.purchase_to_release_factor) if source_item.purchase_to_release_factor else '1',
+            'mat_number': source_item.mat_number,
+            'item_number': source_item.item_number,
+        }
+
+        # Get attribute values
+        attribute_values = {}
+        for av in source_item.attribute_values.select_related('attribute', 'attribute__attribute'):
+            code = av.attribute.attribute.code if av.attribute.attribute else str(av.attribute.pk)
+            val = av.display_value
+            if val is not None and hasattr(val, '__float__'):
+                val = float(val)
+            attribute_values[code] = val
+
+        clone_data['attribute_values'] = attribute_values
+
+        # Store clone data in session
+        request.session['item_clone_data'] = clone_data
+
+        messages.info(request, f"Creating clone of '{source_item.code}'. Review and save to create the new item.")
+        return redirect('inventory:item_create')
 
 
 # =============================================================================
