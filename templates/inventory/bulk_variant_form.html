@@ -71,9 +71,7 @@
             <!-- Variant Cases List (Vertical) -->
             <div class="space-y-4">
                 {% for vc_data in variant_cases %}
-                {% with is_new_purchased=vc_data.case.code|slice:":7" %}
-                {% with is_disabled=vc_data.exists or vc_data.case.code == 'NEW-PUR' %}
-                <div class="border rounded-lg p-4 {% if is_disabled %}bg-gray-50 dark:bg-gray-700/50 opacity-60{% else %}bg-white dark:bg-gray-800 hover:border-blue-300{% endif %}"
+                <div class="border rounded-lg p-4 {% if vc_data.exists or vc_data.case.code == 'NEW-PUR' %}bg-gray-50 dark:bg-gray-700/50 opacity-60{% else %}bg-white dark:bg-gray-800 hover:border-blue-300{% endif %}"
                      data-condition="{{ vc_data.case.condition }}"
                      data-ownership="{{ vc_data.case.ownership }}"
                      data-case-id="{{ vc_data.case.pk }}">
@@ -85,8 +83,8 @@
                                    name="variant_cases"
                                    value="{{ vc_data.case.pk }}"
                                    id="case_{{ vc_data.case.pk }}"
-                                   {% if is_disabled %}disabled {% if vc_data.exists or vc_data.case.code == 'NEW-PUR' %}checked{% endif %}{% endif %}
-                                   class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 {% if not is_disabled %}variant-checkbox{% endif %}"
+                                   {% if vc_data.exists or vc_data.case.code == 'NEW-PUR' %}disabled checked{% endif %}
+                                   class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 {% if not vc_data.exists and vc_data.case.code != 'NEW-PUR' %}variant-checkbox{% endif %}"
                                    onchange="toggleFields({{ vc_data.case.pk }})">
                         </div>
 
@@ -129,7 +127,7 @@
                             {% endif %}
 
                             <!-- Fields (shown when not disabled) -->
-                            {% if not is_disabled %}
+                            {% if not vc_data.exists and vc_data.case.code != 'NEW-PUR' %}
                             <div id="fields_{{ vc_data.case.pk }}" class="variant-fields hidden grid grid-cols-1 md:grid-cols-3 gap-4 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                                 <!-- ERP Item Number -->
                                 <div>
@@ -170,8 +168,6 @@
                         </div>
                     </div>
                 </div>
-                {% endwith %}
-                {% endwith %}
                 {% empty %}
                 <div class="text-center py-8 text-gray-500">
                     No variant cases defined. <a href="{% url 'inventory:variant_create' %}" class="text-blue-600 hover:underline">Create one first</a>.
