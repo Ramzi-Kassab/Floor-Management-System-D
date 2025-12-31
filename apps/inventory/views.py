@@ -1794,12 +1794,14 @@ class ItemVariantCreateView(LoginRequiredMixin, CreateView):
     fields = ["variant_case", "customer", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
 
     def get_context_data(self, **kwargs):
+        from apps.sales.models import Customer
         context = super().get_context_data(**kwargs)
         item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
         context["item"] = item
         context["page_title"] = f"Create Variant for {item.code}"
         context["form_title"] = f"Create Variant for {item.name}"
         context["variant_cases"] = VariantCase.objects.filter(is_active=True).order_by("display_order", "code")
+        context["customers"] = Customer.objects.filter(is_active=True).order_by("name")
         return context
 
     def form_valid(self, form):
@@ -1826,12 +1828,14 @@ class ItemVariantUpdateView(LoginRequiredMixin, UpdateView):
     fields = ["variant_case", "customer", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
 
     def get_context_data(self, **kwargs):
+        from apps.sales.models import Customer
         context = super().get_context_data(**kwargs)
         item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
         context["item"] = item
         context["page_title"] = f"Edit {self.object.code}"
         context["form_title"] = f"Edit Variant: {self.object.code}"
         context["variant_cases"] = VariantCase.objects.filter(is_active=True).order_by("display_order", "code")
+        context["customers"] = Customer.objects.filter(is_active=True).order_by("name")
         return context
 
     def form_valid(self, form):
