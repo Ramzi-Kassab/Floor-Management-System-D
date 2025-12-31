@@ -167,8 +167,9 @@ class PurchaseRequisitionLineForm(forms.ModelForm):
 
     class Meta:
         model = PurchaseRequisitionLine
-        fields = ["item_description", "quantity_requested", "unit_of_measure", "estimated_unit_price", "notes"]
+        fields = ["inventory_item", "item_description", "quantity_requested", "unit_of_measure", "estimated_unit_price", "notes"]
         widgets = {
+            "inventory_item": forms.HiddenInput(),
             "item_description": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
             "quantity_requested": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "unit_of_measure": forms.TextInput(attrs={"class": TAILWIND_INPUT}),

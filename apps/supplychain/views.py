@@ -257,12 +257,13 @@ class PRDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "pr"
 
     def get_queryset(self):
-        return PurchaseRequisition.objects.select_related("requested_by", "approved_by")
+        return PurchaseRequisition.objects.select_related(
+            "requested_by", "approved_by"
+        ).prefetch_related("lines__inventory_item")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = self.object.requisition_number
-        context["lines"] = self.object.lines.all()
         return context
 
 
@@ -337,9 +338,12 @@ class PRAddLineView(LoginRequiredMixin, CreateView):
     template_name = "supplychain/pr_line_form.html"
 
     def get_context_data(self, **kwargs):
+        from apps.inventory.models import InventoryCategory
+
         context = super().get_context_data(**kwargs)
         context["pr"] = get_object_or_404(PurchaseRequisition, pk=self.kwargs["pk"])
         context["page_title"] = "Add Line"
+        context["categories"] = InventoryCategory.objects.filter(is_active=True).order_by("name")
         return context
 
     def form_valid(self, form):
@@ -349,7 +353,13 @@ class PRAddLineView(LoginRequiredMixin, CreateView):
         form.instance.line_number = (last_line.line_number + 1) if last_line else 1
 
         messages.success(self.request, "Line added successfully.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+
+        # Handle "Add & Add Another" button
+        if "add_another" in self.request.POST:
+            return redirect("supplychain:pr_add_line", pk=self.kwargs["pk"])
+
+        return response
 
     def get_success_url(self):
         return reverse_lazy("supplychain:pr_detail", kwargs={"pk": self.kwargs["pk"]})

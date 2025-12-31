@@ -4975,7 +4975,7 @@ class StockBalanceAPIView(LoginRequiredMixin, View):
 
 
 class ItemLookupAPIView(LoginRequiredMixin, View):
-    """API to lookup items by code or name."""
+    """API to lookup items by code, name, mat_number, item_number, or mpn."""
 
     def get(self, request):
         from django.http import JsonResponse
@@ -4987,8 +4987,14 @@ class ItemLookupAPIView(LoginRequiredMixin, View):
         queryset = InventoryItem.objects.filter(is_active=True)
 
         if query:
+            # Search across multiple identifier fields
             queryset = queryset.filter(
-                Q(code__icontains=query) | Q(name__icontains=query)
+                Q(code__icontains=query) |
+                Q(name__icontains=query) |
+                Q(mat_number__icontains=query) |
+                Q(item_number__icontains=query) |
+                Q(mpn__icontains=query) |
+                Q(brand__icontains=query)
             )
         if category_id:
             queryset = queryset.filter(category_id=category_id)
@@ -5004,6 +5010,8 @@ class ItemLookupAPIView(LoginRequiredMixin, View):
                 "category": item.category.name if item.category else None,
                 "uom": item.primary_uom.symbol if item.primary_uom else None,
                 "description": item.description or "",
+                "mat_number": item.mat_number or "",
+                "item_number": item.item_number or "",
             })
 
         return JsonResponse({"items": data, "count": len(data)})
