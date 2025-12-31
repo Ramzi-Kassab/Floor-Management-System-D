@@ -1520,8 +1520,8 @@ class ItemVariant(models.Model):
         blank=True
     )
 
-    # Auto-generated code: ITEM-CODE-CASE-CODE
-    code = models.CharField(max_length=100, unique=True)
+    # Auto-generated code: ITEM-CODE-CASE-CODE (blank allowed, generated in view)
+    code = models.CharField(max_length=100, unique=True, blank=True)
 
     # Optional: Customer for CLIENT ownership variants
     customer = models.ForeignKey(
