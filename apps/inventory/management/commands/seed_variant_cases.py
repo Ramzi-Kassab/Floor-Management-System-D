@@ -15,7 +15,7 @@ class Command(BaseCommand):
 
         # Define the standard variant cases
         cases = [
-            # NEW Items
+            # NEW Items - ARDT Owned
             {
                 "code": "NEW-PUR",
                 "name": "New Purchased",
@@ -36,11 +36,10 @@ class Command(BaseCommand):
                 "description": "New items manufactured in-house",
                 "display_order": 2,
             },
-            # RECLAIMED Items (ARDT ownership)
             {
-                "code": "USED-RET",
+                "code": "NEW-RET",
                 "name": "Retrofit (as New)",
-                "condition": "NEW",  # Retrofit items are treated as new
+                "condition": "NEW",
                 "acquisition": "RECLAIMED",
                 "reclaim_category": "RETROFIT",
                 "ownership": "ARDT",
@@ -48,15 +47,16 @@ class Command(BaseCommand):
                 "display_order": 3,
             },
             {
-                "code": "USED-EO",
+                "code": "NEW-ENO",
                 "name": "E&O (Excess & Obsolete)",
-                "condition": "NEW",  # E&O items are new but excess
+                "condition": "NEW",
                 "acquisition": "RECLAIMED",
                 "reclaim_category": "E_AND_O",
                 "ownership": "ARDT",
-                "description": "Excess or obsolete inventory, typically discounted",
+                "description": "Excess or obsolete inventory, new condition but discounted",
                 "display_order": 4,
             },
+            # USED Items - ARDT Owned
             {
                 "code": "USED-GRD",
                 "name": "Ground (Surface Damage)",
@@ -68,7 +68,7 @@ class Command(BaseCommand):
                 "display_order": 5,
             },
             {
-                "code": "USED-RCL",
+                "code": "USED-STD",
                 "name": "Standard Reclaim",
                 "condition": "USED",
                 "acquisition": "RECLAIMED",
@@ -89,8 +89,8 @@ class Command(BaseCommand):
                 "display_order": 7,
             },
             {
-                "code": "CLI-RCL",
-                "name": "Client Reclaim",
+                "code": "CLI-USED",
+                "name": "Client Used",
                 "condition": "USED",
                 "acquisition": "CLIENT_PROVIDED",
                 "reclaim_category": "",
