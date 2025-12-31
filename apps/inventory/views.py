@@ -473,7 +473,62 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
     form_class = InventoryItemForm
     template_name = "inventory/item_form.html"
 
+    def validate_unique_attributes(self, form):
+        """
+        Validate uniqueness of Item Number (all items) and HDBS Code (main items only).
+        Returns list of error messages or empty list if valid.
+        """
+        errors = []
+
+        # Get attribute values from POST
+        for key, value in self.request.POST.items():
+            if key.startswith('attr_') and value:
+                try:
+                    attr_id = int(key.replace('attr_', ''))
+                    category_attr = CategoryAttribute.objects.select_related('attribute').get(pk=attr_id)
+                    attr_code = category_attr.attribute.code.lower()
+
+                    # Check Item Number - must be unique across ALL items
+                    if attr_code in ('item_number', 'item_num', 'itemno', 'itemnumber'):
+                        # Check if any other item has this value
+                        existing = ItemAttributeValue.objects.filter(
+                            text_value__iexact=value.strip()
+                        ).filter(
+                            attribute__attribute__code__in=['item_number', 'item_num', 'itemno', 'itemnumber', 'ITEM_NUMBER', 'ITEM_NUM']
+                        )
+                        # Exclude current item if editing
+                        if hasattr(self, 'object') and self.object and self.object.pk:
+                            existing = existing.exclude(item=self.object)
+                        if existing.exists():
+                            errors.append(f"Item Number '{value}' already exists on item '{existing.first().item.code}'")
+
+                    # Check HDBS Code - must be unique (variants inherit from parent)
+                    elif attr_code in ('hdbs_code', 'hdbs', 'hdbscode', 'mat_number'):
+                        # Check if any other item has this HDBS code
+                        existing = ItemAttributeValue.objects.filter(
+                            text_value__iexact=value.strip()
+                        ).filter(
+                            attribute__attribute__code__in=['hdbs_code', 'hdbs', 'hdbscode', 'mat_number', 'HDBS_CODE', 'HDBS', 'MAT_NUMBER']
+                        )
+                        # Exclude current item if editing
+                        if hasattr(self, 'object') and self.object and self.object.pk:
+                            existing = existing.exclude(item=self.object)
+                        if existing.exists():
+                            errors.append(f"HDBS Code '{value}' already exists on item '{existing.first().item.code}'")
+
+                except (ValueError, CategoryAttribute.DoesNotExist):
+                    pass
+
+        return errors
+
     def form_valid(self, form):
+        # Validate unique attributes before saving
+        errors = self.validate_unique_attributes(form)
+        if errors:
+            for error in errors:
+                messages.error(self.request, error)
+            return self.form_invalid(form)
+
         form.instance.created_by = self.request.user
 
         # Auto-generate code if not provided
@@ -554,6 +609,52 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
     form_class = InventoryItemForm
     template_name = "inventory/item_form.html"
 
+    def validate_unique_attributes(self, form):
+        """
+        Validate uniqueness of Item Number (all items) and HDBS Code (main items only).
+        Returns list of error messages or empty list if valid.
+        """
+        errors = []
+
+        # Get attribute values from POST
+        for key, value in self.request.POST.items():
+            if key.startswith('attr_') and value:
+                try:
+                    attr_id = int(key.replace('attr_', ''))
+                    category_attr = CategoryAttribute.objects.select_related('attribute').get(pk=attr_id)
+                    attr_code = category_attr.attribute.code.lower()
+
+                    # Check Item Number - must be unique across ALL items
+                    if attr_code in ('item_number', 'item_num', 'itemno', 'itemnumber'):
+                        existing = ItemAttributeValue.objects.filter(
+                            text_value__iexact=value.strip()
+                        ).filter(
+                            attribute__attribute__code__in=['item_number', 'item_num', 'itemno', 'itemnumber', 'ITEM_NUMBER', 'ITEM_NUM']
+                        )
+                        # Exclude current item
+                        if self.object and self.object.pk:
+                            existing = existing.exclude(item=self.object)
+                        if existing.exists():
+                            errors.append(f"Item Number '{value}' already exists on item '{existing.first().item.code}'")
+
+                    # Check HDBS Code - must be unique (variants inherit from parent)
+                    elif attr_code in ('hdbs_code', 'hdbs', 'hdbscode', 'mat_number'):
+                        existing = ItemAttributeValue.objects.filter(
+                            text_value__iexact=value.strip()
+                        ).filter(
+                            attribute__attribute__code__in=['hdbs_code', 'hdbs', 'hdbscode', 'mat_number', 'HDBS_CODE', 'HDBS', 'MAT_NUMBER']
+                        )
+                        # Exclude current item
+                        if self.object and self.object.pk:
+                            existing = existing.exclude(item=self.object)
+                        if existing.exists():
+                            errors.append(f"HDBS Code '{value}' already exists on item '{existing.first().item.code}'")
+
+                except (ValueError, CategoryAttribute.DoesNotExist):
+                    pass
+
+        return errors
+
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
         form = self.get_form()
@@ -567,6 +668,13 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
             return self.form_invalid(form)
 
     def form_valid(self, form):
+        # Validate unique attributes before saving
+        errors = self.validate_unique_attributes(form)
+        if errors:
+            for error in errors:
+                messages.error(self.request, error)
+            return self.form_invalid(form)
+
         response = super().form_valid(form)
         item = self.object
 
@@ -1308,14 +1416,32 @@ class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
                     is_used_in_name = request.POST.get(f"in_name_{attr_id}") == "on"
                     display_order = request.POST.get(f"order_{attr_id}") or 0
 
-                    # Parse options if provided
+                    # Parse options if provided - normalize to clean list
                     if options:
+                        import json
+                        options = options.strip()
+                        parsed_options = None
+
+                        # Try JSON parse first (handles ["a","b"] format)
                         try:
-                            import json
-                            options = json.loads(options)
+                            parsed_options = json.loads(options)
                         except json.JSONDecodeError:
-                            # Try comma-separated values
-                            options = [o.strip() for o in options.split(",") if o.strip()]
+                            pass
+
+                        if parsed_options is None:
+                            # Check if it looks like a Python-style array: ['a','b']
+                            if options.startswith('[') and options.endswith(']'):
+                                inner = options[1:-1]
+                                parsed_options = [s.strip().strip("'\"") for s in inner.split(',') if s.strip()]
+                            else:
+                                # Comma-separated: a, b, c
+                                parsed_options = [s.strip().strip("'\"") for s in options.split(',') if s.strip()]
+
+                        # Ensure list and clean all values
+                        if isinstance(parsed_options, list):
+                            options = [str(v).strip().strip("'\"") for v in parsed_options if str(v).strip()]
+                        else:
+                            options = [str(parsed_options).strip().strip("'\"")] if parsed_options else None
 
                     # Parse conditional rules if provided
                     conditional_rules = None

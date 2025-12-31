@@ -790,11 +790,53 @@ function itemForm() {
 
         getOptions(attr) {
             if (!attr.options) return [];
-            return attr.options.map(opt => typeof opt === 'string' ? { value: opt, label: opt } : opt);
+
+            let opts = attr.options;
+
+            // If it's a string, try to parse it
+            if (typeof opts === 'string') {
+                opts = opts.trim();
+                if (!opts) return [];
+
+                // Try JSON parse first (handles ["a","b"] format)
+                try {
+                    opts = JSON.parse(opts);
+                } catch(e) {
+                    // Check if it looks like a Python-style array with single quotes: ['a','b']
+                    if (opts.startsWith('[') && opts.endsWith(']')) {
+                        // Remove brackets and split
+                        opts = opts.slice(1, -1);
+                        opts = opts.split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''));
+                    } else {
+                        // Comma-separated: a, b, c or a,b,c
+                        opts = opts.split(',').map(s => s.trim());
+                    }
+                }
+            }
+
+            // Ensure it's an array
+            if (!Array.isArray(opts)) {
+                opts = [opts];
+            }
+
+            // Clean and normalize each option
+            return opts
+                .map(opt => {
+                    if (typeof opt === 'string') {
+                        // Remove any remaining quotes and trim
+                        const cleaned = opt.replace(/^['"]|['"]$/g, '').trim();
+                        return cleaned ? { value: cleaned, label: cleaned } : null;
+                    } else if (opt && typeof opt === 'object') {
+                        return opt;
+                    }
+                    return null;
+                })
+                .filter(opt => opt !== null);
         },
 
         hasOptions(attr) {
-            return attr.options && Array.isArray(attr.options) && attr.options.length > 0;
+            const opts = this.getOptions(attr);
+            return opts && opts.length > 0;
         },
 
         validateNumber(event, attr) {
