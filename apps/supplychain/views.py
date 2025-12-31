@@ -233,7 +233,11 @@ class PRListView(LoginRequiredMixin, ListView):
     context_object_name = "requisitions"
 
     def get_queryset(self):
-        qs = PurchaseRequisition.objects.select_related("requested_by", "approved_by").annotate(line_count=Count("lines"))
+        qs = PurchaseRequisition.objects.select_related(
+            "requested_by", "approved_by"
+        ).prefetch_related(
+            "lines__inventory_item"
+        ).annotate(line_count=Count("lines"))
 
         status = self.request.GET.get("status")
         if status:
@@ -421,6 +425,102 @@ class PRDeleteLineView(LoginRequiredMixin, View):
 
         messages.success(request, "Line deleted successfully.")
         return redirect("supplychain:pr_detail", pk=pr_pk)
+
+
+class PRLinesExportView(LoginRequiredMixin, View):
+    """Export PR lines to Excel."""
+
+    def get(self, request):
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        # Get filter parameters
+        status = request.GET.get("status", "")
+        pr_id = request.GET.get("pr", "")
+
+        # Query lines
+        lines = PurchaseRequisitionLine.objects.select_related(
+            "requisition", "requisition__requested_by", "requisition__department", "inventory_item"
+        ).order_by("requisition__requisition_number", "line_number")
+
+        if status:
+            lines = lines.filter(requisition__status=status)
+        if pr_id:
+            lines = lines.filter(requisition_id=pr_id)
+
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "PR Lines"
+
+        # Styles
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="2563EB", end_color="2563EB", fill_type="solid")
+        border = Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin")
+        )
+
+        # Headers
+        headers = [
+            "PR Number", "PR Title", "Status", "Department", "Requested By",
+            "Line #", "Item Code", "Item Name", "Description",
+            "Qty", "UoM", "Est. Price", "Subtotal", "Notes"
+        ]
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = border
+
+        # Data rows
+        for row_num, line in enumerate(lines, 2):
+            data = [
+                line.requisition.requisition_number,
+                line.requisition.title,
+                line.requisition.get_status_display(),
+                line.requisition.department.name if line.requisition.department else "",
+                line.requisition.requested_by.get_full_name() or line.requisition.requested_by.username,
+                line.line_number,
+                line.inventory_item.code if line.inventory_item else "",
+                line.inventory_item.name if line.inventory_item else "",
+                line.item_description or "",
+                float(line.quantity_requested) if line.quantity_requested else 0,
+                line.unit_of_measure or "",
+                float(line.estimated_unit_price) if line.estimated_unit_price else 0,
+                float(line.estimated_total) if line.estimated_total else 0,
+                line.notes or ""
+            ]
+            for col, value in enumerate(data, 1):
+                cell = ws.cell(row=row_num, column=col, value=value)
+                cell.border = border
+                if col in [10, 12, 13]:  # Numeric columns
+                    cell.alignment = Alignment(horizontal="right")
+
+        # Adjust column widths
+        column_widths = [15, 30, 12, 15, 20, 8, 12, 30, 30, 10, 8, 12, 12, 30]
+        for col, width in enumerate(column_widths, 1):
+            ws.column_dimensions[get_column_letter(col)].width = width
+
+        # Freeze header row
+        ws.freeze_panes = "A2"
+
+        # Response
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        filename = f"pr_lines_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        response = HttpResponse(
+            output.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
 
 
 # =============================================================================
