@@ -4999,16 +4999,18 @@ class ItemLookupAPIView(LoginRequiredMixin, View):
         if category_id:
             queryset = queryset.filter(category_id=category_id)
 
-        queryset = queryset.select_related("category", "base_uom")[:limit]
+        queryset = queryset.select_related("category")[:limit]
 
         data = []
         for item in queryset:
+            # Use item.unit (simple text field like "EA", "KG") - same as inventory list page
             data.append({
                 "id": item.id,
                 "code": item.code,
                 "name": item.name,
                 "category": item.category.name if item.category else None,
-                "uom": item.base_uom.symbol if item.base_uom else None,
+                "category_code": item.category.code if item.category else None,
+                "uom": item.unit or "EA",
                 "description": item.description or "",
                 "mat_number": item.mat_number or "",
                 "item_number": item.item_number or "",

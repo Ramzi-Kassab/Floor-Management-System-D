@@ -111,9 +111,11 @@
                             <!-- Items List -->
                             <div id="itemsList">
                                 <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-                                    <i data-lucide="search" class="w-12 h-12 mb-4 opacity-50"></i>
-                                    <p class="text-lg font-medium">Search for items</p>
-                                    <p class="text-sm mt-1">Select a category or type to search</p>
+                                    <svg class="animate-spin h-8 w-8 mb-4 text-blue-600" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <p class="text-sm">Loading items...</p>
                                 </div>
                             </div>
                         </div>
@@ -235,19 +237,6 @@ function debounceSearch() {
 function searchItems() {
     const query = document.getElementById('itemSearch').value.trim();
     const categoryId = document.getElementById('categoryFilter').value;
-
-    if (query.length < 2 && !categoryId) {
-        document.getElementById('itemsList').innerHTML = `
-            <div class="flex flex-col items-center justify-center py-16 text-gray-400">
-                <svg class="w-12 h-12 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                </svg>
-                <p class="text-lg font-medium">Search for items</p>
-                <p class="text-sm mt-1">Enter at least 2 characters or select a category</p>
-            </div>
-        `;
-        return;
-    }
 
     // Show spinner
     document.getElementById('searchSpinner').classList.remove('hidden');
@@ -460,6 +449,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
+    // Load items automatically on page load
+    searchItems();
 });
 </script>
 {% endblock %}
