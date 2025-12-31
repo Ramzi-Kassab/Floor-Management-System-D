@@ -5,37 +5,110 @@
 {% block page_header %}
 <div class="flex items-center justify-between mb-6">
     <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Add Line</h1>
-        <p class="text-gray-600 dark:text-gray-400">{{ pr.pr_number }}</p>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Add Line Item</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ pr.requisition_number }} - {{ pr.title }}</p>
     </div>
     <a href="{% url 'supplychain:pr_detail' pr.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
-        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to PR
     </a>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-xl">
+<div class="max-w-2xl">
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
         <form method="post">
             {% csrf_token %}
             <div class="space-y-6">
+                <!-- Item Description -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Item *</label>
-                    {{ form.inventory_item }}
+                    <label for="id_item_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Item Description <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="item_description" id="id_item_description"
+                           value="{{ form.item_description.value|default:'' }}"
+                           class="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                           placeholder="Description of item or service needed"
+                           required>
+                    {% if form.item_description.errors %}
+                    <p class="text-red-600 text-sm mt-1">{{ form.item_description.errors.0 }}</p>
+                    {% endif %}
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quantity *</label>
-                    {{ form.quantity }}
+
+                <!-- Quantity and UoM -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_quantity_requested" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Quantity <span class="text-red-500">*</span>
+                        </label>
+                        <input type="number" name="quantity_requested" id="id_quantity_requested"
+                               value="{{ form.quantity_requested.value|default:'' }}"
+                               step="0.001" min="0.001"
+                               class="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                               placeholder="0.00"
+                               required>
+                        {% if form.quantity_requested.errors %}
+                        <p class="text-red-600 text-sm mt-1">{{ form.quantity_requested.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label for="id_unit_of_measure" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Unit of Measure
+                        </label>
+                        <input type="text" name="unit_of_measure" id="id_unit_of_measure"
+                               value="{{ form.unit_of_measure.value|default:'' }}"
+                               class="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                               placeholder="EA, BOX, KG, etc.">
+                        {% if form.unit_of_measure.errors %}
+                        <p class="text-red-600 text-sm mt-1">{{ form.unit_of_measure.errors.0 }}</p>
+                        {% endif %}
+                    </div>
                 </div>
+
+                <!-- Estimated Price -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
-                    {{ form.notes }}
+                    <label for="id_estimated_unit_price" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Estimated Unit Price (SAR)
+                    </label>
+                    <input type="number" name="estimated_unit_price" id="id_estimated_unit_price"
+                           value="{{ form.estimated_unit_price.value|default:'' }}"
+                           step="0.01" min="0"
+                           class="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                           placeholder="0.00">
+                    <p class="text-xs text-gray-500 mt-1">Optional - for budget estimation</p>
+                    {% if form.estimated_unit_price.errors %}
+                    <p class="text-red-600 text-sm mt-1">{{ form.estimated_unit_price.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <label for="id_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Notes
+                    </label>
+                    <textarea name="notes" id="id_notes" rows="2"
+                              class="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                              placeholder="Any additional notes or specifications...">{{ form.notes.value|default:'' }}</textarea>
+                    {% if form.notes.errors %}
+                    <p class="text-red-600 text-sm mt-1">{{ form.notes.errors.0 }}</p>
+                    {% endif %}
                 </div>
             </div>
-            <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <a href="{% url 'supplychain:pr_detail' pr.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
-                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Add Line</button>
+
+            <!-- Actions -->
+            <div class="flex justify-between items-center mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'supplychain:pr_detail' pr.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">
+                    Cancel
+                </a>
+                <div class="space-x-3">
+                    <button type="submit" name="add_another" value="1" class="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50">
+                        Add & Add Another
+                    </button>
+                    <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Add Line
+                    </button>
+                </div>
             </div>
         </form>
     </div>

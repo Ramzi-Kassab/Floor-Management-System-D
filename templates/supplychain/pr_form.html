@@ -6,31 +6,116 @@
 <div class="flex items-center justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Create a request to purchase items or services</p>
     </div>
     <a href="{% url 'supplychain:pr_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
-        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
     </a>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-xl">
+<div class="max-w-3xl">
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
         <form method="post">
             {% csrf_token %}
+
+            <!-- Header Section -->
             <div class="space-y-6">
+                <!-- Title -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Required Date</label>
-                    {{ form.required_date }}
+                    <label for="id_title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Title <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="title" id="id_title"
+                           value="{{ form.title.value|default:'' }}"
+                           class="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="Brief description of what you need to purchase"
+                           required>
+                    {% if form.title.errors %}
+                    <p class="text-red-600 text-sm mt-1">{{ form.title.errors.0 }}</p>
+                    {% endif %}
                 </div>
+
+                <!-- Priority and Required Date -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="id_priority" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Priority <span class="text-red-500">*</span>
+                        </label>
+                        <select name="priority" id="id_priority"
+                                class="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="LOW" {% if form.priority.value == 'LOW' %}selected{% endif %}>Low</option>
+                            <option value="MEDIUM" {% if form.priority.value == 'MEDIUM' or not form.priority.value %}selected{% endif %}>Medium</option>
+                            <option value="HIGH" {% if form.priority.value == 'HIGH' %}selected{% endif %}>High</option>
+                            <option value="URGENT" {% if form.priority.value == 'URGENT' %}selected{% endif %}>Urgent</option>
+                        </select>
+                        {% if form.priority.errors %}
+                        <p class="text-red-600 text-sm mt-1">{{ form.priority.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label for="id_required_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Required Date <span class="text-red-500">*</span>
+                        </label>
+                        <input type="date" name="required_date" id="id_required_date"
+                               value="{{ form.required_date.value|date:'Y-m-d'|default:'' }}"
+                               class="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               required>
+                        {% if form.required_date.errors %}
+                        <p class="text-red-600 text-sm mt-1">{{ form.required_date.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Description -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
-                    {{ form.notes }}
+                    <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Description
+                    </label>
+                    <textarea name="description" id="id_description" rows="3"
+                              class="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Detailed description of items/services needed...">{{ form.description.value|default:'' }}</textarea>
+                    {% if form.description.errors %}
+                    <p class="text-red-600 text-sm mt-1">{{ form.description.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Justification -->
+                <div>
+                    <label for="id_justification" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Business Justification
+                    </label>
+                    <textarea name="justification" id="id_justification" rows="3"
+                              class="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Why is this purchase needed? (For approval purposes)">{{ form.justification.value|default:'' }}</textarea>
+                    {% if form.justification.errors %}
+                    <p class="text-red-600 text-sm mt-1">{{ form.justification.errors.0 }}</p>
+                    {% endif %}
                 </div>
             </div>
+
+            <!-- Info Box -->
+            <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <div class="flex items-start">
+                    <i data-lucide="info" class="w-5 h-5 text-blue-500 mr-3 mt-0.5"></i>
+                    <div class="text-sm text-blue-700 dark:text-blue-300">
+                        <p class="font-medium mb-1">Next Steps</p>
+                        <p>After creating this requisition, you can add specific line items (items to purchase). Once complete, submit for approval.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Actions -->
             <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <a href="{% url 'supplychain:pr_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
-                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create Requisition</button>
+                <a href="{% url 'supplychain:pr_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">
+                    Cancel
+                </a>
+                <button type="submit" class="inline-flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-200">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                    Create Requisition
+                </button>
             </div>
         </form>
     </div>

@@ -6,15 +6,25 @@
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
     <div>
         <div class="flex items-center space-x-3">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ pr.pr_number }}</h1>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ pr.requisition_number }}</h1>
             <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
                 {% if pr.status == 'APPROVED' %}bg-green-100 text-green-800
-                {% elif pr.status == 'PENDING' %}bg-yellow-100 text-yellow-800
+                {% elif pr.status == 'SUBMITTED' %}bg-yellow-100 text-yellow-800
                 {% elif pr.status == 'REJECTED' %}bg-red-100 text-red-800
+                {% elif pr.status == 'CONVERTED_TO_PO' %}bg-blue-100 text-blue-800
+                {% elif pr.status == 'CANCELLED' %}bg-gray-100 text-gray-800
                 {% else %}bg-gray-100 text-gray-800{% endif %}">
                 {{ pr.get_status_display }}
             </span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                {% if pr.priority == 'URGENT' %}bg-red-100 text-red-800
+                {% elif pr.priority == 'HIGH' %}bg-orange-100 text-orange-800
+                {% elif pr.priority == 'LOW' %}bg-gray-100 text-gray-600
+                {% else %}bg-blue-100 text-blue-800{% endif %}">
+                {{ pr.get_priority_display }}
+            </span>
         </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ pr.title }}</p>
     </div>
     <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
         {% if pr.status == 'DRAFT' %}
@@ -22,7 +32,7 @@
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Line
         </a>
         {% endif %}
-        {% if pr.status == 'PENDING' %}
+        {% if pr.status == 'SUBMITTED' %}
         <a href="{% url 'supplychain:pr_approve' pr.pk %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
             <i data-lucide="check" class="w-4 h-4 mr-2"></i>Review
         </a>
@@ -42,69 +52,185 @@
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Requisition Lines</h2>
                 {% if pr.status == 'DRAFT' %}
-                <a href="{% url 'supplychain:pr_add_line' pr.pk %}" class="text-sm text-blue-600 hover:underline">Add Line</a>
+                <a href="{% url 'supplychain:pr_add_line' pr.pk %}" class="text-sm text-blue-600 hover:underline">
+                    <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Add Line
+                </a>
                 {% endif %}
             </div>
-            {% if lines %}
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
-                        <th class="px-6 py-3 font-medium">#</th>
-                        <th class="px-6 py-3 font-medium">Item</th>
-                        <th class="px-6 py-3 font-medium text-right">Quantity</th>
-                        <th class="px-6 py-3 font-medium">Notes</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                    {% for line in lines %}
-                    <tr>
-                        <td class="px-6 py-4 font-mono">{{ line.line_number }}</td>
-                        <td class="px-6 py-4">
-                            <span class="text-gray-900 dark:text-white">{{ line.inventory_item.name }}</span>
-                            <span class="text-gray-500 ml-2 font-mono text-xs">{{ line.inventory_item.code }}</span>
-                        </td>
-                        <td class="px-6 py-4 text-right font-mono">{{ line.quantity }}</td>
-                        <td class="px-6 py-4 text-gray-500">{{ line.notes|default:"-" }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            {% if pr.lines.exists %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                            <th class="px-6 py-3 font-medium">#</th>
+                            <th class="px-6 py-3 font-medium">Description</th>
+                            <th class="px-6 py-3 font-medium text-right">Qty</th>
+                            <th class="px-6 py-3 font-medium">UoM</th>
+                            <th class="px-6 py-3 font-medium text-right">Est. Price</th>
+                            <th class="px-6 py-3 font-medium text-right">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for line in pr.lines.all %}
+                        <tr>
+                            <td class="px-6 py-4 font-mono text-gray-500">{{ line.line_number }}</td>
+                            <td class="px-6 py-4">
+                                <span class="text-gray-900 dark:text-white">{{ line.item_description }}</span>
+                                {% if line.notes %}
+                                <p class="text-xs text-gray-500 mt-1">{{ line.notes }}</p>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-right font-mono">{{ line.quantity_requested }}</td>
+                            <td class="px-6 py-4 text-gray-500">{{ line.unit_of_measure|default:"-" }}</td>
+                            <td class="px-6 py-4 text-right font-mono">
+                                {% if line.estimated_unit_price %}
+                                {{ line.estimated_unit_price }}
+                                {% else %}-{% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-right font-mono font-medium">
+                                {% if line.estimated_unit_price %}
+                                {{ line.estimated_total|default:"-" }}
+                                {% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if pr.estimated_total %}
+                    <tfoot class="bg-gray-50 dark:bg-gray-700/50">
+                        <tr>
+                            <td colspan="5" class="px-6 py-3 text-right font-medium text-gray-700 dark:text-gray-300">Estimated Total:</td>
+                            <td class="px-6 py-3 text-right font-mono font-bold text-gray-900 dark:text-white">SAR {{ pr.estimated_total }}</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
             {% else %}
-            <div class="text-center py-8 text-gray-500">No lines added yet</div>
+            <div class="text-center py-12 text-gray-500">
+                <i data-lucide="package" class="w-12 h-12 mx-auto mb-4 text-gray-300"></i>
+                <p class="text-lg font-medium mb-2">No lines added yet</p>
+                <p class="text-sm mb-4">Add items you need to purchase</p>
+                {% if pr.status == 'DRAFT' %}
+                <a href="{% url 'supplychain:pr_add_line' pr.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add First Line
+                </a>
+                {% endif %}
+            </div>
             {% endif %}
         </div>
 
-        {% if pr.notes %}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Notes</h2>
-            <p class="text-gray-600 dark:text-gray-400">{{ pr.notes }}</p>
+        <!-- Description & Justification -->
+        {% if pr.description or pr.justification %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 space-y-4">
+            {% if pr.description %}
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Description</h3>
+                <p class="text-gray-700 dark:text-gray-300">{{ pr.description }}</p>
+            </div>
+            {% endif %}
+            {% if pr.justification %}
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Business Justification</h3>
+                <p class="text-gray-700 dark:text-gray-300">{{ pr.justification }}</p>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
     </div>
 
     <div class="space-y-6">
+        <!-- Details Card -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Details</h2>
             <dl class="space-y-3 text-sm">
                 <div class="flex justify-between">
                     <dt class="text-gray-500">Requested By</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ pr.requested_by.username|default:"-" }}</dd>
+                    <dd class="text-gray-900 dark:text-white">{{ pr.requested_by.get_full_name|default:pr.requested_by.username }}</dd>
                 </div>
+                {% if pr.department %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Department</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ pr.department.name }}</dd>
+                </div>
+                {% endif %}
                 <div class="flex justify-between">
                     <dt class="text-gray-500">Required Date</dt>
                     <dd class="text-gray-900 dark:text-white">{{ pr.required_date|date:"M d, Y"|default:"-" }}</dd>
                 </div>
                 <div class="flex justify-between">
                     <dt class="text-gray-500">Created</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ pr.created_at|date:"M d, Y" }}</dd>
+                    <dd class="text-gray-900 dark:text-white">{{ pr.created_at|date:"M d, Y H:i" }}</dd>
                 </div>
                 {% if pr.approved_by %}
                 <div class="flex justify-between">
                     <dt class="text-gray-500">Approved By</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ pr.approved_by.username }}</dd>
+                    <dd class="text-gray-900 dark:text-white">{{ pr.approved_by.get_full_name|default:pr.approved_by.username }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Approved Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ pr.approved_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% endif %}
+                {% if pr.purchase_order %}
+                <div class="flex justify-between border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+                    <dt class="text-gray-500">Purchase Order</dt>
+                    <dd>
+                        <a href="{% url 'supplychain:po_detail' pr.purchase_order.pk %}" class="text-blue-600 hover:underline">
+                            {{ pr.purchase_order.po_number }}
+                        </a>
+                    </dd>
                 </div>
                 {% endif %}
             </dl>
+        </div>
+
+        <!-- Status Timeline -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Status History</h2>
+            <div class="space-y-4">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                        <i data-lucide="check" class="w-4 h-4 text-green-600"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white">Created</p>
+                        <p class="text-xs text-gray-500">{{ pr.created_at|date:"M d, Y H:i" }}</p>
+                    </div>
+                </div>
+                {% if pr.status != 'DRAFT' %}
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
+                        <i data-lucide="send" class="w-4 h-4 text-yellow-600"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white">Submitted</p>
+                        <p class="text-xs text-gray-500">{{ pr.submitted_at|date:"M d, Y H:i"|default:"—" }}</p>
+                    </div>
+                </div>
+                {% endif %}
+                {% if pr.status == 'APPROVED' or pr.status == 'CONVERTED_TO_PO' %}
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-green-600"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white">Approved</p>
+                        <p class="text-xs text-gray-500">{{ pr.approved_at|date:"M d, Y H:i"|default:"—" }}</p>
+                    </div>
+                </div>
+                {% endif %}
+                {% if pr.status == 'REJECTED' %}
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                        <i data-lucide="x-circle" class="w-4 h-4 text-red-600"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white">Rejected</p>
+                        <p class="text-xs text-gray-500">{{ pr.rejection_reason|default:"No reason provided" }}</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
