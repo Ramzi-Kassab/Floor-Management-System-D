@@ -151,9 +151,10 @@ class PurchaseRequisitionForm(forms.ModelForm):
 
     class Meta:
         model = PurchaseRequisition
-        fields = ["title", "priority", "required_date", "description", "justification"]
+        fields = ["title", "department", "priority", "required_date", "description", "justification"]
         widgets = {
             "title": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
+            "department": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., Operations, Maintenance, Engineering"}),
             "priority": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "required_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
             "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),

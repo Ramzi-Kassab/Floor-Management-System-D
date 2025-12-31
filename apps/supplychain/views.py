@@ -284,6 +284,7 @@ class PRCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.requested_by = self.request.user
+        form.instance.request_date = timezone.now().date()
         messages.success(self.request, "Purchase Requisition created successfully.")
         return super().form_valid(form)
 
