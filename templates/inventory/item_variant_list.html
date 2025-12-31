@@ -8,6 +8,9 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         <p class="text-gray-600 dark:text-gray-400">All item variants across inventory items (condition/source tracking)</p>
     </div>
+    <a href="{% url 'inventory:variant_list' %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm mt-4 md:mt-0">
+        <i data-lucide="settings-2" class="w-4 h-4 mr-2"></i>Manage Variant Cases
+    </a>
 </div>
 {% endblock %}
 
@@ -18,7 +21,7 @@
         <form method="get" class="flex flex-wrap gap-4 items-end">
             <div>
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
-                <input type="text" name="search" value="{{ request.GET.search }}"
+                <input type="text" name="q" value="{{ search_query }}"
                        class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                        placeholder="Code, name, item...">
             </div>
@@ -26,18 +29,16 @@
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Condition</label>
                 <select name="condition" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
                     <option value="">All Conditions</option>
-                    {% for value, label in conditions %}
-                    <option value="{{ value }}" {% if request.GET.condition == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
+                    <option value="NEW" {% if request.GET.condition == 'NEW' %}selected{% endif %}>New</option>
+                    <option value="USED" {% if request.GET.condition == 'USED' %}selected{% endif %}>Used</option>
                 </select>
             </div>
             <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Source Type</label>
-                <select name="source_type" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-                    <option value="">All Sources</option>
-                    {% for value, label in source_types %}
-                    <option value="{{ value }}" {% if request.GET.source_type == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ownership</label>
+                <select name="ownership" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All</option>
+                    <option value="ARDT" {% if request.GET.ownership == 'ARDT' %}selected{% endif %}>ARDT</option>
+                    <option value="CLIENT" {% if request.GET.ownership == 'CLIENT' %}selected{% endif %}>Client</option>
                 </select>
             </div>
             <div>
@@ -52,7 +53,7 @@
                 <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>Filter
             </button>
             {% if request.GET %}
-            <a href="{% url 'inventory:variant_list' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">Clear</a>
+            <a href="{% url 'inventory:item_variant_list' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">Clear</a>
             {% endif %}
         </form>
     </div>
@@ -65,10 +66,11 @@
                 <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                     <th class="px-4 py-3 font-medium">Variant Code</th>
                     <th class="px-4 py-3 font-medium">Base Item</th>
+                    <th class="px-4 py-3 font-medium">Variant Case</th>
                     <th class="px-4 py-3 font-medium">Condition</th>
-                    <th class="px-4 py-3 font-medium">Source Type</th>
+                    <th class="px-4 py-3 font-medium">Owner</th>
                     <th class="px-4 py-3 font-medium">Customer</th>
-                    <th class="px-4 py-3 font-medium text-right">Valuation %</th>
+                    <th class="px-4 py-3 font-medium text-right">Std Cost</th>
                     <th class="px-4 py-3 font-medium text-center">Status</th>
                     <th class="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
@@ -84,15 +86,35 @@
                         <span class="text-gray-500 dark:text-gray-400 text-xs block">{{ variant.base_item.name|truncatewords:5 }}</span>
                     </td>
                     <td class="px-4 py-3">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                            {% if variant.condition == 'NEW' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
-                            {% elif variant.condition == 'RECLAIMED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
-                            {% elif variant.condition == 'USED' %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
-                            {% else %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200{% endif %}">
-                            {{ variant.get_condition_display }}
-                        </span>
+                        {% if variant.variant_case %}
+                        <span class="font-medium">{{ variant.variant_case.name }}</span>
+                        <span class="text-gray-500 dark:text-gray-400 text-xs block">{{ variant.variant_case.code }}</span>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
                     </td>
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{{ variant.get_source_type_display }}</td>
+                    <td class="px-4 py-3">
+                        {% if variant.variant_case %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if variant.variant_case.condition == 'NEW' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                            {% else %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200{% endif %}">
+                            {{ variant.variant_case.get_condition_display }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if variant.variant_case %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            {% if variant.variant_case.ownership == 'ARDT' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                            {% else %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200{% endif %}">
+                            {{ variant.variant_case.ownership }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
                     <td class="px-4 py-3">
                         {% if variant.customer %}
                         {{ variant.customer.name|truncatewords:3 }}
@@ -100,7 +122,7 @@
                         <span class="text-gray-400">-</span>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-3 text-right">{{ variant.valuation_percentage }}%</td>
+                    <td class="px-4 py-3 text-right font-mono text-xs">{{ variant.standard_cost|default:"-" }}</td>
                     <td class="px-4 py-3 text-center">
                         {% if variant.is_active %}
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>

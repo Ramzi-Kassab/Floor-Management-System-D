@@ -1619,8 +1619,27 @@ class ItemVariantListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(
                 Q(code__icontains=search) |
                 Q(base_item__name__icontains=search) |
-                Q(variant_case__name__icontains=search)
+                Q(base_item__code__icontains=search) |
+                Q(variant_case__name__icontains=search) |
+                Q(variant_case__code__icontains=search)
             )
+
+        # Condition filter (from variant_case)
+        condition = self.request.GET.get("condition", "").strip()
+        if condition:
+            queryset = queryset.filter(variant_case__condition=condition)
+
+        # Ownership filter (from variant_case)
+        ownership = self.request.GET.get("ownership", "").strip()
+        if ownership:
+            queryset = queryset.filter(variant_case__ownership=ownership)
+
+        # Status filter
+        status = self.request.GET.get("status", "").strip()
+        if status == "active":
+            queryset = queryset.filter(is_active=True)
+        elif status == "inactive":
+            queryset = queryset.filter(is_active=False)
 
         return queryset.order_by("base_item__code", "variant_case__display_order")
 

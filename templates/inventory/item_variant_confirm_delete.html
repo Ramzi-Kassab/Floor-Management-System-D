@@ -31,27 +31,28 @@
                         <dt class="text-gray-500">Variant:</dt>
                         <dd class="text-gray-900 dark:text-white font-mono">{{ object.code }}</dd>
                     </div>
+                    {% if object.variant_case %}
+                    <div class="flex justify-between">
+                        <dt class="text-gray-500">Variant Case:</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ object.variant_case.name }}</dd>
+                    </div>
                     <div class="flex justify-between">
                         <dt class="text-gray-500">Condition:</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ object.get_condition_display }}</dd>
+                        <dd class="text-gray-900 dark:text-white">{{ object.variant_case.get_condition_display }}</dd>
                     </div>
                     <div class="flex justify-between">
-                        <dt class="text-gray-500">Source:</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ object.get_source_type_display }}</dd>
+                        <dt class="text-gray-500">Ownership:</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ object.variant_case.ownership }}</dd>
                     </div>
+                    {% endif %}
+                    {% if object.customer %}
                     <div class="flex justify-between">
-                        <dt class="text-gray-500">Current Stock:</dt>
-                        <dd class="text-gray-900 dark:text-white font-mono">{{ object.total_stock }}</dd>
+                        <dt class="text-gray-500">Customer:</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ object.customer.name }}</dd>
                     </div>
+                    {% endif %}
                 </dl>
             </div>
-
-            {% if object.total_stock > 0 %}
-            <div class="mt-4 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg text-sm text-amber-800 dark:text-amber-200">
-                <i data-lucide="alert-circle" class="w-4 h-4 inline mr-1"></i>
-                Warning: This variant has stock on hand. Deleting it will remove all stock records.
-            </div>
-            {% endif %}
         </div>
 
         <form method="post">
