@@ -566,17 +566,19 @@
             {% endif %}
         </div>
 
-        <!-- Item Variants Section -->
-        {% if variants %}
+        <!-- Item Variants Section - Always visible -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
                     <i data-lucide="layers" class="w-5 h-5 mr-2 text-purple-500"></i>
                     Variants
+                    {% if variants %}
                     <span class="ml-2 px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded-full">{{ variants|length }}</span>
+                    {% endif %}
                 </h2>
                 <a href="{% url 'inventory:item_variant_create' item.pk %}" class="text-sm text-purple-600 hover:underline">+ Add Variant</a>
             </div>
+            {% if variants %}
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
@@ -655,8 +657,17 @@
                     </tbody>
                 </table>
             </div>
+            {% else %}
+            <div class="text-center py-8">
+                <i data-lucide="layers" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3"></i>
+                <p class="text-gray-500 dark:text-gray-400">No variants configured</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Add variants for different conditions (New, Used) or ownership types</p>
+                <a href="{% url 'inventory:item_variant_create' item.pk %}" class="inline-flex items-center mt-4 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add First Variant
+                </a>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
 
         <!-- Recent Transactions -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">

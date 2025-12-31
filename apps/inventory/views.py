@@ -1814,13 +1814,9 @@ class ItemVariantCreateView(LoginRequiredMixin, CreateView):
         initial = super().get_initial()
         item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
 
-        # Pre-fill Legacy MAT Number from base item
+        # Pre-fill Legacy MAT Number from base item only (ERP Item Number stays empty)
         if item.mat_number:
             initial['legacy_mat_no'] = item.mat_number
-
-        # Pre-fill ERP Item Number from base item
-        if item.item_number:
-            initial['erp_item_no'] = item.item_number
 
         # Default to active
         initial['is_active'] = True
