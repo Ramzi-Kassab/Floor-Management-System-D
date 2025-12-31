@@ -12,7 +12,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import EmailMessage
 from django.db.models import Count, F, Q, Sum
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
+from decimal import Decimal
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -528,6 +529,70 @@ class PRLinesExportView(LoginRequiredMixin, View):
 # =============================================================================
 
 
+class PRConvertToPOView(LoginRequiredMixin, View):
+    """Convert approved PR to PO."""
+
+    def get(self, request, pk):
+        pr = get_object_or_404(PurchaseRequisition, pk=pk, status=PurchaseRequisition.Status.APPROVED)
+        vendors = Vendor.objects.filter(status="ACTIVE").order_by("name")
+        return render(request, "supplychain/pr_convert_to_po.html", {
+            "pr": pr,
+            "vendors": vendors,
+            "page_title": f"Convert {pr.requisition_number} to PO"
+        })
+
+    def post(self, request, pk):
+        pr = get_object_or_404(PurchaseRequisition, pk=pk, status=PurchaseRequisition.Status.APPROVED)
+        vendor_id = request.POST.get("vendor")
+
+        if not vendor_id:
+            messages.error(request, "Please select a vendor.")
+            return redirect("supplychain:pr_convert_to_po", pk=pk)
+
+        vendor = get_object_or_404(Vendor, pk=vendor_id)
+
+        # Create PO
+        po = PurchaseOrder.objects.create(
+            vendor=vendor,
+            order_date=timezone.now().date(),
+            required_date=pr.required_date,
+            requisition=pr,
+            work_order=pr.work_order,
+            created_by=request.user,
+            status=PurchaseOrder.Status.DRAFT,
+            internal_notes=f"Created from {pr.requisition_number}"
+        )
+
+        # Copy lines
+        for pr_line in pr.lines.all():
+            PurchaseOrderLine.objects.create(
+                purchase_order=po,
+                line_number=pr_line.line_number,
+                item_description=pr_line.item_description,
+                part_number=pr_line.part_number,
+                inventory_item=pr_line.inventory_item,
+                quantity_ordered=pr_line.quantity_requested,
+                unit_of_measure=pr_line.unit_of_measure,
+                unit_price=pr_line.estimated_unit_price or Decimal('0.00')
+            )
+
+        # Calculate totals
+        po.subtotal_amount = sum(
+            (line.quantity_ordered * line.unit_price) for line in po.lines.all()
+        )
+        po.total_amount = po.subtotal_amount
+        po.save()
+
+        # Update PR
+        pr.status = PurchaseRequisition.Status.CONVERTED_TO_PO
+        pr.converted_to_po = po
+        pr.converted_at = timezone.now()
+        pr.save()
+
+        messages.success(request, f"Created {po.po_number} from {pr.requisition_number}")
+        return redirect("supplychain:po_detail", pk=po.pk)
+
+
 class POListView(LoginRequiredMixin, ListView):
     """List purchase orders."""
 
@@ -651,6 +716,43 @@ class POAddLineView(LoginRequiredMixin, CreateView):
         return reverse_lazy("supplychain:po_detail", kwargs={"pk": self.kwargs["pk"]})
 
 
+class POApproveView(LoginRequiredMixin, View):
+    """Approve a PO (changes status from DRAFT to APPROVED)."""
+
+    def post(self, request, pk):
+        po = get_object_or_404(PurchaseOrder, pk=pk)
+
+        if po.status not in [PurchaseOrder.Status.DRAFT, PurchaseOrder.Status.PENDING_APPROVAL]:
+            messages.error(request, "Only draft or pending approval POs can be approved.")
+            return redirect("supplychain:po_detail", pk=pk)
+
+        po.status = PurchaseOrder.Status.APPROVED
+        po.approved_by = request.user
+        po.approved_at = timezone.now()
+        po.save()
+
+        messages.success(request, f"{po.po_number} has been approved.")
+        return redirect("supplychain:po_detail", pk=pk)
+
+
+class POSendView(LoginRequiredMixin, View):
+    """Mark PO as sent to vendor."""
+
+    def post(self, request, pk):
+        po = get_object_or_404(PurchaseOrder, pk=pk)
+
+        if po.status not in [PurchaseOrder.Status.DRAFT, PurchaseOrder.Status.APPROVED]:
+            messages.error(request, "Only draft or approved POs can be sent.")
+            return redirect("supplychain:po_detail", pk=pk)
+
+        po.status = PurchaseOrder.Status.SENT
+        po.sent_to_vendor_at = timezone.now()
+        po.save()
+
+        messages.success(request, f"{po.po_number} has been marked as sent to vendor.")
+        return redirect("supplychain:po_detail", pk=pk)
+
+
 # =============================================================================
 # Receipt Views (formerly Goods Receipt / GRN)
 # =============================================================================
@@ -664,7 +766,11 @@ class ReceiptListView(LoginRequiredMixin, ListView):
     context_object_name = "receipts"
 
     def get_queryset(self):
-        return Receipt.objects.select_related("purchase_order__vendor", "received_by").order_by("-created_at")
+        return Receipt.objects.select_related(
+            "purchase_order",
+            "vendor",
+            "received_by"
+        ).order_by("-created_at")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -680,7 +786,7 @@ class ReceiptDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "grn"
 
     def get_queryset(self):
-        return Receipt.objects.select_related("purchase_order__vendor", "received_by")
+        return Receipt.objects.select_related("purchase_order", "vendor", "received_by", "inspected_by")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -698,10 +804,14 @@ class ReceiptCreateView(LoginRequiredMixin, CreateView):
 
     def get_form(self):
         form = super().get_form()
-        # Only show confirmed/partially received POs
+        # Only show SENT or PARTIALLY_RECEIVED POs (APPROVED also for direct processing)
         form.fields["purchase_order"].queryset = PurchaseOrder.objects.filter(
-            status__in=[PurchaseOrder.Status.APPROVED, PurchaseOrder.Status.PARTIALLY_RECEIVED]
-        )
+            status__in=[
+                PurchaseOrder.Status.APPROVED,
+                PurchaseOrder.Status.SENT,
+                PurchaseOrder.Status.PARTIALLY_RECEIVED
+            ]
+        ).select_related("vendor").order_by("-po_number")
         return form
 
     def get_initial(self):
@@ -723,6 +833,8 @@ class ReceiptCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.received_by = self.request.user
+        # Set vendor from the PO
+        form.instance.vendor = form.instance.purchase_order.vendor
         messages.success(self.request, "Goods Receipt created successfully.")
         return super().form_valid(form)
 
@@ -750,16 +862,98 @@ class ReceiptAddLineView(LoginRequiredMixin, CreateView):
         receipt = get_object_or_404(Receipt, pk=self.kwargs["pk"])
         form.instance.receipt = receipt
 
-        # Update PO line received quantity
-        po_line = form.instance.po_line
-        po_line.quantity_received += form.instance.quantity_received
-        po_line.save()
+        # Set line number
+        last_line = receipt.lines.order_by("-line_number").first()
+        form.instance.line_number = (last_line.line_number + 1) if last_line else 1
+
+        # Default accepted to received if not set
+        if not form.instance.quantity_accepted:
+            form.instance.quantity_accepted = form.instance.quantity_received
+            form.instance.inspection_status = 'PASSED'
 
         messages.success(self.request, "Receipt line added successfully.")
         return super().form_valid(form)
 
     def get_success_url(self):
         return reverse_lazy("supplychain:grn_detail", kwargs={"pk": self.kwargs["pk"]})
+
+
+class GRNConfirmView(LoginRequiredMixin, View):
+    """Confirm a goods receipt - updates inventory and PO quantities."""
+
+    def post(self, request, pk):
+        from apps.inventory.models import InventoryTransaction, Stock, InventoryLocation
+
+        receipt = get_object_or_404(
+            Receipt.objects.select_related("purchase_order", "vendor"),
+            pk=pk,
+            status=Receipt.Status.DRAFT
+        )
+
+        if not receipt.lines.exists():
+            messages.error(request, "Cannot confirm a receipt with no lines.")
+            return redirect("supplychain:grn_detail", pk=pk)
+
+        # Get default receiving location
+        default_location = InventoryLocation.objects.filter(
+            is_active=True
+        ).first()
+
+        # Process each line
+        for line in receipt.lines.select_related("po_line__inventory_item"):
+            po_line = line.po_line
+
+            # Update PO line received quantity
+            po_line.quantity_received += line.quantity_accepted
+            po_line.save()
+
+            # Update inventory if linked to inventory item
+            if po_line.inventory_item and default_location:
+                item = po_line.inventory_item
+
+                # Create inventory transaction
+                InventoryTransaction.objects.create(
+                    item=item,
+                    transaction_type=InventoryTransaction.TransactionType.RECEIPT,
+                    quantity=line.quantity_accepted,
+                    to_location=default_location,
+                    reference_type="Receipt",
+                    reference_id=str(receipt.pk),
+                    notes=f"GRN {receipt.receipt_number} - PO {receipt.purchase_order.po_number}"
+                )
+
+                # Update or create stock record
+                stock, created = Stock.objects.get_or_create(
+                    item=item,
+                    location=default_location,
+                    defaults={"quantity_on_hand": Decimal("0")}
+                )
+                stock.quantity_on_hand += line.quantity_accepted
+                stock.quantity_available = float(stock.quantity_on_hand) - float(stock.quantity_reserved)
+                stock.last_movement_date = timezone.now()
+                stock.save()
+
+            # Mark line as passed inspection
+            line.inspection_status = 'PASSED'
+            line.save()
+
+        # Update receipt status
+        receipt.status = Receipt.Status.COMPLETED
+        receipt.quality_acceptable = True
+        receipt.inspected_by = request.user
+        receipt.inspection_date = timezone.now().date()
+        receipt.save()
+
+        # Update PO status
+        po = receipt.purchase_order
+        if po.is_fully_received:
+            po.status = PurchaseOrder.Status.COMPLETED
+        else:
+            po.status = PurchaseOrder.Status.PARTIALLY_RECEIVED
+        po.save()
+
+        messages.success(request, f"Receipt {receipt.receipt_number} confirmed. Inventory updated.")
+        return redirect("supplychain:grn_detail", pk=pk)
 
 
 # Legacy view aliases for backward compatibility

@@ -37,6 +37,11 @@
             <i data-lucide="check" class="w-4 h-4 mr-2"></i>Review
         </a>
         {% endif %}
+        {% if pr.status == 'APPROVED' %}
+        <a href="{% url 'supplychain:pr_convert_to_po' pr.pk %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i data-lucide="arrow-right-circle" class="w-4 h-4 mr-2"></i>Convert to PO
+        </a>
+        {% endif %}
         <a href="{% url 'supplychain:pr_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
             <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
         </a>

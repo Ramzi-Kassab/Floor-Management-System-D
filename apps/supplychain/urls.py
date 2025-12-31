@@ -20,6 +20,7 @@ urlpatterns = [
     path("requisitions/create/", views.PRCreateView.as_view(), name="pr_create"),
     path("requisitions/<int:pk>/", views.PRDetailView.as_view(), name="pr_detail"),
     path("requisitions/<int:pk>/approve/", views.PRApproveView.as_view(), name="pr_approve"),
+    path("requisitions/<int:pk>/convert-to-po/", views.PRConvertToPOView.as_view(), name="pr_convert_to_po"),
     path("requisitions/<int:pk>/add-line/", views.PRAddLineView.as_view(), name="pr_add_line"),
     path("requisitions/<int:pk>/lines/<int:line_pk>/edit/", views.PREditLineView.as_view(), name="pr_edit_line"),
     path("requisitions/<int:pk>/lines/<int:line_pk>/delete/", views.PRDeleteLineView.as_view(), name="pr_delete_line"),
@@ -30,6 +31,8 @@ urlpatterns = [
     path("orders/<int:pk>/", views.PODetailView.as_view(), name="po_detail"),
     path("orders/<int:pk>/edit/", views.POUpdateView.as_view(), name="po_update"),
     path("orders/<int:pk>/add-line/", views.POAddLineView.as_view(), name="po_add_line"),
+    path("orders/<int:pk>/approve/", views.POApproveView.as_view(), name="po_approve"),
+    path("orders/<int:pk>/send/", views.POSendView.as_view(), name="po_send"),
     path("orders/<int:pk>/pdf/", views.POPDFView.as_view(), name="po_pdf"),
     path("orders/<int:pk>/email/", views.POEmailView.as_view(), name="po_email"),
     # Goods Receipts
@@ -37,6 +40,7 @@ urlpatterns = [
     path("receipts/create/", views.GRNCreateView.as_view(), name="grn_create"),
     path("receipts/<int:pk>/", views.GRNDetailView.as_view(), name="grn_detail"),
     path("receipts/<int:pk>/add-line/", views.GRNAddLineView.as_view(), name="grn_add_line"),
+    path("receipts/<int:pk>/confirm/", views.GRNConfirmView.as_view(), name="grn_confirm"),
     # CAPAs
     path("capa/", views.CAPAListView.as_view(), name="capa_list"),
     path("capa/create/", views.CAPACreateView.as_view(), name="capa_create"),

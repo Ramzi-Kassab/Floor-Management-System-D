@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-        <p class="text-gray-600 dark:text-gray-400">Track goods receipts</p>
+        <p class="text-gray-600 dark:text-gray-400">Track goods receipts from vendors</p>
     </div>
     <div class="mt-4 md:mt-0">
         <a href="{% url 'supplychain:grn_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
@@ -13,6 +14,7 @@
     </div>
 </div>
 {% endblock %}
+
 {% block content %}
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
     {% if receipts %}
@@ -20,10 +22,11 @@
         <table class="w-full text-sm">
             <thead>
                 <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
-                    <th class="px-6 py-3 font-medium">GRN #</th>
+                    <th class="px-6 py-3 font-medium">Receipt #</th>
                     <th class="px-6 py-3 font-medium">PO #</th>
-                    <th class="px-6 py-3 font-medium">Supplier</th>
+                    <th class="px-6 py-3 font-medium">Vendor</th>
                     <th class="px-6 py-3 font-medium">Receipt Date</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
                     <th class="px-6 py-3 font-medium">Received By</th>
                     <th class="px-6 py-3 font-medium text-right">Actions</th>
                 </tr>
@@ -31,13 +34,42 @@
             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                 {% for grn in receipts %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                    <td class="px-6 py-4"><a href="{% url 'supplychain:grn_detail' grn.pk %}" class="text-blue-600 hover:underline font-mono">{{ grn.grn_number }}</a></td>
-                    <td class="px-6 py-4"><a href="{% url 'supplychain:po_detail' grn.po.pk %}" class="text-blue-600 hover:underline font-mono">{{ grn.po.po_number }}</a></td>
-                    <td class="px-6 py-4 text-gray-900 dark:text-white">{{ grn.po.supplier.name }}</td>
-                    <td class="px-6 py-4 text-gray-600">{{ grn.receipt_date|date:"M d, Y" }}</td>
-                    <td class="px-6 py-4 text-gray-600">{{ grn.received_by.username|default:"-" }}</td>
+                    <td class="px-6 py-4">
+                        <a href="{% url 'supplychain:grn_detail' grn.pk %}" class="text-blue-600 hover:underline font-mono font-bold">
+                            {{ grn.receipt_number }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4">
+                        <a href="{% url 'supplychain:po_detail' grn.purchase_order.pk %}" class="text-blue-600 hover:underline font-mono">
+                            {{ grn.purchase_order.po_number }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white">{{ grn.vendor.name }}</td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ grn.receipt_date|date:"M d, Y" }}</td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                            {% if grn.status == 'COMPLETED' %}bg-green-100 text-green-800
+                            {% elif grn.status == 'ACCEPTED' %}bg-blue-100 text-blue-800
+                            {% elif grn.status == 'REJECTED' %}bg-red-100 text-red-800
+                            {% elif grn.status == 'INSPECTING' %}bg-yellow-100 text-yellow-800
+                            {% else %}bg-gray-100 text-gray-600{% endif %}">
+                            {{ grn.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
+                        {{ grn.received_by.get_full_name|default:grn.received_by.username|default:"-" }}
+                    </td>
                     <td class="px-6 py-4 text-right">
-                        <a href="{% url 'supplychain:grn_detail' grn.pk %}" class="p-1 text-gray-400 hover:text-blue-600"><i data-lucide="eye" class="w-4 h-4"></i></a>
+                        <div class="flex items-center justify-end gap-1">
+                            <a href="{% url 'supplychain:grn_detail' grn.pk %}" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="View">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </a>
+                            {% if grn.status == 'DRAFT' %}
+                            <a href="{% url 'supplychain:grn_add_line' grn.pk %}" class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded" title="Add Line">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                            </a>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
@@ -46,8 +78,12 @@
     </div>
     {% else %}
     <div class="text-center py-16">
-        <i data-lucide="package-check" class="w-16 h-16 mx-auto text-gray-300 mb-4"></i>
+        <i data-lucide="package-check" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No receipts found</h3>
+        <p class="text-gray-500 mb-4">Start by receiving goods from a purchase order</p>
+        <a href="{% url 'supplychain:grn_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Receipt
+        </a>
     </div>
     {% endif %}
 </div>
