@@ -1843,7 +1843,7 @@ class ItemVariantCreateView(LoginRequiredMixin, CreateView):
 
     model = ItemVariant
     template_name = "inventory/item_variant_form.html"
-    fields = ["variant_case", "customer", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
+    fields = ["variant_case", "customer", "account", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
 
     def get_initial(self):
         """Pre-fill fields from base item."""
@@ -1942,7 +1942,7 @@ class ItemVariantUpdateView(LoginRequiredMixin, UpdateView):
 
     model = ItemVariant
     template_name = "inventory/item_variant_form.html"
-    fields = ["variant_case", "customer", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
+    fields = ["variant_case", "customer", "account", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
 
     def get_context_data(self, **kwargs):
         from apps.sales.models import Customer
@@ -2053,9 +2053,6 @@ class BulkVariantCreateView(LoginRequiredMixin, TemplateView):
             messages.error(request, "Please select at least one variant case.")
             return self.get(request, *args, **kwargs)
 
-        # Get ERP Item Number (applies to all variants)
-        erp_item_no = request.POST.get("erp_item_no", "").strip()
-
         created_count = 0
         skipped_count = 0
 
@@ -2063,17 +2060,27 @@ class BulkVariantCreateView(LoginRequiredMixin, TemplateView):
             try:
                 variant_case = VariantCase.objects.get(pk=case_id, is_active=True)
 
+                # Skip NEW-PUR as it's the base item
+                if variant_case.code == "NEW-PUR":
+                    skipped_count += 1
+                    continue
+
                 # Check if variant already exists
                 if ItemVariant.objects.filter(base_item=item, variant_case=variant_case).exists():
                     skipped_count += 1
                     continue
 
-                # Get customer if CLIENT ownership
+                # Get individual ERP Item Number for this variant
+                erp_item_no = request.POST.get(f"erp_{case_id}", "").strip()
+
+                # Get customer and account if CLIENT ownership
                 customer = None
+                account = ""
                 if variant_case.ownership == "CLIENT":
                     customer_id = request.POST.get(f"customer_{case_id}")
                     if customer_id:
                         customer = Customer.objects.filter(pk=customer_id, is_active=True).first()
+                    account = request.POST.get(f"account_{case_id}", "").strip()
 
                 # Calculate cost based on variant case
                 standard_cost = item.standard_cost or 0
@@ -2101,9 +2108,10 @@ class BulkVariantCreateView(LoginRequiredMixin, TemplateView):
                     variant_case=variant_case,
                     code=code,
                     customer=customer,
+                    account=account,
                     standard_cost=standard_cost,
                     legacy_mat_no=item.mat_number or "",
-                    erp_item_no=erp_item_no,  # Apply ERP Item Number to all variants
+                    erp_item_no=erp_item_no,
                     is_active=True,
                 )
                 created_count += 1

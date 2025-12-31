@@ -1532,6 +1532,19 @@ class ItemVariant(models.Model):
         related_name="item_variants"
     )
 
+    # Account for CLIENT ownership variants (e.g., LSTK, Core Heads, Regional)
+    class AccountType(models.TextChoices):
+        LSTK = "LSTK", "LSTK"
+        CORE_HEADS = "CORE_HEADS", "Core Heads"
+        REGIONAL = "REGIONAL", "Regional"
+
+    account = models.CharField(
+        max_length=20,
+        choices=AccountType.choices,
+        blank=True,
+        help_text="Account type for CLIENT ownership variants"
+    )
+
     # Cost for this specific variant
     standard_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
     last_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)

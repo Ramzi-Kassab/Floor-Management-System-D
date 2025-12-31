@@ -43,29 +43,19 @@
                 <span class="font-mono text-gray-900 dark:text-white">SAR {{ item.standard_cost|default:"0.00" }}</span>
             </div>
         </div>
-    </div>
-
-    <!-- ERP Item Number (applies to all variants) -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">ERP Item Number</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">This ERP Item Number will be applied to all variants created below.</p>
-        <div class="max-w-md">
-            <label for="erp_item_no" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ERP Item Number</label>
-            <input type="text"
-                   name="erp_item_no"
-                   id="erp_item_no"
-                   value="{{ item.item_number|default:'' }}"
-                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                   placeholder="Enter ERP Item Number for all variants">
-            <p class="text-xs text-gray-500 mt-1">Leave blank if not applicable. Pre-filled from base item if available.</p>
+        <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+            <p class="text-sm text-blue-800 dark:text-blue-200">
+                <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                <strong>Note:</strong> The base item represents the "New Purchased" variant. Select additional variant cases below to create variants for other conditions.
+            </p>
         </div>
     </div>
 
-    <!-- Variant Cases Selection -->
+    <!-- Variant Cases Selection (Vertical Layout) -->
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Select Variant Cases</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Check the boxes to create variants for this item. Already existing variants are shown but disabled.</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Check the boxes to create variants. Each variant has its own ERP Item Number.</p>
         </div>
 
         <div class="p-6">
@@ -78,25 +68,39 @@
                 <button type="button" onclick="selectByOwnership('ARDT')" class="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200">Select ARDT Only</button>
             </div>
 
-            <!-- Variant Cases Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Variant Cases List (Vertical) -->
+            <div class="space-y-4">
                 {% for vc_data in variant_cases %}
-                <div class="border rounded-lg p-4 {% if vc_data.exists %}bg-gray-50 dark:bg-gray-700/50 opacity-60{% else %}bg-white dark:bg-gray-800 hover:border-blue-300{% endif %}"
+                {% with is_new_purchased=vc_data.case.code|slice:":7" %}
+                {% with is_disabled=vc_data.exists or vc_data.case.code == 'NEW-PUR' %}
+                <div class="border rounded-lg p-4 {% if is_disabled %}bg-gray-50 dark:bg-gray-700/50 opacity-60{% else %}bg-white dark:bg-gray-800 hover:border-blue-300{% endif %}"
                      data-condition="{{ vc_data.case.condition }}"
-                     data-ownership="{{ vc_data.case.ownership }}">
-                    <div class="flex items-start">
-                        <input type="checkbox"
-                               name="variant_cases"
-                               value="{{ vc_data.case.pk }}"
-                               id="case_{{ vc_data.case.pk }}"
-                               {% if vc_data.exists %}disabled checked{% endif %}
-                               class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 {% if not vc_data.exists %}variant-checkbox{% endif %}">
-                        <label for="case_{{ vc_data.case.pk }}" class="ml-3 flex-1 cursor-pointer">
-                            <div class="flex items-center justify-between">
-                                <span class="font-medium text-gray-900 dark:text-white">{{ vc_data.case.name }}</span>
+                     data-ownership="{{ vc_data.case.ownership }}"
+                     data-case-id="{{ vc_data.case.pk }}">
+
+                    <div class="flex items-start gap-4">
+                        <!-- Checkbox -->
+                        <div class="pt-1">
+                            <input type="checkbox"
+                                   name="variant_cases"
+                                   value="{{ vc_data.case.pk }}"
+                                   id="case_{{ vc_data.case.pk }}"
+                                   {% if is_disabled %}disabled {% if vc_data.exists or vc_data.case.code == 'NEW-PUR' %}checked{% endif %}{% endif %}
+                                   class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 {% if not is_disabled %}variant-checkbox{% endif %}"
+                                   onchange="toggleFields({{ vc_data.case.pk }})">
+                        </div>
+
+                        <!-- Variant Info -->
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between mb-2">
+                                <label for="case_{{ vc_data.case.pk }}" class="font-medium text-gray-900 dark:text-white cursor-pointer">
+                                    {{ vc_data.case.name }}
+                                </label>
                                 <span class="font-mono text-xs text-gray-500">{{ vc_data.case.code }}</span>
                             </div>
-                            <div class="flex items-center gap-2 mt-2">
+
+                            <!-- Tags -->
+                            <div class="flex items-center gap-2 mb-3">
                                 <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                                     {% if vc_data.case.condition == 'NEW' %}bg-green-100 text-green-800{% else %}bg-amber-100 text-amber-800{% endif %}">
                                     {{ vc_data.case.get_condition_display }}
@@ -112,28 +116,64 @@
                                 <span class="text-xs text-gray-400">({{ vc_data.case.get_reclaim_category_display }})</span>
                                 {% endif %}
                             </div>
-                            {% if vc_data.exists %}
-                            <div class="mt-2 text-xs text-green-600 dark:text-green-400">
+
+                            <!-- Status Messages -->
+                            {% if vc_data.case.code == 'NEW-PUR' %}
+                            <div class="text-xs text-blue-600 dark:text-blue-400 mb-3">
+                                <i data-lucide="info" class="w-3 h-3 inline"></i> Base item represents this variant
+                            </div>
+                            {% elif vc_data.exists %}
+                            <div class="text-xs text-green-600 dark:text-green-400 mb-3">
                                 <i data-lucide="check-circle" class="w-3 h-3 inline"></i> Already exists
                             </div>
                             {% endif %}
 
-                            {% if vc_data.case.ownership == 'CLIENT' and not vc_data.exists %}
-                            <div class="mt-3">
-                                <label class="block text-xs text-gray-500 mb-1">Customer (required for CLIENT)</label>
-                                <select name="customer_{{ vc_data.case.pk }}" class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
-                                    <option value="">-- Select Customer --</option>
-                                    {% for customer in customers %}
-                                    <option value="{{ customer.pk }}">{{ customer.name }}</option>
-                                    {% endfor %}
-                                </select>
+                            <!-- Fields (shown when not disabled) -->
+                            {% if not is_disabled %}
+                            <div id="fields_{{ vc_data.case.pk }}" class="variant-fields hidden grid grid-cols-1 md:grid-cols-3 gap-4 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                                <!-- ERP Item Number -->
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">ERP Item Number</label>
+                                    <input type="text"
+                                           name="erp_{{ vc_data.case.pk }}"
+                                           class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                           placeholder="ERP Item Number">
+                                </div>
+
+                                {% if vc_data.case.ownership == 'CLIENT' %}
+                                <!-- Customer (for CLIENT) -->
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">Customer <span class="text-red-500">*</span></label>
+                                    <select name="customer_{{ vc_data.case.pk }}"
+                                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                        <option value="">-- Select Customer --</option>
+                                        {% for customer in customers %}
+                                        <option value="{{ customer.pk }}">{{ customer.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <!-- Account (for CLIENT) -->
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">Account <span class="text-red-500">*</span></label>
+                                    <select name="account_{{ vc_data.case.pk }}"
+                                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                        <option value="">-- Select Account --</option>
+                                        <option value="LSTK">LSTK</option>
+                                        <option value="CORE_HEADS">Core Heads</option>
+                                        <option value="REGIONAL">Regional</option>
+                                    </select>
+                                </div>
+                                {% endif %}
                             </div>
                             {% endif %}
-                        </label>
+                        </div>
                     </div>
                 </div>
+                {% endwith %}
+                {% endwith %}
                 {% empty %}
-                <div class="col-span-2 text-center py-8 text-gray-500">
+                <div class="text-center py-8 text-gray-500">
                     No variant cases defined. <a href="{% url 'inventory:variant_create' %}" class="text-blue-600 hover:underline">Create one first</a>.
                 </div>
                 {% endfor %}
@@ -153,22 +193,53 @@
 </form>
 
 <script>
+function toggleFields(caseId) {
+    const checkbox = document.getElementById('case_' + caseId);
+    const fields = document.getElementById('fields_' + caseId);
+    if (fields) {
+        if (checkbox.checked) {
+            fields.classList.remove('hidden');
+        } else {
+            fields.classList.add('hidden');
+        }
+    }
+}
+
 function selectAll() {
-    document.querySelectorAll('.variant-checkbox:not(:disabled)').forEach(cb => cb.checked = true);
+    document.querySelectorAll('.variant-checkbox:not(:disabled)').forEach(cb => {
+        cb.checked = true;
+        toggleFields(cb.value);
+    });
 }
 
 function selectNone() {
-    document.querySelectorAll('.variant-checkbox:not(:disabled)').forEach(cb => cb.checked = false);
+    document.querySelectorAll('.variant-checkbox:not(:disabled)').forEach(cb => {
+        cb.checked = false;
+        toggleFields(cb.value);
+    });
 }
 
 function selectByCondition(condition) {
     selectNone();
-    document.querySelectorAll(`[data-condition="${condition}"] .variant-checkbox:not(:disabled)`).forEach(cb => cb.checked = true);
+    document.querySelectorAll(`[data-condition="${condition}"] .variant-checkbox:not(:disabled)`).forEach(cb => {
+        cb.checked = true;
+        toggleFields(cb.value);
+    });
 }
 
 function selectByOwnership(ownership) {
     selectNone();
-    document.querySelectorAll(`[data-ownership="${ownership}"] .variant-checkbox:not(:disabled)`).forEach(cb => cb.checked = true);
+    document.querySelectorAll(`[data-ownership="${ownership}"] .variant-checkbox:not(:disabled)`).forEach(cb => {
+        cb.checked = true;
+        toggleFields(cb.value);
+    });
 }
+
+// Initialize - show fields for pre-checked items
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.variant-checkbox:checked').forEach(cb => {
+        toggleFields(cb.value);
+    });
+});
 </script>
 {% endblock %}

@@ -88,20 +88,35 @@
                         <i data-lucide="building" class="w-5 h-5 inline mr-2"></i>
                         Owner Account
                     </h3>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Customer/Client Account *</label>
-                        <select name="customer"
-                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
-                            :required="showCustomer">
-                            <option value="">-- Select Customer --</option>
-                            {% for customer in customers %}
-                            <option value="{{ customer.pk }}" {% if form.customer.value|stringformat:"s" == customer.pk|stringformat:"s" %}selected{% endif %}>
-                                {{ customer.name }}{% if customer.code %} ({{ customer.code }}){% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <p class="text-xs text-gray-500 mt-1">Required for client-owned variants to track who owns this stock.</p>
-                        {% if form.customer.errors %}<p class="text-red-600 text-sm mt-1">{{ form.customer.errors.0 }}</p>{% endif %}
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Customer *</label>
+                            <select name="customer"
+                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
+                                :required="showCustomer">
+                                <option value="">-- Select Customer --</option>
+                                {% for customer in customers %}
+                                <option value="{{ customer.pk }}" {% if form.customer.value|stringformat:"s" == customer.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ customer.name }}{% if customer.code %} ({{ customer.code }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">Required for client-owned variants.</p>
+                            {% if form.customer.errors %}<p class="text-red-600 text-sm mt-1">{{ form.customer.errors.0 }}</p>{% endif %}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Account *</label>
+                            <select name="account"
+                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
+                                :required="showCustomer">
+                                <option value="">-- Select Account --</option>
+                                <option value="LSTK" {% if form.account.value == "LSTK" %}selected{% endif %}>LSTK</option>
+                                <option value="CORE_HEADS" {% if form.account.value == "CORE_HEADS" %}selected{% endif %}>Core Heads</option>
+                                <option value="REGIONAL" {% if form.account.value == "REGIONAL" %}selected{% endif %}>Regional</option>
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">Account type for this client variant.</p>
+                            {% if form.account.errors %}<p class="text-red-600 text-sm mt-1">{{ form.account.errors.0 }}</p>{% endif %}
+                        </div>
                     </div>
                 </div>
 
