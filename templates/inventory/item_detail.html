@@ -588,6 +588,7 @@
                                 {% endif %}
                             </td>
                             <td class="px-4 py-3 text-right space-x-2">
+                                <a href="{% url 'inventory:item_variant_detail' item.pk v_data.variant.pk %}" class="text-gray-600 hover:underline text-xs">View</a>
                                 <a href="{% url 'inventory:item_variant_update' item.pk v_data.variant.pk %}" class="text-blue-600 hover:underline text-xs">Edit</a>
                                 <a href="{% url 'inventory:item_variant_delete' item.pk v_data.variant.pk %}" class="text-red-600 hover:underline text-xs">Delete</a>
                             </td>

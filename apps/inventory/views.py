@@ -1946,6 +1946,30 @@ class ItemVariantUpdateView(LoginRequiredMixin, UpdateView):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
 
 
+class ItemVariantDetailView(LoginRequiredMixin, DetailView):
+    """View variant details for a specific item."""
+
+    model = ItemVariant
+    template_name = "inventory/item_variant_detail.html"
+    context_object_name = "variant"
+
+    def get_context_data(self, **kwargs):
+        from .utils import generate_inventory_item_qr
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Variant: {self.object.code}"
+
+        # Generate QR code for variant
+        context["variant_qr_code"] = generate_inventory_item_qr(self.object, is_variant=True)
+
+        # Get stock for this variant (if stock tracking by variant exists)
+        # For now, show placeholder
+        context["variant_stock"] = 0
+
+        return context
+
+
 class ItemVariantDeleteView(LoginRequiredMixin, DeleteView):
     """Delete variant for a specific item."""
 

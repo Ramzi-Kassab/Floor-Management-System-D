@@ -130,8 +130,10 @@
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400">Inactive</span>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-3 text-right">
+                    <td class="px-4 py-3 text-right space-x-2">
+                        <a href="{% url 'inventory:item_variant_detail' variant.base_item.pk variant.pk %}" class="text-gray-600 hover:text-gray-800 text-xs">View</a>
                         <a href="{% url 'inventory:item_variant_update' variant.base_item.pk variant.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                        <a href="{% url 'inventory:item_variant_delete' variant.base_item.pk variant.pk %}" class="text-red-600 hover:text-red-800 text-xs">Delete</a>
                     </td>
                 </tr>
                 {% endfor %}
