@@ -44,6 +44,7 @@ urlpatterns = [
     # Item Variants (link items to variant cases)
     path("item-variants/", views.ItemVariantListView.as_view(), name="item_variant_list"),
     path("items/<int:item_pk>/variants/create/", views.ItemVariantCreateView.as_view(), name="item_variant_create"),
+    path("items/<int:item_pk>/variants/bulk-create/", views.BulkVariantCreateView.as_view(), name="bulk_variant_create"),
     path("items/<int:item_pk>/variants/<int:pk>/edit/", views.ItemVariantUpdateView.as_view(), name="item_variant_update"),
     path("items/<int:item_pk>/variants/<int:pk>/delete/", views.ItemVariantDeleteView.as_view(), name="item_variant_delete"),
     path("item-variants/create/", views.StandaloneVariantCreateView.as_view(), name="standalone_variant_create"),

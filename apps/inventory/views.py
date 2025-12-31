@@ -12,7 +12,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
-from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView, View
+from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView, View
 
 from .forms import (
     CategoryAttributeForm,
@@ -1965,6 +1965,113 @@ class ItemVariantDeleteView(LoginRequiredMixin, DeleteView):
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class BulkVariantCreateView(LoginRequiredMixin, TemplateView):
+    """Create multiple variants at once for an item."""
+
+    template_name = "inventory/bulk_variant_form.html"
+
+    def get_context_data(self, **kwargs):
+        from apps.sales.models import Customer
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Create Variants for {item.code}"
+
+        # Get all active variant cases
+        all_cases = VariantCase.objects.filter(is_active=True).order_by("display_order", "code")
+
+        # Get existing variant cases for this item
+        existing_case_ids = set(
+            ItemVariant.objects.filter(base_item=item).values_list("variant_case_id", flat=True)
+        )
+
+        # Mark which cases already exist
+        cases_with_status = []
+        for case in all_cases:
+            cases_with_status.append({
+                "case": case,
+                "exists": case.pk in existing_case_ids,
+            })
+        context["variant_cases"] = cases_with_status
+        context["customers"] = Customer.objects.filter(is_active=True).order_by("name")
+
+        # Base item cost for default calculations
+        context["base_cost"] = item.standard_cost or 0
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        from apps.sales.models import Customer
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+
+        # Get selected variant cases
+        selected_cases = request.POST.getlist("variant_cases")
+        if not selected_cases:
+            messages.error(request, "Please select at least one variant case.")
+            return self.get(request, *args, **kwargs)
+
+        created_count = 0
+        skipped_count = 0
+
+        for case_id in selected_cases:
+            try:
+                variant_case = VariantCase.objects.get(pk=case_id, is_active=True)
+
+                # Check if variant already exists
+                if ItemVariant.objects.filter(base_item=item, variant_case=variant_case).exists():
+                    skipped_count += 1
+                    continue
+
+                # Get customer if CLIENT ownership
+                customer = None
+                if variant_case.ownership == "CLIENT":
+                    customer_id = request.POST.get(f"customer_{case_id}")
+                    if customer_id:
+                        customer = Customer.objects.filter(pk=customer_id, is_active=True).first()
+
+                # Calculate cost based on variant case
+                standard_cost = item.standard_cost or 0
+                if variant_case.condition == "USED":
+                    if variant_case.reclaim_category == "RETROFIT":
+                        standard_cost = standard_cost * 0.9
+                    elif variant_case.reclaim_category == "E_AND_O":
+                        standard_cost = standard_cost * 0.5
+                    elif variant_case.reclaim_category == "GROUND":
+                        standard_cost = standard_cost * 0.6
+                    else:
+                        standard_cost = standard_cost * 0.7
+                if variant_case.ownership == "CLIENT":
+                    standard_cost = 0
+
+                # Generate code
+                code_parts = [item.code, variant_case.code]
+                if customer:
+                    code_parts.append(customer.code[:6] if hasattr(customer, 'code') and customer.code else "CLI")
+                code = "-".join(code_parts)
+
+                # Create variant
+                ItemVariant.objects.create(
+                    base_item=item,
+                    variant_case=variant_case,
+                    code=code,
+                    customer=customer,
+                    standard_cost=standard_cost,
+                    legacy_mat_no=item.mat_number or "",
+                    is_active=True,
+                )
+                created_count += 1
+
+            except VariantCase.DoesNotExist:
+                continue
+
+        if created_count > 0:
+            messages.success(request, f"Created {created_count} variant(s) successfully.")
+        if skipped_count > 0:
+            messages.warning(request, f"Skipped {skipped_count} variant(s) that already exist.")
+
+        return redirect("inventory:item_detail", pk=item.pk)
 
 
 # =============================================================================

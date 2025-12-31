@@ -36,8 +36,8 @@
         <a href="{% url 'inventory:transaction_create' %}?item={{ item.pk }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
             <i data-lucide="arrow-left-right" class="w-4 h-4 mr-2"></i>Transaction
         </a>
-        <a href="{% url 'inventory:item_variant_create' item.pk %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
-            <i data-lucide="copy-plus" class="w-4 h-4 mr-2"></i>Add Variant
+        <a href="{% url 'inventory:bulk_variant_create' item.pk %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+            <i data-lucide="layers" class="w-4 h-4 mr-2"></i>Add Variants
         </a>
         <a href="{% url 'inventory:item_clone' item.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800">
             <i data-lucide="copy" class="w-4 h-4 mr-2"></i>Clone
@@ -514,7 +514,7 @@
                     <span class="ml-2 px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded-full">{{ variants|length }}</span>
                     {% endif %}
                 </h2>
-                <a href="{% url 'inventory:item_variant_create' item.pk %}" class="text-sm text-purple-600 hover:underline">+ Add Variant</a>
+                <a href="{% url 'inventory:bulk_variant_create' item.pk %}" class="text-sm text-purple-600 hover:underline">+ Add Variants</a>
             </div>
             {% if variants %}
             <div class="overflow-x-auto">
@@ -600,7 +600,7 @@
                 <i data-lucide="layers" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3"></i>
                 <p class="text-gray-500 dark:text-gray-400">No variants configured</p>
                 <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Add variants for different conditions (New, Used) or ownership types</p>
-                <a href="{% url 'inventory:item_variant_create' item.pk %}" class="inline-flex items-center mt-4 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700">
+                <a href="{% url 'inventory:bulk_variant_create' item.pk %}" class="inline-flex items-center mt-4 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700">
                     <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add First Variant
                 </a>
             </div>

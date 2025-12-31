@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <nav class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            <a href="{% url 'inventory:item_list' %}" class="hover:text-blue-600">Items</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'inventory:item_detail' item.pk %}" class="hover:text-blue-600">{{ item.code }}</a>
+            <span class="mx-2">/</span>
+            <span>Create Variants</span>
+        </nav>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ item.name }}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- Item Info Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Base Item Information</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+                <span class="text-gray-500 dark:text-gray-400 block">Item Code</span>
+                <span class="font-mono font-medium text-gray-900 dark:text-white">{{ item.code }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500 dark:text-gray-400 block">Name</span>
+                <span class="text-gray-900 dark:text-white">{{ item.name|truncatewords:8 }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500 dark:text-gray-400 block">Category</span>
+                <span class="text-gray-900 dark:text-white">{{ item.category.name }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500 dark:text-gray-400 block">Standard Cost</span>
+                <span class="font-mono text-gray-900 dark:text-white">SAR {{ item.standard_cost|default:"0.00" }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Variant Cases Selection -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Select Variant Cases</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Check the boxes to create variants for this item. Already existing variants are shown but disabled.</p>
+        </div>
+
+        <div class="p-6">
+            <!-- Quick Select Buttons -->
+            <div class="flex flex-wrap gap-2 mb-6">
+                <button type="button" onclick="selectAll()" class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200">Select All Available</button>
+                <button type="button" onclick="selectNone()" class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">Clear Selection</button>
+                <button type="button" onclick="selectByCondition('NEW')" class="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200">Select All NEW</button>
+                <button type="button" onclick="selectByCondition('USED')" class="px-3 py-1 text-sm bg-amber-100 text-amber-700 rounded hover:bg-amber-200">Select All USED</button>
+                <button type="button" onclick="selectByOwnership('ARDT')" class="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200">Select ARDT Only</button>
+            </div>
+
+            <!-- Variant Cases Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for vc_data in variant_cases %}
+                <div class="border rounded-lg p-4 {% if vc_data.exists %}bg-gray-50 dark:bg-gray-700/50 opacity-60{% else %}bg-white dark:bg-gray-800 hover:border-blue-300{% endif %}"
+                     data-condition="{{ vc_data.case.condition }}"
+                     data-ownership="{{ vc_data.case.ownership }}">
+                    <div class="flex items-start">
+                        <input type="checkbox"
+                               name="variant_cases"
+                               value="{{ vc_data.case.pk }}"
+                               id="case_{{ vc_data.case.pk }}"
+                               {% if vc_data.exists %}disabled checked{% endif %}
+                               class="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 {% if not vc_data.exists %}variant-checkbox{% endif %}">
+                        <label for="case_{{ vc_data.case.pk }}" class="ml-3 flex-1 cursor-pointer">
+                            <div class="flex items-center justify-between">
+                                <span class="font-medium text-gray-900 dark:text-white">{{ vc_data.case.name }}</span>
+                                <span class="font-mono text-xs text-gray-500">{{ vc_data.case.code }}</span>
+                            </div>
+                            <div class="flex items-center gap-2 mt-2">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                    {% if vc_data.case.condition == 'NEW' %}bg-green-100 text-green-800{% else %}bg-amber-100 text-amber-800{% endif %}">
+                                    {{ vc_data.case.get_condition_display }}
+                                </span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                    {% if vc_data.case.ownership == 'ARDT' %}bg-purple-100 text-purple-800{% else %}bg-orange-100 text-orange-800{% endif %}">
+                                    {{ vc_data.case.ownership }}
+                                </span>
+                                {% if vc_data.case.acquisition %}
+                                <span class="text-xs text-gray-500">{{ vc_data.case.get_acquisition_display }}</span>
+                                {% endif %}
+                                {% if vc_data.case.reclaim_category %}
+                                <span class="text-xs text-gray-400">({{ vc_data.case.get_reclaim_category_display }})</span>
+                                {% endif %}
+                            </div>
+                            {% if vc_data.exists %}
+                            <div class="mt-2 text-xs text-green-600 dark:text-green-400">
+                                <i data-lucide="check-circle" class="w-3 h-3 inline"></i> Already exists
+                            </div>
+                            {% endif %}
+
+                            {% if vc_data.case.ownership == 'CLIENT' and not vc_data.exists %}
+                            <div class="mt-3">
+                                <label class="block text-xs text-gray-500 mb-1">Customer (required for CLIENT)</label>
+                                <select name="customer_{{ vc_data.case.pk }}" class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                                    <option value="">-- Select Customer --</option>
+                                    {% for customer in customers %}
+                                    <option value="{{ customer.pk }}">{{ customer.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
+                        </label>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-span-2 text-center py-8 text-gray-500">
+                    No variant cases defined. <a href="{% url 'inventory:variant_create' %}" class="text-blue-600 hover:underline">Create one first</a>.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex justify-end gap-3">
+        <a href="{% url 'inventory:item_detail' item.pk %}" class="px-6 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+            Cancel
+        </a>
+        <button type="submit" class="px-6 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
+            <i data-lucide="layers" class="w-4 h-4 inline mr-2"></i>Create Selected Variants
+        </button>
+    </div>
+</form>
+
+<script>
+function selectAll() {
+    document.querySelectorAll('.variant-checkbox:not(:disabled)').forEach(cb => cb.checked = true);
+}
+
+function selectNone() {
+    document.querySelectorAll('.variant-checkbox:not(:disabled)').forEach(cb => cb.checked = false);
+}
+
+function selectByCondition(condition) {
+    selectNone();
+    document.querySelectorAll(`[data-condition="${condition}"] .variant-checkbox:not(:disabled)`).forEach(cb => cb.checked = true);
+}
+
+function selectByOwnership(ownership) {
+    selectNone();
+    document.querySelectorAll(`[data-ownership="${ownership}"] .variant-checkbox:not(:disabled)`).forEach(cb => cb.checked = true);
+}
+</script>
+{% endblock %}
