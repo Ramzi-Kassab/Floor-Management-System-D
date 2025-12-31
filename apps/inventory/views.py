@@ -1837,17 +1837,23 @@ class ItemVariantCreateView(LoginRequiredMixin, CreateView):
         context["base_cost"] = item.standard_cost
 
         # Cost multipliers for variant cases (percentage of base cost)
-        # Used for JS auto-calculation when no cost is entered
         context["cost_rules"] = {
-            'NEW': 1.0,           # 100% of base cost
-            'USED': 0.7,          # 70% of base cost (general used)
-            'RETROFIT': 0.9,      # 90% of base cost (like-new condition)
-            'E_AND_O': 0.5,       # 50% of base cost (excess/obsolete discount)
-            'GROUND': 0.6,        # 60% of base cost (surface damage)
-            'STANDARD': 0.7,      # 70% of base cost (standard reclaim)
-            'CLIENT': 0.0,        # Client-owned - no cost to us
+            'NEW': 1.0,
+            'USED': 0.7,
+            'RETROFIT': 0.9,
+            'E_AND_O': 0.5,
+            'GROUND': 0.6,
+            'STANDARD': 0.7,
+            'CLIENT': 0.0,
         }
         return context
+
+    def form_invalid(self, form):
+        """Handle form validation errors - show messages to user."""
+        for field, errors in form.errors.items():
+            for error in errors:
+                messages.error(self.request, f"{field}: {error}")
+        return super().form_invalid(form)
 
     def form_valid(self, form):
         item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
@@ -1855,7 +1861,9 @@ class ItemVariantCreateView(LoginRequiredMixin, CreateView):
 
         # Auto-generate code if not provided
         if not form.instance.code:
-            parts = [item.code, form.instance.variant_case.code]
+            parts = [item.code]
+            if form.instance.variant_case:
+                parts.append(form.instance.variant_case.code)
             if form.instance.customer:
                 parts.append(form.instance.customer.code[:6] if hasattr(form.instance.customer, 'code') else "CLI")
             form.instance.code = "-".join(parts)
@@ -1866,7 +1874,7 @@ class ItemVariantCreateView(LoginRequiredMixin, CreateView):
             if variant_case:
                 multiplier = 1.0
                 if variant_case.ownership == 'CLIENT':
-                    multiplier = 0.0  # Client-owned, no cost to us
+                    multiplier = 0.0
                 elif variant_case.reclaim_category == 'RETROFIT':
                     multiplier = 0.9
                 elif variant_case.reclaim_category == 'E_AND_O':
@@ -1881,8 +1889,13 @@ class ItemVariantCreateView(LoginRequiredMixin, CreateView):
                 from decimal import Decimal
                 form.instance.standard_cost = Decimal(str(item.standard_cost)) * Decimal(str(multiplier))
 
-        messages.success(self.request, f"Variant '{form.instance.code}' created.")
-        return super().form_valid(form)
+        try:
+            response = super().form_valid(form)
+            messages.success(self.request, f"Variant '{form.instance.code}' created successfully.")
+            return response
+        except Exception as e:
+            messages.error(self.request, f"Error creating variant: {str(e)}")
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
