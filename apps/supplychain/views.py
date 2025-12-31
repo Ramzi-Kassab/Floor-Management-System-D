@@ -295,6 +295,26 @@ class PRCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
+class PRSubmitView(LoginRequiredMixin, View):
+    """Submit a PR for approval."""
+
+    def post(self, request, pk):
+        pr = get_object_or_404(
+            PurchaseRequisition.objects.select_related("requested_by"),
+            pk=pk,
+            status=PurchaseRequisition.Status.DRAFT,
+        )
+
+        # Check that PR has lines before submitting
+        if not pr.lines.exists():
+            messages.error(request, "Cannot submit a requisition without any line items.")
+            return redirect("supplychain:pr_detail", pk=pr.pk)
+
+        pr.submit()
+        messages.success(request, f"Requisition {pr.requisition_number} submitted for approval.")
+        return redirect("supplychain:pr_detail", pk=pr.pk)
+
+
 class PRApproveView(LoginRequiredMixin, View):
     """Approve or reject a PR."""
 

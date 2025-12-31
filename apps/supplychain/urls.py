@@ -19,6 +19,7 @@ urlpatterns = [
     path("requisitions/", views.PRListView.as_view(), name="pr_list"),
     path("requisitions/create/", views.PRCreateView.as_view(), name="pr_create"),
     path("requisitions/<int:pk>/", views.PRDetailView.as_view(), name="pr_detail"),
+    path("requisitions/<int:pk>/submit/", views.PRSubmitView.as_view(), name="pr_submit"),
     path("requisitions/<int:pk>/approve/", views.PRApproveView.as_view(), name="pr_approve"),
     path("requisitions/<int:pk>/convert-to-po/", views.PRConvertToPOView.as_view(), name="pr_convert_to_po"),
     path("requisitions/<int:pk>/add-line/", views.PRAddLineView.as_view(), name="pr_add_line"),

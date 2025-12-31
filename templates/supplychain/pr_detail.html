@@ -31,6 +31,14 @@
         <a href="{% url 'supplychain:pr_add_line' pr.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Line
         </a>
+        {% if pr.lines.exists %}
+        <form method="post" action="{% url 'supplychain:pr_submit' pr.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+                <i data-lucide="send" class="w-4 h-4 mr-2"></i>Submit for Approval
+            </button>
+        </form>
+        {% endif %}
         {% endif %}
         {% if pr.status == 'SUBMITTED' %}
         <a href="{% url 'supplychain:pr_approve' pr.pk %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
