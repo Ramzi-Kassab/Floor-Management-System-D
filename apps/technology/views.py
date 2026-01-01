@@ -894,6 +894,20 @@ class BOMUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
+class BOMDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a BOM."""
+
+    model = BOM
+    success_url = reverse_lazy("technology:bom_list")
+
+    def post(self, request, *args, **kwargs):
+        bom = self.get_object()
+        bom_code = bom.code
+        bom.delete()
+        messages.success(request, f"BOM {bom_code} deleted successfully.")
+        return redirect(self.success_url)
+
+
 class BOMLineCreateView(LoginRequiredMixin, View):
     """Add a line to a BOM."""
 
@@ -1009,12 +1023,12 @@ class BOMBuilderView(LoginRequiredMixin, DetailView):
             cutter_items = InventoryItem.objects.filter(
                 category=cutter_category,
                 is_active=True
-            ).select_related("category").prefetch_related("attributes")[:100]
+            ).select_related("category").prefetch_related("attribute_values", "attribute_values__attribute")[:100]
         else:
             # Fallback: get all active items if no cutter category found
             cutter_items = InventoryItem.objects.filter(
                 is_active=True
-            ).select_related("category").prefetch_related("attributes")[:50]
+            ).select_related("category").prefetch_related("attribute_values", "attribute_values__attribute")[:50]
 
         # Build cutter items with their attributes for display
         cutter_items_data = []
@@ -1025,16 +1039,16 @@ class BOMBuilderView(LoginRequiredMixin, DetailView):
             chamfer = ""
             cutter_type = ""
 
-            for attr in item.attributes.all():
+            for attr in item.attribute_values.all():
                 attr_code = attr.attribute.code.lower() if attr.attribute else ""
                 if "hdbs" in attr_code or "mat" in attr_code:
-                    hdbs_code = attr.value
+                    hdbs_code = attr.text_value
                 elif "size" in attr_code:
-                    size = attr.value
+                    size = attr.text_value
                 elif "chamfer" in attr_code:
-                    chamfer = attr.value
+                    chamfer = attr.text_value
                 elif "type" in attr_code:
-                    cutter_type = attr.value
+                    cutter_type = attr.text_value
 
             cutter_items_data.append({
                 'item': item,
@@ -1076,7 +1090,7 @@ class BOMBuilderView(LoginRequiredMixin, DetailView):
         items = InventoryItem.objects.filter(
             category=cutter_category,
             is_active=True
-        ).prefetch_related("attributes")
+        ).prefetch_related("attribute_values", "attribute_values__attribute")
 
         if exclude_item:
             items = items.exclude(pk=exclude_item.pk)
@@ -1086,12 +1100,12 @@ class BOMBuilderView(LoginRequiredMixin, DetailView):
             item_size = ""
             item_chamfer = ""
 
-            for attr in item.attributes.all():
+            for attr in item.attribute_values.all():
                 attr_code = attr.attribute.code.lower() if attr.attribute else ""
                 if "size" in attr_code:
-                    item_size = attr.value
+                    item_size = attr.text_value
                 elif "chamfer" in attr_code:
-                    item_chamfer = attr.value
+                    item_chamfer = attr.text_value
 
             # Size must match strictly
             if item_size != cutter_size:
@@ -1289,16 +1303,16 @@ class BOMBuilderSearchItemsView(LoginRequiredMixin, View):
             chamfer = ""
             cutter_type = ""
 
-            for attr in item.attributes.all():
+            for attr in item.attribute_values.all():
                 attr_code = attr.attribute.code.lower() if attr.attribute else ""
                 if "hdbs" in attr_code or "mat" in attr_code:
-                    hdbs_code = attr.value
+                    hdbs_code = attr.text_value
                 elif "size" in attr_code:
-                    size = attr.value
+                    size = attr.text_value
                 elif "chamfer" in attr_code:
-                    chamfer = attr.value
+                    chamfer = attr.text_value
                 elif "type" in attr_code:
-                    cutter_type = attr.value
+                    cutter_type = attr.text_value
 
             results.append({
                 "id": item.id,
@@ -2779,11 +2793,11 @@ class BOMCreateWithBuilderView(LoginRequiredMixin, TemplateView):
             cutter_items = InventoryItem.objects.filter(
                 category=cutter_category,
                 is_active=True
-            ).select_related("category").prefetch_related("attributes")[:100]
+            ).select_related("category").prefetch_related("attribute_values", "attribute_values__attribute")[:100]
         else:
             cutter_items = InventoryItem.objects.filter(
                 is_active=True
-            ).select_related("category").prefetch_related("attributes")[:50]
+            ).select_related("category").prefetch_related("attribute_values", "attribute_values__attribute")[:50]
 
         cutter_items_data = []
         for item in cutter_items:
@@ -2792,16 +2806,16 @@ class BOMCreateWithBuilderView(LoginRequiredMixin, TemplateView):
             chamfer = ""
             cutter_type = ""
 
-            for attr in item.attributes.all():
+            for attr in item.attribute_values.all():
                 attr_code = attr.attribute.code.lower() if attr.attribute else ""
                 if "hdbs" in attr_code or "mat" in attr_code:
-                    hdbs_code = attr.value
+                    hdbs_code = attr.text_value
                 elif "size" in attr_code:
-                    size = attr.value
+                    size = attr.text_value
                 elif "chamfer" in attr_code:
-                    chamfer = attr.value
+                    chamfer = attr.text_value
                 elif "type" in attr_code:
-                    cutter_type = attr.value
+                    cutter_type = attr.text_value
 
             cutter_items_data.append({
                 'item': item,

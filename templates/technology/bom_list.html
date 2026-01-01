@@ -69,8 +69,8 @@
                         <div class="max-w-[200px] truncate" title="{{ item.bom.name }}">{{ item.bom.name }}</div>
                     </td>
                     <td class="px-6 py-4">
-                        <a href="{% url 'technology:design_detail' item.bom.design.pk %}" class="text-gray-600 dark:text-gray-400 hover:underline font-mono text-xs">
-                            {{ item.bom.design.code }}
+                        <a href="{% url 'technology:design_detail' item.bom.design.pk %}" class="text-gray-600 dark:text-gray-400 hover:underline text-xs">
+                            {{ item.bom.design.hdbs_type }}{% if item.bom.design.size %} ({{ item.bom.design.size }}){% endif %}
                         </a>
                     </td>
                     <td class="px-6 py-4 text-center">
@@ -96,13 +96,22 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 text-right">
-                        <div class="flex items-center justify-end space-x-2">
-                            <a href="{% url 'technology:bom_detail' item.bom.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
+                        <div class="flex items-center justify-end space-x-1">
+                            <a href="{% url 'technology:bom_detail' item.bom.pk %}" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="View">
                                 <i data-lucide="eye" class="w-4 h-4"></i>
                             </a>
-                            <a href="{% url 'technology:bom_update' item.bom.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
+                            <a href="{% url 'technology:bom_builder' item.bom.pk %}" class="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded" title="Builder">
+                                <i data-lucide="grid-3x3" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'technology:bom_update' item.bom.pk %}" class="p-1.5 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded" title="Edit">
                                 <i data-lucide="edit" class="w-4 h-4"></i>
                             </a>
+                            <form method="post" action="{% url 'technology:bom_delete' item.bom.pk %}" class="inline" onsubmit="return confirm('Are you sure you want to delete BOM {{ item.bom.code }}?');">
+                                {% csrf_token %}
+                                <button type="submit" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </form>
                         </div>
                     </td>
                 </tr>
