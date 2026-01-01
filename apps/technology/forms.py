@@ -440,3 +440,162 @@ class SMITypeForm(forms.ModelForm):
         self.fields["size"].required = True  # Size is required for SMI types
         # Only show active sizes
         self.fields["size"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+
+
+class QuickDesignForm(forms.ModelForm):
+    """
+    Quick form for creating a Design (Level 3 or 4) during BOM creation.
+    Minimal required fields for fast entry.
+    """
+
+    # Override order_level to only show Level 3 and 4
+    ORDER_LEVEL_CHOICES = [
+        ("3", "Level 3 - No cutters, upper section separate"),
+        ("4", "Level 4 - No cutters, upper section welded/machined"),
+    ]
+
+    order_level = forms.ChoiceField(
+        choices=ORDER_LEVEL_CHOICES,
+        initial="3",
+        widget=forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_design_order_level"})
+    )
+
+    # HDBS Type as FK selector instead of text
+    hdbs_type_ref = forms.ModelChoiceField(
+        queryset=HDBSType.objects.filter(is_active=True).order_by("hdbs_name"),
+        required=True,
+        widget=forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_design_hdbs_type_ref"}),
+        label="HDBS Type"
+    )
+
+    # SMI Type as FK selector (optional, filtered by HDBS Type and Size)
+    smi_type_ref = forms.ModelChoiceField(
+        queryset=SMIType.objects.filter(is_active=True),
+        required=False,
+        widget=forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_design_smi_type_ref"}),
+        label="SMI Type (Optional)"
+    )
+
+    class Meta:
+        model = Design
+        fields = [
+            "order_level",
+            "category",
+            "mat_no",
+            "size",
+        ]
+        widgets = {
+            "category": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_design_category"}),
+            "mat_no": forms.TextInput(attrs={
+                "class": TAILWIND_INPUT,
+                "placeholder": "L3/L4 MAT No.",
+                "id": "id_design_mat_no"
+            }),
+            "size": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_design_size"}),
+        }
+        labels = {
+            "order_level": "Order Level",
+            "category": "Category",
+            "mat_no": "MAT No. (L3/L4)",
+            "size": "Size",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set category default to FC
+        self.fields["category"].initial = "FC"
+        # Only show active sizes
+        self.fields["size"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+        # All fields required except smi_type_ref
+        self.fields["mat_no"].required = True
+        self.fields["size"].required = True
+        self.fields["category"].required = True
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Set hdbs_type from the FK selector
+        if self.cleaned_data.get("hdbs_type_ref"):
+            instance.hdbs_type = self.cleaned_data["hdbs_type_ref"].hdbs_name
+        # Set smi_type from the FK selector
+        if self.cleaned_data.get("smi_type_ref"):
+            instance.smi_type = self.cleaned_data["smi_type_ref"].smi_name
+        # Set status to DRAFT
+        instance.status = Design.Status.DRAFT
+        if commit:
+            instance.save()
+        return instance
+
+
+class BOMWithDesignForm(forms.Form):
+    """
+    Combined form for creating BOM with optional new Design.
+    The Level 5 MAT code becomes the BOM code.
+    """
+
+    # Design selection
+    design_mode = forms.ChoiceField(
+        choices=[
+            ("existing", "Select Existing Design"),
+            ("new", "Create New Design"),
+        ],
+        initial="existing",
+        widget=forms.RadioSelect(attrs={"class": "inline-flex items-center"})
+    )
+
+    # For existing design
+    existing_design = forms.ModelChoiceField(
+        queryset=Design.objects.filter(
+            order_level__in=["3", "4"],
+            status__in=[Design.Status.DRAFT, Design.Status.ACTIVE]
+        ).order_by("-created_at"),
+        required=False,
+        widget=forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_existing_design"}),
+        label="Select Design (L3/L4)"
+    )
+
+    # BOM fields
+    bom_code = forms.CharField(
+        max_length=50,
+        widget=forms.TextInput(attrs={
+            "class": TAILWIND_INPUT,
+            "placeholder": "Level 5 MAT No.",
+            "id": "id_bom_code"
+        }),
+        label="BOM Code (L5 MAT)"
+    )
+
+    bom_name = forms.CharField(
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={
+            "class": TAILWIND_INPUT,
+            "placeholder": "BOM Name (auto-generated if empty)",
+            "id": "id_bom_name"
+        }),
+        label="BOM Name"
+    )
+
+    bom_revision = forms.CharField(
+        max_length=10,
+        initial="A",
+        widget=forms.TextInput(attrs={
+            "class": TAILWIND_INPUT,
+            "id": "id_bom_revision"
+        }),
+        label="Revision"
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        design_mode = cleaned_data.get("design_mode")
+        existing_design = cleaned_data.get("existing_design")
+
+        if design_mode == "existing" and not existing_design:
+            raise forms.ValidationError("Please select an existing design or create a new one.")
+
+        # Check BOM code uniqueness
+        bom_code = cleaned_data.get("bom_code")
+        if bom_code and BOM.objects.filter(code=bom_code).exists():
+            raise forms.ValidationError(f"BOM with code '{bom_code}' already exists.")
+
+        return cleaned_data

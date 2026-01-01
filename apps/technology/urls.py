@@ -25,7 +25,8 @@ urlpatterns = [
     path("pockets-layout/", views.PocketsLayoutListView.as_view(), name="pockets_layout_list"),
     # BOMs
     path("boms/", views.BOMListView.as_view(), name="bom_list"),
-    path("boms/create/", views.BOMCreateView.as_view(), name="bom_create"),
+    path("boms/create/", views.BOMCreateWithBuilderView.as_view(), name="bom_create"),
+    path("boms/create-legacy/", views.BOMCreateView.as_view(), name="bom_create_legacy"),
     path("boms/<int:pk>/", views.BOMDetailView.as_view(), name="bom_detail"),
     path("boms/<int:pk>/edit/", views.BOMUpdateView.as_view(), name="bom_update"),
     path("boms/<int:pk>/lines/add/", views.BOMLineCreateView.as_view(), name="bom_line_create"),
@@ -81,4 +82,7 @@ urlpatterns = [
     path("api/breaker-slots/create/", views.APIBreakerSlotCreateView.as_view(), name="api_breaker_slot_create"),
     # API endpoint (for design draft save)
     path("api/designs/save-draft/", views.APIDesignSaveDraftView.as_view(), name="api_design_save_draft"),
+    # API endpoints for BOM creation workflow
+    path("api/smi-types/filter/", views.APISMITypesFilterView.as_view(), name="api_smi_types_filter"),
+    path("api/designs/filter/", views.APIDesignsFilterView.as_view(), name="api_designs_filter"),
 ]
