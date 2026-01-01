@@ -588,11 +588,10 @@ class PRConvertToPOView(LoginRequiredMixin, View):
                 vendor_code=supplier.code,
                 defaults={
                     'name': supplier.name,
-                    'contact_name': supplier.contact_person,
-                    'email': supplier.email,
-                    'phone': supplier.phone,
+                    'email': supplier.email or '',
+                    'phone': supplier.phone or '',
                     'address_line_1': supplier.address[:200] if supplier.address else '',
-                    'country': supplier.country,
+                    'country': supplier.country or '',
                     'status': Vendor.Status.ACTIVE,
                 }
             )
