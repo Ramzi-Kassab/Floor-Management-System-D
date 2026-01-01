@@ -460,22 +460,6 @@ class QuickDesignForm(forms.ModelForm):
         widget=forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_design_order_level"})
     )
 
-    # HDBS Type as FK selector instead of text
-    hdbs_type_ref = forms.ModelChoiceField(
-        queryset=HDBSType.objects.filter(is_active=True).order_by("hdbs_name"),
-        required=True,
-        widget=forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_design_hdbs_type_ref"}),
-        label="HDBS Type"
-    )
-
-    # SMI Type as FK selector (optional, filtered by HDBS Type and Size)
-    smi_type_ref = forms.ModelChoiceField(
-        queryset=SMIType.objects.filter(is_active=True),
-        required=False,
-        widget=forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_design_smi_type_ref"}),
-        label="SMI Type (Optional)"
-    )
-
     class Meta:
         model = Design
         fields = [
@@ -483,6 +467,8 @@ class QuickDesignForm(forms.ModelForm):
             "category",
             "mat_no",
             "size",
+            "hdbs_type",
+            "smi_type",
         ]
         widgets = {
             "category": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_design_category"}),
@@ -492,12 +478,24 @@ class QuickDesignForm(forms.ModelForm):
                 "id": "id_design_mat_no"
             }),
             "size": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_design_size"}),
+            "hdbs_type": forms.TextInput(attrs={
+                "class": TAILWIND_INPUT,
+                "placeholder": "e.g., GT65RHS",
+                "id": "id_design_hdbs_type"
+            }),
+            "smi_type": forms.TextInput(attrs={
+                "class": TAILWIND_INPUT,
+                "placeholder": "Client-facing name (optional)",
+                "id": "id_design_smi_type"
+            }),
         }
         labels = {
             "order_level": "Order Level",
             "category": "Category",
             "mat_no": "MAT No. (L3/L4)",
             "size": "Size",
+            "hdbs_type": "HDBS Type",
+            "smi_type": "SMI Type (Optional)",
         }
 
     def __init__(self, *args, **kwargs):
@@ -506,19 +504,15 @@ class QuickDesignForm(forms.ModelForm):
         self.fields["category"].initial = "FC"
         # Only show active sizes
         self.fields["size"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")
-        # All fields required except smi_type_ref
+        # Required fields
         self.fields["mat_no"].required = True
         self.fields["size"].required = True
         self.fields["category"].required = True
+        self.fields["hdbs_type"].required = True
+        self.fields["smi_type"].required = False
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        # Set hdbs_type from the FK selector
-        if self.cleaned_data.get("hdbs_type_ref"):
-            instance.hdbs_type = self.cleaned_data["hdbs_type_ref"].hdbs_name
-        # Set smi_type from the FK selector
-        if self.cleaned_data.get("smi_type_ref"):
-            instance.smi_type = self.cleaned_data["smi_type_ref"].smi_name
         # Set status to DRAFT
         instance.status = Design.Status.DRAFT
         if commit:
