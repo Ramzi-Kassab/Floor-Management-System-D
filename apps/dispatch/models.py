@@ -116,7 +116,7 @@ class InventoryReservation(models.Model):
         ISSUED = "ISSUED", "Issued"
         CANCELLED = "CANCELLED", "Cancelled"
 
-    inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.PROTECT, related_name="reservations")
+    inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.PROTECT, related_name="dispatch_reservations")
     work_order = models.ForeignKey("workorders.WorkOrder", on_delete=models.CASCADE, related_name="inventory_reservations")
     quantity = models.DecimalField(max_digits=10, decimal_places=3)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.RESERVED)

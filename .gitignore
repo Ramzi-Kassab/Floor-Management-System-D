@@ -10,13 +10,16 @@ __pycache__/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+media/
 
 # Environment variables
 .env
 venv/
 
 # IDE
-.vscode/
+# .vscode/ - Keep launch.json and tasks.json for Codespaces
+.vscode/settings.json
+.vscode/*.code-workspace
 .idea/
 *.swp
 *.swo
@@ -25,3 +28,7 @@ venv/
 db_test.sqlite3
 .coverage
 htmlcov/
+
+# Generated/backup files
+backups/
+staticfiles/

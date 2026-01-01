@@ -5,8 +5,7 @@ Breaker slots are used for gripping the bit with a bit breaker tool during make-
 
 from django.core.management.base import BaseCommand
 
-from apps.technology.models import BreakerSlot
-from apps.workorders.models import BitSize
+from apps.technology.models import BitSize, BreakerSlot
 
 
 class Command(BaseCommand):

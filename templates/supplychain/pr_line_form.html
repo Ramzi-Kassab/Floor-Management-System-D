@@ -3,41 +3,422 @@
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
 {% block page_header %}
-<div class="flex items-center justify-between mb-6">
+<div class="flex items-center justify-between mb-4">
     <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Add Line</h1>
-        <p class="text-gray-600 dark:text-gray-400">{{ pr.pr_number }}</p>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ pr.requisition_number }}</h1>
+        <p class="text-sm text-gray-600 dark:text-gray-400">{{ pr.title }}</p>
     </div>
-    <a href="{% url 'supplychain:pr_detail' pr.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
-        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+    <a href="{% url 'supplychain:pr_detail' pr.pk %}" class="inline-flex items-center px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back
     </a>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-xl">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <form method="post">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Left: Form -->
+    <div class="lg:col-span-2">
+        <form method="post" id="prLineForm" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
             {% csrf_token %}
-            <div class="space-y-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Item *</label>
-                    {{ form.inventory_item }}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quantity *</label>
-                    {{ form.quantity }}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
-                    {{ form.notes }}
+            <input type="hidden" name="inventory_item" id="id_inventory_item" value="{% if form.instance.inventory_item %}{{ form.instance.inventory_item.id }}{% endif %}">
+
+            {% if is_edit %}
+            <!-- EDIT MODE: Show selected item info only -->
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center mr-3">
+                            <i data-lucide="package" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="font-mono font-bold text-blue-800 dark:text-blue-200">
+                                {% if form.instance.inventory_item %}{{ form.instance.inventory_item.code }}{% else %}Manual Entry{% endif %}
+                            </p>
+                            <p class="text-sm text-blue-600 dark:text-blue-300">
+                                {% if form.instance.inventory_item %}{{ form.instance.inventory_item.name }}{% else %}{{ form.instance.item_description }}{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    <span class="text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">Editing Line #{{ form.instance.line_number }}</span>
                 </div>
             </div>
-            <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <a href="{% url 'supplychain:pr_detail' pr.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
-                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Add Line</button>
+            {% else %}
+            <!-- ADD MODE: Item Selector -->
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-900 dark:text-white">Select Item</h3>
+                    <button type="button" onclick="toggleManualEntry()" class="text-xs text-blue-600 hover:text-blue-800">
+                        <span id="toggleText">Enter manually</span>
+                    </button>
+                </div>
+
+                <!-- Selected Item Display -->
+                <div id="selectedItemDisplay" class="hidden mb-3">
+                    <div class="flex items-center justify-between p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+                        <div class="flex items-center">
+                            <i data-lucide="check-circle" class="w-4 h-4 text-green-600 mr-2"></i>
+                            <span class="font-mono text-sm font-bold text-green-800 dark:text-green-200" id="selectedItemCode"></span>
+                            <span class="text-sm text-green-700 dark:text-green-300 ml-2" id="selectedItemName"></span>
+                        </div>
+                        <button type="button" onclick="clearItemSelection()" class="text-green-600 hover:text-green-800 p-1">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Item Selector Table -->
+                <div id="itemSelectorSection">
+                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <div class="max-h-48 overflow-auto">
+                            <table class="w-full text-xs">
+                                <thead class="sticky top-0 bg-gray-50 dark:bg-gray-800">
+                                    <tr class="border-b border-gray-200 dark:border-gray-700">
+                                        <th class="px-2 py-1.5 text-left font-medium text-gray-600 cursor-pointer hover:bg-gray-100" onclick="sortBy('code')">Code <span id="sort-code" class="text-blue-600"></span></th>
+                                        <th class="px-2 py-1.5 text-left font-medium text-gray-600 cursor-pointer hover:bg-gray-100" onclick="sortBy('name')">Name <span id="sort-name"></span></th>
+                                        <th class="px-2 py-1.5 text-left font-medium text-gray-600 cursor-pointer hover:bg-gray-100" onclick="sortBy('category')">Category <span id="sort-category"></span></th>
+                                        <th class="px-2 py-1.5 text-center font-medium text-gray-600 w-16">Select</th>
+                                    </tr>
+                                    <tr class="bg-gray-50 dark:bg-gray-800 border-b border-gray-200">
+                                        <th class="px-1 py-1"><input type="text" id="filter-code" oninput="applyFilters()" placeholder="Filter" class="w-full px-1 py-0.5 text-xs border rounded"></th>
+                                        <th class="px-1 py-1"><input type="text" id="filter-name" oninput="applyFilters()" placeholder="Filter" class="w-full px-1 py-0.5 text-xs border rounded"></th>
+                                        <th class="px-1 py-1"><select id="filter-category" onchange="applyFilters()" class="w-full px-1 py-0.5 text-xs border rounded"><option value="">All</option></select></th>
+                                        <th class="px-1 py-1"><button type="button" onclick="clearFilters()" class="text-xs text-blue-600">Clear</button></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="itemsList" class="divide-y divide-gray-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <p id="itemCount" class="text-xs text-gray-500 mt-1"></p>
+                </div>
+
+                <!-- Manual Entry -->
+                <div id="manualEntrySection" class="hidden">
+                    <input type="text" name="item_description" id="id_item_description" value="{{ form.item_description.value|default:'' }}"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" placeholder="Enter item description">
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Quantity & Details -->
+            <div class="p-4">
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Quantity *</label>
+                        <input type="number" name="quantity_requested" id="id_quantity_requested"
+                               value="{{ form.quantity_requested.value|default:'' }}"
+                               min="0.001" required oninput="validateQuantity()" onkeydown="preventInvalidKeys(event)"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <p id="qtyHint" class="text-xs text-gray-500 mt-0.5"></p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">UoM *</label>
+                        <input type="text" name="unit_of_measure" id="id_unit_of_measure"
+                               value="{{ form.unit_of_measure.value|default:'' }}" required onchange="onUomChange()"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="EA, KG...">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Est. Price (SAR)</label>
+                        <input type="number" name="estimated_unit_price" id="id_estimated_unit_price"
+                               value="{{ form.estimated_unit_price.value|default:'' }}"
+                               step="0.01" min="0" onkeydown="preventNegative(event)"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0.00">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Notes</label>
+                    <input type="text" name="notes" id="id_notes" value="{{ form.notes.value|default:'' }}"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" placeholder="Optional notes...">
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 flex justify-end gap-2">
+                {% if not is_edit %}
+                <button type="submit" name="add_another" value="1" class="px-4 py-2 text-sm border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50">
+                    + Add Another
+                </button>
+                {% endif %}
+                <button type="submit" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    {% if is_edit %}Save Changes{% else %}Add Line{% endif %}
+                </button>
             </div>
         </form>
     </div>
+
+    <!-- Right: Current Lines -->
+    <div class="lg:col-span-1">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="font-semibold text-gray-900 dark:text-white text-sm">Lines ({{ pr.lines.count }})</h3>
+                {% if pr.lines.exists %}
+                <span class="text-xs text-gray-500">{% if pr.estimated_total %}SAR {{ pr.estimated_total }}{% endif %}</span>
+                {% endif %}
+            </div>
+            {% if pr.lines.exists %}
+            <div class="divide-y divide-gray-100 dark:divide-gray-700 max-h-96 overflow-auto">
+                {% for line in pr.lines.all %}
+                <div class="p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 {% if is_edit and form.instance.pk == line.pk %}bg-blue-50 dark:bg-blue-900/20{% endif %}">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-mono text-gray-400">#{{ line.line_number }}</span>
+                                {% if line.inventory_item %}
+                                <span class="text-xs font-mono font-bold text-blue-600">{{ line.inventory_item.code }}</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-sm text-gray-800 dark:text-gray-200 truncate">
+                                {% if line.inventory_item %}{{ line.inventory_item.name }}{% else %}{{ line.item_description }}{% endif %}
+                            </p>
+                            <p class="text-xs text-gray-500">{{ line.quantity_requested }} {{ line.unit_of_measure }}</p>
+                        </div>
+                        <div class="flex items-center gap-1 ml-2">
+                            <a href="{% url 'supplychain:pr_edit_line' pr.pk line.pk %}"
+                               class="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
+                                <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+                            </a>
+                            <form method="post" action="{% url 'supplychain:pr_delete_line' pr.pk line.pk %}"
+                                  class="inline" onsubmit="return confirm('Delete this line?');">
+                                {% csrf_token %}
+                                <button type="submit" class="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="p-6 text-center text-gray-400">
+                <i data-lucide="package" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                <p class="text-sm">No lines yet</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
 </div>
+
+<script>
+let allItems = [];
+let filteredItems = [];
+let selectedItem = null;
+let sortColumn = 'code';
+let sortDirection = 'asc';
+
+const wholeNumberUnits = ['EA', 'EACH', 'PC', 'PCS', 'PIECE', 'PIECES', 'UNIT', 'UNITS', 'BOX', 'SET', 'PAIR'];
+
+{% if not is_edit %}
+function loadItems() {
+    fetch('{% url "inventory:api_item_lookup" %}?limit=500', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin'
+    })
+    .then(r => r.json())
+    .then(data => {
+        allItems = data.items || [];
+        filteredItems = [...allItems];
+        populateFilterDropdowns();
+        updateSortIndicators();
+        renderItems();
+    })
+    .catch(e => {
+        document.getElementById('itemsList').innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-red-500">Error loading</td></tr>';
+    });
+}
+
+function populateFilterDropdowns() {
+    const categories = [...new Set(allItems.map(i => i.category).filter(Boolean))].sort();
+    document.getElementById('filter-category').innerHTML = '<option value="">All</option>' + categories.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function sortBy(column) {
+    if (sortColumn === column) {
+        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortColumn = column;
+        sortDirection = 'asc';
+    }
+    updateSortIndicators();
+    applyFilters();
+}
+
+function updateSortIndicators() {
+    ['code', 'name', 'category'].forEach(col => {
+        const el = document.getElementById('sort-' + col);
+        el.textContent = col === sortColumn ? (sortDirection === 'asc' ? '↑' : '↓') : '';
+    });
+}
+
+function applyFilters() {
+    const codeFilter = document.getElementById('filter-code').value.toLowerCase();
+    const nameFilter = document.getElementById('filter-name').value.toLowerCase();
+    const categoryFilter = document.getElementById('filter-category').value;
+
+    filteredItems = allItems.filter(item => {
+        if (codeFilter && !(item.code || '').toLowerCase().includes(codeFilter)) return false;
+        if (nameFilter && !(item.name || '').toLowerCase().includes(nameFilter)) return false;
+        if (categoryFilter && item.category !== categoryFilter) return false;
+        return true;
+    });
+
+    filteredItems.sort((a, b) => {
+        let aVal = (a[sortColumn] || '').toLowerCase();
+        let bVal = (b[sortColumn] || '').toLowerCase();
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    renderItems();
+}
+
+function clearFilters() {
+    document.getElementById('filter-code').value = '';
+    document.getElementById('filter-name').value = '';
+    document.getElementById('filter-category').value = '';
+    applyFilters();
+}
+
+function renderItems() {
+    const container = document.getElementById('itemsList');
+    document.getElementById('itemCount').textContent = `${filteredItems.length} items`;
+
+    if (filteredItems.length === 0) {
+        container.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-gray-400">No items</td></tr>';
+        return;
+    }
+
+    container.innerHTML = filteredItems.map(item => {
+        const isSelected = selectedItem && selectedItem.id === item.id;
+        const itemJson = JSON.stringify(item).replace(/"/g, '&quot;');
+        return `
+            <tr class="hover:bg-blue-50 cursor-pointer ${isSelected ? 'bg-blue-100' : ''}" onclick="selectItem(${itemJson})">
+                <td class="px-2 py-1.5 font-mono font-bold text-gray-900">${item.code}</td>
+                <td class="px-2 py-1.5 text-gray-700 truncate max-w-[150px]">${item.name}</td>
+                <td class="px-2 py-1.5"><span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">${item.category || '-'}</span></td>
+                <td class="px-2 py-1.5 text-center">
+                    <button type="button" onclick="event.stopPropagation(); selectItem(${itemJson})"
+                            class="px-2 py-0.5 text-xs rounded ${isSelected ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}">
+                        ${isSelected ? '✓' : 'Select'}
+                    </button>
+                </td>
+            </tr>`;
+    }).join('');
+}
+
+function selectItem(item) {
+    selectedItem = item;
+    document.getElementById('id_inventory_item').value = item.id;
+    document.getElementById('selectedItemCode').textContent = item.code;
+    document.getElementById('selectedItemName').textContent = item.name;
+    document.getElementById('selectedItemDisplay').classList.remove('hidden');
+    document.getElementById('id_item_description').value = `${item.code} - ${item.name}`;
+    if (item.uom) {
+        document.getElementById('id_unit_of_measure').value = item.uom;
+        onUomChange();
+    }
+    document.getElementById('id_quantity_requested').focus();
+    renderItems();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function clearItemSelection() {
+    selectedItem = null;
+    document.getElementById('id_inventory_item').value = '';
+    document.getElementById('selectedItemDisplay').classList.add('hidden');
+    document.getElementById('id_item_description').value = '';
+    document.getElementById('id_unit_of_measure').value = '';
+    renderItems();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function toggleManualEntry() {
+    const selector = document.getElementById('itemSelectorSection');
+    const manual = document.getElementById('manualEntrySection');
+    const toggle = document.getElementById('toggleText');
+    const isManual = selector.classList.contains('hidden');
+
+    if (isManual) {
+        selector.classList.remove('hidden');
+        manual.classList.add('hidden');
+        toggle.textContent = 'Enter manually';
+    } else {
+        selector.classList.add('hidden');
+        manual.classList.remove('hidden');
+        toggle.textContent = 'Search items';
+        clearItemSelection();
+    }
+}
+{% endif %}
+
+// Quantity validation
+function isWholeNumberUnit(uom) {
+    return wholeNumberUnits.includes((uom || '').toUpperCase());
+}
+
+function onUomChange() {
+    const uom = document.getElementById('id_unit_of_measure').value;
+    const qtyInput = document.getElementById('id_quantity_requested');
+    const hint = document.getElementById('qtyHint');
+
+    if (isWholeNumberUnit(uom)) {
+        qtyInput.step = '1';
+        qtyInput.min = '1';
+        hint.textContent = 'Whole numbers only';
+    } else {
+        qtyInput.step = '0.001';
+        qtyInput.min = '0.001';
+        hint.textContent = 'Decimals allowed';
+    }
+    validateQuantity();
+}
+
+function preventInvalidKeys(e) {
+    if (e.key === '-') { e.preventDefault(); return; }
+    const uom = document.getElementById('id_unit_of_measure').value;
+    if (isWholeNumberUnit(uom) && (e.key === '.' || e.key === ',')) e.preventDefault();
+}
+
+function preventNegative(e) {
+    if (e.key === '-') e.preventDefault();
+}
+
+function validateQuantity() {
+    const qtyInput = document.getElementById('id_quantity_requested');
+    const uom = document.getElementById('id_unit_of_measure').value;
+    const value = qtyInput.value;
+
+    if (parseFloat(value) < 0) qtyInput.value = Math.abs(parseFloat(value));
+    if (value && isWholeNumberUnit(uom)) {
+        if (value.includes('.') || parseFloat(value) !== Math.floor(parseFloat(value))) {
+            qtyInput.value = Math.floor(Math.abs(parseFloat(value))) || '';
+        }
+    }
+}
+
+// Form validation
+document.getElementById('prLineForm').addEventListener('submit', function(e) {
+    const inv = document.getElementById('id_inventory_item').value;
+    const descEl = document.getElementById('id_item_description');
+    const desc = descEl ? descEl.value.trim() : '';
+    const qty = document.getElementById('id_quantity_requested').value;
+    const uom = document.getElementById('id_unit_of_measure').value.trim();
+
+    {% if not is_edit %}
+    if (!inv && !desc) { e.preventDefault(); alert('Select an item or enter description.'); return; }
+    {% endif %}
+    if (!qty || parseFloat(qty) <= 0) { e.preventDefault(); alert('Enter valid quantity.'); return; }
+    if (!uom) { e.preventDefault(); alert('Enter unit of measure.'); return; }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    {% if not is_edit %}
+    loadItems();
+    {% endif %}
+    const uom = document.getElementById('id_unit_of_measure').value;
+    if (uom) onUomChange();
+});
+</script>
 {% endblock %}

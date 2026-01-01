@@ -42,7 +42,32 @@ urlpatterns = [
     path("breaker-slots/<int:pk>/", views.BreakerSlotDetailView.as_view(), name="breaker_slot_detail"),
     path("breaker-slots/<int:pk>/edit/", views.BreakerSlotUpdateView.as_view(), name="breaker_slot_update"),
     path("breaker-slots/<int:pk>/delete/", views.BreakerSlotDeleteView.as_view(), name="breaker_slot_delete"),
+    # Bit Sizes (simple list)
+    path("sizes/", views.BitSizeListView.as_view(), name="bit_size_list"),
+    path("sizes/create/", views.BitSizeCreateView.as_view(), name="bit_size_create"),
+    path("sizes/<int:pk>/edit/", views.BitSizeUpdateView.as_view(), name="bit_size_update"),
+    path("sizes/<int:pk>/delete/", views.BitSizeDeleteView.as_view(), name="bit_size_delete"),
+    # HDBS Types (Internal naming)
+    path("types/", views.HDBSTypeListView.as_view(), name="hdbs_type_list"),
+    path("types/create/", views.HDBSTypeCreateView.as_view(), name="hdbs_type_create"),
+    path("types/<int:pk>/", views.HDBSTypeDetailView.as_view(), name="hdbs_type_detail"),
+    path("types/<int:pk>/edit/", views.HDBSTypeUpdateView.as_view(), name="hdbs_type_update"),
+    path("types/<int:pk>/delete/", views.HDBSTypeDeleteView.as_view(), name="hdbs_type_delete"),
+    # SMI Types (Client-facing naming)
+    path("smi/create/", views.SMITypeCreateStandaloneView.as_view(), name="smi_type_create_standalone"),
+    path("types/<int:hdbs_pk>/smi/create/", views.SMITypeCreateView.as_view(), name="smi_type_create"),
+    path("smi/<int:pk>/edit/", views.SMITypeUpdateView.as_view(), name="smi_type_update"),
+    path("smi/<int:pk>/delete/", views.SMITypeDeleteView.as_view(), name="smi_type_delete"),
+    # API endpoints for types
+    path("api/hdbs-types/", views.APIHDBSTypesView.as_view(), name="api_hdbs_types"),
+    path("api/hdbs-types/create/", views.APIHDBSTypeCreateView.as_view(), name="api_hdbs_type_create"),
+    path("api/smi-types/create/", views.APISMITypeCreateView.as_view(), name="api_smi_type_create"),
     # API endpoints (for modal pickers)
     path("api/connections/", views.APIConnectionsView.as_view(), name="api_connections"),
     path("api/breaker-slots/", views.APIBreakerSlotsView.as_view(), name="api_breaker_slots"),
+    # API endpoints (for quick create from modals)
+    path("api/connections/create/", views.APIConnectionCreateView.as_view(), name="api_connection_create"),
+    path("api/breaker-slots/create/", views.APIBreakerSlotCreateView.as_view(), name="api_breaker_slot_create"),
+    # API endpoint (for design draft save)
+    path("api/designs/save-draft/", views.APIDesignSaveDraftView.as_view(), name="api_design_save_draft"),
 ]

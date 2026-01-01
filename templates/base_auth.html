@@ -1,11 +1,15 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ARDT Floor Management System - Professional Drill Bit Manufacturing">
     <title>{% block title %}ARDT FMS{% endblock %}</title>
-    
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23003366' width='100' height='100' rx='20'/><text x='50' y='65' text-anchor='middle' fill='%23FFB81C' font-size='40' font-weight='bold'>A</text></svg>">
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -15,40 +19,93 @@
                     colors: {
                         ardt: {
                             blue: '#003366',
+                            'blue-dark': '#002244',
+                            'blue-light': '#004488',
                             gold: '#FFB81C',
+                            'gold-dark': '#D4960F',
+                            'gold-light': '#FFC94D',
                         }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
                     }
                 }
             }
         }
     </script>
-    
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.0/dist/cdn.min.js"></script>
-    
+
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+    <style>
+        .bg-pattern {
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+        .login-card {
+            backdrop-filter: blur(10px);
+        }
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0px 1000px white inset;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+    </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-ardt-blue to-blue-900 flex items-center justify-center p-4">
-    
-    <div class="w-full max-w-md">
-        <!-- Logo -->
-        <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-white mb-2">ARDT FMS</h1>
-            <p class="text-blue-200">Factory Management System v5.4</p>
-        </div>
-        
-        <!-- Card -->
-        <div class="bg-white rounded-2xl shadow-2xl p-8">
-            {% block auth_content %}{% endblock %}
-        </div>
-        
-        <!-- Footer -->
-        <div class="text-center mt-6 text-blue-200 text-sm">
-            <p>&copy; {% now "Y" %} ARDT. All rights reserved.</p>
+<body class="min-h-screen bg-gradient-to-br from-ardt-blue via-ardt-blue-dark to-blue-900 bg-pattern font-sans">
+
+    <div class="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4">
+        <div class="w-full max-w-[300px] sm:max-w-[340px]">
+            <!-- Logo & Branding -->
+            <div class="text-center mb-4 sm:mb-5">
+                <!-- ARDT Logo (SVG) - Drill Bit with Yellow Ring -->
+                <div class="inline-flex items-center justify-center mb-2 sm:mb-3">
+                    <svg class="w-14 h-14 sm:w-16 sm:h-16" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Outer ring -->
+                        <circle cx="50" cy="50" r="48" fill="none" stroke="#FFB81C" stroke-width="3"/>
+                        <!-- Inner background -->
+                        <circle cx="50" cy="50" r="42" fill="#003366"/>
+                        <!-- Drill bit icon stylized -->
+                        <path d="M50 20 L60 45 L55 45 L55 75 L45 75 L45 45 L40 45 Z" fill="#FFB81C"/>
+                        <!-- Gear teeth around drill -->
+                        <circle cx="50" cy="50" r="38" fill="none" stroke="#FFB81C" stroke-width="1" stroke-dasharray="8 4"/>
+                    </svg>
+                </div>
+
+                <!-- Company Name -->
+                <h1 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                    <span class="text-ardt-gold">ARDT</span> FMS
+                </h1>
+                <p class="text-blue-200 mt-1 text-xs sm:text-sm">
+                    Floor Management System
+                </p>
+            </div>
+
+            <!-- Card -->
+            <div class="bg-white/95 login-card rounded-xl shadow-2xl shadow-black/20 p-4 sm:p-5 border border-white/20">
+                {% block auth_content %}{% endblock %}
+            </div>
+
+            <!-- Footer -->
+            <div class="text-center mt-3 sm:mt-4 space-y-0.5">
+                <p class="text-blue-200 text-xs">
+                    &copy; {% now "Y" %} Arabian Drilling Technology Co.
+                </p>
+                <p class="text-blue-300/50 text-[10px]">
+                    ISO 9001:2015 | API Q1 Certified
+                </p>
+            </div>
         </div>
     </div>
-    
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             lucide.createIcons();

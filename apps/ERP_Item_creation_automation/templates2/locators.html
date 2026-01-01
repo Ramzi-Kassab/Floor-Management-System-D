@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Locators Management{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3>Locators Management</h3>
+  </div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('locators_route') }}">
+      <input type="hidden" name="action" value="save">
+      <div class="mb-3">
+        <label for="locator_name" class="form-label">Locator Name</label>
+        <input type="text" class="form-control" id="locator_name" name="locator_name" required>
+      </div>
+      <div class="mb-3">
+        <label for="locator_type" class="form-label">Locator Type</label>
+        <select class="form-select" id="locator_type" name="locator_type" required>
+          <option value="xpath">XPath</option>
+          <option value="css">CSS</option>
+          <option value="id">ID</option>
+          <option value="text">Text</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="locator_value" class="form-label">Locator Value</label>
+        <input type="text" class="form-control" id="locator_value" name="locator_value" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Save Locator</button>
+    </form>
+    <hr/>
+    <h4>Existing Locators</h4>
+    <table class="table table-bordered table-striped">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Value</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for name, info in locators.items() %}
+        <tr>
+          <td>{{ name }}</td>
+          <td>{{ info.type }}</td>
+          <td>{{ info.value }}</td>
+          <td>
+            <form method="post" action="{{ url_for('locators_route') }}" style="display:inline;">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="locator_name" value="{{ name }}">
+              <button type="submit" class="btn btn-sm btn-danger"
+                      onclick="return confirm('Are you sure to delete?');">
+                Delete
+              </button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

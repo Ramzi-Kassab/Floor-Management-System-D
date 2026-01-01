@@ -12,9 +12,21 @@
         <form method="post">
             {% csrf_token %}
             <div class="space-y-6">
-                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Purchase Order *</label>{{ form.po }}</div>
-                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Receipt Date *</label>{{ form.receipt_date }}</div>
-                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>{{ form.notes }}</div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Purchase Order *</label>
+                    {{ form.purchase_order }}
+                    {% if not form.purchase_order.field.queryset.exists %}
+                    <p class="mt-1 text-xs text-red-500">No POs available. POs must be in APPROVED, SENT, or PARTIALLY_RECEIVED status.</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Receipt Type</label>
+                    {{ form.receipt_type }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Receipt Date *</label>
+                    {{ form.receipt_date }}
+                </div>
             </div>
             <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <a href="{% url 'supplychain:grn_list' %}" class="px-4 py-2 text-gray-700 hover:text-gray-900">Cancel</a>

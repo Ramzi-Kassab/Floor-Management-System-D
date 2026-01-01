@@ -6,11 +6,21 @@
 <div class="flex items-center justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1>
+        {% if category %}
         <p class="text-gray-600 dark:text-gray-400">Category: {{ category.name }}</p>
+        {% else %}
+        <p class="text-gray-600 dark:text-gray-400">Link an attribute to a category with specific configuration</p>
+        {% endif %}
     </div>
-    <a href="{% url 'inventory:category_update' category.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+    {% if category %}
+    <a href="{% url 'inventory:category_detail' category.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
         <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Category
     </a>
+    {% else %}
+    <a href="{% url 'inventory:category_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Categories
+    </a>
+    {% endif %}
 </div>
 {% endblock %}
 
@@ -21,30 +31,47 @@
             {% csrf_token %}
 
             <div class="space-y-6">
-                <!-- Basic Info -->
+                <!-- Category & Attribute Selection -->
                 <div class="grid grid-cols-2 gap-4">
+                    {% if not category %}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Attribute Code *</label>
-                        {{ form.code }}
-                        <p class="text-xs text-gray-500 mt-1">Used in name templates: {code}</p>
-                        {% if form.code.errors %}<p class="text-red-600 text-sm mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category *</label>
+                        {{ form.category }}
+                        {% if form.category.errors %}<p class="text-red-600 text-sm mt-1">{{ form.category.errors.0 }}</p>{% endif %}
                     </div>
+                    {% else %}
+                    <input type="hidden" name="category" value="{{ category.pk }}">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Display Name *</label>
-                        {{ form.name }}
-                        {% if form.name.errors %}<p class="text-red-600 text-sm mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                        <p class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-white">{{ category.name }}</p>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Attribute *</label>
+                        {{ form.attribute }}
+                        <p class="text-xs text-gray-500 mt-1">
+                            Select an existing attribute or
+                            <a href="{% url 'inventory:standalone_attribute_create' %}" class="text-blue-600 hover:text-blue-800">create new</a>
+                        </p>
+                        {% if form.attribute.errors %}<p class="text-red-600 text-sm mt-1">{{ form.attribute.errors.0 }}</p>{% endif %}
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Attribute Type *</label>
-                        {{ form.attribute_type }}
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Unit</label>
-                        {{ form.unit }}
-                        <p class="text-xs text-gray-500 mt-1">For NUMBER type: mm, kg, etc.</p>
+                <!-- Attribute Configuration for this Category -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Configuration for this Category</h3>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Attribute Type *</label>
+                            {{ form.attribute_type }}
+                            <p class="text-xs text-gray-500 mt-1">How this attribute is used</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Unit</label>
+                            {{ form.unit }}
+                            <p class="text-xs text-gray-500 mt-1">For NUMBER type: mm, kg, etc.</p>
+                        </div>
                     </div>
                 </div>
 
@@ -92,9 +119,13 @@
             </div>
 
             <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <a href="{% url 'inventory:category_update' category.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+                {% if category %}
+                <a href="{% url 'inventory:category_detail' category.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+                {% else %}
+                <a href="{% url 'inventory:category_list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+                {% endif %}
                 <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                    {% if object %}Update{% else %}Create{% endif %} Attribute
+                    {% if object %}Update{% else %}Link{% endif %} Attribute
                 </button>
             </div>
         </form>

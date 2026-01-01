@@ -8,10 +8,11 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import F, Q, Sum
-from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
-from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView, View
+from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView, View
 
 from .forms import (
     CategoryAttributeForm,
@@ -26,6 +27,12 @@ from .forms import (
     ItemPlanningForm,
     ItemSupplierForm,
     StockAdjustmentForm,
+    # Reference Data Forms
+    PartyForm,
+    ConditionTypeForm,
+    QualityStatusForm,
+    AdjustmentReasonForm,
+    OwnershipTypeForm,
 )
 from .models import (
     Attribute,
@@ -40,11 +47,69 @@ from .models import (
     ItemCutterSpec,
     ItemIdentifier,
     ItemPlanning,
+    ItemRelationship,
     ItemSupplier,
     ItemVariant,
     UnitOfMeasure,
     VariantCase,
+    # Reference Data
+    Party,
+    ConditionType,
+    QualityStatus,
+    AdjustmentReason,
+    OwnershipType,
+    ReceiptTolerance,
 )
+
+
+# =============================================================================
+# Dashboard View
+# =============================================================================
+
+
+class InventoryDashboardView(LoginRequiredMixin, View):
+    """Inventory dashboard with stats and quick actions."""
+
+    template_name = "inventory/dashboard.html"
+
+    def get(self, request):
+        from django.shortcuts import render
+        from .models import (
+            GoodsReceiptNote, StockIssue, StockTransfer,
+            StockAdjustment as StockAdjustmentDoc, StockLedger,
+            Asset, BillOfMaterial, StockReservation,
+        )
+
+        # Calculate stats
+        stats = {
+            "total_items": InventoryItem.objects.filter(is_active=True).count(),
+            "total_stock_value": StockLedger.objects.aggregate(
+                total=Sum(F("qty_delta") * F("unit_cost"))
+            )["total"] or 0,
+            "low_stock_count": InventoryStock.objects.filter(
+                quantity_on_hand__lt=F("item__reorder_point")
+            ).count(),
+            "active_reservations": StockReservation.objects.filter(
+                status="PENDING"
+            ).count(),
+            "draft_grns": GoodsReceiptNote.objects.filter(status="DRAFT").count(),
+            "draft_issues": StockIssue.objects.filter(status="DRAFT").count(),
+            "draft_transfers": StockTransfer.objects.filter(status="DRAFT").count(),
+            "draft_adjustments": StockAdjustmentDoc.objects.filter(status="DRAFT").count(),
+            "total_assets": Asset.objects.count(),
+            "active_boms": BillOfMaterial.objects.filter(status="ACTIVE").count(),
+        }
+
+        # Recent ledger entries
+        recent_ledger = StockLedger.objects.select_related(
+            "item", "location"
+        ).order_by("-transaction_date")[:10]
+
+        return render(request, self.template_name, {
+            "stats": stats,
+            "recent_ledger": recent_ledger,
+            "page_title": "Inventory Dashboard",
+        })
 
 
 # =============================================================================
@@ -103,6 +168,30 @@ class CategoryUpdateView(LoginRequiredMixin, UpdateView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Edit {self.object.name}"
         context["form_title"] = "Edit Category"
+
+        # Child categories
+        context["child_categories"] = self.object.children.all()
+
+        # Own attributes (directly on this category)
+        context["own_attributes"] = self.object.category_attributes.select_related(
+            "attribute", "unit"
+        ).order_by("display_order")
+
+        # Inherited attributes from parent categories
+        inherited = []
+        parent = self.object.parent
+        while parent:
+            for attr in parent.category_attributes.select_related(
+                "attribute", "unit"
+            ).order_by("display_order"):
+                inherited.append(attr)
+            parent = parent.parent
+        context["inherited_attributes"] = inherited
+
+        # Parent category info for code prefix suggestions
+        if self.object.parent:
+            context["parent_category"] = self.object.parent
+
         return context
 
 
@@ -317,8 +406,24 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
         # NEW: Suppliers (multiple suppliers per item)
         context["suppliers"] = ItemSupplier.objects.filter(item=item).select_related("supplier")
 
-        # NEW: Identifiers (multiple barcodes/identifiers)
-        context["identifiers"] = ItemIdentifier.objects.filter(item=item)
+        # NEW: Identifiers (multiple barcodes/identifiers) with generated images
+        identifiers = ItemIdentifier.objects.filter(item=item)
+
+        # Generate QR/barcode images for each identifier
+        from .utils import generate_identifier_image, generate_inventory_item_qr
+        identifiers_with_images = []
+        for ident in identifiers:
+            identifiers_with_images.append({
+                'identifier': ident,
+                'image': generate_identifier_image(ident)
+            })
+        context["identifiers"] = identifiers_with_images
+
+        # Generate default QR code for the item itself (pointing to pocket/mobile view)
+        # Use SITE_URL from settings if configured (auto-detected for Codespaces), otherwise use request
+        from django.conf import settings as django_settings
+        base_url = getattr(django_settings, 'SITE_URL', None) or self.request.build_absolute_uri('/')[:-1]
+        context["item_qr_code"] = generate_inventory_item_qr(item, base_url=base_url)
 
         # NEW: Bit Spec (if exists)
         try:
@@ -358,6 +463,22 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
             context["category_attributes"] = []
             context["attribute_values"] = []
 
+        # Item Variants with stock totals and QR codes
+        variants = item.variants.select_related("variant_case", "customer").prefetch_related("stock_records")
+        variants_data = []
+        for variant in variants:
+            # Calculate total stock for this variant
+            total_stock = sum(s.quantity_on_hand for s in variant.stock_records.all())
+            # Generate QR code for variant
+            variant_qr = generate_inventory_item_qr(variant, base_url=base_url, is_variant=True)
+            variants_data.append({
+                'variant': variant,
+                'total_stock': total_stock,
+                'qr_code': variant_qr,
+            })
+        context["variants"] = variants_data
+        context["has_variants"] = len(variants_data) > 0
+
         return context
 
 
@@ -368,20 +489,149 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
     form_class = InventoryItemForm
     template_name = "inventory/item_form.html"
 
+    def validate_unique_attributes(self, form):
+        """
+        Validate uniqueness of Item Number (all items) and HDBS Code (main items only).
+        Returns list of error messages or empty list if valid.
+        """
+        errors = []
+
+        # Get attribute values from POST
+        for key, value in self.request.POST.items():
+            if key.startswith('attr_') and value:
+                try:
+                    attr_id = int(key.replace('attr_', ''))
+                    category_attr = CategoryAttribute.objects.select_related('attribute').get(pk=attr_id)
+                    attr_code = category_attr.attribute.code.lower()
+
+                    # Check Item Number - must be unique across ALL items
+                    if attr_code in ('item_number', 'item_num', 'itemno', 'itemnumber'):
+                        # Check if any other item has this value
+                        existing = ItemAttributeValue.objects.filter(
+                            text_value__iexact=value.strip()
+                        ).filter(
+                            attribute__attribute__code__in=['item_number', 'item_num', 'itemno', 'itemnumber', 'ITEM_NUMBER', 'ITEM_NUM']
+                        )
+                        # Exclude current item if editing
+                        if hasattr(self, 'object') and self.object and self.object.pk:
+                            existing = existing.exclude(item=self.object)
+                        if existing.exists():
+                            errors.append(f"Item Number '{value}' already exists on item '{existing.first().item.code}'")
+
+                    # Check HDBS Code - must be unique (variants inherit from parent)
+                    elif attr_code in ('hdbs_code', 'hdbs', 'hdbscode', 'mat_number'):
+                        # Check if any other item has this HDBS code
+                        existing = ItemAttributeValue.objects.filter(
+                            text_value__iexact=value.strip()
+                        ).filter(
+                            attribute__attribute__code__in=['hdbs_code', 'hdbs', 'hdbscode', 'mat_number', 'HDBS_CODE', 'HDBS', 'MAT_NUMBER']
+                        )
+                        # Exclude current item if editing
+                        if hasattr(self, 'object') and self.object and self.object.pk:
+                            existing = existing.exclude(item=self.object)
+                        if existing.exists():
+                            errors.append(f"HDBS Code '{value}' already exists on item '{existing.first().item.code}'")
+
+                except (ValueError, CategoryAttribute.DoesNotExist):
+                    pass
+
+        return errors
+
     def form_valid(self, form):
+        # Validate unique attributes before saving
+        errors = self.validate_unique_attributes(form)
+        if errors:
+            for error in errors:
+                messages.error(self.request, error)
+            return self.form_invalid(form)
+
         form.instance.created_by = self.request.user
-        messages.success(self.request, f"Item '{form.instance.code}' created successfully.")
-        return super().form_valid(form)
+
+        # Auto-generate code if not provided
+        if not form.instance.code and form.instance.category:
+            form.instance.code = form.instance.category.generate_next_code()
+
+        # Save the form first to get the item object
+        response = super().form_valid(form)
+        item = self.object
+
+        # Process attribute values from POST data
+        for key, value in self.request.POST.items():
+            if key.startswith('attr_') and value:
+                try:
+                    attr_id = int(key.replace('attr_', ''))
+                    category_attr = CategoryAttribute.objects.get(pk=attr_id)
+
+                    # Create the attribute value
+                    attr_value = ItemAttributeValue(
+                        item=item,
+                        attribute=category_attr
+                    )
+
+                    # Set the appropriate value field based on type
+                    if category_attr.attribute_type == 'NUMBER':
+                        attr_value.number_value = value
+                        attr_value.text_value = ''
+                    elif category_attr.attribute_type == 'BOOLEAN':
+                        attr_value.boolean_value = value.lower() in ('true', '1', 'yes', 'on')
+                        attr_value.text_value = ''
+                    elif category_attr.attribute_type == 'DATE':
+                        attr_value.date_value = value
+                        attr_value.text_value = ''
+                    else:
+                        attr_value.text_value = value
+
+                    attr_value.save()
+                except (ValueError, CategoryAttribute.DoesNotExist) as e:
+                    print(f"Error saving attribute {key}: {e}")
+
+        # Auto-create the default "New Purchased" variant for new items
+        try:
+            default_variant_case = VariantCase.objects.filter(code='NEW-PUR', is_active=True).first()
+            if default_variant_case:
+                # Create the default variant
+                ItemVariant.objects.create(
+                    base_item=item,
+                    variant_case=default_variant_case,
+                    code=f"{item.code}-{default_variant_case.code}",
+                    standard_cost=item.standard_cost or 0,
+                    legacy_mat_no=item.mat_number or "",
+                    is_active=True,
+                )
+        except Exception as e:
+            # Don't fail item creation if variant creation fails
+            print(f"Warning: Could not create default variant: {e}")
+
+        messages.success(self.request, f"Item '{form.instance.name}' created successfully.")
+        return response
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.object.pk})
 
     def get_context_data(self, **kwargs):
+        import json
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Create Item"
         context["form_title"] = "Create Inventory Item"
         context["categories"] = InventoryCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
         context["type_choices"] = InventoryItem.ItemType.choices
+        # Only show packaging/quantity UOMs (CARTON, BOX, EACH, PIECE, etc.)
+        context["packaging_uoms"] = UnitOfMeasure.objects.filter(
+            is_active=True
+        ).filter(
+            Q(unit_type__in=['QUANTITY', 'PACKAGING']) | Q(is_packaging=True)
+        ).order_by('name')
+
+        # Check for clone data in session
+        clone_data = self.request.session.pop('item_clone_data', None)
+        if clone_data:
+            context["clone_data"] = json.dumps(clone_data)
+            context["existing_attribute_values"] = json.dumps(clone_data.get('attribute_values', {}))
+            context["page_title"] = "Clone Item"
+            context["form_title"] = "Clone Inventory Item"
+        else:
+            context["clone_data"] = "{}"
+            context["existing_attribute_values"] = "{}"
         return context
 
 
@@ -391,6 +641,52 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
     model = InventoryItem
     form_class = InventoryItemForm
     template_name = "inventory/item_form.html"
+
+    def validate_unique_attributes(self, form):
+        """
+        Validate uniqueness of Item Number (all items) and HDBS Code (main items only).
+        Returns list of error messages or empty list if valid.
+        """
+        errors = []
+
+        # Get attribute values from POST
+        for key, value in self.request.POST.items():
+            if key.startswith('attr_') and value:
+                try:
+                    attr_id = int(key.replace('attr_', ''))
+                    category_attr = CategoryAttribute.objects.select_related('attribute').get(pk=attr_id)
+                    attr_code = category_attr.attribute.code.lower()
+
+                    # Check Item Number - must be unique across ALL items
+                    if attr_code in ('item_number', 'item_num', 'itemno', 'itemnumber'):
+                        existing = ItemAttributeValue.objects.filter(
+                            text_value__iexact=value.strip()
+                        ).filter(
+                            attribute__attribute__code__in=['item_number', 'item_num', 'itemno', 'itemnumber', 'ITEM_NUMBER', 'ITEM_NUM']
+                        )
+                        # Exclude current item
+                        if self.object and self.object.pk:
+                            existing = existing.exclude(item=self.object)
+                        if existing.exists():
+                            errors.append(f"Item Number '{value}' already exists on item '{existing.first().item.code}'")
+
+                    # Check HDBS Code - must be unique (variants inherit from parent)
+                    elif attr_code in ('hdbs_code', 'hdbs', 'hdbscode', 'mat_number'):
+                        existing = ItemAttributeValue.objects.filter(
+                            text_value__iexact=value.strip()
+                        ).filter(
+                            attribute__attribute__code__in=['hdbs_code', 'hdbs', 'hdbscode', 'mat_number', 'HDBS_CODE', 'HDBS', 'MAT_NUMBER']
+                        )
+                        # Exclude current item
+                        if self.object and self.object.pk:
+                            existing = existing.exclude(item=self.object)
+                        if existing.exists():
+                            errors.append(f"HDBS Code '{value}' already exists on item '{existing.first().item.code}'")
+
+                except (ValueError, CategoryAttribute.DoesNotExist):
+                    pass
+
+        return errors
 
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
@@ -405,6 +701,13 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
             return self.form_invalid(form)
 
     def form_valid(self, form):
+        # Validate unique attributes before saving
+        errors = self.validate_unique_attributes(form)
+        if errors:
+            for error in errors:
+                messages.error(self.request, error)
+            return self.form_invalid(form)
+
         response = super().form_valid(form)
         item = self.object
 
@@ -456,6 +759,12 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
         context["form_title"] = "Edit Inventory Item"
         context["categories"] = InventoryCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children")
         context["type_choices"] = InventoryItem.ItemType.choices
+        # Only show packaging/quantity UOMs (CARTON, BOX, EACH, PIECE, etc.)
+        context["packaging_uoms"] = UnitOfMeasure.objects.filter(
+            is_active=True
+        ).filter(
+            Q(unit_type__in=['QUANTITY', 'PACKAGING']) | Q(is_packaging=True)
+        ).order_by('name')
 
         # Pass existing attribute values for pre-populating the form
         if self.object.category:
@@ -472,6 +781,54 @@ class ItemUpdateView(LoginRequiredMixin, UpdateView):
         else:
             context["existing_attribute_values"] = "{}"
         return context
+
+
+class ItemCloneView(LoginRequiredMixin, View):
+    """Clone an existing inventory item - opens create form with pre-filled data."""
+
+    def get(self, request, pk):
+        import json
+        # Get the item to clone
+        source_item = get_object_or_404(InventoryItem, pk=pk)
+
+        # Build clone data to pass to create form via session
+        clone_data = {
+            'category_id': source_item.category_id if source_item.category else None,
+            'name': f"Copy of {source_item.name}",
+            'description': source_item.description,
+            'item_type': source_item.item_type,
+            'is_active': source_item.is_active,
+            'is_serialized': source_item.is_serialized,
+            'is_lot_controlled': source_item.is_lot_controlled,
+            'standard_cost': str(source_item.standard_cost) if source_item.standard_cost else '',
+            'currency': source_item.currency,
+            'min_stock': str(source_item.min_stock) if source_item.min_stock else '',
+            'max_stock': str(source_item.max_stock) if source_item.max_stock else '',
+            'reorder_point': str(source_item.reorder_point) if source_item.reorder_point else '',
+            'reorder_quantity': str(source_item.reorder_quantity) if source_item.reorder_quantity else '',
+            'purchase_uom_id': source_item.purchase_uom_id if source_item.purchase_uom else None,
+            'release_uom_id': source_item.release_uom_id if source_item.release_uom else None,
+            'purchase_to_release_factor': str(source_item.purchase_to_release_factor) if source_item.purchase_to_release_factor else '1',
+            'mat_number': source_item.mat_number,
+            'item_number': source_item.item_number,
+        }
+
+        # Get attribute values
+        attribute_values = {}
+        for av in source_item.attribute_values.select_related('attribute', 'attribute__attribute'):
+            code = av.attribute.attribute.code if av.attribute.attribute else str(av.attribute.pk)
+            val = av.display_value
+            if val is not None and hasattr(val, '__float__'):
+                val = float(val)
+            attribute_values[code] = val
+
+        clone_data['attribute_values'] = attribute_values
+
+        # Store clone data in session
+        request.session['item_clone_data'] = clone_data
+
+        messages.info(request, f"Creating clone of '{source_item.code}'. Review and save to create the new item.")
+        return redirect('inventory:item_create')
 
 
 # =============================================================================
@@ -719,31 +1076,44 @@ class StockAdjustView(LoginRequiredMixin, View):
 
 
 class AttributeListView(LoginRequiredMixin, ListView):
-    """List of all attributes (simple name list)."""
+    """List of all attributes (simple name list) with client-side sort/filter."""
 
     model = Attribute
     template_name = "inventory/attribute_list.html"
     context_object_name = "attributes"
-    paginate_by = 50
+    # No pagination - client-side filtering handles all data
 
     def get_queryset(self):
-        queryset = Attribute.objects.all()
-
-        # Search filter
-        search = self.request.GET.get("q", "").strip()
-        if search:
-            queryset = queryset.filter(
-                Q(code__icontains=search) |
-                Q(name__icontains=search) |
-                Q(description__icontains=search)
-            )
-
-        return queryset.order_by("code")
+        # Load all attributes for client-side filtering/sorting
+        return Attribute.objects.all().order_by("classification", "name")
 
     def get_context_data(self, **kwargs):
+        import json
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Attributes"
         context["search_query"] = self.request.GET.get("q", "")
+        context["selected_classification"] = self.request.GET.get("classification", "")
+        context["classification_choices"] = Attribute.Classification.choices
+        context["type_choices"] = Attribute.DataType.choices
+
+        # Serialize attributes as JSON for safe JavaScript consumption
+        attributes_json = []
+        for attr in context["attributes"]:
+            attributes_json.append({
+                "id": attr.id,
+                "code": attr.code or "",
+                "name": attr.name or "",
+                "classification": attr.classification or "",
+                "type": attr.data_type or "",
+                "typeDisplay": attr.get_data_type_display() or "",
+                "isActive": attr.is_active,
+                "status": "active" if attr.is_active else "inactive",
+                "usedIn": attr.category_usages.count(),
+                "editUrl": f"/inventory/attributes/{attr.pk}/edit/",
+                "deleteUrl": f"/inventory/attributes/{attr.pk}/delete/",
+                "visible": True
+            })
+        context["attributes_json"] = json.dumps(attributes_json)
         return context
 
 
@@ -752,7 +1122,7 @@ class StandaloneAttributeCreateView(LoginRequiredMixin, CreateView):
 
     model = Attribute
     template_name = "inventory/standalone_attribute_form.html"
-    fields = ["code", "name", "description", "is_active"]
+    fields = ["code", "name", "classification", "data_type", "description", "notes", "is_active"]
 
     def form_valid(self, form):
         messages.success(self.request, f"Attribute '{form.instance.name}' created with code {form.instance.code}.")
@@ -773,7 +1143,7 @@ class StandaloneAttributeUpdateView(LoginRequiredMixin, UpdateView):
 
     model = Attribute
     template_name = "inventory/standalone_attribute_form.html"
-    fields = ["name", "description", "is_active"]
+    fields = ["name", "classification", "data_type", "description", "notes", "is_active"]
 
     def form_valid(self, form):
         messages.success(self.request, f"Attribute '{form.instance.name}' updated.")
@@ -939,6 +1309,223 @@ class CategoryAttributeDeleteView(LoginRequiredMixin, DeleteView):
         return context
 
 
+class CategoryAttributeBulkCreateView(LoginRequiredMixin, View):
+    """
+    Bulk add attributes to a category with a two-phase form:
+    Phase 1: Select attributes from a filterable table
+    Phase 2: Configure each selected attribute (type, unit, validation, etc.)
+    """
+    template_name = "inventory/category_attribute_bulk_form.html"
+
+    def get_category(self):
+        category_pk = self.request.GET.get("category") or self.request.POST.get("category")
+        if category_pk:
+            return get_object_or_404(InventoryCategory, pk=category_pk)
+        return None
+
+    def _serialize_attributes_json(self, attributes, existing_attr_ids):
+        """Serialize attributes list to JSON for safe JavaScript consumption."""
+        import json
+        attrs_list = []
+        for attr in attributes:
+            attrs_list.append({
+                "id": attr.id,
+                "code": attr.code or "",
+                "name": attr.name or "",
+                "classification": attr.classification or "",
+                "dataType": attr.data_type or "",
+                "isLinked": attr.id in existing_attr_ids,
+                "selected": attr.id in existing_attr_ids,
+            })
+        return json.dumps(attrs_list)
+
+    def _serialize_existing_configs_json(self, existing_cat_attrs):
+        """Serialize existing category attribute configs to JSON."""
+        import json
+        configs = {}
+        for attr_id, ca in existing_cat_attrs.items():
+            configs[str(attr_id)] = {
+                "type": ca.attribute_type or "TEXT",
+                "unit": ca.unit_id if ca.unit_id else "",
+                "min": str(ca.min_value) if ca.min_value is not None else "",
+                "max": str(ca.max_value) if ca.max_value is not None else "",
+                "options": ca.options if ca.options else "",
+                "defaultValue": ca.default_value or "",
+                "rules": ca.conditional_rules if ca.conditional_rules else None,
+                "required": ca.is_required,
+                "inName": ca.is_used_in_name,
+                "order": ca.display_order or 0,
+            }
+        return json.dumps(configs)
+
+    def get(self, request):
+        category = self.get_category()
+        if not category:
+            messages.error(request, "Please select a category first.")
+            return redirect("inventory:category_list")
+
+        # Get existing category attributes with their config for this category
+        existing_cat_attrs = {
+            ca.attribute_id: ca
+            for ca in CategoryAttribute.objects.filter(category=category)
+            .select_related("attribute", "unit")
+        }
+        existing_attr_ids = set(existing_cat_attrs.keys())
+
+        # Get all available attributes (include already linked for bulk edit)
+        attributes = Attribute.objects.filter(is_active=True).order_by("classification", "name")
+
+        context = {
+            "category": category,
+            "attributes": attributes,
+            "existing_attr_ids": existing_attr_ids,  # For pre-checking in template
+            "existing_cat_attrs": existing_cat_attrs,  # For pre-filling config values
+            "attributes_json": self._serialize_attributes_json(attributes, existing_attr_ids),
+            "classifications": Attribute.Classification.choices,
+            "attribute_types": CategoryAttribute.AttributeType.choices,
+            "units": UnitOfMeasure.objects.filter(is_active=True).order_by("unit_type", "name"),
+            "page_title": f"Bulk Add/Edit Attributes - {category.name}",
+            "phase": "select",  # or "configure"
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request):
+        category = self.get_category()
+        if not category:
+            messages.error(request, "Category not found.")
+            return redirect("inventory:category_list")
+
+        phase = request.POST.get("phase", "select")
+
+        if phase == "select":
+            # Phase 1: User selected attributes, show configuration form
+            selected_ids = request.POST.getlist("selected_attributes")
+            if not selected_ids:
+                messages.warning(request, "Please select at least one attribute.")
+                return redirect(f"{request.path}?category={category.pk}")
+
+            attributes = Attribute.objects.filter(id__in=selected_ids, is_active=True)
+
+            # Get existing configurations for pre-filling the form
+            existing_cat_attrs = {
+                ca.attribute_id: ca
+                for ca in CategoryAttribute.objects.filter(
+                    category=category, attribute_id__in=selected_ids
+                ).select_related("unit")
+            }
+
+            context = {
+                "category": category,
+                "selected_attributes": attributes,
+                "existing_cat_attrs": existing_cat_attrs,  # For pre-filling config values
+                "existing_configs_json": self._serialize_existing_configs_json(existing_cat_attrs),
+                "attribute_types": CategoryAttribute.AttributeType.choices,
+                "units": UnitOfMeasure.objects.filter(is_active=True).order_by("unit_type", "name"),
+                "page_title": f"Configure Attributes for {category.name}",
+                "phase": "configure",
+            }
+            return render(request, self.template_name, context)
+
+        elif phase == "configure":
+            # Phase 2: Save all configurations (create or update)
+            attribute_ids = request.POST.getlist("attribute_id")
+            created_count = 0
+            updated_count = 0
+            errors = []
+
+            for attr_id in attribute_ids:
+                try:
+                    attribute = Attribute.objects.get(id=attr_id)
+
+                    # Get configuration values for this attribute
+                    attr_type = request.POST.get(f"type_{attr_id}", "TEXT")
+                    unit_id = request.POST.get(f"unit_{attr_id}") or None
+                    min_val = request.POST.get(f"min_{attr_id}") or None
+                    max_val = request.POST.get(f"max_{attr_id}") or None
+                    options = request.POST.get(f"options_{attr_id}") or None
+                    default_value = request.POST.get(f"default_{attr_id}", "").strip()
+                    rules_json = request.POST.get(f"rules_{attr_id}") or None
+                    is_required = request.POST.get(f"required_{attr_id}") == "on"
+                    is_used_in_name = request.POST.get(f"in_name_{attr_id}") == "on"
+                    display_order = request.POST.get(f"order_{attr_id}") or 0
+
+                    # Parse options if provided - normalize to clean list
+                    if options:
+                        import json
+                        options = options.strip()
+                        parsed_options = None
+
+                        # Try JSON parse first (handles ["a","b"] format)
+                        try:
+                            parsed_options = json.loads(options)
+                        except json.JSONDecodeError:
+                            pass
+
+                        if parsed_options is None:
+                            # Check if it looks like a Python-style array: ['a','b']
+                            if options.startswith('[') and options.endswith(']'):
+                                inner = options[1:-1]
+                                parsed_options = [s.strip().strip("'\"") for s in inner.split(',') if s.strip()]
+                            else:
+                                # Comma-separated: a, b, c
+                                parsed_options = [s.strip().strip("'\"") for s in options.split(',') if s.strip()]
+
+                        # Ensure list and clean all values
+                        if isinstance(parsed_options, list):
+                            options = [str(v).strip().strip("'\"") for v in parsed_options if str(v).strip()]
+                        else:
+                            options = [str(parsed_options).strip().strip("'\"")] if parsed_options else None
+
+                    # Parse conditional rules if provided
+                    conditional_rules = None
+                    if rules_json:
+                        try:
+                            import json
+                            conditional_rules = json.loads(rules_json)
+                        except json.JSONDecodeError:
+                            pass
+
+                    # Create or update CategoryAttribute
+                    cat_attr, created = CategoryAttribute.objects.update_or_create(
+                        category=category,
+                        attribute=attribute,
+                        defaults={
+                            "attribute_type": attr_type,
+                            "unit_id": unit_id if unit_id else None,
+                            "min_value": min_val if min_val else None,
+                            "max_value": max_val if max_val else None,
+                            "options": options,
+                            "default_value": default_value,
+                            "conditional_rules": conditional_rules,
+                            "is_required": is_required,
+                            "is_used_in_name": is_used_in_name,
+                            "display_order": int(display_order),
+                        }
+                    )
+                    if created:
+                        created_count += 1
+                    else:
+                        updated_count += 1
+
+                except Exception as e:
+                    errors.append(f"Error saving {attr_id}: {str(e)}")
+
+            if created_count > 0 or updated_count > 0:
+                msg_parts = []
+                if created_count > 0:
+                    msg_parts.append(f"added {created_count}")
+                if updated_count > 0:
+                    msg_parts.append(f"updated {updated_count}")
+                messages.success(request, f"Successfully {' and '.join(msg_parts)} attributes.")
+            if errors:
+                for error in errors:
+                    messages.error(request, error)
+
+            return redirect("inventory:category_detail", pk=category.pk)
+
+        return redirect(f"{request.path}?category={category.pk}")
+
+
 # =============================================================================
 # Item Variant Views
 # =============================================================================
@@ -1049,8 +1636,27 @@ class ItemVariantListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(
                 Q(code__icontains=search) |
                 Q(base_item__name__icontains=search) |
-                Q(variant_case__name__icontains=search)
+                Q(base_item__code__icontains=search) |
+                Q(variant_case__name__icontains=search) |
+                Q(variant_case__code__icontains=search)
             )
+
+        # Condition filter (from variant_case)
+        condition = self.request.GET.get("condition", "").strip()
+        if condition:
+            queryset = queryset.filter(variant_case__condition=condition)
+
+        # Ownership filter (from variant_case)
+        ownership = self.request.GET.get("ownership", "").strip()
+        if ownership:
+            queryset = queryset.filter(variant_case__ownership=ownership)
+
+        # Status filter
+        status = self.request.GET.get("status", "").strip()
+        if status == "active":
+            queryset = queryset.filter(is_active=True)
+        elif status == "inactive":
+            queryset = queryset.filter(is_active=False)
 
         return queryset.order_by("base_item__code", "variant_case__display_order")
 
@@ -1237,28 +1843,95 @@ class ItemVariantCreateView(LoginRequiredMixin, CreateView):
 
     model = ItemVariant
     template_name = "inventory/item_variant_form.html"
-    fields = ["variant_case", "customer", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
+    fields = ["variant_case", "customer", "account", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
+
+    def get_initial(self):
+        """Pre-fill fields from base item."""
+        initial = super().get_initial()
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+
+        # Pre-fill Legacy MAT Number from base item only (ERP Item Number stays empty)
+        if item.mat_number:
+            initial['legacy_mat_no'] = item.mat_number
+
+        # Default to active
+        initial['is_active'] = True
+
+        return initial
 
     def get_context_data(self, **kwargs):
+        from apps.sales.models import Customer
         context = super().get_context_data(**kwargs)
         item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
         context["item"] = item
         context["page_title"] = f"Create Variant for {item.code}"
         context["form_title"] = f"Create Variant for {item.name}"
         context["variant_cases"] = VariantCase.objects.filter(is_active=True).order_by("display_order", "code")
+        context["customers"] = Customer.objects.filter(is_active=True).order_by("name")
+
+        # Pass base item cost for default calculations
+        context["base_cost"] = item.standard_cost
+
+        # Cost multipliers for variant cases (percentage of base cost)
+        context["cost_rules"] = {
+            'NEW': 1.0,
+            'USED': 0.7,
+            'RETROFIT': 0.9,
+            'E_AND_O': 0.5,
+            'GROUND': 0.6,
+            'STANDARD': 0.7,
+            'CLIENT': 0.0,
+        }
         return context
+
+    def form_invalid(self, form):
+        """Handle form validation errors - show messages to user."""
+        for field, errors in form.errors.items():
+            for error in errors:
+                messages.error(self.request, f"{field}: {error}")
+        return super().form_invalid(form)
 
     def form_valid(self, form):
         item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
         form.instance.base_item = item
+
         # Auto-generate code if not provided
         if not form.instance.code:
-            parts = [item.code, form.instance.variant_case.code]
+            parts = [item.code]
+            if form.instance.variant_case:
+                parts.append(form.instance.variant_case.code)
             if form.instance.customer:
                 parts.append(form.instance.customer.code[:6] if hasattr(form.instance.customer, 'code') else "CLI")
             form.instance.code = "-".join(parts)
-        messages.success(self.request, f"Variant '{form.instance.code}' created.")
-        return super().form_valid(form)
+
+        # If no cost provided, calculate from base item and variant case rules
+        if not form.instance.standard_cost and item.standard_cost:
+            variant_case = form.instance.variant_case
+            if variant_case:
+                multiplier = 1.0
+                if variant_case.ownership == 'CLIENT':
+                    multiplier = 0.0
+                elif variant_case.reclaim_category == 'RETROFIT':
+                    multiplier = 0.9
+                elif variant_case.reclaim_category == 'E_AND_O':
+                    multiplier = 0.5
+                elif variant_case.reclaim_category == 'GROUND':
+                    multiplier = 0.6
+                elif variant_case.reclaim_category == 'STANDARD':
+                    multiplier = 0.7
+                elif variant_case.condition == 'USED':
+                    multiplier = 0.7
+
+                from decimal import Decimal
+                form.instance.standard_cost = Decimal(str(item.standard_cost)) * Decimal(str(multiplier))
+
+        try:
+            response = super().form_valid(form)
+            messages.success(self.request, f"Variant '{form.instance.code}' created successfully.")
+            return response
+        except Exception as e:
+            messages.error(self.request, f"Error creating variant: {str(e)}")
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
@@ -1269,15 +1942,17 @@ class ItemVariantUpdateView(LoginRequiredMixin, UpdateView):
 
     model = ItemVariant
     template_name = "inventory/item_variant_form.html"
-    fields = ["variant_case", "customer", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
+    fields = ["variant_case", "customer", "account", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
 
     def get_context_data(self, **kwargs):
+        from apps.sales.models import Customer
         context = super().get_context_data(**kwargs)
         item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
         context["item"] = item
         context["page_title"] = f"Edit {self.object.code}"
         context["form_title"] = f"Edit Variant: {self.object.code}"
         context["variant_cases"] = VariantCase.objects.filter(is_active=True).order_by("display_order", "code")
+        context["customers"] = Customer.objects.filter(is_active=True).order_by("name")
         return context
 
     def form_valid(self, form):
@@ -1286,6 +1961,30 @@ class ItemVariantUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class ItemVariantDetailView(LoginRequiredMixin, DetailView):
+    """View variant details for a specific item."""
+
+    model = ItemVariant
+    template_name = "inventory/item_variant_detail.html"
+    context_object_name = "variant"
+
+    def get_context_data(self, **kwargs):
+        from .utils import generate_inventory_item_qr
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Variant: {self.object.code}"
+
+        # Generate QR code for variant
+        context["variant_qr_code"] = generate_inventory_item_qr(self.object, is_variant=True)
+
+        # Get stock for this variant (if stock tracking by variant exists)
+        # For now, show placeholder
+        context["variant_stock"] = 0
+
+        return context
 
 
 class ItemVariantDeleteView(LoginRequiredMixin, DeleteView):
@@ -1307,6 +2006,125 @@ class ItemVariantDeleteView(LoginRequiredMixin, DeleteView):
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+class BulkVariantCreateView(LoginRequiredMixin, TemplateView):
+    """Create multiple variants at once for an item."""
+
+    template_name = "inventory/bulk_variant_form.html"
+
+    def get_context_data(self, **kwargs):
+        from apps.sales.models import Customer
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Create Variants for {item.code}"
+
+        # Get all active variant cases
+        all_cases = VariantCase.objects.filter(is_active=True).order_by("display_order", "code")
+
+        # Get existing variant cases for this item
+        existing_case_ids = set(
+            ItemVariant.objects.filter(base_item=item).values_list("variant_case_id", flat=True)
+        )
+
+        # Mark which cases already exist
+        cases_with_status = []
+        for case in all_cases:
+            cases_with_status.append({
+                "case": case,
+                "exists": case.pk in existing_case_ids,
+            })
+        context["variant_cases"] = cases_with_status
+        context["customers"] = Customer.objects.filter(is_active=True).order_by("name")
+
+        # Base item cost for default calculations
+        context["base_cost"] = item.standard_cost or 0
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        from apps.sales.models import Customer
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+
+        # Get selected variant cases
+        selected_cases = request.POST.getlist("variant_cases")
+        if not selected_cases:
+            messages.error(request, "Please select at least one variant case.")
+            return self.get(request, *args, **kwargs)
+
+        created_count = 0
+        skipped_count = 0
+
+        for case_id in selected_cases:
+            try:
+                variant_case = VariantCase.objects.get(pk=case_id, is_active=True)
+
+                # Skip NEW-PUR as it's the base item
+                if variant_case.code == "NEW-PUR":
+                    skipped_count += 1
+                    continue
+
+                # Check if variant already exists
+                if ItemVariant.objects.filter(base_item=item, variant_case=variant_case).exists():
+                    skipped_count += 1
+                    continue
+
+                # Get individual ERP Item Number for this variant
+                erp_item_no = request.POST.get(f"erp_{case_id}", "").strip()
+
+                # Get customer and account if CLIENT ownership
+                customer = None
+                account = ""
+                if variant_case.ownership == "CLIENT":
+                    customer_id = request.POST.get(f"customer_{case_id}")
+                    if customer_id:
+                        customer = Customer.objects.filter(pk=customer_id, is_active=True).first()
+                    account = request.POST.get(f"account_{case_id}", "").strip()
+
+                # Calculate cost based on variant case
+                standard_cost = item.standard_cost or 0
+                if variant_case.condition == "USED":
+                    if variant_case.reclaim_category == "RETROFIT":
+                        standard_cost = standard_cost * 0.9
+                    elif variant_case.reclaim_category == "E_AND_O":
+                        standard_cost = standard_cost * 0.5
+                    elif variant_case.reclaim_category == "GROUND":
+                        standard_cost = standard_cost * 0.6
+                    else:
+                        standard_cost = standard_cost * 0.7
+                if variant_case.ownership == "CLIENT":
+                    standard_cost = 0
+
+                # Generate code
+                code_parts = [item.code, variant_case.code]
+                if customer:
+                    code_parts.append(customer.code[:6] if hasattr(customer, 'code') and customer.code else "CLI")
+                code = "-".join(code_parts)
+
+                # Create variant
+                ItemVariant.objects.create(
+                    base_item=item,
+                    variant_case=variant_case,
+                    code=code,
+                    customer=customer,
+                    account=account,
+                    standard_cost=standard_cost,
+                    legacy_mat_no=item.mat_number or "",
+                    erp_item_no=erp_item_no,
+                    is_active=True,
+                )
+                created_count += 1
+
+            except VariantCase.DoesNotExist:
+                continue
+
+        if created_count > 0:
+            messages.success(request, f"Created {created_count} variant(s) successfully.")
+        if skipped_count > 0:
+            messages.warning(request, f"Skipped {skipped_count} variant(s) that already exist.")
+
+        return redirect("inventory:item_detail", pk=item.pk)
 
 
 # =============================================================================
@@ -1507,10 +2325,30 @@ class CategoryAttributesAPIView(LoginRequiredMixin, View):
 
     def get(self, request, category_pk):
         category = get_object_or_404(InventoryCategory, pk=category_pk)
-        attributes = category.category_attributes.select_related("attribute", "unit").order_by("display_order")
+
+        # Collect all attributes (own + inherited from parents)
+        all_attributes = []
+        seen_codes = set()  # Prevent duplicates
+
+        # Get own attributes first
+        for attr in category.category_attributes.select_related("attribute", "unit").order_by("display_order"):
+            code = attr.attribute.code if attr.attribute else str(attr.pk)
+            if code not in seen_codes:
+                seen_codes.add(code)
+                all_attributes.append(attr)
+
+        # Get inherited attributes from parent categories
+        parent = category.parent
+        while parent:
+            for attr in parent.category_attributes.select_related("attribute", "unit").order_by("display_order"):
+                code = attr.attribute.code if attr.attribute else str(attr.pk)
+                if code not in seen_codes:
+                    seen_codes.add(code)
+                    all_attributes.append(attr)
+            parent = parent.parent
 
         data = []
-        for attr in attributes:
+        for attr in all_attributes:
             data.append({
                 "id": attr.id,
                 "code": attr.attribute.code if attr.attribute else "",
@@ -1518,12 +2356,17 @@ class CategoryAttributesAPIView(LoginRequiredMixin, View):
                 "attribute_type": attr.attribute_type,
                 "unit": attr.unit.symbol if attr.unit else "",
                 "is_required": attr.is_required,
+                "is_used_in_name": attr.is_used_in_name,
                 "min_value": str(attr.min_value) if attr.min_value else None,
                 "max_value": str(attr.max_value) if attr.max_value else None,
                 "options": attr.options,
             })
 
-        return JsonResponse({"attributes": data})
+        return JsonResponse({
+            "attributes": data,
+            "name_template": category.name_template or "",
+            "name_template_config": category.name_template_config or None
+        })
 
 
 class CategoryGenerateCodeAPIView(LoginRequiredMixin, View):
@@ -1533,6 +2376,96 @@ class CategoryGenerateCodeAPIView(LoginRequiredMixin, View):
         category = get_object_or_404(InventoryCategory, pk=category_pk)
         code = category.generate_next_code()
         return JsonResponse({"code": code})
+
+    def post(self, request, category_pk):
+        """Also handle POST for CSRF-protected requests."""
+        return self.get(request, category_pk)
+
+
+class ItemSearchAPIView(LoginRequiredMixin, View):
+    """API to search for inventory items."""
+
+    def get(self, request):
+        query = request.GET.get("q", "").strip()
+        if len(query) < 2:
+            return JsonResponse({"items": []})
+
+        items = InventoryItem.objects.filter(
+            Q(code__icontains=query) | Q(name__icontains=query)
+        ).filter(is_active=True)[:20]
+
+        data = [{"id": item.pk, "code": item.code, "name": item.name} for item in items]
+        return JsonResponse({"items": data})
+
+
+class ItemRelationshipAPIView(LoginRequiredMixin, View):
+    """API to manage item relationships."""
+
+    def post(self, request):
+        import json
+        try:
+            data = json.loads(request.body)
+            from_item_id = data.get("from_item")
+            to_item_id = data.get("to_item")
+            status = data.get("status", "EQUAL")
+            notes = data.get("notes", "")
+
+            if not from_item_id or not to_item_id:
+                return JsonResponse({"error": "Both from_item and to_item are required"}, status=400)
+
+            if from_item_id == to_item_id:
+                return JsonResponse({"error": "Cannot create relationship to self"}, status=400)
+
+            from_item = get_object_or_404(InventoryItem, pk=from_item_id)
+            to_item = get_object_or_404(InventoryItem, pk=to_item_id)
+
+            # Check if relationship already exists
+            if ItemRelationship.objects.filter(from_item=from_item, to_item=to_item).exists():
+                return JsonResponse({"error": "Relationship already exists"}, status=400)
+
+            # Create the relationship (bidirectional is handled in model.save())
+            relationship = ItemRelationship.objects.create(
+                from_item=from_item,
+                to_item=to_item,
+                status=status,
+                notes=notes,
+                created_by=request.user
+            )
+
+            return JsonResponse({
+                "success": True,
+                "id": relationship.pk,
+                "message": f"Relationship created: {from_item.code} → {to_item.code}"
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    def delete(self, request, pk):
+        relationship = get_object_or_404(ItemRelationship, pk=pk)
+        # Also delete the reverse relationship
+        ItemRelationship.objects.filter(
+            from_item=relationship.to_item,
+            to_item=relationship.from_item
+        ).delete()
+        relationship.delete()
+        return JsonResponse({"success": True})
+
+
+class WarehouseLocationsAPIView(LoginRequiredMixin, View):
+    """API to get locations for a specific warehouse."""
+
+    def get(self, request, warehouse_pk):
+        locations = InventoryLocation.objects.filter(
+            warehouse_id=warehouse_pk,
+            is_active=True
+        ).values('id', 'name', 'code')
+
+        return JsonResponse({
+            'locations': list(locations)
+        })
 
 
 # =============================================================================
@@ -1869,3 +2802,2849 @@ class ItemCutterSpecUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_success_url(self):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
+
+
+# =============================================================================
+# PHASE 2: LEDGER VIEWS (Read-Only)
+# =============================================================================
+
+from .models import (
+    StockLedger,
+    StockBalance,
+    GoodsReceiptNote,
+    GRNLine,
+    StockIssue,
+    StockIssueLine,
+    StockTransfer,
+    StockTransferLine,
+    StockAdjustment as StockAdjustmentDoc,
+    StockAdjustmentLine,
+    Asset,
+    AssetMovement,
+    QualityStatusChange,
+    StockReservation,
+    BillOfMaterial,
+    BOMLine,
+    CycleCountPlan,
+    CycleCountSession,
+    CycleCountLine,
+    Party,
+    ConditionType,
+    QualityStatus,
+    AdjustmentReason,
+    OwnershipType,
+)
+
+from .forms import (
+    GoodsReceiptNoteForm,
+    GRNLineFormSet,
+    StockIssueForm,
+    StockIssueLineFormSet,
+    StockTransferForm,
+    StockTransferLineFormSet,
+    StockAdjustmentDocForm,
+    StockAdjustmentLineFormSet,
+    AssetForm,
+    AssetMovementForm,
+    QualityStatusChangeForm,
+    StockReservationForm,
+    BillOfMaterialForm,
+    BOMLineFormSet,
+    CycleCountPlanForm,
+    CycleCountSessionForm,
+    CycleCountLineFormSet,
+)
+
+
+class StockLedgerListView(LoginRequiredMixin, ListView):
+    """View stock ledger entries (immutable audit trail)."""
+
+    model = StockLedger
+    template_name = "inventory/ledger/stock_ledger_list.html"
+    context_object_name = "entries"
+    paginate_by = 50
+
+    def get_queryset(self):
+        qs = StockLedger.objects.select_related(
+            "item", "location", "lot", "owner_party", "quality_status"
+        ).order_by("-transaction_date", "-entry_number")
+
+        # Filters
+        item = self.request.GET.get("item")
+        if item:
+            qs = qs.filter(item_id=item)
+
+        location = self.request.GET.get("location")
+        if location:
+            qs = qs.filter(location_id=location)
+
+        trans_type = self.request.GET.get("type")
+        if trans_type:
+            qs = qs.filter(transaction_type=trans_type)
+
+        date_from = self.request.GET.get("date_from")
+        if date_from:
+            qs = qs.filter(transaction_date__gte=date_from)
+
+        date_to = self.request.GET.get("date_to")
+        if date_to:
+            qs = qs.filter(transaction_date__lte=date_to)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Ledger"
+        context["items"] = InventoryItem.objects.filter(is_active=True)
+        context["locations"] = InventoryLocation.objects.filter(is_active=True)
+        context["transaction_types"] = StockLedger.TransactionType.choices
+        return context
+
+
+class StockBalanceListView(LoginRequiredMixin, ListView):
+    """View current stock balances (materialized view)."""
+
+    model = StockBalance
+    template_name = "inventory/ledger/stock_balance_list.html"
+    context_object_name = "balances"
+    paginate_by = 50
+
+    def get_queryset(self):
+        qs = StockBalance.objects.select_related(
+            "item", "location", "lot", "owner_party", "quality_status", "condition", "ownership_type"
+        ).filter(qty_on_hand__gt=0).order_by("item__code", "location__code")
+
+        # Filters
+        item = self.request.GET.get("item")
+        if item:
+            qs = qs.filter(item_id=item)
+
+        location = self.request.GET.get("location")
+        if location:
+            qs = qs.filter(location_id=location)
+
+        owner = self.request.GET.get("owner")
+        if owner:
+            qs = qs.filter(owner_party_id=owner)
+
+        quality = self.request.GET.get("quality")
+        if quality:
+            qs = qs.filter(quality_status_id=quality)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Balances"
+        context["items"] = InventoryItem.objects.filter(is_active=True)
+        context["locations"] = InventoryLocation.objects.filter(is_active=True)
+        context["parties"] = Party.objects.filter(is_active=True, can_own_stock=True)
+        context["quality_statuses"] = QualityStatus.objects.filter(is_active=True)
+        return context
+
+
+# =============================================================================
+# PHASE 3: DOCUMENT VIEWS (GRN, Issues, Transfers, Adjustments)
+# =============================================================================
+
+
+class GRNListView(LoginRequiredMixin, ListView):
+    """List all Goods Receipt Notes."""
+
+    model = GoodsReceiptNote
+    template_name = "inventory/documents/grn_list.html"
+    context_object_name = "grns"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = GoodsReceiptNote.objects.select_related(
+            "warehouse", "supplier", "owner_party", "created_by"
+        ).order_by("-receipt_date", "-grn_number")
+
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+
+        warehouse = self.request.GET.get("warehouse")
+        if warehouse:
+            qs = qs.filter(warehouse_id=warehouse)
+
+        search = self.request.GET.get("q")
+        if search:
+            qs = qs.filter(
+                Q(grn_number__icontains=search) | Q(source_reference__icontains=search)
+            )
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Goods Receipt Notes"
+        context["status_choices"] = GoodsReceiptNote.Status.choices
+        from apps.sales.models import Warehouse
+        context["warehouses"] = Warehouse.objects.filter(is_active=True)
+        return context
+
+
+class GRNCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Goods Receipt Note with lines."""
+
+    model = GoodsReceiptNote
+    form_class = GoodsReceiptNoteForm
+    template_name = "inventory/documents/grn_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Goods Receipt"
+        context["form_title"] = "Create Goods Receipt Note"
+        if self.request.POST:
+            context["lines_formset"] = GRNLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = GRNLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            messages.success(self.request, f"GRN {self.object.grn_number} created successfully.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:grn_detail", kwargs={"pk": self.object.pk})
+
+
+class GRNDetailView(LoginRequiredMixin, DetailView):
+    """View GRN details with lines."""
+
+    model = GoodsReceiptNote
+    template_name = "inventory/documents/grn_detail.html"
+    context_object_name = "grn"
+
+    def get_queryset(self):
+        return GoodsReceiptNote.objects.select_related(
+            "warehouse", "supplier", "owner_party", "ownership_type", "created_by"
+        ).prefetch_related("lines__item", "lines__location", "lines__lot")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"GRN {self.object.grn_number}"
+        context["lines"] = self.object.lines.all()
+        return context
+
+
+class GRNUpdateView(LoginRequiredMixin, UpdateView):
+    """Update GRN (only if DRAFT)."""
+
+    model = GoodsReceiptNote
+    form_class = GoodsReceiptNoteForm
+    template_name = "inventory/documents/grn_form.html"
+
+    def get_queryset(self):
+        return GoodsReceiptNote.objects.filter(status="DRAFT")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.grn_number}"
+        context["form_title"] = "Edit Goods Receipt Note"
+        if self.request.POST:
+            context["lines_formset"] = GRNLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = GRNLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.save()
+            messages.success(self.request, f"GRN {self.object.grn_number} updated successfully.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:grn_detail", kwargs={"pk": self.object.pk})
+
+
+class GRNFromPOView(LoginRequiredMixin, View):
+    """
+    Create a GRN from an existing Purchase Order.
+    Pre-populates GRN lines from outstanding PO lines.
+    """
+    template_name = "inventory/documents/grn_from_po.html"
+
+    def get(self, request, po_pk):
+        from apps.supplychain.models import PurchaseOrder
+        from apps.sales.models import Warehouse
+        from decimal import Decimal
+
+        po = get_object_or_404(
+            PurchaseOrder.objects.select_related('vendor').prefetch_related('lines__inventory_item'),
+            pk=po_pk,
+            status__in=['APPROVED', 'SENT', 'ACKNOWLEDGED', 'IN_PROGRESS', 'PARTIALLY_RECEIVED']
+        )
+
+        # Get outstanding lines only
+        outstanding_lines = []
+        for line in po.lines.filter(is_cancelled=False, is_closed=False):
+            outstanding = (line.quantity_ordered or Decimal('0')) - (line.quantity_received or Decimal('0'))
+            if outstanding > 0:
+                outstanding_lines.append({
+                    'po_line': line,
+                    'qty_expected': outstanding,
+                    'item': line.inventory_item,
+                })
+
+        # Get available options for form
+        warehouses = Warehouse.objects.filter(is_active=True)
+        parties = Party.objects.filter(is_active=True)
+        ownership_types = OwnershipType.objects.filter(is_active=True)
+        conditions = ConditionType.objects.filter(is_active=True)
+        quality_statuses = QualityStatus.objects.filter(is_active=True)
+
+        context = {
+            'po': po,
+            'outstanding_lines': outstanding_lines,
+            'warehouses': warehouses,
+            'parties': parties,
+            'ownership_types': ownership_types,
+            'conditions': conditions,
+            'quality_statuses': quality_statuses,
+            'page_title': f'Create GRN from {po.po_number}',
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request, po_pk):
+        from apps.supplychain.models import PurchaseOrder, PurchaseOrderLine
+        from decimal import Decimal
+
+        po = get_object_or_404(PurchaseOrder, pk=po_pk)
+
+        # Get form data
+        warehouse_id = request.POST.get('warehouse')
+        receiving_location_id = request.POST.get('receiving_location')
+        owner_party_id = request.POST.get('owner_party')
+        ownership_type_id = request.POST.get('ownership_type')
+        requires_qc = request.POST.get('requires_qc') == 'on'
+        receipt_date = request.POST.get('receipt_date') or timezone.now().date()
+        source_reference = request.POST.get('source_reference', '')
+        notes = request.POST.get('notes', '')
+
+        # Validate required fields
+        if not warehouse_id or not receiving_location_id:
+            messages.error(request, "Warehouse and Receiving Location are required.")
+            return redirect('inventory:grn_from_po', po_pk=po_pk)
+
+        if not owner_party_id or not ownership_type_id:
+            messages.error(request, "Owner Party and Ownership Type are required.")
+            return redirect('inventory:grn_from_po', po_pk=po_pk)
+
+        # Get default condition and quality status
+        default_condition = ConditionType.objects.filter(code='NEW', is_active=True).first()
+        default_quality_status = QualityStatus.objects.filter(code='QUARANTINE', is_active=True).first()
+
+        if not default_condition:
+            default_condition = ConditionType.objects.filter(is_active=True).first()
+        if not default_quality_status:
+            default_quality_status = QualityStatus.objects.filter(is_active=True).first()
+
+        # Get default UOM for items without base_uom
+        default_uom = UnitOfMeasure.objects.filter(code='EA', is_active=True).first()
+        if not default_uom:
+            default_uom = UnitOfMeasure.objects.filter(is_active=True).first()
+
+        try:
+            # Create GRN header
+            grn = GoodsReceiptNote.objects.create(
+                receipt_type=GoodsReceiptNote.ReceiptType.PURCHASE,
+                purchase_order=po,
+                vendor=po.vendor,
+                warehouse_id=warehouse_id,
+                receiving_location_id=receiving_location_id,
+                receipt_date=receipt_date,
+                owner_party_id=owner_party_id,
+                ownership_type_id=ownership_type_id,
+                requires_qc=requires_qc,
+                qc_status=GoodsReceiptNote.QCStatus.NOT_REQUIRED if not requires_qc else GoodsReceiptNote.QCStatus.PENDING,
+                source_reference=source_reference,
+                notes=notes,
+                created_by=request.user,
+            )
+
+            # Create GRN lines from selected PO lines
+            line_number = 0
+            lines_created = 0
+
+            for po_line in po.lines.filter(is_cancelled=False):
+                qty_received = request.POST.get(f'qty_received_{po_line.pk}')
+
+                if qty_received:
+                    try:
+                        qty = Decimal(qty_received)
+                        if qty > 0:
+                            line_number += 1
+
+                            # Calculate expected quantity
+                            qty_expected = (po_line.quantity_ordered or Decimal('0')) - (po_line.quantity_received or Decimal('0'))
+
+                            # Get UOM - prefer item's base_uom, fallback to default
+                            item_uom = None
+                            if po_line.inventory_item:
+                                item_uom = po_line.inventory_item.base_uom
+                            if not item_uom:
+                                item_uom = default_uom
+
+                            GRNLine.objects.create(
+                                grn=grn,
+                                line_number=line_number,
+                                po_line=po_line,
+                                item=po_line.inventory_item,
+                                qty_expected=qty_expected,
+                                qty_received=qty,
+                                uom=item_uom,
+                                unit_cost=po_line.unit_price or Decimal('0'),
+                                condition=default_condition,
+                                quality_status=default_quality_status,
+                                location_id=receiving_location_id,
+                            )
+                            lines_created += 1
+                    except (ValueError, TypeError):
+                        continue
+
+            if lines_created == 0:
+                grn.delete()
+                messages.error(request, "No lines were created. Please enter quantities to receive.")
+                return redirect('inventory:grn_from_po', po_pk=po_pk)
+
+            # Calculate variances
+            grn.calculate_variances()
+
+            messages.success(request, f"GRN {grn.grn_number} created from {po.po_number} with {lines_created} lines.")
+            return redirect('inventory:grn_detail', pk=grn.pk)
+
+        except Exception as e:
+            messages.error(request, f"Error creating GRN: {str(e)}")
+            return redirect('inventory:grn_from_po', po_pk=po_pk)
+
+
+class GRNSubmitForQCView(LoginRequiredMixin, View):
+    """Submit GRN for Quality Control inspection."""
+
+    def post(self, request, pk):
+        grn = get_object_or_404(GoodsReceiptNote, pk=pk, status=GoodsReceiptNote.Status.DRAFT)
+
+        if not grn.requires_qc:
+            # Skip QC workflow, go directly to confirmed (ready for posting)
+            grn.status = GoodsReceiptNote.Status.CONFIRMED
+            grn.qc_status = GoodsReceiptNote.QCStatus.NOT_REQUIRED
+            grn.save()
+            messages.success(request, f"GRN {grn.grn_number} confirmed (QC not required). Ready for posting.")
+            return redirect('inventory:grn_detail', pk=pk)
+
+        # Update GRN status to pending QC
+        grn.status = GoodsReceiptNote.Status.PENDING_QC
+        grn.qc_status = GoodsReceiptNote.QCStatus.PENDING
+        grn.save()
+
+        messages.success(request, f"GRN {grn.grn_number} submitted for QC inspection.")
+        return redirect('inventory:grn_qc', pk=pk)
+
+
+class GRNQCView(LoginRequiredMixin, View):
+    """QC inspection interface for GRN."""
+    template_name = "inventory/documents/grn_qc.html"
+
+    def get(self, request, pk):
+        grn = get_object_or_404(
+            GoodsReceiptNote.objects.prefetch_related('lines__item'),
+            pk=pk
+        )
+
+        # Allow viewing QC page for PENDING_QC status, or already inspected
+        if grn.status not in [GoodsReceiptNote.Status.PENDING_QC, GoodsReceiptNote.Status.CONFIRMED]:
+            messages.error(request, "GRN must be submitted for QC first.")
+            return redirect('inventory:grn_detail', pk=pk)
+
+        return render(request, self.template_name, {
+            'grn': grn,
+            'lines': grn.lines.all(),
+            'page_title': f'QC Inspection - {grn.grn_number}',
+        })
+
+    def post(self, request, pk):
+        from decimal import Decimal
+
+        grn = get_object_or_404(GoodsReceiptNote, pk=pk, status=GoodsReceiptNote.Status.PENDING_QC)
+
+        all_passed = True
+        any_failed = False
+
+        for line in grn.lines.all():
+            line_status = request.POST.get(f'qc_status_{line.pk}')
+            qty_accepted_str = request.POST.get(f'qty_accepted_{line.pk}', '0')
+            qty_rejected_str = request.POST.get(f'qty_rejected_{line.pk}', '0')
+            qc_notes = request.POST.get(f'qc_notes_{line.pk}', '')
+
+            try:
+                qty_accepted = Decimal(qty_accepted_str) if qty_accepted_str else Decimal('0')
+                qty_rejected = Decimal(qty_rejected_str) if qty_rejected_str else Decimal('0')
+            except:
+                qty_accepted = Decimal('0')
+                qty_rejected = Decimal('0')
+
+            # Auto-calculate status if not explicitly set
+            if not line_status:
+                if qty_rejected == 0 and qty_accepted == line.qty_received:
+                    line_status = GRNLine.LineQCStatus.PASSED
+                elif qty_accepted == 0:
+                    line_status = GRNLine.LineQCStatus.FAILED
+                else:
+                    line_status = GRNLine.LineQCStatus.PARTIAL
+
+            line.line_qc_status = line_status
+            line.qty_accepted = qty_accepted
+            line.qty_rejected = qty_rejected
+            line.qc_notes = qc_notes
+            line.save()
+
+            if line_status != GRNLine.LineQCStatus.PASSED:
+                all_passed = False
+            if line_status == GRNLine.LineQCStatus.FAILED:
+                any_failed = True
+
+        # Update GRN QC status
+        if all_passed:
+            grn.qc_status = GoodsReceiptNote.QCStatus.PASSED
+            grn.status = GoodsReceiptNote.Status.CONFIRMED
+        elif any_failed and not any(
+            l.line_qc_status in [GRNLine.LineQCStatus.PASSED, GRNLine.LineQCStatus.PARTIAL]
+            for l in grn.lines.all()
+        ):
+            grn.qc_status = GoodsReceiptNote.QCStatus.FAILED
+            # Keep in PENDING_QC for re-inspection or cancellation
+        else:
+            grn.qc_status = GoodsReceiptNote.QCStatus.PARTIAL
+            grn.status = GoodsReceiptNote.Status.CONFIRMED
+
+        grn.qc_completed = True
+        grn.qc_completed_at = timezone.now()
+        grn.qc_completed_by = request.user
+        grn.save()
+
+        if grn.status == GoodsReceiptNote.Status.CONFIRMED:
+            messages.success(request, f"QC inspection completed for {grn.grn_number}. Ready for posting.")
+        else:
+            messages.warning(request, f"QC inspection completed for {grn.grn_number}. All items failed - review required.")
+
+        return redirect('inventory:grn_detail', pk=pk)
+
+
+class GRNApproveVarianceView(LoginRequiredMixin, View):
+    """Approve quantity variances on a GRN to allow posting."""
+
+    def post(self, request, pk):
+        grn = get_object_or_404(GoodsReceiptNote, pk=pk)
+
+        # Only allow variance approval if there are variances
+        if not grn.has_quantity_variance:
+            messages.info(request, "This GRN has no quantity variances.")
+            return redirect("inventory:grn_detail", pk=pk)
+
+        # Already approved?
+        if grn.variance_approved:
+            messages.info(request, "Variances already approved.")
+            return redirect("inventory:grn_detail", pk=pk)
+
+        # Approve the variances
+        grn.variance_approved = True
+        grn.variance_approved_by = request.user
+        grn.variance_approved_at = timezone.now()
+        grn.save(update_fields=['variance_approved', 'variance_approved_by', 'variance_approved_at'])
+
+        messages.success(request, f"Quantity variances approved for {grn.grn_number}.")
+        return redirect("inventory:grn_detail", pk=pk)
+
+
+class GRNPostView(LoginRequiredMixin, View):
+    """
+    Post a GRN to create ledger entries and update PO quantities.
+
+    Business Logic:
+    1. Validate GRN is in CONFIRMED status (passed QC if required)
+    2. For each line:
+       a. Check variance tolerance
+       b. Create StockLedger entry with proper dimensions
+       c. Update/Create StockBalance
+       d. Update PO line quantity_received
+       e. Mark line as posted
+    3. Update GRN status
+    4. Update PO status if fully/partially received
+    """
+
+    def post(self, request, pk):
+        from django.db import transaction
+        from decimal import Decimal
+
+        grn = get_object_or_404(
+            GoodsReceiptNote.objects.select_related(
+                'purchase_order', 'owner_party', 'ownership_type', 'receiving_location'
+            ),
+            pk=pk
+        )
+
+        # Validation: Status check - allow CONFIRMED or DRAFT (for backward compatibility)
+        if grn.status not in [GoodsReceiptNote.Status.CONFIRMED, GoodsReceiptNote.Status.DRAFT]:
+            messages.error(request, f"Cannot post GRN. Status must be CONFIRMED or DRAFT, but is {grn.get_status_display()}")
+            return redirect("inventory:grn_detail", pk=pk)
+
+        # Validation: QC check
+        if grn.requires_qc and grn.qc_status not in [
+            GoodsReceiptNote.QCStatus.PASSED,
+            GoodsReceiptNote.QCStatus.NOT_REQUIRED,
+            GoodsReceiptNote.QCStatus.PARTIAL
+        ]:
+            messages.error(request, "Cannot post GRN. QC inspection not completed or failed.")
+            return redirect("inventory:grn_detail", pk=pk)
+
+        # Validation: Variance approval check
+        if grn.has_quantity_variance and not grn.variance_approved:
+            messages.error(request, "Cannot post GRN. Quantity variances require approval.")
+            return redirect("inventory:grn_detail", pk=pk)
+
+        posted_count = 0
+        error_messages = []
+
+        try:
+            with transaction.atomic():
+                for line in grn.lines.filter(is_posted=False):
+                    try:
+                        # Determine quantity to post
+                        qty_to_post = line.get_qty_to_post()
+
+                        if qty_to_post <= 0:
+                            continue
+
+                        # Get effective location (line override or GRN default)
+                        location = line.location or grn.receiving_location
+
+                        if not location:
+                            error_messages.append(f"Line {line.line_number}: No location specified")
+                            continue
+
+                        # Create unique reference_id for idempotent posting
+                        reference_id = f"{grn.grn_number}-LINE-{line.line_number}"
+
+                        # Check if already posted (idempotency)
+                        if StockLedger.objects.filter(
+                            reference_type='GRN',
+                            reference_id=reference_id
+                        ).exists():
+                            line.is_posted = True
+                            line.posted_at = timezone.now()
+                            line.save()
+                            continue
+
+                        # Create StockLedger entry
+                        StockLedger.objects.create(
+                            transaction_type=StockLedger.TransactionType.RECEIPT,
+                            transaction_date=grn.receipt_date,
+                            item=line.item,
+                            qty_delta=qty_to_post,
+                            uom=line.uom,
+                            location=location,
+                            lot=line.lot,
+                            owner_party=grn.owner_party,
+                            ownership_type=grn.ownership_type,
+                            quality_status=line.quality_status,
+                            condition=line.condition,
+                            unit_cost=line.unit_cost,
+                            total_cost=qty_to_post * line.unit_cost,
+                            reference_type='GRN',
+                            reference_id=reference_id,
+                            notes=f"Receipt from GRN {grn.grn_number}",
+                            created_by=request.user,
+                        )
+
+                        # Update StockBalance
+                        self._update_stock_balance(
+                            item=line.item,
+                            location=location,
+                            lot=line.lot,
+                            owner_party=grn.owner_party,
+                            ownership_type=grn.ownership_type,
+                            quality_status=line.quality_status,
+                            condition=line.condition,
+                            qty_change=qty_to_post,
+                            cost_change=qty_to_post * line.unit_cost,
+                        )
+
+                        # Update PO line quantity received
+                        if line.po_line:
+                            line.po_line.quantity_received = (
+                                line.po_line.quantity_received or Decimal('0')
+                            ) + qty_to_post
+                            line.po_line.save()
+
+                        # Mark line as posted
+                        line.is_posted = True
+                        line.posted_at = timezone.now()
+                        line.save()
+
+                        posted_count += 1
+
+                    except Exception as e:
+                        error_messages.append(f"Line {line.line_number}: {str(e)}")
+
+                if error_messages:
+                    for msg in error_messages:
+                        messages.error(request, msg)
+
+                if posted_count > 0:
+                    # Update GRN to CONFIRMED status (final positive state)
+                    grn.status = GoodsReceiptNote.Status.CONFIRMED
+                    grn.posted_date = timezone.now()
+                    grn.posted_by = request.user
+                    grn.save()
+
+                    # Update PO status
+                    if grn.purchase_order:
+                        self._update_po_status(grn.purchase_order)
+
+                    messages.success(request, f"GRN {grn.grn_number}: {posted_count} lines posted successfully.")
+                else:
+                    messages.warning(request, "No lines were posted.")
+
+        except Exception as e:
+            messages.error(request, f"Error posting GRN: {str(e)}")
+
+        return redirect("inventory:grn_detail", pk=pk)
+
+    def _update_stock_balance(self, item, location, lot, owner_party,
+                              ownership_type, quality_status, condition,
+                              qty_change, cost_change):
+        """Update or create StockBalance and InventoryStock entries."""
+        from decimal import Decimal
+
+        # Update StockBalance (detailed inventory with dimensions)
+        balance, created = StockBalance.objects.get_or_create(
+            item=item,
+            location=location,
+            lot=lot,
+            owner_party=owner_party,
+            ownership_type=ownership_type,
+            quality_status=quality_status,
+            condition=condition,
+            defaults={
+                'qty_on_hand': Decimal('0'),
+                'qty_reserved': Decimal('0'),
+                'qty_available': Decimal('0'),
+                'total_cost': Decimal('0'),
+            }
+        )
+
+        balance.qty_on_hand = (balance.qty_on_hand or Decimal('0')) + qty_change
+        balance.qty_available = balance.qty_on_hand - (balance.qty_reserved or Decimal('0'))
+        balance.total_cost = (balance.total_cost or Decimal('0')) + cost_change
+
+        if balance.qty_on_hand > 0:
+            balance.avg_unit_cost = balance.total_cost / balance.qty_on_hand
+
+        balance.last_movement_date = timezone.now()
+        balance.save()
+
+        # Also update InventoryStock (simpler model used by item views)
+        lot_number = lot.lot_number if lot else ''
+        inv_stock, _ = InventoryStock.objects.get_or_create(
+            item=item,
+            location=location,
+            lot_number=lot_number,
+            serial_number='',
+            defaults={
+                'quantity_on_hand': Decimal('0'),
+                'quantity_reserved': Decimal('0'),
+                'quantity_available': Decimal('0'),
+            }
+        )
+
+        inv_stock.quantity_on_hand = (inv_stock.quantity_on_hand or Decimal('0')) + qty_change
+        inv_stock.quantity_available = inv_stock.quantity_on_hand - (inv_stock.quantity_reserved or Decimal('0'))
+        inv_stock.last_movement_date = timezone.now()
+        inv_stock.save()
+
+    def _update_po_status(self, po):
+        """Update PO status based on received quantities."""
+        from decimal import Decimal
+
+        total_ordered = sum(
+            line.quantity_ordered or Decimal('0')
+            for line in po.lines.filter(is_cancelled=False)
+        )
+        total_received = sum(
+            line.quantity_received or Decimal('0')
+            for line in po.lines.filter(is_cancelled=False)
+        )
+
+        if total_ordered > 0:
+            if total_received >= total_ordered:
+                po.status = 'COMPLETED'
+            elif total_received > 0:
+                po.status = 'PARTIALLY_RECEIVED'
+
+            po.save()
+
+
+# Stock Issue Views
+class StockIssueListView(LoginRequiredMixin, ListView):
+    """List all Stock Issues."""
+
+    model = StockIssue
+    template_name = "inventory/documents/issue_list.html"
+    context_object_name = "issues"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = StockIssue.objects.select_related(
+            "warehouse", "issue_to_party", "created_by"
+        ).order_by("-issue_date", "-issue_number")
+
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Issues"
+        context["status_choices"] = StockIssue.Status.choices
+        return context
+
+
+class StockIssueCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Stock Issue."""
+
+    model = StockIssue
+    form_class = StockIssueForm
+    template_name = "inventory/documents/issue_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Stock Issue"
+        context["form_title"] = "Create Stock Issue"
+        if self.request.POST:
+            context["lines_formset"] = StockIssueLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = StockIssueLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            messages.success(self.request, f"Issue {self.object.issue_number} created.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:issue_detail", kwargs={"pk": self.object.pk})
+
+
+class StockIssueDetailView(LoginRequiredMixin, DetailView):
+    """View Stock Issue details."""
+
+    model = StockIssue
+    template_name = "inventory/documents/issue_detail.html"
+    context_object_name = "issue"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Issue {self.object.issue_number}"
+        context["lines"] = self.object.lines.select_related("item", "from_location", "lot")
+        return context
+
+
+class StockIssuePostView(LoginRequiredMixin, View):
+    """Post a Stock Issue to create ledger entries."""
+
+    def post(self, request, pk):
+        issue = get_object_or_404(StockIssue, pk=pk)
+
+        if issue.status != "DRAFT":
+            messages.error(request, "Only DRAFT issues can be posted.")
+            return redirect("inventory:issue_detail", pk=pk)
+
+        try:
+            for line in issue.lines.filter(is_posted=False):
+                StockLedger.objects.create(
+                    transaction_type="ISSUE",
+                    transaction_date=issue.issue_date,
+                    item=line.item,
+                    location=line.from_location,
+                    lot=line.lot,
+                    qty_delta=-line.qty_issued,  # Negative for issue
+                    unit_cost=line.unit_cost,
+                    total_cost=line.total_cost,
+                    reference_type="ISSUE",
+                    reference_id=str(issue.pk),
+                    created_by=request.user,
+                )
+                line.is_posted = True
+                line.posted_at = timezone.now()
+                line.save()
+
+            issue.status = "POSTED"
+            issue.posted_date = timezone.now()
+            issue.posted_by = request.user
+            issue.save()
+
+            messages.success(request, f"Issue {issue.issue_number} posted.")
+        except Exception as e:
+            messages.error(request, f"Error posting issue: {str(e)}")
+
+        return redirect("inventory:issue_detail", pk=pk)
+
+
+# Stock Transfer Views
+class StockTransferListView(LoginRequiredMixin, ListView):
+    """List all Stock Transfers."""
+
+    model = StockTransfer
+    template_name = "inventory/documents/transfer_list.html"
+    context_object_name = "transfers"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return StockTransfer.objects.select_related(
+            "from_warehouse", "to_warehouse", "created_by"
+        ).order_by("-transfer_date", "-transfer_number")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Transfers"
+        context["status_choices"] = StockTransfer.Status.choices
+        return context
+
+
+class StockTransferCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Stock Transfer."""
+
+    model = StockTransfer
+    form_class = StockTransferForm
+    template_name = "inventory/documents/transfer_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Stock Transfer"
+        context["form_title"] = "Create Stock Transfer"
+        if self.request.POST:
+            context["lines_formset"] = StockTransferLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = StockTransferLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            messages.success(self.request, f"Transfer {self.object.transfer_number} created.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:transfer_detail", kwargs={"pk": self.object.pk})
+
+
+class StockTransferDetailView(LoginRequiredMixin, DetailView):
+    """View Stock Transfer details."""
+
+    model = StockTransfer
+    template_name = "inventory/documents/transfer_detail.html"
+    context_object_name = "transfer"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Transfer {self.object.transfer_number}"
+        context["lines"] = self.object.lines.select_related("item", "from_location", "to_location", "lot")
+        return context
+
+
+class StockTransferPostView(LoginRequiredMixin, View):
+    """Post a Stock Transfer to create ledger entries."""
+
+    def post(self, request, pk):
+        transfer = get_object_or_404(StockTransfer, pk=pk)
+
+        if transfer.status != "DRAFT":
+            messages.error(request, "Only DRAFT transfers can be posted.")
+            return redirect("inventory:transfer_detail", pk=pk)
+
+        try:
+            for line in transfer.lines.filter(is_posted=False):
+                # Create OUT entry (from location)
+                StockLedger.objects.create(
+                    transaction_type="TRANSFER_OUT",
+                    transaction_date=transfer.transfer_date,
+                    item=line.item,
+                    location=line.from_location,
+                    lot=line.lot,
+                    qty_delta=-line.qty_transferred,
+                    reference_type="TRANSFER",
+                    reference_id=str(transfer.pk),
+                    created_by=request.user,
+                )
+                # Create IN entry (to location)
+                StockLedger.objects.create(
+                    transaction_type="TRANSFER_IN",
+                    transaction_date=transfer.transfer_date,
+                    item=line.item,
+                    location=line.to_location,
+                    lot=line.lot,
+                    qty_delta=line.qty_transferred,
+                    reference_type="TRANSFER",
+                    reference_id=str(transfer.pk),
+                    created_by=request.user,
+                )
+                line.is_posted = True
+                line.posted_at = timezone.now()
+                line.save()
+
+            transfer.status = "POSTED"
+            transfer.posted_date = timezone.now()
+            transfer.posted_by = request.user
+            transfer.save()
+
+            messages.success(request, f"Transfer {transfer.transfer_number} posted.")
+        except Exception as e:
+            messages.error(request, f"Error posting transfer: {str(e)}")
+
+        return redirect("inventory:transfer_detail", pk=pk)
+
+
+# Stock Adjustment Document Views
+class StockAdjustmentDocListView(LoginRequiredMixin, ListView):
+    """List all Stock Adjustment documents."""
+
+    model = StockAdjustmentDoc
+    template_name = "inventory/documents/adjustment_list.html"
+    context_object_name = "adjustments"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return StockAdjustmentDoc.objects.select_related(
+            "warehouse", "reason", "created_by"
+        ).order_by("-adjustment_date", "-adjustment_number")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Adjustments"
+        context["status_choices"] = StockAdjustmentDoc.Status.choices
+        return context
+
+
+class StockAdjustmentDocCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Stock Adjustment document."""
+
+    model = StockAdjustmentDoc
+    form_class = StockAdjustmentDocForm
+    template_name = "inventory/documents/adjustment_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Stock Adjustment"
+        context["form_title"] = "Create Stock Adjustment"
+        if self.request.POST:
+            context["lines_formset"] = StockAdjustmentLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = StockAdjustmentLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            messages.success(self.request, f"Adjustment {self.object.adjustment_number} created.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:adjustment_detail", kwargs={"pk": self.object.pk})
+
+
+class StockAdjustmentDocDetailView(LoginRequiredMixin, DetailView):
+    """View Stock Adjustment details."""
+
+    model = StockAdjustmentDoc
+    template_name = "inventory/documents/adjustment_detail.html"
+    context_object_name = "adjustment"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Adjustment {self.object.adjustment_number}"
+        context["lines"] = self.object.lines.select_related("item", "location", "lot")
+        return context
+
+
+class StockAdjustmentDocPostView(LoginRequiredMixin, View):
+    """Post a Stock Adjustment to create ledger entries."""
+
+    def post(self, request, pk):
+        adjustment = get_object_or_404(StockAdjustmentDoc, pk=pk)
+
+        if adjustment.status != "DRAFT":
+            messages.error(request, "Only DRAFT adjustments can be posted.")
+            return redirect("inventory:adjustment_detail", pk=pk)
+
+        try:
+            for line in adjustment.lines.filter(is_posted=False):
+                # qty_adjustment = qty_actual - qty_system
+                StockLedger.objects.create(
+                    transaction_type="ADJUSTMENT",
+                    transaction_date=adjustment.adjustment_date,
+                    item=line.item,
+                    location=line.location,
+                    lot=line.lot,
+                    qty_delta=line.qty_adjustment,
+                    unit_cost=line.unit_cost,
+                    total_cost=line.total_cost,
+                    reference_type="ADJUSTMENT",
+                    reference_id=str(adjustment.pk),
+                    created_by=request.user,
+                )
+                line.is_posted = True
+                line.posted_at = timezone.now()
+                line.save()
+
+            adjustment.status = "POSTED"
+            adjustment.posted_date = timezone.now()
+            adjustment.posted_by = request.user
+            adjustment.save()
+
+            messages.success(request, f"Adjustment {adjustment.adjustment_number} posted.")
+        except Exception as e:
+            messages.error(request, f"Error posting adjustment: {str(e)}")
+
+        return redirect("inventory:adjustment_detail", pk=pk)
+
+
+# =============================================================================
+# PHASE 4: ASSET VIEWS
+# =============================================================================
+
+
+class AssetListView(LoginRequiredMixin, ListView):
+    """List all Assets."""
+
+    model = Asset
+    template_name = "inventory/assets/asset_list.html"
+    context_object_name = "assets"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = Asset.objects.select_related(
+            "item", "condition", "quality_status", "current_location", "warehouse", "owner_party"
+        ).order_by("-created_at")
+
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+
+        warehouse = self.request.GET.get("warehouse")
+        if warehouse:
+            qs = qs.filter(warehouse_id=warehouse)
+
+        search = self.request.GET.get("q")
+        if search:
+            qs = qs.filter(
+                Q(serial_number__icontains=search) |
+                Q(asset_tag__icontains=search) |
+                Q(item__code__icontains=search)
+            )
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Asset Register"
+        context["status_choices"] = Asset.Status.choices
+        from apps.sales.models import Warehouse
+        context["warehouses"] = Warehouse.objects.filter(is_active=True)
+        return context
+
+
+class AssetCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Asset."""
+
+    model = Asset
+    form_class = AssetForm
+    template_name = "inventory/assets/asset_form.html"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Asset {form.instance.serial_number} created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:asset_detail", kwargs={"pk": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Asset"
+        context["form_title"] = "Create Asset"
+        return context
+
+
+class AssetDetailView(LoginRequiredMixin, DetailView):
+    """View Asset details with movement history."""
+
+    model = Asset
+    template_name = "inventory/assets/asset_detail.html"
+    context_object_name = "asset"
+
+    def get_queryset(self):
+        return Asset.objects.select_related(
+            "item", "condition", "quality_status", "current_location",
+            "warehouse", "owner_party", "ownership_type", "custodian_party"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Asset {self.object.serial_number}"
+        context["movements"] = self.object.movements.select_related(
+            "from_location", "to_location", "created_by"
+        ).order_by("-movement_date")[:20]
+        return context
+
+
+class AssetUpdateView(LoginRequiredMixin, UpdateView):
+    """Update Asset."""
+
+    model = Asset
+    form_class = AssetForm
+    template_name = "inventory/assets/asset_form.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Asset {form.instance.serial_number} updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:asset_detail", kwargs={"pk": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.serial_number}"
+        context["form_title"] = "Edit Asset"
+        return context
+
+
+class AssetMovementCreateView(LoginRequiredMixin, CreateView):
+    """Record an asset movement."""
+
+    model = AssetMovement
+    form_class = AssetMovementForm
+    template_name = "inventory/assets/movement_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        asset = get_object_or_404(Asset, pk=self.kwargs["asset_pk"])
+        context["asset"] = asset
+        context["page_title"] = f"Move Asset {asset.serial_number}"
+        context["form_title"] = "Record Asset Movement"
+        return context
+
+    def form_valid(self, form):
+        asset = get_object_or_404(Asset, pk=self.kwargs["asset_pk"])
+        form.instance.asset = asset
+        form.instance.created_by = self.request.user
+
+        # Update asset location if movement is location-based
+        if form.instance.to_location:
+            asset.current_location = form.instance.to_location
+        if form.instance.to_status:
+            asset.status = form.instance.to_status
+        asset.save()
+
+        messages.success(self.request, "Asset movement recorded.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:asset_detail", kwargs={"pk": self.kwargs["asset_pk"]})
+
+
+# =============================================================================
+# PHASE 5: QC GATES VIEWS
+# =============================================================================
+
+
+class QualityStatusChangeListView(LoginRequiredMixin, ListView):
+    """List QC status changes."""
+
+    model = QualityStatusChange
+    template_name = "inventory/qc/qc_change_list.html"
+    context_object_name = "changes"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return QualityStatusChange.objects.select_related(
+            "lot", "asset", "from_status", "to_status", "changed_by"
+        ).order_by("-change_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "QC Status Changes"
+        return context
+
+
+class QualityStatusChangeCreateView(LoginRequiredMixin, CreateView):
+    """Record a QC status change."""
+
+    model = QualityStatusChange
+    form_class = QualityStatusChangeForm
+    template_name = "inventory/qc/qc_change_form.html"
+
+    def form_valid(self, form):
+        form.instance.changed_by = self.request.user
+
+        # Update the lot or asset's quality status
+        if form.instance.lot:
+            form.instance.lot.quality_status = form.instance.to_status
+            form.instance.lot.save()
+        elif form.instance.asset:
+            form.instance.asset.quality_status = form.instance.to_status
+            form.instance.asset.save()
+
+        messages.success(self.request, "QC status change recorded.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:qc_change_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New QC Status Change"
+        context["form_title"] = "Record QC Status Change"
+        return context
+
+
+# =============================================================================
+# PHASE 6: RESERVATION VIEWS
+# =============================================================================
+
+
+class StockReservationListView(LoginRequiredMixin, ListView):
+    """List stock reservations."""
+
+    model = StockReservation
+    template_name = "inventory/reservations/reservation_list.html"
+    context_object_name = "reservations"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = StockReservation.objects.select_related(
+            "item", "lot", "location", "created_by"
+        ).order_by("-created_at")
+
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Stock Reservations"
+        context["status_choices"] = StockReservation.Status.choices
+        return context
+
+
+class StockReservationCreateView(LoginRequiredMixin, CreateView):
+    """Create a stock reservation."""
+
+    model = StockReservation
+    form_class = StockReservationForm
+    template_name = "inventory/reservations/reservation_form.html"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Reservation {form.instance.reservation_number} created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:reservation_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Reservation"
+        context["form_title"] = "Create Stock Reservation"
+        return context
+
+
+class StockReservationCancelView(LoginRequiredMixin, View):
+    """Cancel a stock reservation."""
+
+    def post(self, request, pk):
+        reservation = get_object_or_404(StockReservation, pk=pk)
+
+        if reservation.status not in ["PENDING", "CONFIRMED"]:
+            messages.error(request, "Only PENDING or CONFIRMED reservations can be cancelled.")
+            return redirect("inventory:reservation_list")
+
+        reservation.status = "CANCELLED"
+        reservation.save()
+        messages.success(request, f"Reservation {reservation.reservation_number} cancelled.")
+
+        return redirect("inventory:reservation_list")
+
+
+# =============================================================================
+# PHASE 7: BOM VIEWS
+# =============================================================================
+
+
+class BOMListView(LoginRequiredMixin, ListView):
+    """List all BOMs."""
+
+    model = BillOfMaterial
+    template_name = "inventory/bom/bom_list.html"
+    context_object_name = "boms"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = BillOfMaterial.objects.select_related(
+            "parent_item", "created_by"
+        ).order_by("-created_at")
+
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+
+        search = self.request.GET.get("q")
+        if search:
+            qs = qs.filter(
+                Q(bom_code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(parent_item__code__icontains=search)
+            )
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Bills of Material"
+        context["status_choices"] = BillOfMaterial.Status.choices
+        return context
+
+
+class BOMCreateView(LoginRequiredMixin, CreateView):
+    """Create a new BOM."""
+
+    model = BillOfMaterial
+    form_class = BillOfMaterialForm
+    template_name = "inventory/bom/bom_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New BOM"
+        context["form_title"] = "Create Bill of Material"
+        if self.request.POST:
+            context["lines_formset"] = BOMLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = BOMLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            self.object.recalculate_costs()
+            messages.success(self.request, f"BOM {self.object.bom_code} created.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:bom_detail", kwargs={"pk": self.object.pk})
+
+
+class BOMDetailView(LoginRequiredMixin, DetailView):
+    """View BOM details with components."""
+
+    model = BillOfMaterial
+    template_name = "inventory/bom/bom_detail.html"
+    context_object_name = "bom"
+
+    def get_queryset(self):
+        return BillOfMaterial.objects.select_related("parent_item", "created_by")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"BOM {self.object.bom_code}"
+        context["lines"] = self.object.lines.select_related("component_item", "uom").order_by("line_number")
+        return context
+
+
+class BOMUpdateView(LoginRequiredMixin, UpdateView):
+    """Update a BOM."""
+
+    model = BillOfMaterial
+    form_class = BillOfMaterialForm
+    template_name = "inventory/bom/bom_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit {self.object.bom_code}"
+        context["form_title"] = "Edit Bill of Material"
+        if self.request.POST:
+            context["lines_formset"] = BOMLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = BOMLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.save()
+            self.object.recalculate_costs()
+            messages.success(self.request, f"BOM {self.object.bom_code} updated.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:bom_detail", kwargs={"pk": self.object.pk})
+
+
+class BOMRecalculateView(LoginRequiredMixin, View):
+    """Recalculate BOM costs."""
+
+    def post(self, request, pk):
+        bom = get_object_or_404(BillOfMaterial, pk=pk)
+        bom.recalculate_costs()
+        messages.success(request, f"BOM {bom.bom_code} costs recalculated.")
+        return redirect("inventory:bom_detail", pk=pk)
+
+
+# =============================================================================
+# PHASE 8: CYCLE COUNT VIEWS
+# =============================================================================
+
+
+class CycleCountPlanListView(LoginRequiredMixin, ListView):
+    """List cycle count plans."""
+
+    model = CycleCountPlan
+    template_name = "inventory/cyclecount/plan_list.html"
+    context_object_name = "plans"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return CycleCountPlan.objects.select_related(
+            "warehouse", "created_by"
+        ).order_by("-start_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Cycle Count Plans"
+        context["status_choices"] = CycleCountPlan.Status.choices
+        return context
+
+
+class CycleCountPlanCreateView(LoginRequiredMixin, CreateView):
+    """Create a cycle count plan."""
+
+    model = CycleCountPlan
+    form_class = CycleCountPlanForm
+    template_name = "inventory/cyclecount/plan_form.html"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, f"Cycle count plan {form.instance.plan_code} created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:cyclecount_plan_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Cycle Count Plan"
+        context["form_title"] = "Create Cycle Count Plan"
+        return context
+
+
+class CycleCountSessionListView(LoginRequiredMixin, ListView):
+    """List cycle count sessions."""
+
+    model = CycleCountSession
+    template_name = "inventory/cyclecount/session_list.html"
+    context_object_name = "sessions"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return CycleCountSession.objects.select_related(
+            "plan", "warehouse", "location", "counted_by"
+        ).order_by("-session_date")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Cycle Count Sessions"
+        context["status_choices"] = CycleCountSession.Status.choices
+        return context
+
+
+class CycleCountSessionCreateView(LoginRequiredMixin, CreateView):
+    """Create a cycle count session."""
+
+    model = CycleCountSession
+    form_class = CycleCountSessionForm
+    template_name = "inventory/cyclecount/session_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Count Session"
+        context["form_title"] = "Create Cycle Count Session"
+        if self.request.POST:
+            context["lines_formset"] = CycleCountLineFormSet(self.request.POST, instance=self.object)
+        else:
+            context["lines_formset"] = CycleCountLineFormSet(instance=self.object)
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        lines_formset = context["lines_formset"]
+
+        form.instance.counted_by = self.request.user
+        self.object = form.save()
+
+        if lines_formset.is_valid():
+            lines_formset.instance = self.object
+            lines_formset.save()
+            messages.success(self.request, f"Session {self.object.session_number} created.")
+            return redirect(self.get_success_url())
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:cyclecount_session_detail", kwargs={"pk": self.object.pk})
+
+
+class CycleCountSessionDetailView(LoginRequiredMixin, DetailView):
+    """View cycle count session with lines."""
+
+    model = CycleCountSession
+    template_name = "inventory/cyclecount/session_detail.html"
+    context_object_name = "session"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Session {self.object.session_number}"
+        context["lines"] = self.object.lines.select_related("item", "lot", "location", "counted_by")
+        return context
+
+
+class CycleCountSessionFinalizeView(LoginRequiredMixin, View):
+    """Finalize a cycle count session and create adjustments."""
+
+    def post(self, request, pk):
+        session = get_object_or_404(CycleCountSession, pk=pk)
+
+        if session.status != "IN_PROGRESS":
+            messages.error(request, "Only IN_PROGRESS sessions can be finalized.")
+            return redirect("inventory:cyclecount_session_detail", pk=pk)
+
+        # Calculate totals
+        lines = session.lines.all()
+        session.total_items = lines.count()
+        session.items_counted = lines.exclude(qty_counted__isnull=True).count()
+        session.items_variance = lines.exclude(qty_variance=0).count()
+        session.total_variance_value = sum(line.variance_value or 0 for line in lines)
+
+        session.status = "COMPLETED"
+        session.save()
+
+        messages.success(request, f"Session {session.session_number} finalized.")
+        return redirect("inventory:cyclecount_session_detail", pk=pk)
+
+
+# =============================================================================
+# Reference Data Views
+# =============================================================================
+
+
+class PartyListView(LoginRequiredMixin, ListView):
+    """List all parties (customers, suppliers, owners)."""
+
+    model = Party
+    template_name = "inventory/refdata/party_list.html"
+    context_object_name = "parties"
+    paginate_by = 25
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Parties"
+        return context
+
+
+class PartyCreateView(LoginRequiredMixin, CreateView):
+    """Create a new party."""
+
+    model = Party
+    form_class = PartyForm
+    template_name = "inventory/refdata/party_form.html"
+    success_url = reverse_lazy("inventory:party_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Party"
+        context["form_title"] = "Create Party"
+        return context
+
+
+class PartyUpdateView(LoginRequiredMixin, UpdateView):
+    """Update a party."""
+
+    model = Party
+    form_class = PartyForm
+    template_name = "inventory/refdata/party_form.html"
+    success_url = reverse_lazy("inventory:party_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Edit Party"
+        context["form_title"] = f"Edit {self.object.name}"
+        return context
+
+
+class ConditionTypeListView(LoginRequiredMixin, ListView):
+    """List all condition types."""
+
+    model = ConditionType
+    template_name = "inventory/refdata/condition_list.html"
+    context_object_name = "conditions"
+    paginate_by = 25
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Condition Types"
+        return context
+
+
+class ConditionTypeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new condition type."""
+
+    model = ConditionType
+    form_class = ConditionTypeForm
+    template_name = "inventory/refdata/condition_form.html"
+    success_url = reverse_lazy("inventory:condition_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Condition Type"
+        context["form_title"] = "Create Condition Type"
+        return context
+
+
+class ConditionTypeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update a condition type."""
+
+    model = ConditionType
+    form_class = ConditionTypeForm
+    template_name = "inventory/refdata/condition_form.html"
+    success_url = reverse_lazy("inventory:condition_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Edit Condition Type"
+        context["form_title"] = f"Edit {self.object.name}"
+        return context
+
+
+class QualityStatusListView(LoginRequiredMixin, ListView):
+    """List all quality statuses."""
+
+    model = QualityStatus
+    template_name = "inventory/refdata/quality_status_list.html"
+    context_object_name = "statuses"
+    paginate_by = 25
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Quality Statuses"
+        return context
+
+
+class QualityStatusCreateView(LoginRequiredMixin, CreateView):
+    """Create a new quality status."""
+
+    model = QualityStatus
+    form_class = QualityStatusForm
+    template_name = "inventory/refdata/quality_status_form.html"
+    success_url = reverse_lazy("inventory:quality_status_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Quality Status"
+        context["form_title"] = "Create Quality Status"
+        return context
+
+
+class QualityStatusUpdateView(LoginRequiredMixin, UpdateView):
+    """Update a quality status."""
+
+    model = QualityStatus
+    form_class = QualityStatusForm
+    template_name = "inventory/refdata/quality_status_form.html"
+    success_url = reverse_lazy("inventory:quality_status_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Edit Quality Status"
+        context["form_title"] = f"Edit {self.object.name}"
+        return context
+
+
+class AdjustmentReasonListView(LoginRequiredMixin, ListView):
+    """List all adjustment reasons."""
+
+    model = AdjustmentReason
+    template_name = "inventory/refdata/adjustment_reason_list.html"
+    context_object_name = "reasons"
+    paginate_by = 25
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Adjustment Reasons"
+        return context
+
+
+class AdjustmentReasonCreateView(LoginRequiredMixin, CreateView):
+    """Create a new adjustment reason."""
+
+    model = AdjustmentReason
+    form_class = AdjustmentReasonForm
+    template_name = "inventory/refdata/adjustment_reason_form.html"
+    success_url = reverse_lazy("inventory:adjustment_reason_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Adjustment Reason"
+        context["form_title"] = "Create Adjustment Reason"
+        return context
+
+
+class AdjustmentReasonUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an adjustment reason."""
+
+    model = AdjustmentReason
+    form_class = AdjustmentReasonForm
+    template_name = "inventory/refdata/adjustment_reason_form.html"
+    success_url = reverse_lazy("inventory:adjustment_reason_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Edit Adjustment Reason"
+        context["form_title"] = f"Edit {self.object.name}"
+        return context
+
+
+class OwnershipTypeListView(LoginRequiredMixin, ListView):
+    """List all ownership types."""
+
+    model = OwnershipType
+    template_name = "inventory/refdata/ownership_type_list.html"
+    context_object_name = "types"
+    paginate_by = 25
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Ownership Types"
+        return context
+
+
+class OwnershipTypeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new ownership type."""
+
+    model = OwnershipType
+    form_class = OwnershipTypeForm
+    template_name = "inventory/refdata/ownership_type_form.html"
+    success_url = reverse_lazy("inventory:ownership_type_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Ownership Type"
+        context["form_title"] = "Create Ownership Type"
+        return context
+
+
+class OwnershipTypeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an ownership type."""
+
+    model = OwnershipType
+    form_class = OwnershipTypeForm
+    template_name = "inventory/refdata/ownership_type_form.html"
+    success_url = reverse_lazy("inventory:ownership_type_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Edit Ownership Type"
+        context["form_title"] = f"Edit {self.object.name}"
+        return context
+
+
+# =============================================================================
+# PRINT VIEWS
+# =============================================================================
+
+
+class GRNPrintView(LoginRequiredMixin, DetailView):
+    """Print-friendly view for GRN documents."""
+
+    template_name = "inventory/print/grn_print.html"
+    context_object_name = "grn"
+
+    def get_queryset(self):
+        from .models import GoodsReceiptNote
+        return GoodsReceiptNote.objects.select_related(
+            "warehouse", "supplier_party", "owner_party", "ownership_type"
+        )
+
+    def get_context_data(self, **kwargs):
+        from .models import GRNLine
+        context = super().get_context_data(**kwargs)
+        context["lines"] = GRNLine.objects.filter(grn=self.object).select_related(
+            "item", "location", "lot"
+        ).order_by("id")
+        return context
+
+
+class IssuePrintView(LoginRequiredMixin, DetailView):
+    """Print-friendly view for Stock Issue documents."""
+
+    template_name = "inventory/print/issue_print.html"
+    context_object_name = "issue"
+
+    def get_queryset(self):
+        from .models import StockIssue
+        return StockIssue.objects.select_related("warehouse", "recipient_party")
+
+    def get_context_data(self, **kwargs):
+        from .models import StockIssueLine
+        context = super().get_context_data(**kwargs)
+        context["lines"] = StockIssueLine.objects.filter(issue=self.object).select_related(
+            "item", "location", "lot"
+        ).order_by("id")
+        return context
+
+
+class TransferPrintView(LoginRequiredMixin, DetailView):
+    """Print-friendly view for Stock Transfer documents."""
+
+    template_name = "inventory/print/transfer_print.html"
+    context_object_name = "transfer"
+
+    def get_queryset(self):
+        from .models import StockTransfer
+        return StockTransfer.objects.select_related("from_warehouse", "to_warehouse")
+
+    def get_context_data(self, **kwargs):
+        from .models import StockTransferLine
+        context = super().get_context_data(**kwargs)
+        context["lines"] = StockTransferLine.objects.filter(transfer=self.object).select_related(
+            "item", "from_location", "to_location"
+        ).order_by("id")
+        return context
+
+
+class AdjustmentPrintView(LoginRequiredMixin, DetailView):
+    """Print-friendly view for Stock Adjustment documents."""
+
+    template_name = "inventory/print/adjustment_print.html"
+    context_object_name = "adjustment"
+
+    def get_queryset(self):
+        from .models import StockAdjustment as StockAdjustmentDoc
+        return StockAdjustmentDoc.objects.select_related("warehouse", "reason")
+
+    def get_context_data(self, **kwargs):
+        from .models import StockAdjustmentLine
+        context = super().get_context_data(**kwargs)
+        context["lines"] = StockAdjustmentLine.objects.filter(adjustment=self.object).select_related(
+            "item", "location"
+        ).order_by("id")
+        return context
+
+
+# =============================================================================
+# REPORTS
+# =============================================================================
+
+
+class StockValuationReportView(LoginRequiredMixin, View):
+    """Stock valuation report showing current inventory value."""
+
+    template_name = "inventory/reports/stock_valuation.html"
+
+    def get(self, request):
+        from django.shortcuts import render
+        from django.db.models import Sum, F, Value, DecimalField
+        from django.db.models.functions import Coalesce
+        from .models import StockLedger, Warehouse
+
+        # Get filters
+        warehouse_id = request.GET.get("warehouse")
+        category_id = request.GET.get("category")
+
+        # Build queryset - aggregate by item, location
+        queryset = StockLedger.objects.values(
+            "item__id", "item__code", "item__name", "item__category__name",
+            "location__id", "location__code", "location__warehouse__name"
+        ).annotate(
+            qty_balance=Sum("qty_delta"),
+            total_value=Sum(F("qty_delta") * F("unit_cost"), output_field=DecimalField(max_digits=18, decimal_places=4))
+        ).filter(qty_balance__gt=0).order_by("item__code", "location__code")
+
+        if warehouse_id:
+            queryset = queryset.filter(location__warehouse_id=warehouse_id)
+        if category_id:
+            queryset = queryset.filter(item__category_id=category_id)
+
+        # Calculate totals
+        totals = queryset.aggregate(
+            total_qty=Sum("qty_balance"),
+            grand_total=Sum("total_value")
+        )
+
+        context = {
+            "page_title": "Stock Valuation Report",
+            "items": list(queryset),
+            "totals": totals,
+            "warehouses": Warehouse.objects.filter(is_active=True).order_by("name"),
+            "categories": InventoryCategory.objects.filter(is_active=True).order_by("name"),
+            "selected_warehouse": warehouse_id,
+            "selected_category": category_id,
+        }
+        return render(request, self.template_name, context)
+
+
+class MovementHistoryReportView(LoginRequiredMixin, View):
+    """Movement history report showing all stock movements."""
+
+    template_name = "inventory/reports/movement_history.html"
+
+    def get(self, request):
+        from django.shortcuts import render
+        from .models import StockLedger, Warehouse
+        from datetime import datetime, timedelta
+
+        # Get filters
+        warehouse_id = request.GET.get("warehouse")
+        item_id = request.GET.get("item")
+        date_from = request.GET.get("date_from")
+        date_to = request.GET.get("date_to")
+
+        # Default to last 30 days if no dates specified
+        if not date_to:
+            date_to = timezone.now().date()
+        else:
+            date_to = datetime.strptime(date_to, "%Y-%m-%d").date()
+
+        if not date_from:
+            date_from = date_to - timedelta(days=30)
+        else:
+            date_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+
+        # Build queryset
+        queryset = StockLedger.objects.select_related(
+            "item", "location", "location__warehouse", "lot", "created_by"
+        ).filter(
+            transaction_date__date__gte=date_from,
+            transaction_date__date__lte=date_to
+        ).order_by("-transaction_date")
+
+        if warehouse_id:
+            queryset = queryset.filter(location__warehouse_id=warehouse_id)
+        if item_id:
+            queryset = queryset.filter(item_id=item_id)
+
+        # Calculate totals
+        totals = queryset.aggregate(
+            total_in=Sum("qty_delta", filter=Q(qty_delta__gt=0)),
+            total_out=Sum("qty_delta", filter=Q(qty_delta__lt=0))
+        )
+
+        context = {
+            "page_title": "Movement History Report",
+            "movements": queryset[:500],  # Limit to 500 records
+            "totals": totals,
+            "warehouses": Warehouse.objects.filter(is_active=True).order_by("name"),
+            "items": InventoryItem.objects.filter(is_active=True).order_by("code")[:100],
+            "selected_warehouse": warehouse_id,
+            "selected_item": item_id,
+            "date_from": date_from.strftime("%Y-%m-%d"),
+            "date_to": date_to.strftime("%Y-%m-%d"),
+        }
+        return render(request, self.template_name, context)
+
+
+class LowStockReportView(LoginRequiredMixin, View):
+    """Report showing items below reorder point."""
+
+    template_name = "inventory/reports/low_stock.html"
+
+    def get(self, request):
+        from django.shortcuts import render
+        from .models import Warehouse
+
+        # Get filters
+        warehouse_id = request.GET.get("warehouse")
+
+        # Build queryset - items below reorder point
+        queryset = InventoryStock.objects.select_related(
+            "item", "location", "location__warehouse"
+        ).filter(
+            quantity__lt=F("reorder_point"),
+            item__is_active=True
+        ).order_by("item__code")
+
+        if warehouse_id:
+            queryset = queryset.filter(location__warehouse_id=warehouse_id)
+
+        context = {
+            "page_title": "Low Stock Report",
+            "items": queryset,
+            "warehouses": Warehouse.objects.filter(is_active=True).order_by("name"),
+            "selected_warehouse": warehouse_id,
+        }
+        return render(request, self.template_name, context)
+
+
+# =============================================================================
+# API ENDPOINTS
+# =============================================================================
+
+
+class StockBalanceAPIView(LoginRequiredMixin, View):
+    """API to get stock balances aggregated from ledger."""
+
+    def get(self, request):
+        from django.http import JsonResponse
+        from .models import StockLedger
+
+        # Get filters
+        warehouse_id = request.GET.get("warehouse")
+        item_id = request.GET.get("item")
+        location_id = request.GET.get("location")
+
+        # Build queryset - aggregate by item, location
+        queryset = StockLedger.objects.values(
+            "item__id", "item__code", "item__name",
+            "location__id", "location__code", "location__warehouse__name"
+        ).annotate(
+            qty_balance=Sum("qty_delta")
+        ).filter(qty_balance__gt=0).order_by("item__code")
+
+        if warehouse_id:
+            queryset = queryset.filter(location__warehouse_id=warehouse_id)
+        if item_id:
+            queryset = queryset.filter(item_id=item_id)
+        if location_id:
+            queryset = queryset.filter(location_id=location_id)
+
+        data = []
+        for row in queryset[:500]:  # Limit results
+            data.append({
+                "item_id": row["item__id"],
+                "item_code": row["item__code"],
+                "item_name": row["item__name"],
+                "location_id": row["location__id"],
+                "location_code": row["location__code"],
+                "warehouse": row["location__warehouse__name"],
+                "qty_balance": float(row["qty_balance"]),
+            })
+
+        return JsonResponse({"balances": data, "count": len(data)})
+
+
+class ItemLookupAPIView(LoginRequiredMixin, View):
+    """API to lookup items by code, name, mat_number, item_number, or mpn."""
+
+    def get(self, request):
+        from django.http import JsonResponse
+
+        query = request.GET.get("q", "")
+        category_id = request.GET.get("category")
+        limit = min(int(request.GET.get("limit", 20)), 100)
+
+        queryset = InventoryItem.objects.filter(is_active=True)
+
+        if query:
+            # Search across multiple identifier fields
+            queryset = queryset.filter(
+                Q(code__icontains=query) |
+                Q(name__icontains=query) |
+                Q(mat_number__icontains=query) |
+                Q(item_number__icontains=query) |
+                Q(mpn__icontains=query) |
+                Q(brand__icontains=query)
+            )
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+
+        queryset = queryset.select_related("category")[:limit]
+
+        data = []
+        for item in queryset:
+            # Use item.unit (simple text field like "EA", "KG") - same as inventory list page
+            data.append({
+                "id": item.id,
+                "code": item.code,
+                "name": item.name,
+                "category": item.category.name if item.category else None,
+                "category_code": item.category.code if item.category else None,
+                "uom": item.unit or "EA",
+                "description": item.description or "",
+                "mat_number": item.mat_number or "",
+                "item_number": item.item_number or "",
+            })
+
+        return JsonResponse({"items": data, "count": len(data)})
+
+
+class LedgerEntriesAPIView(LoginRequiredMixin, View):
+    """API to get ledger entries with filters."""
+
+    def get(self, request):
+        from django.http import JsonResponse
+        from .models import StockLedger
+        from datetime import datetime, timedelta
+
+        # Get filters
+        item_id = request.GET.get("item")
+        location_id = request.GET.get("location")
+        date_from = request.GET.get("date_from")
+        date_to = request.GET.get("date_to")
+        limit = min(int(request.GET.get("limit", 100)), 500)
+
+        queryset = StockLedger.objects.select_related(
+            "item", "location", "lot"
+        ).order_by("-transaction_date")
+
+        if item_id:
+            queryset = queryset.filter(item_id=item_id)
+        if location_id:
+            queryset = queryset.filter(location_id=location_id)
+        if date_from:
+            queryset = queryset.filter(transaction_date__date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(transaction_date__date__lte=date_to)
+
+        queryset = queryset[:limit]
+
+        data = []
+        for entry in queryset:
+            data.append({
+                "id": entry.id,
+                "transaction_date": entry.transaction_date.isoformat(),
+                "document_type": entry.document_type,
+                "document_number": entry.document_number,
+                "item_code": entry.item.code,
+                "item_name": entry.item.name,
+                "location_code": entry.location.code,
+                "lot_number": entry.lot.lot_number if entry.lot else None,
+                "qty_delta": float(entry.qty_delta),
+                "unit_cost": float(entry.unit_cost),
+                "running_balance": float(entry.running_balance) if entry.running_balance else None,
+            })
+
+        return JsonResponse({"entries": data, "count": len(data)})
+
+
+class LowStockAPIView(LoginRequiredMixin, View):
+    """API to get items below reorder point."""
+
+    def get(self, request):
+        from django.http import JsonResponse
+
+        warehouse_id = request.GET.get("warehouse")
+
+        queryset = InventoryStock.objects.select_related(
+            "item", "location", "location__warehouse"
+        ).filter(
+            quantity__lt=F("reorder_point"),
+            item__is_active=True
+        ).order_by("item__code")
+
+        if warehouse_id:
+            queryset = queryset.filter(location__warehouse_id=warehouse_id)
+
+        data = []
+        for stock in queryset[:200]:
+            data.append({
+                "item_id": stock.item.id,
+                "item_code": stock.item.code,
+                "item_name": stock.item.name,
+                "location_code": stock.location.code,
+                "warehouse": stock.location.warehouse.name,
+                "current_qty": float(stock.quantity),
+                "reorder_point": float(stock.reorder_point),
+                "shortage": float(stock.reorder_point - stock.quantity),
+            })
+
+        return JsonResponse({"low_stock_items": data, "count": len(data)})
+
+
+# =============================================================================
+# POCKET/MOBILE VIEWS
+# =============================================================================
+
+
+class PocketItemView(View):
+    """
+    Mobile-optimized item view accessed via QR code scan.
+    Supports device-based authentication for returning users.
+    """
+    template_name = "inventory/pocket/item_detail.html"
+
+    def get_client_ip(self, request):
+        """Get client IP address from request."""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR')
+
+    def get_device_info(self, request):
+        """Extract device info from user agent."""
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        device_type = 'desktop'
+        device_os = 'Unknown'
+
+        ua_lower = user_agent.lower()
+        if 'mobile' in ua_lower or 'android' in ua_lower:
+            device_type = 'mobile'
+        elif 'tablet' in ua_lower or 'ipad' in ua_lower:
+            device_type = 'tablet'
+
+        if 'iphone' in ua_lower or 'ipad' in ua_lower:
+            device_os = 'iOS'
+        elif 'android' in ua_lower:
+            device_os = 'Android'
+        elif 'windows' in ua_lower:
+            device_os = 'Windows'
+        elif 'mac' in ua_lower:
+            device_os = 'macOS'
+        elif 'linux' in ua_lower:
+            device_os = 'Linux'
+
+        return {
+            'type': device_type,
+            'os': device_os,
+            'user_agent': user_agent[:500]
+        }
+
+    def check_device_auth(self, request):
+        """Check if device is trusted and return user if authenticated."""
+        from apps.accounts.models import TrustedDevice
+
+        device_token = request.COOKIES.get('device_token')
+        if not device_token:
+            return None
+
+        try:
+            trusted = TrustedDevice.objects.select_related('user').get(
+                device_token=device_token,
+                is_active=True
+            )
+            if trusted.is_valid:
+                trusted.update_last_used(self.get_client_ip(request))
+                return trusted.user
+        except TrustedDevice.DoesNotExist:
+            pass
+
+        return None
+
+    def get(self, request, pk):
+        from apps.inventory.utils import generate_qr_code_base64
+
+        # Check device-based auth first
+        device_user = self.check_device_auth(request)
+
+        # If not device authenticated and not logged in, redirect to pocket login
+        if not device_user and not request.user.is_authenticated:
+            return redirect(f"{reverse('inventory:pocket_login')}?next={request.path}&item={pk}")
+
+        # Use device user or logged-in user
+        current_user = device_user or request.user
+
+        # Get item
+        item = get_object_or_404(InventoryItem.objects.select_related(
+            'category', 'primary_supplier'
+        ), pk=pk, is_active=True)
+
+        # Get stock info
+        stock_records = InventoryStock.objects.filter(item=item).select_related(
+            'location', 'location__warehouse'
+        )
+        total_stock = stock_records.aggregate(total=Sum('quantity_on_hand'))['total'] or 0
+
+        # Generate QR code
+        qr_code = generate_qr_code_base64(item.code, size=6, border=2)
+
+        # Get device info
+        device_info = self.get_device_info(request)
+
+        # Get pending GRN lines for this item (for receiving workflow)
+        pending_grn_lines = GRNLine.objects.filter(
+            item=item,
+            grn__status__in=['DRAFT', 'PENDING_QC', 'CONFIRMED'],
+        ).select_related('grn', 'grn__vendor', 'grn__warehouse').order_by('-grn__created_at')[:5]
+
+        # Get count of all pending GRNs for this item
+        pending_grn_count = GRNLine.objects.filter(
+            item=item,
+            grn__status__in=['DRAFT', 'PENDING_QC', 'CONFIRMED'],
+        ).values('grn').distinct().count()
+
+        context = {
+            'item': item,
+            'total_stock': total_stock,
+            'stock_records': stock_records[:5],
+            'qr_code': qr_code,
+            'current_user': current_user,
+            'device_info': device_info,
+            'is_mobile': device_info['type'] in ('mobile', 'tablet'),
+            'pending_grn_lines': pending_grn_lines,
+            'pending_grn_count': pending_grn_count,
+        }
+
+        return render(request, self.template_name, context)
+
+
+class PocketLoginView(View):
+    """Login page for pocket/mobile access with device trust option."""
+    template_name = "inventory/pocket/login.html"
+
+    def get(self, request):
+        if request.user.is_authenticated:
+            next_url = request.GET.get('next', reverse('inventory:item_list'))
+            return redirect(next_url)
+
+        context = {
+            'next': request.GET.get('next', ''),
+            'item_id': request.GET.get('item', ''),
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request):
+        from django.contrib.auth import authenticate, login
+        from apps.accounts.models import TrustedDevice
+
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+        remember_device = request.POST.get('remember_device') == 'on'
+        next_url = request.POST.get('next', '') or reverse('inventory:item_list')
+
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            login(request, user)
+
+            response = redirect(next_url)
+
+            # Create trusted device if requested
+            if remember_device:
+                user_agent = request.META.get('HTTP_USER_AGENT', '')
+                device_type = 'mobile' if 'mobile' in user_agent.lower() else 'desktop'
+                device_os = 'Unknown'
+                if 'android' in user_agent.lower():
+                    device_os = 'Android'
+                elif 'iphone' in user_agent.lower() or 'ipad' in user_agent.lower():
+                    device_os = 'iOS'
+
+                device_token = TrustedDevice.generate_token()
+                TrustedDevice.objects.create(
+                    user=user,
+                    device_token=device_token,
+                    device_name=f"{device_os} {device_type.title()}",
+                    device_type=device_type,
+                    device_os=device_os,
+                    user_agent=user_agent[:500],
+                    last_ip=request.META.get('REMOTE_ADDR'),
+                )
+
+                # Set cookie (1 year expiry)
+                response.set_cookie(
+                    'device_token',
+                    device_token,
+                    max_age=365 * 24 * 60 * 60,
+                    httponly=True,
+                    samesite='Lax',
+                    secure=request.is_secure()
+                )
+
+            return response
+        else:
+            context = {
+                'error': 'Invalid username or password',
+                'next': next_url,
+                'username': username,
+            }
+            return render(request, self.template_name, context)
+
+
+class PocketQuickActionView(View):
+    """API endpoint for quick actions from pocket view."""
+
+    def check_auth(self, request):
+        """Check if user is authenticated (either via session or device token)."""
+        from apps.accounts.models import TrustedDevice
+
+        if request.user.is_authenticated:
+            return request.user
+
+        device_token = request.COOKIES.get('device_token')
+        if device_token:
+            try:
+                trusted = TrustedDevice.objects.select_related('user').get(
+                    device_token=device_token,
+                    is_active=True
+                )
+                if trusted.is_valid:
+                    return trusted.user
+            except TrustedDevice.DoesNotExist:
+                pass
+
+        return None
+
+    def post(self, request, pk):
+        import json
+
+        user = self.check_auth(request)
+        if not user:
+            return JsonResponse({'success': False, 'error': 'Authentication required'}, status=401)
+
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            data = {}
+
+        action = data.get('action') or request.POST.get('action')
+        quantity = data.get('quantity') or request.POST.get('quantity')
+        location_id = data.get('location_id') or request.POST.get('location_id')
+        notes = data.get('notes') or request.POST.get('notes', '')
+
+        if not action:
+            return JsonResponse({'success': False, 'error': 'Action required'}, status=400)
+
+        item = get_object_or_404(InventoryItem, pk=pk, is_active=True)
+
+        if action == 'view':
+            # Just return item info
+            return JsonResponse({
+                'success': True,
+                'item': {
+                    'id': item.pk,
+                    'code': item.code,
+                    'name': item.name,
+                    'category': item.category.name if item.category else None,
+                    'unit': item.unit,
+                    'total_stock': float(item.total_stock),
+                }
+            })
+
+        elif action in ('consume', 'add', 'adjust'):
+            if not quantity:
+                return JsonResponse({'success': False, 'error': 'Quantity required'}, status=400)
+
+            try:
+                qty = Decimal(str(quantity))
+                if qty <= 0:
+                    raise ValueError("Quantity must be positive")
+            except (ValueError, InvalidOperation) as e:
+                return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+            # Get or create default location
+            if location_id:
+                location = get_object_or_404(InventoryLocation, pk=location_id)
+            else:
+                location = InventoryLocation.objects.filter(is_default=True).first()
+                if not location:
+                    return JsonResponse({'success': False, 'error': 'No location specified and no default location set'}, status=400)
+
+            # Determine transaction type
+            if action == 'consume':
+                trans_type = 'ISSUE'
+                qty = -abs(qty)
+            elif action == 'add':
+                trans_type = 'RECEIPT'
+                qty = abs(qty)
+            else:
+                trans_type = 'ADJUSTMENT'
+
+            # Create transaction
+            transaction = InventoryTransaction.objects.create(
+                item=item,
+                location=location,
+                transaction_type=trans_type,
+                quantity=qty,
+                reference_number=f"POCKET-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                notes=f"[Pocket] {notes}" if notes else "[Pocket Quick Action]",
+                created_by=user,
+            )
+
+            # Update stock
+            stock, _ = InventoryStock.objects.get_or_create(
+                item=item,
+                location=location,
+                defaults={'quantity': 0}
+            )
+            stock.quantity = F('quantity') + qty
+            stock.save()
+            stock.refresh_from_db()
+
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully {"consumed" if action == "consume" else "added"} {abs(qty)} {item.unit}',
+                'transaction_id': transaction.pk,
+                'new_stock': float(stock.quantity),
+            })
+
+        elif action == 'conserve':
+            # Mark item for conservation/review
+            return JsonResponse({
+                'success': True,
+                'message': f'Item {item.code} marked for conservation review',
+                'action': 'conserve',
+            })
+
+        else:
+            return JsonResponse({'success': False, 'error': f'Unknown action: {action}'}, status=400)
+
+
+class PocketLogoutView(View):
+    """Logout and optionally remove device trust."""
+
+    def post(self, request):
+        from django.contrib.auth import logout
+        from apps.accounts.models import TrustedDevice
+
+        remove_trust = request.POST.get('remove_trust') == 'on'
+
+        # Remove device trust if requested
+        if remove_trust:
+            device_token = request.COOKIES.get('device_token')
+            if device_token:
+                TrustedDevice.objects.filter(device_token=device_token).update(is_active=False)
+
+        logout(request)
+
+        response = redirect(reverse('inventory:pocket_login'))
+
+        # Clear device cookie if removing trust
+        if remove_trust:
+            response.delete_cookie('device_token')
+
+        return response
+
+
+# =============================================================================
+# PHASE 5: TOLERANCE & VARIANCE MANAGEMENT
+# =============================================================================
+
+
+class ReceiptToleranceListView(LoginRequiredMixin, ListView):
+    """List all receipt tolerance configurations."""
+    model = ReceiptTolerance
+    template_name = "inventory/reference/tolerance_list.html"
+    context_object_name = "tolerances"
+    paginate_by = 20
+
+    def get_queryset(self):
+        return ReceiptTolerance.objects.select_related(
+            'category', 'item', 'vendor'
+        ).order_by('-is_active', 'applies_to', '-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Receipt Tolerance Configuration'
+        return context
+
+
+class ReceiptToleranceCreateView(LoginRequiredMixin, CreateView):
+    """Create new receipt tolerance configuration."""
+    model = ReceiptTolerance
+    template_name = "inventory/reference/tolerance_form.html"
+    fields = [
+        'applies_to', 'category', 'item', 'vendor',
+        'over_receipt_percent', 'under_receipt_percent',
+        'require_qc', 'auto_close_on_tolerance', 'is_active'
+    ]
+    success_url = reverse_lazy('inventory:tolerance_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'New Tolerance Configuration'
+        context['categories'] = InventoryCategory.objects.filter(is_active=True)
+        context['items'] = InventoryItem.objects.filter(is_active=True)[:100]
+        from apps.supplychain.models import Vendor
+        context['vendors'] = Vendor.objects.filter(is_active=True)
+        return context
+
+
+class ReceiptToleranceUpdateView(LoginRequiredMixin, UpdateView):
+    """Update receipt tolerance configuration."""
+    model = ReceiptTolerance
+    template_name = "inventory/reference/tolerance_form.html"
+    fields = [
+        'applies_to', 'category', 'item', 'vendor',
+        'over_receipt_percent', 'under_receipt_percent',
+        'require_qc', 'auto_close_on_tolerance', 'is_active'
+    ]
+    success_url = reverse_lazy('inventory:tolerance_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Edit Tolerance Configuration'
+        context['categories'] = InventoryCategory.objects.filter(is_active=True)
+        context['items'] = InventoryItem.objects.filter(is_active=True)[:100]
+        from apps.supplychain.models import Vendor
+        context['vendors'] = Vendor.objects.filter(is_active=True)
+        return context
+
+
+class VarianceReportView(LoginRequiredMixin, ListView):
+    """List GRNs with pending variance approvals."""
+    model = GoodsReceiptNote
+    template_name = "inventory/reports/variance_report.html"
+    context_object_name = "grns"
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = GoodsReceiptNote.objects.select_related(
+            'warehouse', 'vendor', 'purchase_order'
+        ).filter(
+            has_quantity_variance=True
+        ).order_by('-variance_approved', '-created_at')
+
+        # Filter by approval status
+        status = self.request.GET.get('status')
+        if status == 'pending':
+            qs = qs.filter(variance_approved=False)
+        elif status == 'approved':
+            qs = qs.filter(variance_approved=True)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Receipt Variance Report'
+        context['pending_count'] = GoodsReceiptNote.objects.filter(
+            has_quantity_variance=True, variance_approved=False
+        ).count()
+        context['approved_count'] = GoodsReceiptNote.objects.filter(
+            has_quantity_variance=True, variance_approved=True
+        ).count()
+        context['current_status'] = self.request.GET.get('status', 'all')
+        return context
+
+
+class SyncStockFromBalancesView(LoginRequiredMixin, View):
+    """
+    Sync InventoryStock records from StockBalance records.
+    This ensures item detail pages show correct stock quantities.
+    Aggregates all balance dimensions into simpler item+location+lot records.
+    """
+
+    def get(self, request):
+        from decimal import Decimal
+        from django.db.models import Sum
+
+        synced = 0
+        errors = []
+
+        # Aggregate StockBalance by item, location, lot (ignoring other dimensions)
+        # This sums up all the different owner/condition/quality variants
+        aggregated = StockBalance.objects.values(
+            'item', 'location', 'lot'
+        ).annotate(
+            total_on_hand=Sum('qty_on_hand'),
+            total_reserved=Sum('qty_reserved')
+        )
+
+        for agg in aggregated:
+            try:
+                item = InventoryItem.objects.get(pk=agg['item'])
+                location = InventoryLocation.objects.get(pk=agg['location'])
+                lot = Lot.objects.filter(pk=agg['lot']).first() if agg['lot'] else None
+                lot_number = lot.lot_number if lot else ''
+
+                inv_stock, created = InventoryStock.objects.get_or_create(
+                    item=item,
+                    location=location,
+                    lot_number=lot_number,
+                    serial_number='',
+                    defaults={
+                        'quantity_on_hand': Decimal('0'),
+                        'quantity_reserved': Decimal('0'),
+                        'quantity_available': Decimal('0'),
+                    }
+                )
+
+                qty_on_hand = agg['total_on_hand'] or Decimal('0')
+                qty_reserved = agg['total_reserved'] or Decimal('0')
+
+                inv_stock.quantity_on_hand = qty_on_hand
+                inv_stock.quantity_reserved = qty_reserved
+                inv_stock.quantity_available = qty_on_hand - qty_reserved
+                inv_stock.last_movement_date = timezone.now()
+                inv_stock.save()
+                synced += 1
+            except Exception as e:
+                errors.append(f"Item {agg['item']}: {str(e)}")
+
+        if errors:
+            messages.warning(request, f"Synced {synced} records with {len(errors)} errors: {', '.join(errors[:3])}")
+        else:
+            messages.success(request, f"Successfully synced {synced} stock records from balances to item inventory.")
+
+        return redirect('inventory:balance_list')

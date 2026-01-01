@@ -94,9 +94,20 @@ class ScanCodeDetailView(LoginRequiredMixin, DetailView):
         return ScanCode.objects.select_related('created_by').prefetch_related('scan_logs__scanned_by')
 
     def get_context_data(self, **kwargs):
+        from apps.inventory.utils import generate_qr_code_base64, generate_barcode_base64
+
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Scan Code: {self.object.code}"
         context["recent_scans"] = self.object.scan_logs.all()[:20]
+
+        # Generate code image based on type
+        if self.object.code_type == 'QR':
+            context["code_image"] = generate_qr_code_base64(self.object.code, size=8, border=2)
+        elif self.object.code_type == 'BARCODE':
+            context["code_image"] = generate_barcode_base64(self.object.code, 'code128')
+        else:
+            context["code_image"] = generate_qr_code_base64(self.object.code, size=8, border=2)
+
         return context
 
 
@@ -304,3 +315,105 @@ class GenerateCodeView(LoginRequiredMixin, TemplateView):
         context["page_title"] = "Generate QR Codes"
         context["entity_types"] = ScanCode.EntityType.choices
         return context
+
+    def post(self, request, *args, **kwargs):
+        """Handle QR code generation request."""
+        import json
+        import uuid
+        from apps.inventory.utils import generate_qr_code_base64
+
+        entity_type = request.POST.get('entity_type', '')
+        entity_id = request.POST.get('entity_id', '')
+        custom_data = request.POST.get('custom_data', '').strip()
+
+        # Validate inputs
+        errors = []
+        if not entity_type:
+            errors.append("Entity type is required.")
+
+        parsed_data = None
+        if custom_data:
+            try:
+                parsed_data = json.loads(custom_data)
+            except json.JSONDecodeError:
+                errors.append("Invalid JSON in custom data field.")
+
+        if errors:
+            context = self.get_context_data(**kwargs)
+            context['errors'] = errors
+            return self.render_to_response(context)
+
+        # Generate unique code
+        entity_id_int = int(entity_id) if entity_id else None
+        code_prefix = f"ARDT-{entity_type[:3]}"
+        unique_id = str(uuid.uuid4())[:8].upper()
+
+        if entity_id_int:
+            code = f"{code_prefix}-{entity_id_int}-{unique_id}"
+        else:
+            code = f"{code_prefix}-{unique_id}"
+
+        # Create or get scan code
+        scan_code, created = ScanCode.objects.get_or_create(
+            code=code,
+            defaults={
+                'code_type': ScanCode.CodeType.QR,
+                'entity_type': entity_type,
+                'entity_id': entity_id_int,
+                'encoded_data': parsed_data,
+                'created_by': request.user,
+            }
+        )
+
+        # Generate QR code image
+        qr_image = generate_qr_code_base64(code, size=8, border=2)
+
+        context = self.get_context_data(**kwargs)
+        context['generated_code'] = scan_code
+        context['qr_image'] = qr_image
+        context['is_new'] = created
+        return self.render_to_response(context)
+
+
+class BatchGenerateView(LoginRequiredMixin, View):
+    """Generate QR codes for multiple entities."""
+
+    def get(self, request):
+        entity_type = request.GET.get('type', '')
+        from apps.inventory.utils import generate_qr_code_base64
+
+        items = []
+        if entity_type == 'INVENTORY_ITEM':
+            from apps.inventory.models import InventoryItem
+            items = InventoryItem.objects.filter(is_active=True)[:50]
+        elif entity_type == 'LOCATION':
+            from apps.inventory.models import InventoryLocation
+            items = InventoryLocation.objects.filter(is_active=True)[:50]
+
+        # Generate codes for each item
+        generated = []
+        for item in items:
+            code = f"ARDT-{entity_type[:3]}-{item.pk}"
+
+            scan_code, created = ScanCode.objects.get_or_create(
+                entity_type=entity_type,
+                entity_id=item.pk,
+                defaults={
+                    'code': code,
+                    'code_type': ScanCode.CodeType.QR,
+                    'created_by': request.user,
+                }
+            )
+
+            generated.append({
+                'item': item,
+                'scan_code': scan_code,
+                'qr_image': generate_qr_code_base64(scan_code.code, size=6, border=2),
+                'is_new': created,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'count': len(generated),
+            'items': [{'code': g['scan_code'].code, 'id': g['item'].pk} for g in generated]
+        })

@@ -1,0 +1,36 @@
+{
+  "workflow_name": "Create Item",
+  "steps": [
+    "login_user_field_dict",
+    "login_pass_field_dict",
+    "login_submit_button_dict",
+    "Favorites_dict",
+    "Released_products_dict",
+    "New_released_product_dict",
+    "Product_subtype_Ddown_Button_dict",
+    "Product_Master_Option_RP_dict",
+    "{\"locator_by_account\":{\"LSTK\":\"Item_group_dict_LSTK_FC\",\"RC-LSTK\":\"Item_group_dict_LSTK_RC\",\"HALLIBURTON\":\"Item_group_dict_HALLIBURTON\",\"Hal_Regional\":\"Item_group_dict_REG_FC\",\"ARAMCO\":\"Item_group_dict_ARAMCO\",\"default\":\"Favorites_dict\"}}",
+    "Item_Model_Group_dict",
+    "Product_number_Field_dict",
+    "Already_Assigned_Error_Message_dict",
+    "Already_Assigned_Error_Message_Close_dict",
+    "StorageDimensionGroup_Name_input_dict",
+    "TrackingDimensionGroup_Name_input_dict",
+    "InventUnitId_input_dict",
+    "Purchase_UnitId_input_dict",
+    "SalesUnitId_input_dict",
+    "dimension_group_dict",
+    "Product_name_dict",
+    "Search_name_1_dict",
+    "Search_name_2_dict",
+    "ok_button_RP_dict",
+    "ok_button_attribute_dict",
+    "Old_Serial_ID_RP_dict",
+    "Product_header_RP_dict"
+  ],
+  "valid_sheets": [
+    "LSTK",
+    "RC-LSTK",
+    "ARAMCO"
+  ]
+}

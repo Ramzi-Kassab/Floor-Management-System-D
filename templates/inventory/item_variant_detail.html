@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <nav class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            <a href="{% url 'inventory:item_list' %}" class="hover:text-blue-600">Items</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'inventory:item_detail' item.pk %}" class="hover:text-blue-600">{{ item.code }}</a>
+            <span class="mx-2">/</span>
+            <span>{{ variant.code }}</span>
+        </nav>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white font-mono">{{ variant.code }}</h1>
+            {% if variant.is_active %}
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">Active</span>
+            {% else %}
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">Inactive</span>
+            {% endif %}
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ variant.name }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'inventory:item_variant_update' item.pk variant.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'inventory:item_variant_delete' item.pk variant.pk %}" class="inline-flex items-center px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200">
+            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Delete
+        </a>
+        <a href="{% url 'inventory:item_detail' item.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Item
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Content -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Variant Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="info" class="w-5 h-5 mr-2 text-blue-500"></i>
+                Variant Details
+            </h2>
+            <dl class="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Variant Code</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono font-medium">{{ variant.code }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Base Item</dt>
+                    <dd class="text-gray-900 dark:text-white">
+                        <a href="{% url 'inventory:item_detail' item.pk %}" class="text-blue-600 hover:underline">{{ item.code }}</a>
+                        - {{ item.name|truncatewords:5 }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Variant Case</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">
+                        {% if variant.variant_case %}
+                        {{ variant.variant_case.name }}
+                        <span class="text-gray-500 font-mono text-xs ml-1">({{ variant.variant_case.code }})</span>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Status</dt>
+                    <dd>
+                        {% if variant.is_active %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>
+                        {% endif %}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Variant Case Properties -->
+        {% if variant.variant_case %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="layers" class="w-5 h-5 mr-2 text-purple-500"></i>
+                Variant Case Properties
+            </h2>
+            <dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                    <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Condition</dt>
+                    <dd class="mt-1">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if variant.variant_case.condition == 'NEW' %}bg-green-100 text-green-800{% else %}bg-amber-100 text-amber-800{% endif %}">
+                            {{ variant.variant_case.get_condition_display }}
+                        </span>
+                    </dd>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                    <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Acquisition</dt>
+                    <dd class="mt-1 text-gray-900 dark:text-white font-medium">{{ variant.variant_case.get_acquisition_display }}</dd>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                    <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Ownership</dt>
+                    <dd class="mt-1">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if variant.variant_case.ownership == 'ARDT' %}bg-purple-100 text-purple-800{% else %}bg-orange-100 text-orange-800{% endif %}">
+                            {{ variant.variant_case.ownership }}
+                        </span>
+                    </dd>
+                </div>
+                {% if variant.variant_case.reclaim_category %}
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                    <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Reclaim Category</dt>
+                    <dd class="mt-1 text-gray-900 dark:text-white font-medium">{{ variant.variant_case.get_reclaim_category_display }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+        {% endif %}
+
+        <!-- Customer & Account (for CLIENT ownership) -->
+        {% if variant.customer or variant.account %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="building" class="w-5 h-5 mr-2 text-orange-500"></i>
+                Customer & Account
+            </h2>
+            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                {% if variant.customer %}
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Customer Name</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ variant.customer.name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Customer Code</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ variant.customer.code }}</dd>
+                </div>
+                {% endif %}
+                {% if variant.account %}
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Account</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {{ variant.get_account_display }}
+                        </span>
+                    </dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+        {% endif %}
+
+        <!-- Cost & ERP Information -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="receipt" class="w-5 h-5 mr-2 text-green-500"></i>
+                Cost & ERP Information
+            </h2>
+            <dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Standard Cost</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono font-medium">SAR {{ variant.standard_cost|default:"0.00" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Last Cost</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">SAR {{ variant.last_cost|default:"0.00" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Legacy MAT No.</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ variant.legacy_mat_no|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">ERP Item No.</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ variant.erp_item_no|default:"--" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Notes -->
+        {% if variant.notes %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="file-text" class="w-5 h-5 mr-2 text-gray-500"></i>
+                Notes
+            </h2>
+            <p class="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap">{{ variant.notes }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="space-y-6">
+        <!-- QR Code & Label -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="qr-code" class="w-5 h-5 mr-2 text-purple-500"></i>
+                Variant QR Code
+            </h2>
+            <div class="flex flex-col items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-4">
+                <img src="{{ variant_qr_code }}" alt="QR Code for {{ variant.code }}" class="w-32 h-32 mb-2">
+                <p class="text-sm font-bold text-gray-900 dark:text-white font-mono">{{ variant.code }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">{{ variant.name|truncatewords:5 }}</p>
+            </div>
+            <button onclick="window.print()" class="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <i data-lucide="printer" class="w-4 h-4 mr-2"></i>
+                Print Label
+            </button>
+        </div>
+
+        <!-- Stock Summary -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="package" class="w-5 h-5 mr-2 text-blue-500"></i>
+                Stock
+            </h2>
+            <div class="text-center">
+                <div class="text-4xl font-bold text-gray-900 dark:text-white">{{ variant_stock }}</div>
+                <div class="text-gray-500 mt-1">{{ item.unit }} On Hand</div>
+            </div>
+        </div>
+
+        <!-- Audit Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="clock" class="w-5 h-5 mr-2 text-gray-500"></i>
+                Audit Info
+            </h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created At</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ variant.created_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Last Updated</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ variant.updated_at|date:"M d, Y H:i" }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

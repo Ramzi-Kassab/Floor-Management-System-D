@@ -9,7 +9,7 @@
         <p class="text-gray-600 dark:text-gray-400">Master data for item variant cases (condition + acquisition)</p>
     </div>
     <div class="mt-4 md:mt-0">
-        <a href="{% url 'inventory:variant_case_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <a href="{% url 'inventory:variant_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Variant Case
         </a>
     </div>
@@ -49,7 +49,7 @@
                 <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>Filter
             </button>
             {% if request.GET %}
-            <a href="{% url 'inventory:variant_case_list' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">Clear</a>
+            <a href="{% url 'inventory:variant_list' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">Clear</a>
             {% endif %}
         </form>
     </div>
@@ -109,8 +109,8 @@
                         {% endif %}
                     </td>
                     <td class="px-4 py-3 text-right space-x-2">
-                        <a href="{% url 'inventory:variant_case_update' case.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
-                        <a href="{% url 'inventory:variant_case_delete' case.pk %}" class="text-red-600 hover:text-red-800 text-xs">Delete</a>
+                        <a href="{% url 'inventory:variant_update' case.pk %}" class="text-blue-600 hover:text-blue-800 text-xs">Edit</a>
+                        <a href="{% url 'inventory:variant_delete' case.pk %}" class="text-red-600 hover:text-red-800 text-xs">Delete</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -122,7 +122,7 @@
         <i data-lucide="layers" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No variant cases defined</h3>
         <p class="text-gray-500 dark:text-gray-400 mb-4">Define standard variant cases like NEW-PUR (New Purchased), USED-RET (Retrofit), etc.</p>
-        <a href="{% url 'inventory:variant_case_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <a href="{% url 'inventory:variant_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create First Variant Case
         </a>
     </div>

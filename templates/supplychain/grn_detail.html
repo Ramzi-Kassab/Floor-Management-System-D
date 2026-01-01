@@ -1,62 +1,238 @@
 {% extends "base.html" %}
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
     <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ grn.grn_number }}</h1>
-        <p class="text-gray-600 dark:text-gray-400">Goods Receipt for {{ grn.po.po_number }}</p>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ grn.receipt_number }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if grn.status == 'COMPLETED' %}bg-green-100 text-green-800
+                {% elif grn.status == 'ACCEPTED' %}bg-blue-100 text-blue-800
+                {% elif grn.status == 'REJECTED' %}bg-red-100 text-red-800
+                {% else %}bg-gray-100 text-gray-600{% endif %}">
+                {{ grn.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">Goods Receipt for {{ grn.purchase_order.po_number }}</p>
     </div>
-    <div class="mt-4 md:mt-0 flex gap-2">
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        {% if grn.status == 'DRAFT' or grn.status == 'INSPECTING' %}
         <a href="{% url 'supplychain:grn_add_line' grn.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Line
         </a>
-        <a href="{% url 'supplychain:grn_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 hover:text-gray-800">
+        {% endif %}
+        {% if grn.status == 'DRAFT' and grn.lines.exists %}
+        <form method="post" action="{% url 'supplychain:grn_confirm' grn.pk %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                <i data-lucide="check-circle" class="w-4 h-4 mr-2"></i>Confirm Receipt
+            </button>
+        </form>
+        {% endif %}
+        <a href="{% url 'supplychain:po_detail' grn.purchase_order.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>View PO
+        </a>
+        <a href="{% url 'supplychain:grn_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
             <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
         </a>
     </div>
 </div>
 {% endblock %}
+
 {% block content %}
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Receipt Lines -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Receipt Lines</h2>
+                {% if grn.status == 'DRAFT' %}
+                <a href="{% url 'supplychain:grn_add_line' grn.pk %}" class="text-sm text-blue-600 hover:underline">
+                    <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Add Line
+                </a>
+                {% endif %}
             </div>
             {% if lines %}
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
-                        <th class="px-6 py-3 font-medium">Item</th>
-                        <th class="px-6 py-3 font-medium text-right">Qty Received</th>
-                        <th class="px-6 py-3 font-medium">Lot #</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                    {% for line in lines %}
-                    <tr>
-                        <td class="px-6 py-4">{{ line.po_line.inventory_item.name }} <span class="text-gray-500 font-mono text-xs">{{ line.po_line.inventory_item.code }}</span></td>
-                        <td class="px-6 py-4 text-right font-mono">{{ line.quantity_received }}</td>
-                        <td class="px-6 py-4 text-gray-600">{{ line.lot_number|default:"-" }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                            <th class="px-6 py-3 font-medium">#</th>
+                            <th class="px-6 py-3 font-medium">Item</th>
+                            <th class="px-6 py-3 font-medium text-right">Ordered</th>
+                            <th class="px-6 py-3 font-medium text-right">Received</th>
+                            <th class="px-6 py-3 font-medium text-right">Accepted</th>
+                            <th class="px-6 py-3 font-medium">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for line in lines %}
+                        <tr>
+                            <td class="px-6 py-4 font-mono text-gray-500">{{ line.line_number }}</td>
+                            <td class="px-6 py-4">
+                                {% if line.po_line.inventory_item %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 mr-2">
+                                    {{ line.po_line.inventory_item.code }}
+                                </span>
+                                <span class="text-gray-900 dark:text-white">{{ line.po_line.inventory_item.name }}</span>
+                                {% else %}
+                                <span class="text-gray-900 dark:text-white">{{ line.po_line.item_description }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-right font-mono text-gray-500">{{ line.po_line.quantity_ordered }}</td>
+                            <td class="px-6 py-4 text-right font-mono">{{ line.quantity_received }}</td>
+                            <td class="px-6 py-4 text-right font-mono text-green-600">{{ line.quantity_accepted }}</td>
+                            <td class="px-6 py-4">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                    {% if line.inspection_status == 'PASSED' %}bg-green-100 text-green-800
+                                    {% elif line.inspection_status == 'FAILED' %}bg-red-100 text-red-800
+                                    {% elif line.inspection_status == 'PARTIAL' %}bg-yellow-100 text-yellow-800
+                                    {% else %}bg-gray-100 text-gray-600{% endif %}">
+                                    {{ line.get_inspection_status_display }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% if line.lot_number or line.storage_location_code %}
+                        <tr class="bg-gray-50 dark:bg-gray-800/50">
+                            <td class="px-6 py-2"></td>
+                            <td colspan="5" class="px-6 py-2 text-xs text-gray-500">
+                                {% if line.lot_number %}
+                                <span class="mr-4"><strong>Lot:</strong> {{ line.lot_number }}</span>
+                                {% endif %}
+                                {% if line.storage_location_code %}
+                                <span><strong>Location:</strong> {{ line.storage_location_code }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
             {% else %}
-            <div class="text-center py-8 text-gray-500">No lines added yet</div>
+            <div class="text-center py-12 text-gray-500">
+                <i data-lucide="package" class="w-12 h-12 mx-auto mb-4 text-gray-300"></i>
+                <p class="text-lg font-medium mb-2">No lines added yet</p>
+                <p class="text-sm mb-4">Add items you received from the vendor</p>
+                {% if grn.status == 'DRAFT' %}
+                <a href="{% url 'supplychain:grn_add_line' grn.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add First Line
+                </a>
+                {% endif %}
+            </div>
             {% endif %}
         </div>
+
+        {% if grn.notes %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-sm font-medium text-gray-500 mb-2">Notes</h3>
+            <p class="text-gray-700 dark:text-gray-300">{{ grn.notes }}</p>
+        </div>
+        {% endif %}
     </div>
-    <div>
+
+    <div class="space-y-6">
+        <!-- Details Card -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Details</h2>
             <dl class="space-y-3 text-sm">
-                <div class="flex justify-between"><dt class="text-gray-500">PO</dt><dd><a href="{% url 'supplychain:po_detail' grn.po.pk %}" class="text-blue-600 hover:underline">{{ grn.po.po_number }}</a></dd></div>
-                <div class="flex justify-between"><dt class="text-gray-500">Supplier</dt><dd class="text-gray-900 dark:text-white">{{ grn.po.supplier.name }}</dd></div>
-                <div class="flex justify-between"><dt class="text-gray-500">Receipt Date</dt><dd class="text-gray-900 dark:text-white">{{ grn.receipt_date|date:"M d, Y" }}</dd></div>
-                <div class="flex justify-between"><dt class="text-gray-500">Received By</dt><dd class="text-gray-900 dark:text-white">{{ grn.received_by.username|default:"-" }}</dd></div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Purchase Order</dt>
+                    <dd>
+                        <a href="{% url 'supplychain:po_detail' grn.purchase_order.pk %}" class="text-blue-600 hover:underline font-mono">
+                            {{ grn.purchase_order.po_number }}
+                        </a>
+                    </dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Vendor</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ grn.vendor.name }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Receipt Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ grn.get_receipt_type_display }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Receipt Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ grn.receipt_date|date:"M d, Y" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Received By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ grn.received_by.get_full_name|default:grn.received_by.username|default:"-" }}</dd>
+                </div>
+                {% if grn.packing_slip_number %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Packing Slip</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ grn.packing_slip_number }}</dd>
+                </div>
+                {% endif %}
+                {% if grn.carrier %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Carrier</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ grn.carrier }}</dd>
+                </div>
+                {% endif %}
+                {% if grn.tracking_number %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Tracking #</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ grn.tracking_number }}</dd>
+                </div>
+                {% endif %}
             </dl>
         </div>
+
+        <!-- Inspection Summary -->
+        {% if grn.inspected_by %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Inspection</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Inspected By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ grn.inspected_by.get_full_name|default:grn.inspected_by.username }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Inspection Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ grn.inspection_date|date:"M d, Y" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Quality OK</dt>
+                    <dd>
+                        {% if grn.quality_acceptable %}
+                        <span class="text-green-600">Yes</span>
+                        {% else %}
+                        <span class="text-red-600">No</span>
+                        {% endif %}
+                    </dd>
+                </div>
+            </dl>
+            {% if grn.inspection_notes %}
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Inspection Notes</h3>
+                <p class="text-gray-700 dark:text-gray-300 text-sm">{{ grn.inspection_notes }}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Action Cards -->
+        {% if grn.status == 'DRAFT' and grn.lines.exists %}
+        <div class="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
+            <div class="flex">
+                <i data-lucide="check-circle" class="w-5 h-5 text-green-600 mr-3 flex-shrink-0"></i>
+                <div>
+                    <p class="text-sm font-medium text-green-800 dark:text-green-200 mb-2">Ready to Confirm</p>
+                    <p class="text-xs text-green-700 dark:text-green-300 mb-3">Confirming will update inventory quantities and PO received amounts.</p>
+                    <form method="post" action="{% url 'supplychain:grn_confirm' grn.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">
+                            Confirm Receipt
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

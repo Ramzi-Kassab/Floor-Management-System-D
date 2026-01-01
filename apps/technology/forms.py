@@ -7,7 +7,10 @@ Forms for Design, BOM, and Cutter Layout management.
 
 from django import forms
 
-from .models import BOM, BOMLine, BreakerSlot, Connection, Design, DesignCutterLayout
+from .models import (
+    BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, Design,
+    DesignCutterLayout, HDBSType, SMIType
+)
 
 # Tailwind CSS classes
 TAILWIND_INPUT = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -31,7 +34,7 @@ class DesignForm(forms.ModelForm):
             "mat_no",
             "ref_mat_no",
             # Row 2: Size, HDBS Type, SMI Type, IADC Code
-            # Note: 'size' is excluded here and added in __init__ to avoid app loading order issues
+            "size",
             "hdbs_type",
             "smi_type",
             "iadc_code_ref",
@@ -75,6 +78,7 @@ class DesignForm(forms.ModelForm):
             # Category & Classification
             "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "body_material": forms.Select(attrs={"class": TAILWIND_SELECT, "id": "id_body_material"}),
+            "size": forms.Select(attrs={"class": TAILWIND_SELECT}),
             # Identity
             "mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 800012345"}),
             "hdbs_type": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHS", "id": "id_hdbs_type"}),
@@ -145,29 +149,14 @@ class DesignForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Add 'size' field dynamically to avoid app loading order issues with workorders.BitSize
-        # This must be done in __init__ because Django's ModelForm metaclass tries to resolve
-        # FK relationships at class definition time, before all apps are loaded
-        from django.apps import apps
-        BitSize = apps.get_model('workorders', 'BitSize')
-        self.fields['size'] = forms.ModelChoiceField(
-            queryset=BitSize.objects.filter(is_active=True).order_by('size_decimal'),
-            required=False,
-            widget=forms.Select(attrs={"class": TAILWIND_SELECT}),
-            label="Size"
-        )
-        # Reorder fields to put 'size' in the right position (after ref_mat_no)
-        field_order = list(self.fields.keys())
-        if 'size' in field_order and 'ref_mat_no' in field_order:
-            field_order.remove('size')
-            idx = field_order.index('ref_mat_no') + 1
-            field_order.insert(idx, 'size')
-            self.order_fields(field_order)
         # Make most fields optional
         required_fields = ["mat_no", "hdbs_type", "category", "status"]
         for field_name, field in self.fields.items():
             if field_name not in required_fields:
                 field.required = False
+
+        # Only show active sizes in the dropdown
+        self.fields["size"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")
 
 
 class BOMForm(forms.ModelForm):
@@ -309,7 +298,7 @@ class BreakerSlotForm(forms.ModelForm):
             "slot_length",
             "material",
             "hardness",
-            # Note: 'compatible_sizes' excluded - added in __init__ to avoid app loading order issues
+            "compatible_sizes",
             "remarks",
             "is_active",
         ]
@@ -320,6 +309,7 @@ class BreakerSlotForm(forms.ModelForm):
             "slot_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "inches (optional)"}),
             "material": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "hardness": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 28-32 HRC"}),
+            "compatible_sizes": forms.CheckboxSelectMultiple(attrs={"class": "space-y-2"}),
             "remarks": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
             "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
         }
@@ -337,40 +327,116 @@ class BreakerSlotForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Add 'compatible_sizes' field dynamically to avoid app loading order issues with workorders.BitSize
-        from django.apps import apps
-        BitSize = apps.get_model('workorders', 'BitSize')
-        self.fields['compatible_sizes'] = forms.ModelMultipleChoiceField(
-            queryset=BitSize.objects.filter(is_active=True).order_by('size_decimal'),
-            required=False,
-            widget=forms.CheckboxSelectMultiple(attrs={"class": "space-y-2"}),
-            label="Compatible Bit Sizes"
-        )
-        # Set initial value if editing existing instance
-        if self.instance and self.instance.pk:
-            self.fields['compatible_sizes'].initial = self.instance.compatible_sizes.all()
-        # Reorder fields to put 'compatible_sizes' after 'hardness'
-        field_order = list(self.fields.keys())
-        if 'compatible_sizes' in field_order and 'hardness' in field_order:
-            field_order.remove('compatible_sizes')
-            idx = field_order.index('hardness') + 1
-            field_order.insert(idx, 'compatible_sizes')
-            self.order_fields(field_order)
-        # Set optional fields
         self.fields["slot_length"].required = False
         self.fields["hardness"].required = False
+        self.fields["compatible_sizes"].required = False
         self.fields["remarks"].required = False
 
-    def save(self, commit=True):
-        instance = super().save(commit=commit)
-        # Handle the dynamically added ManyToMany field
-        if commit:
-            instance.compatible_sizes.set(self.cleaned_data.get('compatible_sizes', []))
-        else:
-            # If not committing, save M2M after the instance is saved
-            old_save_m2m = self.save_m2m
-            def new_save_m2m():
-                old_save_m2m()
-                instance.compatible_sizes.set(self.cleaned_data.get('compatible_sizes', []))
-            self.save_m2m = new_save_m2m
-        return instance
+
+class BitSizeForm(forms.ModelForm):
+    """Form for creating and editing Bit Sizes - simple list."""
+
+    class Meta:
+        model = BitSize
+        fields = [
+            "size_display",
+            "size_decimal",
+            "code",
+            "size_inches",
+            "description",
+            "is_active",
+        ]
+        widgets = {
+            "size_display": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": 'e.g., 8 1/2"'}),
+            "size_decimal": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "e.g., 8.500"}),
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 8.500"}),
+            "size_inches": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., 8 1/2"}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2, "placeholder": "Optional remarks"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
+        }
+        labels = {
+            "size_display": "Size",
+            "size_decimal": "Decimal Value",
+            "code": "Code",
+            "size_inches": "Fraction",
+            "description": "Description / Remarks",
+            "is_active": "Active",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["description"].required = False
+
+
+class HDBSTypeForm(forms.ModelForm):
+    """Form for creating and editing HDBS Types (Internal naming)."""
+
+    class Meta:
+        model = HDBSType
+        fields = [
+            "hdbs_name",
+            "sizes",
+            "description",
+            "is_active",
+        ]
+        widgets = {
+            "hdbs_name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHS"}),
+            "sizes": forms.CheckboxSelectMultiple(attrs={"class": "space-y-2"}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2, "placeholder": "Optional description"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
+        }
+        labels = {
+            "hdbs_name": "HDBS Name (Internal)",
+            "sizes": "Compatible Sizes",
+            "description": "Description",
+            "is_active": "Active",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["sizes"].required = True  # At least one size is required
+        self.fields["description"].required = False
+        # Only show active sizes
+        self.fields["sizes"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+
+    def clean_sizes(self):
+        """Validate that at least one size is selected."""
+        sizes = self.cleaned_data.get("sizes")
+        if not sizes or sizes.count() == 0:
+            raise forms.ValidationError("At least one size must be selected.")
+        return sizes
+
+
+class SMITypeForm(forms.ModelForm):
+    """Form for creating and editing SMI Types (Client-facing naming)."""
+
+    class Meta:
+        model = SMIType
+        fields = [
+            "smi_name",
+            "hdbs_type",
+            "size",
+            "description",
+            "is_active",
+        ]
+        widgets = {
+            "smi_name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., GT65RHs-1"}),
+            "hdbs_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "size": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2, "placeholder": "Optional description"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300 text-blue-600 focus:ring-blue-500"}),
+        }
+        labels = {
+            "smi_name": "SMI Name (Client-Facing)",
+            "hdbs_type": "HDBS Type",
+            "size": "Size",
+            "description": "Description",
+            "is_active": "Active",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["description"].required = False
+        self.fields["size"].required = True  # Size is required for SMI types
+        # Only show active sizes
+        self.fields["size"].queryset = BitSize.objects.filter(is_active=True).order_by("size_decimal")

@@ -33,6 +33,14 @@ DEBUG = env('DEBUG')
 
 ALLOWED_HOSTS = env('ALLOWED_HOSTS')
 
+# CSRF trusted origins for GitHub Codespaces and other proxy environments
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.app.github.dev',
+    'https://*.github.dev',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+
 # =============================================================================
 # APPLICATION DEFINITION
 # =============================================================================
@@ -102,6 +110,9 @@ LOCAL_APPS = [
     'apps.hr',
     'apps.hsse',
     'apps.erp_integration',
+
+    # ERP Automation (browser automation for ERP)
+    'apps.erp_automation',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -140,6 +151,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'apps.accounts.context_processors.permissions',
+                'apps.accounts.context_processors.saved_dashboards',
             ],
         },
     },
@@ -269,6 +281,22 @@ LOGGING = {
 
 # Create logs directory
 (BASE_DIR / 'logs').mkdir(exist_ok=True)
+
+# =============================================================================
+# SITE URL CONFIGURATION (for QR codes and external links)
+# =============================================================================
+
+# SITE_URL can be set explicitly in environment, or auto-detected for Codespaces
+SITE_URL = env('SITE_URL', default=None)
+
+# Auto-detect GitHub Codespaces URL
+if SITE_URL is None:
+    codespace_name = os.environ.get('CODESPACE_NAME')
+    codespaces_domain = os.environ.get('GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN', 'app.github.dev')
+
+    if codespace_name:
+        # Running in GitHub Codespaces - construct the public URL
+        SITE_URL = f"https://{codespace_name}-8000.{codespaces_domain}"
 
 # =============================================================================
 # ARDT FMS CUSTOM SETTINGS

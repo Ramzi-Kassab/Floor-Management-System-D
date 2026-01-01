@@ -14,8 +14,8 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from django.http import JsonResponse
 
-from .forms import BOMForm, BOMLineForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm
-from .models import BOM, BOMLine, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout
+from .forms import BOMForm, BOMLineForm, BitSizeForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm, HDBSTypeForm, SMITypeForm
+from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout, HDBSType, SMIType
 
 
 # =============================================================================
@@ -32,8 +32,6 @@ class DesignListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        from apps.workorders.models import BitSize
-
         queryset = Design.objects.select_related(
             "size", "connection_ref", "connection_ref__connection_type",
             "connection_ref__connection_size", "breaker_slot", "iadc_code_ref"
@@ -85,8 +83,6 @@ class DesignListView(LoginRequiredMixin, ListView):
         return queryset
 
     def get_context_data(self, **kwargs):
-        from apps.workorders.models import BitSize
-
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Designs"
         context["search_query"] = self.request.GET.get("q", "")
@@ -100,6 +96,11 @@ class DesignListView(LoginRequiredMixin, ListView):
         context["status_choices"] = Design.Status.choices
         context["order_level_choices"] = Design.OrderLevel.choices
         context["sizes"] = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+        # Count drafts for the banner (only show if not already filtering by status)
+        if not self.request.GET.get("status"):
+            context["draft_count"] = Design.objects.filter(status=Design.Status.DRAFT).count()
+        else:
+            context["draft_count"] = 0
         return context
 
 
@@ -705,8 +706,6 @@ class PocketsLayoutListView(LoginRequiredMixin, ListView):
         return queryset
 
     def get_context_data(self, **kwargs):
-        from apps.workorders.models import BitSize
-
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Pockets Layout"
         context["search_query"] = self.request.GET.get("q", "")
@@ -723,7 +722,7 @@ class PocketsLayoutListView(LoginRequiredMixin, ListView):
 
 
 class BOMListView(LoginRequiredMixin, ListView):
-    """List all BOMs."""
+    """List all BOMs with material availability status."""
 
     model = BOM
     template_name = "technology/bom_list.html"
@@ -731,7 +730,9 @@ class BOMListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = BOM.objects.select_related("design", "created_by").order_by("-created_at")
+        queryset = BOM.objects.select_related("design", "created_by").prefetch_related(
+            "lines__inventory_item"
+        ).order_by("-created_at")
 
         search = self.request.GET.get("q")
         if search:
@@ -746,16 +747,42 @@ class BOMListView(LoginRequiredMixin, ListView):
         return queryset
 
     def get_context_data(self, **kwargs):
+        from apps.inventory.models import Stock
+        from django.db.models import Sum
+
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Bills of Materials"
         context["search_query"] = self.request.GET.get("q", "")
         context["current_status"] = self.request.GET.get("status", "")
         context["status_choices"] = BOM.Status.choices
+
+        # Add material availability status for each BOM
+        boms_with_status = []
+        for bom in context["boms"]:
+            all_available = True
+            line_count = 0
+            for line in bom.lines.all():
+                line_count += 1
+                stock = Stock.objects.filter(item=line.inventory_item).aggregate(
+                    available=Sum('quantity_available')
+                )
+                available = stock['available'] or 0
+                if available < line.quantity:
+                    all_available = False
+                    break
+
+            boms_with_status.append({
+                'bom': bom,
+                'materials_ready': all_available if line_count > 0 else None,
+                'line_count': line_count,
+            })
+
+        context["boms_with_status"] = boms_with_status
         return context
 
 
 class BOMDetailView(LoginRequiredMixin, DetailView):
-    """View BOM details with line items."""
+    """View BOM details with line items and inventory availability."""
 
     model = BOM
     template_name = "technology/bom_detail.html"
@@ -765,9 +792,56 @@ class BOMDetailView(LoginRequiredMixin, DetailView):
         return BOM.objects.select_related("design", "created_by")
 
     def get_context_data(self, **kwargs):
+        from apps.inventory.models import Stock
+        from django.db.models import Sum
+
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"BOM {self.object.code}"
-        context["lines"] = self.object.lines.select_related("inventory_item").order_by("line_number")
+
+        # Get lines with inventory items
+        lines = self.object.lines.select_related(
+            "inventory_item", "inventory_item__category", "inventory_item__primary_supplier"
+        ).order_by("line_number")
+
+        # Enrich lines with stock information
+        lines_with_stock = []
+        all_available = True
+
+        for line in lines:
+            item = line.inventory_item
+            # Get total stock for this item
+            stock_data = Stock.objects.filter(
+                item=item
+            ).aggregate(
+                total_on_hand=Sum('quantity_on_hand'),
+                total_available=Sum('quantity_available')
+            )
+
+            on_hand = stock_data['total_on_hand'] or 0
+            available = stock_data['total_available'] or 0
+            required = line.quantity
+
+            # Determine availability status
+            if available >= required:
+                status = 'available'
+            elif available > 0:
+                status = 'partial'
+                all_available = False
+            else:
+                status = 'unavailable'
+                all_available = False
+
+            lines_with_stock.append({
+                'line': line,
+                'on_hand': on_hand,
+                'available': available,
+                'required': required,
+                'shortage': max(0, required - available),
+                'status': status,
+            })
+
+        context["lines"] = lines_with_stock
+        context["all_materials_available"] = all_available
         context["total_cost"] = self.object.total_cost
         context["line_form"] = BOMLineForm()
         return context
@@ -981,10 +1055,14 @@ class APIBreakerSlotsView(LoginRequiredMixin, View):
         # Build filter options - material choices from model
         materials = [{'code': code, 'name': name} for code, name in BreakerSlot.Material.choices]
 
+        # Bit sizes for compatible sizes checkboxes in quick create
+        bit_sizes = [{'id': bs.id, 'display': bs.size_display} for bs in BitSize.objects.filter(is_active=True)]
+
         return JsonResponse({
             'breaker_slots': breaker_slots,
             'filters': {
                 'materials': materials,
+                'sizes': bit_sizes,
             }
         })
 
@@ -1206,3 +1284,816 @@ class BreakerSlotDeleteView(LoginRequiredMixin, DeleteView):
     def form_valid(self, form):
         messages.success(self.request, f"Breaker Slot {self.object.mat_no} deleted.")
         return super().form_valid(form)
+
+
+# =============================================================================
+# QUICK CREATE API VIEWS (for modal quick-create without leaving the page)
+# =============================================================================
+
+
+class APIConnectionCreateView(LoginRequiredMixin, View):
+    """API endpoint to create a new connection from the design form modal."""
+
+    def post(self, request):
+        import json
+
+        try:
+            data = json.loads(request.body)
+
+            # Validate required fields
+            mat_no = data.get('mat_no', '').strip()
+            connection_type_id = data.get('connection_type')
+            connection_size_id = data.get('connection_size')
+
+            if not mat_no:
+                return JsonResponse({'success': False, 'error': 'MAT No. is required'}, status=400)
+            if not connection_type_id:
+                return JsonResponse({'success': False, 'error': 'Connection Type is required'}, status=400)
+            if not connection_size_id:
+                return JsonResponse({'success': False, 'error': 'Connection Size is required'}, status=400)
+
+            # Check if MAT No. already exists
+            if Connection.objects.filter(mat_no=mat_no).exists():
+                return JsonResponse({'success': False, 'error': f'Connection with MAT No. {mat_no} already exists'}, status=400)
+
+            # Create the connection
+            connection = Connection.objects.create(
+                mat_no=mat_no,
+                connection_type_id=connection_type_id,
+                connection_size_id=connection_size_id,
+                special_features=data.get('special_features', ''),
+                can_replace_in_ksa=data.get('can_replace_in_ksa', False),
+                remarks=data.get('remarks', ''),
+                is_active=data.get('is_active', True)
+            )
+
+            return JsonResponse({
+                'success': True,
+                'connection': {
+                    'id': connection.id,
+                    'mat_no': connection.mat_no,
+                    'type': connection.connection_type.code,
+                    'type_name': connection.connection_type.name,
+                    'size': connection.connection_size.size_inches,
+                    'can_replace_in_ksa': connection.can_replace_in_ksa,
+                }
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+class APIBreakerSlotCreateView(LoginRequiredMixin, View):
+    """API endpoint to create a new breaker slot from the design form modal."""
+
+    def post(self, request):
+        import json
+
+        try:
+            data = json.loads(request.body)
+
+            # Validate required fields
+            mat_no = data.get('mat_no', '').strip()
+            slot_width = data.get('slot_width')
+            slot_depth = data.get('slot_depth')
+            material = data.get('material')
+
+            if not mat_no:
+                return JsonResponse({'success': False, 'error': 'MAT No. is required'}, status=400)
+            if not slot_width:
+                return JsonResponse({'success': False, 'error': 'Slot Width is required'}, status=400)
+            if not slot_depth:
+                return JsonResponse({'success': False, 'error': 'Slot Depth is required'}, status=400)
+            if not material:
+                return JsonResponse({'success': False, 'error': 'Material is required'}, status=400)
+
+            # Check if MAT No. already exists
+            if BreakerSlot.objects.filter(mat_no=mat_no).exists():
+                return JsonResponse({'success': False, 'error': f'Breaker Slot with MAT No. {mat_no} already exists'}, status=400)
+
+            # Create the breaker slot
+            breaker_slot = BreakerSlot.objects.create(
+                mat_no=mat_no,
+                slot_width=slot_width,
+                slot_depth=slot_depth,
+                slot_length=data.get('slot_length') or None,
+                material=material,
+                hardness=data.get('hardness', ''),
+                remarks=data.get('remarks', ''),
+                is_active=data.get('is_active', True)
+            )
+
+            # Add compatible sizes if provided
+            compatible_sizes = data.get('compatible_sizes', [])
+            if compatible_sizes:
+                breaker_slot.compatible_sizes.set(compatible_sizes)
+
+            return JsonResponse({
+                'success': True,
+                'breaker_slot': {
+                    'id': breaker_slot.id,
+                    'mat_no': breaker_slot.mat_no,
+                    'slot_width': str(breaker_slot.slot_width),
+                    'slot_depth': str(breaker_slot.slot_depth),
+                    'material': breaker_slot.material,
+                    'material_display': breaker_slot.get_material_display(),
+                }
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+class APIDesignSaveDraftView(LoginRequiredMixin, View):
+    """API endpoint to save a design as draft from the design form."""
+
+    def post(self, request):
+        import json
+
+        try:
+            data = json.loads(request.body)
+
+            # Validate minimum required fields
+            mat_no = data.get('mat_no', '').strip()
+            hdbs_type = data.get('hdbs_type', '').strip()
+
+            if not mat_no and not hdbs_type:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'At least MAT No. or HDBS Type is required to save a draft'
+                }, status=400)
+
+            # Check for existing draft with same MAT No
+            design_id = data.get('design_id')  # For updating existing draft
+            if design_id:
+                # Update existing design
+                try:
+                    design = Design.objects.get(id=design_id)
+                except Design.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Design not found'}, status=404)
+            else:
+                # Create new design
+                design = Design()
+
+            # Set all provided fields
+            design.mat_no = mat_no or f"DRAFT-{Design.objects.count() + 1}"
+            design.hdbs_type = hdbs_type or "DRAFT"
+            design.status = Design.Status.DRAFT
+
+            # Optional fields
+            if data.get('category'):
+                design.category = data['category']
+            if data.get('size'):
+                design.size_id = data['size']
+            if data.get('smi_type'):
+                design.smi_type = data['smi_type']
+            if data.get('ref_mat_no'):
+                design.ref_mat_no = data['ref_mat_no']
+            if data.get('ardt_item_no'):
+                design.ardt_item_no = data['ardt_item_no']
+            if data.get('body_material'):
+                design.body_material = data['body_material']
+            if data.get('series'):
+                design.series = data['series']
+            if data.get('no_of_blades'):
+                design.no_of_blades = data['no_of_blades']
+            if data.get('cutter_size'):
+                design.cutter_size = data['cutter_size']
+            if data.get('total_pockets_count'):
+                design.total_pockets_count = data['total_pockets_count']
+            if data.get('gage_length'):
+                design.gage_length = data['gage_length']
+            if data.get('gage_relief'):
+                design.gage_relief = data['gage_relief']
+            if data.get('nozzle_count'):
+                design.nozzle_count = data['nozzle_count']
+            if data.get('nozzle_bore_size'):
+                design.nozzle_bore_size = data['nozzle_bore_size']
+            if data.get('nozzle_config'):
+                design.nozzle_config = data['nozzle_config']
+            if data.get('port_count'):
+                design.port_count = data['port_count']
+            if data.get('port_size'):
+                design.port_size = data['port_size']
+            if data.get('order_level'):
+                design.order_level = data['order_level']
+            if data.get('iadc_code_ref'):
+                design.iadc_code_ref_id = data['iadc_code_ref']
+            if data.get('connection_ref'):
+                design.connection_ref_id = data['connection_ref']
+            if data.get('breaker_slot'):
+                design.breaker_slot_id = data['breaker_slot']
+            if data.get('formation_type_ref'):
+                design.formation_type_ref_id = data['formation_type_ref']
+            if data.get('application_ref'):
+                design.application_ref_id = data['application_ref']
+            if data.get('revision'):
+                design.revision = data['revision']
+            if data.get('description'):
+                design.description = data['description']
+            if data.get('notes'):
+                design.notes = data['notes']
+
+            design.save()
+
+            return JsonResponse({
+                'success': True,
+                'design': {
+                    'id': design.id,
+                    'mat_no': design.mat_no,
+                    'hdbs_type': design.hdbs_type,
+                    'status': design.status,
+                },
+                'message': 'Design saved as draft'
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# =============================================================================
+# BIT SIZE CRUD VIEWS (Simple list of sizes)
+# =============================================================================
+
+
+class BitSizeListView(LoginRequiredMixin, ListView):
+    """List all bit sizes - simple list."""
+
+    model = BitSize
+    template_name = "technology/bit_size_list.html"
+    context_object_name = "sizes"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = BitSize.objects.order_by('size_decimal')
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(size_display__icontains=search) |
+                Q(size_inches__icontains=search) |
+                Q(description__icontains=search)
+            )
+
+        if not self.request.GET.get("show_inactive"):
+            queryset = queryset.filter(is_active=True)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Bit Sizes"
+        return context
+
+
+class BitSizeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new bit size."""
+
+    model = BitSize
+    form_class = BitSizeForm
+    template_name = "technology/bit_size_form.html"
+    success_url = reverse_lazy("technology:bit_size_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Add Bit Size"
+        context["submit_text"] = "Add Size"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Bit Size {form.instance.size_display} added successfully.")
+        return super().form_valid(form)
+
+
+class BitSizeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing bit size."""
+
+    model = BitSize
+    form_class = BitSizeForm
+    template_name = "technology/bit_size_form.html"
+    success_url = reverse_lazy("technology:bit_size_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit Size {self.object.size_display}"
+        context["submit_text"] = "Save Changes"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Bit Size {self.object.size_display} updated successfully.")
+        return super().form_valid(form)
+
+
+class BitSizeDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a bit size."""
+
+    model = BitSize
+    template_name = "technology/bit_size_confirm_delete.html"
+    success_url = reverse_lazy("technology:bit_size_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Bit Size {self.object.size_display} deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# HDBS TYPE CRUD VIEWS (Internal type naming with SMI children)
+# =============================================================================
+
+
+class HDBSTypeListView(LoginRequiredMixin, ListView):
+    """List all HDBS types with their SMI names."""
+
+    model = HDBSType
+    template_name = "technology/hdbs_type_list.html"
+    context_object_name = "hdbs_types"
+    paginate_by = 25
+
+    def get_queryset(self):
+        queryset = HDBSType.objects.prefetch_related('smi_types', 'smi_types__size', 'sizes').order_by('hdbs_name')
+
+        search = self.request.GET.get("q")
+        if search:
+            queryset = queryset.filter(
+                Q(hdbs_name__icontains=search) |
+                Q(description__icontains=search) |
+                Q(smi_types__smi_name__icontains=search)
+            ).distinct()
+
+        size = self.request.GET.get("size")
+        if size:
+            queryset = queryset.filter(sizes__id=size)
+
+        if not self.request.GET.get("show_inactive"):
+            queryset = queryset.filter(is_active=True)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Bit Types (HDBS/SMI)"
+        context["sizes"] = BitSize.objects.filter(is_active=True).order_by('size_decimal')
+
+        # Build flat rows for the table: each row = {hdbs, size, smi}
+        flat_rows = []
+        for hdbs in context["hdbs_types"]:
+            sizes = list(hdbs.sizes.filter(is_active=True).order_by('size_decimal'))
+            smi_types = list(hdbs.smi_types.select_related('size').all())
+
+            if sizes:
+                for size in sizes:
+                    # Find SMI types for this specific size OR no size (applies to all)
+                    matching_smi = [s for s in smi_types if s.size_id == size.id or s.size_id is None]
+                    if matching_smi:
+                        for smi in matching_smi:
+                            flat_rows.append({'hdbs': hdbs, 'size': size, 'smi': smi})
+                    else:
+                        # No SMI for this size
+                        flat_rows.append({'hdbs': hdbs, 'size': size, 'smi': None})
+            else:
+                # HDBS has no sizes assigned
+                if smi_types:
+                    for smi in smi_types:
+                        flat_rows.append({'hdbs': hdbs, 'size': None, 'smi': smi})
+                else:
+                    # No sizes and no SMI types
+                    flat_rows.append({'hdbs': hdbs, 'size': None, 'smi': None})
+
+        context["flat_rows"] = flat_rows
+        return context
+
+
+class HDBSTypeDetailView(LoginRequiredMixin, DetailView):
+    """View HDBS type details with SMI names and related designs."""
+
+    model = HDBSType
+    template_name = "technology/hdbs_type_detail.html"
+    context_object_name = "hdbs_type"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get SMI types for this HDBS
+        smi_types = self.object.smi_types.select_related('size').order_by('size__size_decimal', 'smi_name')
+        context["smi_types"] = smi_types
+
+        # Build flat table rows: each row = (size, smi)
+        # If HDBS has sizes, show one row per size with matching SMI types
+        # SMI types with size=None apply to all sizes
+        type_size_smi_rows = []
+        sizes = self.object.sizes.filter(is_active=True).order_by('size_decimal')
+
+        if sizes.exists():
+            for size in sizes:
+                # Find SMI types for this specific size OR no size (applies to all)
+                size_smi_types = [s for s in smi_types if s.size_id == size.id or s.size_id is None]
+                if size_smi_types:
+                    for smi in size_smi_types:
+                        type_size_smi_rows.append({'size': size, 'smi': smi})
+                else:
+                    # No SMI for this size - show row with empty SMI
+                    type_size_smi_rows.append({'size': size, 'smi': None})
+        else:
+            # HDBS has no sizes assigned - show all SMI types without size
+            for smi in smi_types:
+                type_size_smi_rows.append({'size': None, 'smi': smi})
+            if not smi_types:
+                type_size_smi_rows.append({'size': None, 'smi': None})
+
+        context["type_size_smi_rows"] = type_size_smi_rows
+
+        # Get designs using this HDBS type - both legacy field and junction table
+        legacy_design_ids = Design.objects.filter(
+            hdbs_type__icontains=self.object.hdbs_name
+        ).values_list('id', flat=True)
+        junction_design_ids = self.object.design_assignments.filter(
+            is_current=True
+        ).values_list('design_id', flat=True)
+
+        all_design_ids = set(legacy_design_ids) | set(junction_design_ids)
+        context["related_designs"] = Design.objects.filter(
+            id__in=all_design_ids
+        ).select_related('size').order_by('mat_no')[:30]
+
+        # Current design assignments via junction table
+        context["design_hdbs_assignments"] = self.object.design_assignments.filter(
+            is_current=True
+        ).select_related('design', 'design__size', 'assigned_by').order_by('design__mat_no')
+        return context
+
+
+class HDBSTypeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new HDBS type."""
+
+    model = HDBSType
+    form_class = HDBSTypeForm
+    template_name = "technology/hdbs_type_form.html"
+
+    def get_success_url(self):
+        # If coming from design form, stay on page with success message
+        if self.request.GET.get('from') == 'design':
+            return f"{reverse_lazy('technology:hdbs_type_create')}?from=design&created=1"
+        return reverse_lazy("technology:hdbs_type_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Add HDBS Type"
+        context["submit_text"] = "Add Type"
+        context["just_created"] = self.request.GET.get('created') == '1'
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"HDBS Type {form.instance.hdbs_name} created successfully. You can now close this tab and return to your Design form.")
+        return super().form_valid(form)
+
+
+class HDBSTypeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing HDBS type."""
+
+    model = HDBSType
+    form_class = HDBSTypeForm
+    template_name = "technology/hdbs_type_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("technology:hdbs_type_detail", kwargs={"pk": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit HDBS Type {self.object.hdbs_name}"
+        context["submit_text"] = "Save Changes"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"HDBS Type {self.object.hdbs_name} updated successfully.")
+        return super().form_valid(form)
+
+
+class HDBSTypeDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete an HDBS type."""
+
+    model = HDBSType
+    template_name = "technology/hdbs_type_confirm_delete.html"
+    success_url = reverse_lazy("technology:hdbs_type_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, f"HDBS Type {self.object.hdbs_name} deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# SMI TYPE CRUD VIEWS (Client-facing naming linked to HDBS)
+# =============================================================================
+
+
+class SMITypeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new SMI type linked to an HDBS type."""
+
+    model = SMIType
+    form_class = SMITypeForm
+    template_name = "technology/smi_type_form.html"
+
+    def get_hdbs_type(self):
+        """Get the HDBS type from URL or query param."""
+        hdbs_pk = self.kwargs.get('hdbs_pk') or self.request.GET.get('hdbs')
+        if hdbs_pk:
+            return get_object_or_404(HDBSType, pk=hdbs_pk)
+        return None
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        hdbs_type = self.get_hdbs_type()
+        if hdbs_type:
+            # Only show sizes that belong to this HDBS type
+            if hdbs_type.sizes.exists():
+                form.fields['size'].queryset = hdbs_type.sizes.filter(is_active=True).order_by('size_decimal')
+            else:
+                # If HDBS has no sizes, show all active sizes
+                form.fields['size'].queryset = BitSize.objects.filter(is_active=True).order_by('size_decimal')
+        return form
+
+    def get_initial(self):
+        initial = super().get_initial()
+        # Pre-select HDBS type if provided in URL
+        hdbs_pk = self.kwargs.get('hdbs_pk') or self.request.GET.get('hdbs')
+        if hdbs_pk:
+            initial['hdbs_type'] = hdbs_pk
+        # Pre-select size if provided in query string
+        size_pk = self.request.GET.get('size')
+        if size_pk:
+            initial['size'] = size_pk
+        return initial
+
+    def get_success_url(self):
+        return reverse_lazy("technology:hdbs_type_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Add SMI Type"
+        context["submit_text"] = "Add SMI Type"
+        hdbs_type = self.get_hdbs_type()
+        if hdbs_type:
+            context["hdbs_type"] = hdbs_type
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"SMI Type {form.instance.smi_name} added successfully.")
+        return super().form_valid(form)
+
+
+class SMITypeCreateStandaloneView(LoginRequiredMixin, CreateView):
+    """Create a new SMI type without pre-selected HDBS."""
+
+    model = SMIType
+    form_class = SMITypeForm
+    template_name = "technology/smi_type_form.html"
+
+    def get_success_url(self):
+        # If coming from design form, stay on page with success message
+        if self.request.GET.get('from') == 'design':
+            return f"{reverse_lazy('technology:smi_type_create_standalone')}?from=design&created=1"
+        return reverse_lazy("technology:hdbs_type_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Add SMI Type"
+        context["submit_text"] = "Add SMI Type"
+        context["just_created"] = self.request.GET.get('created') == '1'
+        return context
+
+    def form_valid(self, form):
+        if self.request.GET.get('from') == 'design':
+            messages.success(self.request, f"SMI Type {form.instance.smi_name} added successfully. You can now close this tab and return to your Design form.")
+        else:
+            messages.success(self.request, f"SMI Type {form.instance.smi_name} added successfully.")
+        return super().form_valid(form)
+
+
+class SMITypeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing SMI type."""
+
+    model = SMIType
+    form_class = SMITypeForm
+    template_name = "technology/smi_type_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("technology:hdbs_type_detail", kwargs={"pk": self.object.hdbs_type.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit SMI Type {self.object.smi_name}"
+        context["submit_text"] = "Save Changes"
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f"SMI Type {self.object.smi_name} updated successfully.")
+        return super().form_valid(form)
+
+
+class SMITypeDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete an SMI type."""
+
+    model = SMIType
+    template_name = "technology/smi_type_confirm_delete.html"
+
+    def get_success_url(self):
+        return reverse_lazy("technology:hdbs_type_detail", kwargs={"pk": self.object.hdbs_type.pk})
+
+    def form_valid(self, form):
+        messages.success(self.request, f"SMI Type {self.object.smi_name} deleted.")
+        return super().form_valid(form)
+
+
+# =============================================================================
+# API VIEWS FOR QUICK CREATE (Types)
+# =============================================================================
+
+
+class APIHDBSTypesView(LoginRequiredMixin, View):
+    """API endpoint to get HDBS types for dropdowns."""
+
+    def get(self, request):
+        # Filter by active status unless show_inactive is set
+        show_inactive = request.GET.get('show_inactive')
+        if show_inactive:
+            hdbs_types = HDBSType.objects.all()
+        else:
+            hdbs_types = HDBSType.objects.filter(is_active=True)
+
+        # Search filter
+        q = request.GET.get('q', '').strip()
+        if q:
+            hdbs_types = hdbs_types.filter(
+                Q(hdbs_name__icontains=q) |
+                Q(description__icontains=q) |
+                Q(smi_types__smi_name__icontains=q)
+            ).distinct()
+
+        # Filter by size - show only HDBS types that have this size selected
+        # OR have no sizes (meaning they apply to all sizes)
+        size_id = request.GET.get('size', '').strip()
+        if size_id:
+            hdbs_types = hdbs_types.filter(
+                Q(sizes__id=size_id) | Q(sizes__isnull=True)
+            ).distinct()
+
+        hdbs_types = hdbs_types.prefetch_related('sizes', 'smi_types').order_by('hdbs_name')
+
+        # Build response with SMI types filtered by size if provided
+        data = {'hdbs_types': []}
+        for t in hdbs_types:
+            # Get SMI types, optionally filtered by size
+            if show_inactive:
+                smi_qs = t.smi_types.all()
+            else:
+                smi_qs = t.smi_types.filter(is_active=True)
+
+            # If size is specified, filter SMI types to those matching the size or with no size
+            if size_id:
+                smi_qs = smi_qs.filter(Q(size_id=size_id) | Q(size__isnull=True))
+
+            smi_list = [
+                {'id': s.id, 'smi_name': s.smi_name, 'is_active': s.is_active, 'size_id': s.size_id}
+                for s in smi_qs.order_by('smi_name')
+            ]
+
+            # If size filter is applied, only show that size; otherwise show all sizes
+            if size_id:
+                sizes_list = [{'id': s.id, 'display': s.size_display} for s in t.sizes.filter(is_active=True, id=size_id)]
+            else:
+                sizes_list = [{'id': s.id, 'display': s.size_display} for s in t.sizes.filter(is_active=True)]
+
+            data['hdbs_types'].append({
+                'id': t.id,
+                'hdbs_name': t.hdbs_name,
+                'description': t.description or '',
+                'is_active': t.is_active,
+                'sizes': sizes_list,
+                'smi_types': smi_list
+            })
+
+        return JsonResponse(data)
+
+
+class APIHDBSTypeCreateView(LoginRequiredMixin, View):
+    """API endpoint to quick create an HDBS type (optionally with SMI type)."""
+
+    def post(self, request):
+        import json
+        try:
+            data = json.loads(request.body)
+            hdbs_name = data.get('hdbs_name', '').strip()
+
+            if not hdbs_name:
+                return JsonResponse({'success': False, 'error': 'HDBS Name is required'}, status=400)
+
+            if HDBSType.objects.filter(hdbs_name=hdbs_name).exists():
+                return JsonResponse({'success': False, 'error': 'HDBS Type already exists'}, status=400)
+
+            hdbs_type = HDBSType.objects.create(
+                hdbs_name=hdbs_name,
+                description=data.get('description', ''),
+                is_active=True
+            )
+
+            # Add sizes if provided
+            size_ids = data.get('sizes', [])
+            if size_ids:
+                hdbs_type.sizes.set(size_ids)
+
+            response_data = {
+                'success': True,
+                'hdbs_type': {
+                    'id': hdbs_type.id,
+                    'hdbs_name': hdbs_type.hdbs_name,
+                }
+            }
+
+            # Also create SMI type if smi_name is provided
+            smi_name = data.get('smi_name', '').strip()
+            size_id = data.get('size_id')
+            if smi_name and size_id:
+                try:
+                    size = BitSize.objects.get(pk=size_id)
+                    # Add the size to HDBS type if not already added
+                    hdbs_type.sizes.add(size)
+
+                    smi_type = SMIType.objects.create(
+                        smi_name=smi_name,
+                        hdbs_type=hdbs_type,
+                        size=size,
+                        description=data.get('smi_description', ''),
+                        is_active=True
+                    )
+                    response_data['smi_type'] = {
+                        'id': smi_type.id,
+                        'smi_name': smi_type.smi_name,
+                    }
+                except BitSize.DoesNotExist:
+                    # Size not found, skip SMI creation but don't fail
+                    pass
+
+            return JsonResponse(response_data)
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+class APISMITypeCreateView(LoginRequiredMixin, View):
+    """API endpoint to quick create an SMI type (uses size from design form)."""
+
+    def post(self, request):
+        import json
+        try:
+            data = json.loads(request.body)
+            smi_name = data.get('smi_name', '').strip()
+            hdbs_type_id = data.get('hdbs_type_id')
+            size_id = data.get('size_id')
+
+            if not smi_name:
+                return JsonResponse({'success': False, 'error': 'SMI Name is required'}, status=400)
+
+            if not hdbs_type_id:
+                return JsonResponse({'success': False, 'error': 'HDBS Type is required'}, status=400)
+
+            if not size_id:
+                return JsonResponse({'success': False, 'error': 'Please select a Size in the design form first'}, status=400)
+
+            hdbs_type = get_object_or_404(HDBSType, pk=hdbs_type_id)
+            size = get_object_or_404(BitSize, pk=size_id)
+
+            if SMIType.objects.filter(smi_name=smi_name, hdbs_type=hdbs_type, size=size).exists():
+                return JsonResponse({'success': False, 'error': 'SMI Type already exists for this HDBS and size'}, status=400)
+
+            # Add size to HDBS type's compatible sizes if not already there
+            hdbs_type.sizes.add(size)
+
+            smi_type = SMIType.objects.create(
+                smi_name=smi_name,
+                hdbs_type=hdbs_type,
+                size=size,
+                description=data.get('description', ''),
+                is_active=True
+            )
+
+            return JsonResponse({
+                'success': True,
+                'smi_type': {
+                    'id': smi_type.id,
+                    'smi_name': smi_type.smi_name,
+                    'hdbs_type_id': hdbs_type.id,
+                    'hdbs_name': hdbs_type.hdbs_name,
+                }
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Configure receipt variance tolerance thresholds</p>
+    </div>
+    <a href="{% url 'inventory:tolerance_create' %}" class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+        <i data-lucide="plus" class="w-4 h-4 mr-1"></i>New Tolerance Rule
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Info Box -->
+<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-6">
+    <div class="flex items-start">
+        <i data-lucide="info" class="w-5 h-5 text-blue-500 mr-3 mt-0.5"></i>
+        <div class="text-sm text-blue-700 dark:text-blue-300">
+            <p class="font-medium">How tolerance rules work:</p>
+            <ul class="mt-1 list-disc list-inside space-y-1">
+                <li><strong>System Default:</strong> Applies to all items unless overridden</li>
+                <li><strong>Category:</strong> Applies to items in a specific category</li>
+                <li><strong>Item:</strong> Applies to a specific item only</li>
+                <li><strong>Vendor:</strong> Applies to receipts from a specific vendor</li>
+            </ul>
+            <p class="mt-2">More specific rules take precedence over general ones.</p>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-700">
+            <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applies To</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Scope</th>
+                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Over Receipt %</th>
+                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Under Receipt %</th>
+                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Require QC</th>
+                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Auto Close</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+        {% for tol in tolerances %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+            <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                    {% if tol.applies_to == 'SYSTEM' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                    {% elif tol.applies_to == 'CATEGORY' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                    {% elif tol.applies_to == 'ITEM' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                    {% else %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200{% endif %}">
+                    {{ tol.get_applies_to_display }}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                {% if tol.applies_to == 'SYSTEM' %}
+                    <span class="italic">All items</span>
+                {% elif tol.applies_to == 'CATEGORY' %}
+                    {{ tol.category.name|default:"-" }}
+                {% elif tol.applies_to == 'ITEM' %}
+                    {{ tol.item.code|default:"-" }} - {{ tol.item.name|default:""|truncatechars:30 }}
+                {% elif tol.applies_to == 'VENDOR' %}
+                    {{ tol.vendor.name|default:"-" }}
+                {% endif %}
+            </td>
+            <td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">+{{ tol.over_receipt_percent }}%</td>
+            <td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">-{{ tol.under_receipt_percent }}%</td>
+            <td class="px-4 py-3 text-center">
+                {% if tol.require_qc %}<i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>{% else %}<i data-lucide="minus" class="w-4 h-4 text-gray-400 inline"></i>{% endif %}
+            </td>
+            <td class="px-4 py-3 text-center">
+                {% if tol.auto_close_on_tolerance %}<i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>{% else %}<i data-lucide="minus" class="w-4 h-4 text-gray-400 inline"></i>{% endif %}
+            </td>
+            <td class="px-4 py-3">
+                <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full {% if tol.is_active %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                    {% if tol.is_active %}Active{% else %}Inactive{% endif %}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-right">
+                <a href="{% url 'inventory:tolerance_update' tol.pk %}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400">Edit</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="8" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                <i data-lucide="settings" class="w-12 h-12 mx-auto mb-3 text-gray-300"></i>
+                <p>No tolerance rules configured.</p>
+                <p class="text-sm mt-1">Create a system default rule to get started.</p>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% include "components/pagination.html" %}
+{% endblock %}
