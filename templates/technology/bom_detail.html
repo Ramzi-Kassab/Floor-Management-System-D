@@ -102,7 +102,7 @@
                             <td class="px-3 py-2 text-gray-500">{{ item.line.line_number }}</td>
                             <td class="px-3 py-2">
                                 <div>
-                                    {% if item.line.inventory_item %}
+                                    {% if item.line.inventory_item and item.line.inventory_item.pk %}
                                     <a href="{% url 'inventory:item_detail' item.line.inventory_item.pk %}"
                                        class="text-blue-600 hover:underline font-medium">
                                         {{ item.line.inventory_item.code }}
