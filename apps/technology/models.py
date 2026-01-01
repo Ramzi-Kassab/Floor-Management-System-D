@@ -971,12 +971,22 @@ class Design(models.Model):
 class BOM(models.Model):
     """
     🟢 P1: Bill of Materials for designs.
+
+    Enhanced to support:
+    - PDF import/export with ADesc format
+    - Cutter layout grid integration
+    - Inventory comparison
     """
 
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
         ACTIVE = "ACTIVE", "Active"
         OBSOLETE = "OBSOLETE", "Obsolete"
+
+    class SourceType(models.TextChoices):
+        MANUAL = "MANUAL", "Manual Entry"
+        PDF_IMPORT = "PDF_IMPORT", "PDF Import"
+        ERP_SYNC = "ERP_SYNC", "ERP Sync"
 
     design = models.ForeignKey(Design, on_delete=models.CASCADE, related_name="boms")
     code = models.CharField(max_length=50, unique=True)
@@ -987,6 +997,45 @@ class BOM(models.Model):
 
     effective_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
+
+    # PDF Import fields
+    source_type = models.CharField(
+        max_length=20,
+        choices=SourceType.choices,
+        default=SourceType.MANUAL,
+        help_text="How this BOM was created"
+    )
+    source_mat_number = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Mat Number from PDF (e.g., 2020054)"
+    )
+    source_sn_number = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="SN Number from PDF"
+    )
+    source_revision_level = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Revision Level from PDF (e.g., D - 390254)"
+    )
+    source_software_version = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="ADesc Software Version from PDF"
+    )
+    source_date_created = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date Created from PDF"
+    )
+    source_pdf_file = models.FileField(
+        upload_to="bom_pdfs/",
+        null=True,
+        blank=True,
+        help_text="Original uploaded PDF file"
+    )
 
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1007,19 +1056,93 @@ class BOM(models.Model):
         """Calculate total BOM cost."""
         return sum(line.line_cost for line in self.lines.all())
 
+    @property
+    def total_cutter_count(self):
+        """Total number of cutters in BOM."""
+        return sum(int(line.quantity) for line in self.lines.all())
+
 
 class BOMLine(models.Model):
     """
     🟢 P1: Individual items in a BOM.
+
+    Enhanced for cutter BOM with:
+    - Order number for grouping (1, 2, 3, 4...)
+    - Color code for visual identification
+    - Cutter-specific fields (size, chamfer, type)
+    - HDBS Code for item matching
     """
+
+    # Default color palette for order numbers
+    DEFAULT_COLORS = [
+        "#4A4A4A",  # Order 1: Dark gray
+        "#9E9E9E",  # Order 2: Light gray
+        "#6B6B6B",  # Order 3: Medium gray
+        "#E0E0E0",  # Order 4: White/Light
+        "#2196F3",  # Order 5: Blue
+        "#FF9800",  # Order 6: Orange
+        "#4CAF50",  # Order 7: Green
+        "#9C27B0",  # Order 8: Purple
+        "#F44336",  # Order 9: Red
+        "#00BCD4",  # Order 10: Cyan
+    ]
 
     bom = models.ForeignKey(BOM, on_delete=models.CASCADE, related_name="lines")
     line_number = models.IntegerField()
 
-    inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.PROTECT, related_name="bom_lines")
+    inventory_item = models.ForeignKey(
+        "inventory.InventoryItem",
+        on_delete=models.PROTECT,
+        related_name="bom_lines",
+        null=True,
+        blank=True,
+        help_text="Linked inventory item (matched by HDBS Code)"
+    )
 
-    quantity = models.DecimalField(max_digits=10, decimal_places=3)
-    unit = models.CharField(max_length=20, blank=True)
+    quantity = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+        help_text="Number of cutters (must be positive integer)"
+    )
+    unit = models.CharField(max_length=20, default="EA", blank=True)
+
+    # Order and display
+    order_number = models.PositiveIntegerField(
+        default=1,
+        help_text="Display order (1, 2, 3...) - used for grouping and color coding"
+    )
+    color_code = models.CharField(
+        max_length=7,
+        default="#4A4A4A",
+        help_text="Hex color code for visual identification (e.g., #4A4A4A)"
+    )
+
+    # Cutter-specific fields (from PDF)
+    cutter_size = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Cutter size code (e.g., 1313, 1613, 8MM)"
+    )
+    cutter_chamfer = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Chamfer type (e.g., 18C-60, U-60, DROP-IN, NA)"
+    )
+    cutter_type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Cutter type/model (e.g., CT418, CT170, WC-MAT400)"
+    )
+    hdbs_code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="HDBS Code / Mat # for item identification (e.g., 871781)"
+    )
+    family_number = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Family # from PDF"
+    )
 
     # Cost (cached from inventory item)
     unit_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)
@@ -1035,17 +1158,42 @@ class BOMLine(models.Model):
 
     class Meta:
         db_table = "bom_lines"
-        ordering = ["bom", "line_number"]
+        ordering = ["bom", "order_number", "line_number"]
         unique_together = ["bom", "line_number"]
         verbose_name = "BOM Line"
         verbose_name_plural = "BOM Lines"
 
     def __str__(self):
+        if self.cutter_type:
+            return f"{self.bom.code} - #{self.order_number} {self.cutter_type} x{self.quantity}"
         return f"{self.bom.code} - Line {self.line_number}"
 
     @property
     def line_cost(self):
         return float(self.quantity) * float(self.unit_cost)
+
+    @property
+    def display_name(self):
+        """Generate display name from cutter attributes."""
+        parts = []
+        if self.cutter_size:
+            parts.append(self.cutter_size)
+        if self.cutter_chamfer and self.cutter_chamfer != "NA":
+            parts.append(self.cutter_chamfer)
+        if self.cutter_type:
+            parts.append(self.cutter_type)
+        return " ".join(parts) if parts else f"Line {self.line_number}"
+
+    def set_default_color(self):
+        """Set color based on order number."""
+        idx = (self.order_number - 1) % len(self.DEFAULT_COLORS)
+        self.color_code = self.DEFAULT_COLORS[idx]
+
+    def save(self, *args, **kwargs):
+        # Set default color if not specified
+        if not self.color_code or self.color_code == "#4A4A4A":
+            self.set_default_color()
+        super().save(*args, **kwargs)
 
 
 class DesignCutterLayout(models.Model):
@@ -1423,3 +1571,100 @@ class DesignSMI(models.Model):
                 is_current=True
             ).exclude(pk=self.pk).update(is_current=False)
         super().save(*args, **kwargs)
+
+
+# =============================================================================
+# BOM CUTTER POSITION (for grid layout tracking)
+# =============================================================================
+
+
+class BOMCutterPosition(models.Model):
+    """
+    Tracks cutter positions in the BOM layout grid.
+
+    Grid structure from PDF:
+    - Blades: B1, B2, B3, B4, B5, B6, B7
+    - Rows: R1, R2, R3, R4 (up to 4 rows per blade)
+    - Locations: CONE, NOSE, SHOULDER, GAUGE, PAD
+
+    Each position references a BOMLine for the cutter type/order.
+    """
+
+    class BladeLocation(models.TextChoices):
+        CONE = "CONE", "Cone"
+        NOSE = "NOSE", "Nose"
+        SHOULDER = "SHOULDER", "Shoulder"
+        GAUGE = "GAUGE", "Gauge"
+        PAD = "PAD", "Pad"
+
+    bom = models.ForeignKey(
+        BOM,
+        on_delete=models.CASCADE,
+        related_name="cutter_positions",
+        help_text="Parent BOM"
+    )
+    bom_line = models.ForeignKey(
+        BOMLine,
+        on_delete=models.CASCADE,
+        related_name="grid_positions",
+        help_text="BOM line this position belongs to"
+    )
+
+    # Grid coordinates
+    blade_number = models.PositiveIntegerField(
+        help_text="Blade number (1-7, representing B1-B7)"
+    )
+    row_number = models.PositiveIntegerField(
+        default=1,
+        help_text="Row number (1-4, representing R1-R4)"
+    )
+    blade_location = models.CharField(
+        max_length=10,
+        choices=BladeLocation.choices,
+        help_text="Location on blade: CONE, NOSE, SHOULDER, GAUGE, PAD"
+    )
+    position_in_location = models.PositiveIntegerField(
+        default=1,
+        help_text="Position within the location (for multiple cutters in same location)"
+    )
+
+    # Display data from PDF
+    cutter_type_display = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Cutter type as displayed in PDF cell (e.g., CT418)"
+    )
+    order_number_display = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Order number displayed in cell (colored circle)"
+    )
+    chamfer_display = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Chamfer as displayed in PDF cell"
+    )
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "bom_cutter_positions"
+        ordering = ["bom", "blade_number", "row_number", "blade_location", "position_in_location"]
+        unique_together = ["bom", "blade_number", "row_number", "blade_location", "position_in_location"]
+        verbose_name = "BOM Cutter Position"
+        verbose_name_plural = "BOM Cutter Positions"
+
+    def __str__(self):
+        return f"{self.bom.code} - B{self.blade_number}R{self.row_number} {self.blade_location}"
+
+    @property
+    def grid_cell_id(self):
+        """Generate unique grid cell identifier."""
+        return f"B{self.blade_number}R{self.row_number}_{self.blade_location}_{self.position_in_location}"
+
+    @property
+    def color_code(self):
+        """Get color from linked BOM line."""
+        return self.bom_line.color_code if self.bom_line else "#4A4A4A"
