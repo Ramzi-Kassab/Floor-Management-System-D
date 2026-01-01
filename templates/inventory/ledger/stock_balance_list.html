@@ -9,6 +9,10 @@
         <p class="text-gray-600 dark:text-gray-400">Current stock on hand by item, location, lot, and owner</p>
     </div>
     <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'inventory:sync_stock' %}" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+           onclick="return confirm('Sync all stock balances to inventory items? This ensures item pages show correct quantities.');">
+            <i data-lucide="refresh-cw" class="w-4 h-4 mr-1"></i>Sync to Items
+        </a>
         <a href="{% url 'inventory:stock_ledger_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
             <i data-lucide="scroll-text" class="w-4 h-4 mr-1"></i>View Ledger
         </a>

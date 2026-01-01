@@ -5592,21 +5592,35 @@ class SyncStockFromBalancesView(LoginRequiredMixin, View):
     """
     Sync InventoryStock records from StockBalance records.
     This ensures item detail pages show correct stock quantities.
+    Aggregates all balance dimensions into simpler item+location+lot records.
     """
 
     def get(self, request):
         from decimal import Decimal
+        from django.db.models import Sum
 
         synced = 0
         errors = []
 
-        for balance in StockBalance.objects.select_related('item', 'location', 'lot'):
+        # Aggregate StockBalance by item, location, lot (ignoring other dimensions)
+        # This sums up all the different owner/condition/quality variants
+        aggregated = StockBalance.objects.values(
+            'item', 'location', 'lot'
+        ).annotate(
+            total_on_hand=Sum('qty_on_hand'),
+            total_reserved=Sum('qty_reserved')
+        )
+
+        for agg in aggregated:
             try:
-                lot_number = balance.lot.lot_number if balance.lot else ''
+                item = InventoryItem.objects.get(pk=agg['item'])
+                location = InventoryLocation.objects.get(pk=agg['location'])
+                lot = Lot.objects.filter(pk=agg['lot']).first() if agg['lot'] else None
+                lot_number = lot.lot_number if lot else ''
 
                 inv_stock, created = InventoryStock.objects.get_or_create(
-                    item=balance.item,
-                    location=balance.location,
+                    item=item,
+                    location=location,
                     lot_number=lot_number,
                     serial_number='',
                     defaults={
@@ -5616,18 +5630,21 @@ class SyncStockFromBalancesView(LoginRequiredMixin, View):
                     }
                 )
 
-                inv_stock.quantity_on_hand = balance.qty_on_hand or Decimal('0')
-                inv_stock.quantity_reserved = balance.qty_reserved or Decimal('0')
-                inv_stock.quantity_available = (balance.qty_on_hand or Decimal('0')) - (balance.qty_reserved or Decimal('0'))
+                qty_on_hand = agg['total_on_hand'] or Decimal('0')
+                qty_reserved = agg['total_reserved'] or Decimal('0')
+
+                inv_stock.quantity_on_hand = qty_on_hand
+                inv_stock.quantity_reserved = qty_reserved
+                inv_stock.quantity_available = qty_on_hand - qty_reserved
                 inv_stock.last_movement_date = timezone.now()
                 inv_stock.save()
                 synced += 1
             except Exception as e:
-                errors.append(f"{balance.item.code}: {str(e)}")
+                errors.append(f"Item {agg['item']}: {str(e)}")
 
         if errors:
             messages.warning(request, f"Synced {synced} records with {len(errors)} errors: {', '.join(errors[:3])}")
         else:
-            messages.success(request, f"Successfully synced {synced} stock records from balances.")
+            messages.success(request, f"Successfully synced {synced} stock records from balances to item inventory.")
 
         return redirect('inventory:balance_list')
