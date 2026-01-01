@@ -242,4 +242,9 @@ urlpatterns = [
     path("pocket/logout/", views.PocketLogoutView.as_view(), name="pocket_logout"),
     path("pocket/item/<int:pk>/", views.PocketItemView.as_view(), name="pocket_item"),
     path("pocket/item/<int:pk>/action/", views.PocketQuickActionView.as_view(), name="pocket_action"),
+
+    # =========================================================================
+    # ADMIN UTILITIES
+    # =========================================================================
+    path("admin/sync-stock/", views.SyncStockFromBalancesView.as_view(), name="sync_stock"),
 ]

@@ -5586,3 +5586,48 @@ class VarianceReportView(LoginRequiredMixin, ListView):
         ).count()
         context['current_status'] = self.request.GET.get('status', 'all')
         return context
+
+
+class SyncStockFromBalancesView(LoginRequiredMixin, View):
+    """
+    Sync InventoryStock records from StockBalance records.
+    This ensures item detail pages show correct stock quantities.
+    """
+
+    def get(self, request):
+        from decimal import Decimal
+
+        synced = 0
+        errors = []
+
+        for balance in StockBalance.objects.select_related('item', 'location', 'lot'):
+            try:
+                lot_number = balance.lot.lot_number if balance.lot else ''
+
+                inv_stock, created = InventoryStock.objects.get_or_create(
+                    item=balance.item,
+                    location=balance.location,
+                    lot_number=lot_number,
+                    serial_number='',
+                    defaults={
+                        'quantity_on_hand': Decimal('0'),
+                        'quantity_reserved': Decimal('0'),
+                        'quantity_available': Decimal('0'),
+                    }
+                )
+
+                inv_stock.quantity_on_hand = balance.qty_on_hand or Decimal('0')
+                inv_stock.quantity_reserved = balance.qty_reserved or Decimal('0')
+                inv_stock.quantity_available = (balance.qty_on_hand or Decimal('0')) - (balance.qty_reserved or Decimal('0'))
+                inv_stock.last_movement_date = timezone.now()
+                inv_stock.save()
+                synced += 1
+            except Exception as e:
+                errors.append(f"{balance.item.code}: {str(e)}")
+
+        if errors:
+            messages.warning(request, f"Synced {synced} records with {len(errors)} errors: {', '.join(errors[:3])}")
+        else:
+            messages.success(request, f"Successfully synced {synced} stock records from balances.")
+
+        return redirect('inventory:balance_list')
