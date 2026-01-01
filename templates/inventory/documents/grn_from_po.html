@@ -131,7 +131,7 @@
                             {{ line.item.code|default:"N/A" }}
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {{ line.item.name|default:line.po_line.description|truncatechars:40 }}
+                            {{ line.item.name|default:line.po_line.item_description|truncatechars:40 }}
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-900 dark:text-white text-right">
                             {{ line.po_line.quantity_ordered|floatformat:0 }}
