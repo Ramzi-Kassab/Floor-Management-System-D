@@ -942,23 +942,55 @@ class BOMBuilderView(LoginRequiredMixin, DetailView):
             "inventory_item"
         ).order_by("order_number", "line_number")
 
-        # Enrich lines with inventory data
+        # Enrich lines with inventory data and on-order quantities
         lines_with_data = []
+        total_shortage = 0
+
         for line in lines:
             item = line.inventory_item
             stock_data = {"available": 0, "on_order": 0}
+            replacements = []
+
             if item:
+                # Get stock availability
                 stock = InventoryStock.objects.filter(item=item).aggregate(
                     available=Sum('quantity_available')
                 )
                 stock_data["available"] = stock['available'] or 0
 
+                # Get on-order quantity from PurchaseOrderLine
+                try:
+                    from apps.supplychain.models import PurchaseOrderLine
+                    on_order = PurchaseOrderLine.objects.filter(
+                        item=item,
+                        purchase_order__status__in=['SUBMITTED', 'APPROVED', 'ORDERED']
+                    ).aggregate(total=Sum('quantity'))
+                    stock_data["on_order"] = on_order['total'] or 0
+                except Exception:
+                    stock_data["on_order"] = 0
+
+            # Calculate shortage
+            shortage = max(0, line.quantity - stock_data["available"])
+            total_shortage += shortage
+
+            # Find replacement suggestions if there's a shortage
+            if shortage > 0 and line.cutter_size:
+                replacements = self._find_replacements(
+                    line.cutter_size,
+                    line.cutter_chamfer,
+                    shortage,
+                    line.inventory_item
+                )
+
             lines_with_data.append({
                 'line': line,
                 'available': stock_data["available"],
                 'on_order': stock_data["on_order"],
-                'shortage': max(0, line.quantity - stock_data["available"]),
+                'shortage': shortage,
+                'replacements': replacements,
             })
+
+        context["total_shortage"] = total_shortage
 
         context["lines"] = lines_with_data
 
@@ -1016,6 +1048,69 @@ class BOMBuilderView(LoginRequiredMixin, DetailView):
         context["design"] = self.object.design
 
         return context
+
+    def _find_replacements(self, cutter_size, cutter_chamfer, needed_qty, exclude_item=None):
+        """
+        Find replacement items with same size and potentially different chamfer.
+        Size match is strict, chamfer can differ.
+        """
+        from apps.inventory.models import InventoryCategory, InventoryItem, InventoryStock, ItemAttribute
+        from django.db.models import Sum
+
+        replacements = []
+
+        # Find cutter category
+        cutter_category = InventoryCategory.objects.filter(
+            Q(code__icontains="CUT") | Q(name__icontains="Cutter")
+        ).first()
+
+        if not cutter_category:
+            return replacements
+
+        # Get items in cutter category
+        items = InventoryItem.objects.filter(
+            category=cutter_category,
+            is_active=True
+        ).prefetch_related("attributes")
+
+        if exclude_item:
+            items = items.exclude(pk=exclude_item.pk)
+
+        for item in items[:50]:  # Limit search
+            # Check attributes for size match
+            item_size = ""
+            item_chamfer = ""
+
+            for attr in item.attributes.all():
+                attr_code = attr.attribute.code.lower() if attr.attribute else ""
+                if "size" in attr_code:
+                    item_size = attr.value
+                elif "chamfer" in attr_code:
+                    item_chamfer = attr.value
+
+            # Size must match strictly
+            if item_size != cutter_size:
+                continue
+
+            # Get stock availability
+            stock = InventoryStock.objects.filter(item=item).aggregate(
+                available=Sum('quantity_available')
+            )
+            available = stock['available'] or 0
+
+            if available > 0:
+                replacements.append({
+                    'item': item,
+                    'size': item_size,
+                    'chamfer': item_chamfer,
+                    'available': available,
+                    'chamfer_match': item_chamfer == cutter_chamfer,
+                })
+
+        # Sort by chamfer match first, then by availability
+        replacements.sort(key=lambda x: (-x['chamfer_match'], -x['available']))
+
+        return replacements[:5]  # Return top 5 matches
 
 
 class BOMBuilderAddLineView(LoginRequiredMixin, View):
