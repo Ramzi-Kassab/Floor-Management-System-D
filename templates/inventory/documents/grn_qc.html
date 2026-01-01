@@ -103,7 +103,7 @@
                                 {{ line.get_line_qc_status_display|default:"Pending" }}
                             </span>
                         </div>
-                        <p class="text-gray-600 dark:text-gray-400">{{ line.item.name|default:line.description|truncatechars:60 }}</p>
+                        <p class="text-gray-600 dark:text-gray-400">{{ line.item.name|default:"N/A"|truncatechars:60 }}</p>
                         <div class="mt-2 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                             <span><strong>Received:</strong> {{ line.qty_received|floatformat:0 }} {{ line.unit.symbol|default:"EA" }}</span>
                             {% if line.lot %}
