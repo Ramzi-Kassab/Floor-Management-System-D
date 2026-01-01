@@ -1061,6 +1061,17 @@ class BOM(models.Model):
         """Total number of cutters in BOM."""
         return sum(int(line.quantity) for line in self.lines.all())
 
+    def sync_cutter_count_to_design(self):
+        """
+        Sync the total cutter count from this BOM to the associated Design.
+        Updates the Design's total_pockets_count field.
+        """
+        if self.design:
+            new_count = self.total_cutter_count
+            if self.design.total_pockets_count != new_count:
+                self.design.total_pockets_count = new_count
+                self.design.save(update_fields=['total_pockets_count', 'updated_at'])
+
 
 class BOMLine(models.Model):
     """
@@ -1668,3 +1679,25 @@ class BOMCutterPosition(models.Model):
     def color_code(self):
         """Get color from linked BOM line."""
         return self.bom_line.color_code if self.bom_line else "#4A4A4A"
+
+
+# =============================================================================
+# SIGNALS - Auto-sync BOM cutter count to Design
+# =============================================================================
+
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+
+
+@receiver(post_save, sender=BOMLine)
+def sync_bom_cutter_count_on_save(sender, instance, **kwargs):
+    """Sync total cutter count to Design when a BOMLine is saved."""
+    if instance.bom:
+        instance.bom.sync_cutter_count_to_design()
+
+
+@receiver(post_delete, sender=BOMLine)
+def sync_bom_cutter_count_on_delete(sender, instance, **kwargs):
+    """Sync total cutter count to Design when a BOMLine is deleted."""
+    if instance.bom:
+        instance.bom.sync_cutter_count_to_design()

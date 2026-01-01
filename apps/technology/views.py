@@ -10,8 +10,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import models
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy
-from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView, View
+from django.urls import reverse, reverse_lazy
+from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView, View
 
 from django.http import JsonResponse
 
@@ -931,7 +931,7 @@ class BOMBuilderView(LoginRequiredMixin, DetailView):
     context_object_name = "bom"
 
     def get_context_data(self, **kwargs):
-        from apps.inventory.models import InventoryCategory, InventoryItem, InventoryStock, ItemAttribute
+        from apps.inventory.models import InventoryCategory, InventoryItem, InventoryStock
         from django.db.models import Sum
 
         context = super().get_context_data(**kwargs)
@@ -1054,7 +1054,7 @@ class BOMBuilderView(LoginRequiredMixin, DetailView):
         Find replacement items with same size and potentially different chamfer.
         Size match is strict, chamfer can differ.
         """
-        from apps.inventory.models import InventoryCategory, InventoryItem, InventoryStock, ItemAttribute
+        from apps.inventory.models import InventoryCategory, InventoryItem, InventoryStock
         from django.db.models import Sum
 
         replacements = []
@@ -2680,3 +2680,284 @@ class APISMITypeCreateView(LoginRequiredMixin, View):
             return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# =============================================================================
+# SMI TYPE FILTER API (for BOM creation workflow)
+# =============================================================================
+
+
+class APISMITypesFilterView(LoginRequiredMixin, View):
+    """
+    API endpoint to get SMI Types filtered by HDBS Type and Size.
+    Used in the BOM creation workflow to show only relevant SMI options.
+    """
+
+    def get(self, request):
+        hdbs_type_id = request.GET.get('hdbs_type_id')
+        size_id = request.GET.get('size_id')
+
+        queryset = SMIType.objects.filter(is_active=True)
+
+        if hdbs_type_id:
+            queryset = queryset.filter(hdbs_type_id=hdbs_type_id)
+
+        if size_id:
+            queryset = queryset.filter(size_id=size_id)
+
+        smi_types = []
+        for smi in queryset.select_related('hdbs_type', 'size'):
+            smi_types.append({
+                'id': smi.id,
+                'smi_name': smi.smi_name,
+                'hdbs_type_id': smi.hdbs_type_id,
+                'hdbs_name': smi.hdbs_type.hdbs_name,
+                'size_id': smi.size_id,
+                'size_display': str(smi.size) if smi.size else '',
+            })
+
+        return JsonResponse({
+            'success': True,
+            'smi_types': smi_types,
+        })
+
+
+# =============================================================================
+# COMBINED BOM CREATE/BUILDER VIEW
+# =============================================================================
+
+
+class BOMCreateWithBuilderView(LoginRequiredMixin, TemplateView):
+    """
+    Combined BOM creation and builder page.
+
+    This view allows:
+    1. Creating a new BOM with a Level 5 MAT code
+    2. Linking to an existing Design (L3/L4) or creating a new one inline
+    3. Immediately using the builder to add BOM lines
+    4. Auto-syncing total cutter count to Design
+    """
+
+    template_name = "technology/bom_create_builder.html"
+
+    def get_context_data(self, **kwargs):
+        from apps.inventory.models import InventoryCategory, InventoryItem
+        from .forms import QuickDesignForm, BOMWithDesignForm
+
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Create BOM"
+
+        # Forms
+        context["bom_form"] = BOMWithDesignForm()
+        context["design_form"] = QuickDesignForm()
+
+        # Get designs for selection (L3/L4 only)
+        context["designs"] = Design.objects.filter(
+            order_level__in=["3", "4"],
+            status__in=[Design.Status.DRAFT, Design.Status.ACTIVE]
+        ).select_related("size").order_by("-created_at")[:50]
+
+        # Get HDBS Types for quick design creation
+        context["hdbs_types"] = HDBSType.objects.filter(
+            is_active=True
+        ).prefetch_related("sizes").order_by("hdbs_name")
+
+        # Get sizes
+        context["sizes"] = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+
+        # Get cutter items for builder (same as BOMBuilderView)
+        cutter_category = InventoryCategory.objects.filter(
+            Q(code__icontains="CUT") | Q(name__icontains="Cutter")
+        ).first()
+
+        if cutter_category:
+            cutter_items = InventoryItem.objects.filter(
+                category=cutter_category,
+                is_active=True
+            ).select_related("category").prefetch_related("attributes")[:100]
+        else:
+            cutter_items = InventoryItem.objects.filter(
+                is_active=True
+            ).select_related("category").prefetch_related("attributes")[:50]
+
+        cutter_items_data = []
+        for item in cutter_items:
+            hdbs_code = ""
+            size = ""
+            chamfer = ""
+            cutter_type = ""
+
+            for attr in item.attributes.all():
+                attr_code = attr.attribute.code.lower() if attr.attribute else ""
+                if "hdbs" in attr_code or "mat" in attr_code:
+                    hdbs_code = attr.value
+                elif "size" in attr_code:
+                    size = attr.value
+                elif "chamfer" in attr_code:
+                    chamfer = attr.value
+                elif "type" in attr_code:
+                    cutter_type = attr.value
+
+            cutter_items_data.append({
+                'item': item,
+                'hdbs_code': hdbs_code or item.code,
+                'size': size,
+                'chamfer': chamfer,
+                'cutter_type': cutter_type,
+            })
+
+        context["cutter_items"] = cutter_items_data
+        context["color_palette"] = BOMLine.DEFAULT_COLORS
+
+        return context
+
+    def post(self, request):
+        """Handle BOM creation with optional Design creation."""
+        from .forms import QuickDesignForm, BOMWithDesignForm
+
+        bom_form = BOMWithDesignForm(request.POST)
+        design_form = QuickDesignForm(request.POST)
+
+        design_mode = request.POST.get("design_mode", "existing")
+        design = None
+
+        # Validate and create design if new mode
+        if design_mode == "new":
+            if design_form.is_valid():
+                design = design_form.save(commit=False)
+                design.created_by = request.user
+                design.save()
+            else:
+                # Return errors as JSON for AJAX handling
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'errors': design_form.errors,
+                        'error_type': 'design'
+                    }, status=400)
+                messages.error(request, "Please fix the Design form errors.")
+                return self.render_to_response(self.get_context_data(
+                    bom_form=bom_form,
+                    design_form=design_form,
+                ))
+        else:
+            # Use existing design
+            existing_design_id = request.POST.get("existing_design")
+            if existing_design_id:
+                try:
+                    design = Design.objects.get(pk=existing_design_id)
+                except Design.DoesNotExist:
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'Selected design not found'
+                        }, status=400)
+                    messages.error(request, "Selected design not found.")
+                    return self.render_to_response(self.get_context_data(
+                        bom_form=bom_form,
+                        design_form=design_form,
+                    ))
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Please select a design or create a new one'
+                    }, status=400)
+                messages.error(request, "Please select a design or create a new one.")
+                return self.render_to_response(self.get_context_data(
+                    bom_form=bom_form,
+                    design_form=design_form,
+                ))
+
+        # Create BOM
+        bom_code = request.POST.get("bom_code", "").strip()
+        bom_name = request.POST.get("bom_name", "").strip()
+        bom_revision = request.POST.get("bom_revision", "A").strip()
+
+        if not bom_code:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'error': 'BOM Code (L5 MAT) is required'
+                }, status=400)
+            messages.error(request, "BOM Code (L5 MAT) is required.")
+            return self.render_to_response(self.get_context_data(
+                bom_form=bom_form,
+                design_form=design_form,
+            ))
+
+        # Check uniqueness
+        if BOM.objects.filter(code=bom_code).exists():
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'error': f'BOM with code {bom_code} already exists'
+                }, status=400)
+            messages.error(request, f"BOM with code '{bom_code}' already exists.")
+            return self.render_to_response(self.get_context_data(
+                bom_form=bom_form,
+                design_form=design_form,
+            ))
+
+        # Generate name if not provided
+        if not bom_name:
+            bom_name = f"BOM for {design.hdbs_type} ({design.size})" if design.size else f"BOM for {design.hdbs_type}"
+
+        # Create BOM
+        bom = BOM.objects.create(
+            design=design,
+            code=bom_code,
+            name=bom_name,
+            revision=bom_revision,
+            status=BOM.Status.DRAFT,
+            created_by=request.user,
+        )
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'bom_id': bom.id,
+                'bom_code': bom.code,
+                'redirect_url': reverse("technology:bom_builder", kwargs={"pk": bom.pk}),
+            })
+
+        messages.success(request, f"BOM {bom.code} created successfully.")
+        return redirect("technology:bom_builder", pk=bom.pk)
+
+
+class APIDesignsFilterView(LoginRequiredMixin, View):
+    """
+    API endpoint to get Designs filtered by HDBS Type and/or Size.
+    Used in the BOM creation workflow to show matching designs.
+    """
+
+    def get(self, request):
+        hdbs_type = request.GET.get('hdbs_type')
+        size_id = request.GET.get('size_id')
+
+        queryset = Design.objects.filter(
+            order_level__in=["3", "4"],
+            status__in=[Design.Status.DRAFT, Design.Status.ACTIVE]
+        )
+
+        if hdbs_type:
+            queryset = queryset.filter(hdbs_type__icontains=hdbs_type)
+
+        if size_id:
+            queryset = queryset.filter(size_id=size_id)
+
+        designs = []
+        for d in queryset.select_related("size")[:20]:
+            designs.append({
+                'id': d.id,
+                'mat_no': d.mat_no,
+                'hdbs_type': d.hdbs_type,
+                'size': str(d.size) if d.size else '',
+                'order_level': d.order_level,
+                'display': f"{d.mat_no} - {d.hdbs_type} ({d.size})" if d.size else f"{d.mat_no} - {d.hdbs_type}",
+            })
+
+        return JsonResponse({
+            'success': True,
+            'designs': designs,
+        })

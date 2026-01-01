@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+
+{% block title %}Create BOM - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Create BOM</h1>
+        <p class="text-gray-600 dark:text-gray-400">Create a new Bill of Materials (Level 5 MAT)</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'technology:bom_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to BOMs
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="bom-create-form">
+    {% csrf_token %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column: BOM & Design Info -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- BOM Info Card -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                    <i data-lucide="file-text" class="w-5 h-5 mr-2 text-blue-600"></i>
+                    BOM Information
+                </h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- BOM Code (L5 MAT) -->
+                    <div>
+                        <label for="id_bom_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            BOM Code (L5 MAT) <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="bom_code" id="id_bom_code" required
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            placeholder="Enter Level 5 MAT No.">
+                    </div>
+
+                    <!-- BOM Name -->
+                    <div>
+                        <label for="id_bom_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            BOM Name
+                        </label>
+                        <input type="text" name="bom_name" id="id_bom_name"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            placeholder="Auto-generated if empty">
+                    </div>
+
+                    <!-- Revision -->
+                    <div>
+                        <label for="id_bom_revision" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Revision
+                        </label>
+                        <input type="text" name="bom_revision" id="id_bom_revision" value="A"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Design Selection Card -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                    <i data-lucide="layers" class="w-5 h-5 mr-2 text-purple-600"></i>
+                    Design (L3/L4 MAT)
+                </h2>
+
+                <!-- Design Mode Toggle -->
+                <div class="mb-4">
+                    <div class="flex space-x-4">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="design_mode" value="existing" checked
+                                class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                onchange="toggleDesignMode('existing')">
+                            <span class="ml-2 text-gray-700 dark:text-gray-300">Select Existing Design</span>
+                        </label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="design_mode" value="new"
+                                class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                onchange="toggleDesignMode('new')">
+                            <span class="ml-2 text-gray-700 dark:text-gray-300">Create New Design</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Existing Design Selection -->
+                <div id="existing-design-section">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="md:col-span-2">
+                            <label for="id_existing_design" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Select Design <span class="text-red-500">*</span>
+                            </label>
+                            <select name="existing_design" id="id_existing_design"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">-- Select a Design (L3/L4) --</option>
+                                {% for design in designs %}
+                                <option value="{{ design.pk }}" data-hdbs="{{ design.hdbs_type }}" data-size="{{ design.size_id }}">
+                                    {{ design.mat_no }} - {{ design.hdbs_type }}{% if design.size %} ({{ design.size }}){% endif %} [L{{ design.order_level }}]
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Quick filter by HDBS Type -->
+                    <div class="mt-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Quick Filter:</p>
+                        <div class="flex flex-wrap gap-2">
+                            <input type="text" id="design-filter-hdbs" placeholder="Filter by HDBS Type..."
+                                class="flex-1 min-w-[200px] px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <select id="design-filter-size"
+                                class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">All Sizes</option>
+                                {% for size in sizes %}
+                                <option value="{{ size.pk }}">{{ size.size_display }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- New Design Form -->
+                <div id="new-design-section" class="hidden">
+                    <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
+                        <p class="text-sm text-blue-700 dark:text-blue-300">
+                            <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                            Create a new Design (Level 3 or 4). This will be linked to your BOM.
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Order Level -->
+                        <div>
+                            <label for="id_design_order_level" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Order Level <span class="text-red-500">*</span>
+                            </label>
+                            <select name="order_level" id="id_design_order_level"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="3">Level 3 - No cutters, upper section separate</option>
+                                <option value="4">Level 4 - No cutters, upper section welded/machined</option>
+                            </select>
+                        </div>
+
+                        <!-- Category -->
+                        <div>
+                            <label for="id_design_category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Category <span class="text-red-500">*</span>
+                            </label>
+                            <select name="category" id="id_design_category"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="FC" selected>Fixed Cutter</option>
+                                <option value="MT">Mill Tooth</option>
+                                <option value="TCI">Tri Cone Inserts</option>
+                            </select>
+                        </div>
+
+                        <!-- Design MAT No. (L3/L4) -->
+                        <div>
+                            <label for="id_design_mat_no" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                MAT No. (L3/L4) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" name="mat_no" id="id_design_mat_no"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                placeholder="Design MAT No.">
+                        </div>
+
+                        <!-- Size -->
+                        <div>
+                            <label for="id_design_size" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Size <span class="text-red-500">*</span>
+                            </label>
+                            <select name="size" id="id_design_size"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                onchange="onSizeChange()">
+                                <option value="">-- Select Size --</option>
+                                {% for size in sizes %}
+                                <option value="{{ size.pk }}">{{ size.size_display }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- HDBS Type -->
+                        <div>
+                            <label for="id_design_hdbs_type_ref" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                HDBS Type <span class="text-red-500">*</span>
+                            </label>
+                            <select name="hdbs_type_ref" id="id_design_hdbs_type_ref"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                onchange="onHDBSTypeChange()">
+                                <option value="">-- Select HDBS Type --</option>
+                                {% for hdbs in hdbs_types %}
+                                <option value="{{ hdbs.pk }}" data-sizes="{% for s in hdbs.sizes.all %}{{ s.pk }},{% endfor %}">
+                                    {{ hdbs.hdbs_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- SMI Type (Optional, filtered) -->
+                        <div>
+                            <label for="id_design_smi_type_ref" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                SMI Type (Optional)
+                            </label>
+                            <select name="smi_type_ref" id="id_design_smi_type_ref"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">-- Select SMI Type --</option>
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">Filtered by HDBS Type and Size</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Summary & Actions -->
+        <div class="space-y-6">
+            <!-- Summary Card -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 sticky top-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Summary</h2>
+
+                <dl class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <dt class="text-gray-500">BOM Code:</dt>
+                        <dd class="text-gray-900 dark:text-white font-mono" id="summary-bom-code">--</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-gray-500">Design:</dt>
+                        <dd class="text-gray-900 dark:text-white" id="summary-design">--</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-gray-500">Mode:</dt>
+                        <dd class="text-gray-900 dark:text-white" id="summary-mode">Existing Design</dd>
+                    </div>
+                </dl>
+
+                <hr class="my-4 border-gray-200 dark:border-gray-700">
+
+                <button type="submit" id="create-bom-btn"
+                    class="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center">
+                    <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
+                    Create BOM & Open Builder
+                </button>
+
+                <p class="text-xs text-gray-500 mt-3 text-center">
+                    After creating, you'll be redirected to the BOM Builder
+                </p>
+            </div>
+
+            <!-- Help Card -->
+            <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6">
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Quick Help</h3>
+                <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-2">
+                    <li class="flex items-start">
+                        <i data-lucide="circle" class="w-2 h-2 mr-2 mt-1.5 text-blue-500"></i>
+                        <span><strong>L5 MAT</strong> = BOM Code (Level 5 - With cutters)</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i data-lucide="circle" class="w-2 h-2 mr-2 mt-1.5 text-purple-500"></i>
+                        <span><strong>L3/L4 MAT</strong> = Design (No cutters)</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i data-lucide="circle" class="w-2 h-2 mr-2 mt-1.5 text-green-500"></i>
+                        <span><strong>HDBS Type</strong> = Internal naming (e.g., GT65RHS)</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i data-lucide="circle" class="w-2 h-2 mr-2 mt-1.5 text-orange-500"></i>
+                        <span><strong>SMI Type</strong> = Client-facing name (optional)</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Error Modal -->
+<div id="error-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <div class="flex items-center text-red-600 mb-4">
+            <i data-lucide="alert-circle" class="w-6 h-6 mr-2"></i>
+            <h3 class="text-lg font-semibold">Error</h3>
+        </div>
+        <p id="error-message" class="text-gray-700 dark:text-gray-300 mb-4"></p>
+        <button onclick="closeErrorModal()" class="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200">
+            Close
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Toggle design mode (existing vs new)
+    function toggleDesignMode(mode) {
+        const existingSection = document.getElementById('existing-design-section');
+        const newSection = document.getElementById('new-design-section');
+        const summaryMode = document.getElementById('summary-mode');
+
+        if (mode === 'existing') {
+            existingSection.classList.remove('hidden');
+            newSection.classList.add('hidden');
+            summaryMode.textContent = 'Existing Design';
+        } else {
+            existingSection.classList.add('hidden');
+            newSection.classList.remove('hidden');
+            summaryMode.textContent = 'New Design';
+        }
+        updateSummary();
+    }
+
+    // Update summary on input changes
+    function updateSummary() {
+        const bomCode = document.getElementById('id_bom_code').value || '--';
+        document.getElementById('summary-bom-code').textContent = bomCode;
+
+        const designMode = document.querySelector('input[name="design_mode"]:checked').value;
+        let designText = '--';
+
+        if (designMode === 'existing') {
+            const select = document.getElementById('id_existing_design');
+            if (select.value) {
+                designText = select.options[select.selectedIndex].text;
+            }
+        } else {
+            const matNo = document.getElementById('id_design_mat_no').value;
+            const hdbs = document.getElementById('id_design_hdbs_type_ref');
+            if (matNo && hdbs.value) {
+                designText = `${matNo} - ${hdbs.options[hdbs.selectedIndex].text} (New)`;
+            } else if (matNo) {
+                designText = `${matNo} (New)`;
+            }
+        }
+
+        document.getElementById('summary-design').textContent = designText;
+    }
+
+    // Filter SMI Types based on HDBS Type and Size
+    async function onHDBSTypeChange() {
+        updateSMITypes();
+        updateSummary();
+    }
+
+    async function onSizeChange() {
+        updateSMITypes();
+    }
+
+    async function updateSMITypes() {
+        const hdbsTypeId = document.getElementById('id_design_hdbs_type_ref').value;
+        const sizeId = document.getElementById('id_design_size').value;
+        const smiSelect = document.getElementById('id_design_smi_type_ref');
+
+        // Clear current options
+        smiSelect.innerHTML = '<option value="">-- Select SMI Type --</option>';
+
+        if (!hdbsTypeId) return;
+
+        try {
+            let url = `/technology/api/smi-types/filter/?hdbs_type_id=${hdbsTypeId}`;
+            if (sizeId) {
+                url += `&size_id=${sizeId}`;
+            }
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.success && data.smi_types.length > 0) {
+                data.smi_types.forEach(smi => {
+                    const option = document.createElement('option');
+                    option.value = smi.id;
+                    option.textContent = `${smi.smi_name} (${smi.size_display || 'All sizes'})`;
+                    smiSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching SMI types:', error);
+        }
+    }
+
+    // Filter existing designs
+    function filterDesigns() {
+        const hdbsFilter = document.getElementById('design-filter-hdbs').value.toLowerCase();
+        const sizeFilter = document.getElementById('design-filter-size').value;
+        const designSelect = document.getElementById('id_existing_design');
+
+        Array.from(designSelect.options).forEach((option, index) => {
+            if (index === 0) return; // Skip placeholder
+
+            const hdbs = (option.dataset.hdbs || '').toLowerCase();
+            const size = option.dataset.size || '';
+
+            const matchesHdbs = !hdbsFilter || hdbs.includes(hdbsFilter);
+            const matchesSize = !sizeFilter || size === sizeFilter;
+
+            option.style.display = (matchesHdbs && matchesSize) ? '' : 'none';
+        });
+    }
+
+    // Error modal
+    function showError(message) {
+        document.getElementById('error-message').textContent = message;
+        document.getElementById('error-modal').classList.remove('hidden');
+    }
+
+    function closeErrorModal() {
+        document.getElementById('error-modal').classList.add('hidden');
+    }
+
+    // Form submission
+    document.getElementById('bom-create-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const btn = document.getElementById('create-bom-btn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 mr-2 animate-spin"></i>Creating...';
+        btn.disabled = true;
+
+        try {
+            const formData = new FormData(this);
+
+            const response = await fetch(this.action || window.location.href, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                window.location.href = data.redirect_url;
+            } else {
+                showError(data.error || 'An error occurred');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+        } catch (error) {
+            showError('Network error. Please try again.');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    });
+
+    // Event listeners
+    document.getElementById('id_bom_code').addEventListener('input', updateSummary);
+    document.getElementById('id_existing_design').addEventListener('change', updateSummary);
+    document.getElementById('id_design_mat_no').addEventListener('input', updateSummary);
+    document.getElementById('design-filter-hdbs').addEventListener('input', filterDesigns);
+    document.getElementById('design-filter-size').addEventListener('change', filterDesigns);
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        updateSummary();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+</script>
+{% endblock %}
