@@ -37,6 +37,9 @@ urlpatterns = [
     path("boms/<int:pk>/builder/delete-line/<int:line_pk>/", views.BOMBuilderDeleteLineView.as_view(), name="bom_builder_delete_line"),
     path("boms/<int:pk>/builder/reorder/", views.BOMBuilderReorderView.as_view(), name="bom_builder_reorder"),
     path("boms/<int:pk>/builder/search-items/", views.BOMBuilderSearchItemsView.as_view(), name="bom_builder_search_items"),
+    # BOM PDF Import
+    path("boms/<int:pk>/import-pdf/", views.BOMPDFImportView.as_view(), name="bom_pdf_import"),
+    path("boms/<int:pk>/import-pdf/confirm/", views.BOMPDFImportConfirmView.as_view(), name="bom_pdf_import_confirm"),
     # Connections
     path("connections/", views.ConnectionListView.as_view(), name="connection_list"),
     path("connections/create/", views.ConnectionCreateView.as_view(), name="connection_create"),

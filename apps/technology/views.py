@@ -1215,6 +1215,169 @@ class BOMBuilderSearchItemsView(LoginRequiredMixin, View):
 
 
 # =============================================================================
+# BOM PDF IMPORT VIEWS
+# =============================================================================
+
+
+class BOMPDFImportView(LoginRequiredMixin, View):
+    """Upload and parse a BOM PDF for import."""
+
+    def get(self, request, pk):
+        bom = get_object_or_404(BOM, pk=pk)
+        return self._render(request, bom)
+
+    def post(self, request, pk):
+        bom = get_object_or_404(BOM, pk=pk)
+
+        if 'pdf_file' not in request.FILES:
+            messages.error(request, "Please select a PDF file to upload.")
+            return self._render(request, bom)
+
+        pdf_file = request.FILES['pdf_file']
+
+        # Validate file type
+        if not pdf_file.name.lower().endswith('.pdf'):
+            messages.error(request, "Please upload a PDF file.")
+            return self._render(request, bom)
+
+        # Parse PDF
+        from apps.technology.services.pdf_parser import parse_bom_pdf
+
+        try:
+            pdf_bytes = pdf_file.read()
+            parsed_data = parse_bom_pdf(file_bytes=pdf_bytes)
+
+            if parsed_data.errors:
+                for err in parsed_data.errors:
+                    messages.warning(request, err)
+
+            # Store parsed data in session for confirmation
+            request.session['parsed_bom_data'] = {
+                'header': {
+                    'sn_number': parsed_data.header.sn_number,
+                    'mat_number': parsed_data.header.mat_number,
+                    'date_created': parsed_data.header.date_created.isoformat() if parsed_data.header.date_created else None,
+                    'revision_level': parsed_data.header.revision_level,
+                    'software_version': parsed_data.header.software_version,
+                },
+                'bom_lines': [
+                    {
+                        'order_number': line.order_number,
+                        'size': line.size,
+                        'chamfer': line.chamfer,
+                        'cutter_type': line.cutter_type,
+                        'count': line.count,
+                        'mat_number': line.mat_number,
+                        'family_number': line.family_number,
+                        'color_code': line.color_code,
+                    }
+                    for line in parsed_data.bom_lines
+                ],
+            }
+
+            # Save the PDF file to BOM
+            bom.source_pdf_file = pdf_file
+            bom.save(update_fields=['source_pdf_file'])
+
+            return redirect('technology:bom_pdf_import_confirm', pk=pk)
+
+        except Exception as e:
+            messages.error(request, f"Error parsing PDF: {str(e)}")
+            return self._render(request, bom)
+
+    def _render(self, request, bom):
+        from django.shortcuts import render
+        return render(request, 'technology/bom_pdf_import.html', {
+            'bom': bom,
+            'page_title': f"Import PDF - {bom.code}",
+        })
+
+
+class BOMPDFImportConfirmView(LoginRequiredMixin, View):
+    """Confirm and apply parsed PDF data to BOM."""
+
+    def get(self, request, pk):
+        bom = get_object_or_404(BOM, pk=pk)
+
+        parsed_data = request.session.get('parsed_bom_data')
+        if not parsed_data:
+            messages.warning(request, "No parsed data found. Please upload a PDF first.")
+            return redirect('technology:bom_pdf_import', pk=pk)
+
+        from django.shortcuts import render
+        return render(request, 'technology/bom_pdf_import_confirm.html', {
+            'bom': bom,
+            'parsed_data': parsed_data,
+            'page_title': f"Confirm Import - {bom.code}",
+        })
+
+    def post(self, request, pk):
+        from datetime import datetime as dt
+
+        bom = get_object_or_404(BOM, pk=pk)
+
+        parsed_data = request.session.get('parsed_bom_data')
+        if not parsed_data:
+            messages.error(request, "No parsed data found.")
+            return redirect('technology:bom_pdf_import', pk=pk)
+
+        try:
+            header = parsed_data['header']
+            bom_lines_data = parsed_data['bom_lines']
+
+            # Update BOM with header info
+            bom.source_type = BOM.SourceType.PDF_IMPORT
+            bom.source_mat_number = header.get('mat_number', '')
+            bom.source_sn_number = header.get('sn_number', '')
+            bom.source_revision_level = header.get('revision_level', '')
+            bom.source_software_version = header.get('software_version', '')
+
+            if header.get('date_created'):
+                try:
+                    bom.source_date_created = dt.fromisoformat(header['date_created'])
+                except (ValueError, TypeError):
+                    pass
+
+            bom.save()
+
+            # Clear existing lines if requested
+            if request.POST.get('clear_existing') == 'yes':
+                bom.lines.all().delete()
+
+            # Get max line number
+            max_line = bom.lines.aggregate(max_line=models.Max("line_number"))
+            next_line_num = (max_line["max_line"] or 0) + 1
+
+            # Create BOM lines
+            lines_created = 0
+            for line_data in bom_lines_data:
+                BOMLine.objects.create(
+                    bom=bom,
+                    line_number=next_line_num,
+                    order_number=line_data['order_number'],
+                    quantity=line_data['count'],
+                    color_code=line_data['color_code'],
+                    cutter_size=line_data['size'],
+                    cutter_chamfer=line_data['chamfer'],
+                    cutter_type=line_data['cutter_type'],
+                    hdbs_code=line_data['mat_number'],
+                    family_number=line_data.get('family_number', ''),
+                )
+                next_line_num += 1
+                lines_created += 1
+
+            # Clear session data
+            del request.session['parsed_bom_data']
+
+            messages.success(request, f"Successfully imported {lines_created} lines from PDF.")
+            return redirect('technology:bom_builder', pk=pk)
+
+        except Exception as e:
+            messages.error(request, f"Error applying import: {str(e)}")
+            return redirect('technology:bom_pdf_import_confirm', pk=pk)
+
+
+# =============================================================================
 # CUTTER LAYOUT VIEWS
 # =============================================================================
 
