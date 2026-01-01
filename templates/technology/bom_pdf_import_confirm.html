@@ -169,7 +169,7 @@
                 </div>
                 <div class="flex justify-between">
                     <dt class="text-gray-500">Design</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ bom.design.hdbs_type }}</dd>
+                    <dd class="text-gray-900 dark:text-white">{{ bom.design.hdbs_type|default:"--" }}</dd>
                 </div>
                 <div class="flex justify-between">
                     <dt class="text-gray-500">Current Lines</dt>
