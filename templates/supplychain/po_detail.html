@@ -40,7 +40,7 @@
         </form>
         {% endif %}
         {% if po.status == 'SENT' or po.status == 'PARTIALLY_RECEIVED' %}
-        <a href="{% url 'supplychain:grn_create' %}?po={{ po.pk }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+        <a href="{% url 'inventory:grn_from_po' po.pk %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
             <i data-lucide="package-check" class="w-4 h-4 mr-2"></i>Receive Goods
         </a>
         {% endif %}
