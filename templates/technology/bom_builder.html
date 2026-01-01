@@ -1,0 +1,527 @@
+{% extends "base.html" %}
+
+{% block title %}BOM Builder - {{ bom.code }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">BOM Builder</h1>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                {{ bom.code }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400">{{ bom.name }} - Design: {{ design.hdbs_type }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'technology:bom_detail' bom.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="eye" class="w-4 h-4 mr-2"></i>View BOM
+        </a>
+        <a href="{% url 'technology:bom_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left: Available Items -->
+    <div class="lg:col-span-1">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 sticky top-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Available Cutters</h2>
+
+            <!-- Search -->
+            <div class="mb-4">
+                <div class="relative">
+                    <input type="text" id="item-search" placeholder="Search items..."
+                        class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-gray-400"></i>
+                </div>
+            </div>
+
+            <!-- Items List -->
+            <div class="space-y-2 max-h-[600px] overflow-y-auto" id="available-items">
+                {% for cutter in cutter_items %}
+                <div class="item-card border border-gray-200 dark:border-gray-700 rounded-lg p-3 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                     data-item-id="{{ cutter.item.pk }}"
+                     data-hdbs-code="{{ cutter.hdbs_code }}"
+                     data-size="{{ cutter.size }}"
+                     data-chamfer="{{ cutter.chamfer }}"
+                     data-cutter-type="{{ cutter.cutter_type }}">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <p class="font-medium text-gray-900 dark:text-white text-sm">{{ cutter.item.code }}</p>
+                            <p class="text-xs text-gray-500 truncate">{{ cutter.item.name }}</p>
+                        </div>
+                        <button class="add-item-btn p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                title="Add to BOM">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    {% if cutter.size or cutter.chamfer or cutter.cutter_type %}
+                    <div class="mt-2 flex flex-wrap gap-1">
+                        {% if cutter.size %}
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                            {{ cutter.size }}
+                        </span>
+                        {% endif %}
+                        {% if cutter.chamfer %}
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                            {{ cutter.chamfer }}
+                        </span>
+                        {% endif %}
+                        {% if cutter.cutter_type %}
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                            {{ cutter.cutter_type }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <div class="text-center py-8 text-gray-500">
+                    <i data-lucide="package" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                    <p class="text-sm">No cutter items found</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: BOM Lines with Drag-Drop -->
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">BOM Lines</h2>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-500">Total Cutters: <span id="total-count" class="font-bold text-blue-600">{{ bom.total_cutter_count }}</span></span>
+                </div>
+            </div>
+
+            <!-- Color Legend -->
+            <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Order Color Palette</p>
+                <div class="flex flex-wrap gap-2">
+                    {% for color in color_palette %}
+                    <div class="flex items-center gap-1">
+                        <span class="w-5 h-5 rounded-full border border-gray-300" style="background-color: {{ color }}"></span>
+                        <span class="text-xs text-gray-500">{{ forloop.counter }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- BOM Lines Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                            <th class="px-2 py-2 w-8"></th>
+                            <th class="px-3 py-2 w-16">Order</th>
+                            <th class="px-3 py-2">HDBS Code</th>
+                            <th class="px-3 py-2">Item</th>
+                            <th class="px-3 py-2 w-24 text-center">Qty</th>
+                            <th class="px-3 py-2 text-center">Available</th>
+                            <th class="px-3 py-2 w-20">Color</th>
+                            <th class="px-3 py-2 w-16"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="bom-lines" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for item in lines %}
+                        <tr class="bom-line hover:bg-gray-50 dark:hover:bg-gray-700/30" data-line-id="{{ item.line.pk }}">
+                            <td class="px-2 py-2 cursor-move drag-handle">
+                                <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-400"></i>
+                            </td>
+                            <td class="px-3 py-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                                          style="background-color: {{ item.line.color_code }}">
+                                        {{ item.line.order_number }}
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="px-3 py-2 font-mono text-gray-900 dark:text-white">
+                                {{ item.line.hdbs_code|default:"-" }}
+                            </td>
+                            <td class="px-3 py-2">
+                                <div>
+                                    <p class="font-medium text-gray-900 dark:text-white">{{ item.line.display_name }}</p>
+                                    {% if item.line.inventory_item %}
+                                    <p class="text-xs text-gray-500">{{ item.line.inventory_item.code }}</p>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="px-3 py-2 text-center">
+                                <input type="number" min="1" value="{{ item.line.quantity }}"
+                                       class="qty-input w-16 px-2 py-1 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                       data-line-id="{{ item.line.pk }}">
+                            </td>
+                            <td class="px-3 py-2 text-center">
+                                <span class="{% if item.available >= item.line.quantity %}text-green-600{% elif item.available > 0 %}text-amber-600{% else %}text-red-600{% endif %} font-medium">
+                                    {{ item.available }}
+                                </span>
+                                {% if item.shortage > 0 %}
+                                <span class="text-xs text-red-500">(-{{ item.shortage }})</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-3 py-2">
+                                <input type="color" value="{{ item.line.color_code }}"
+                                       class="color-input w-8 h-8 rounded cursor-pointer border-0"
+                                       data-line-id="{{ item.line.pk }}">
+                            </td>
+                            <td class="px-3 py-2 text-right">
+                                <button class="delete-line-btn text-red-600 hover:text-red-800 p-1"
+                                        data-line-id="{{ item.line.pk }}" title="Delete">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr id="empty-state">
+                            <td colspan="8" class="px-3 py-12 text-center">
+                                <i data-lucide="package-open" class="w-12 h-12 text-gray-300 mx-auto mb-3"></i>
+                                <p class="text-gray-500 dark:text-gray-400">No items added yet</p>
+                                <p class="text-xs text-gray-400 mt-1">Click + on items to add them to the BOM</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Manual Add Form -->
+            <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Add Custom Line</p>
+                <div class="grid grid-cols-6 gap-2">
+                    <div>
+                        <label class="text-xs text-gray-500">Order #</label>
+                        <input type="number" id="add-order" min="1" value="1"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500">HDBS Code</label>
+                        <input type="text" id="add-hdbs" placeholder="e.g., 871781"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500">Size</label>
+                        <input type="text" id="add-size" placeholder="e.g., 1313"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500">Chamfer</label>
+                        <input type="text" id="add-chamfer" placeholder="e.g., 18C-60"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500">Qty</label>
+                        <input type="number" id="add-qty" min="1" value="1"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    </div>
+                    <div class="flex items-end">
+                        <button id="add-custom-btn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                            <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Card -->
+        <div class="mt-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Summary</h2>
+            <div class="grid grid-cols-3 gap-4">
+                <div class="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <p class="text-3xl font-bold text-blue-600" id="summary-lines">{{ lines|length }}</p>
+                    <p class="text-sm text-gray-500">Line Items</p>
+                </div>
+                <div class="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                    <p class="text-3xl font-bold text-green-600" id="summary-cutters">{{ bom.total_cutter_count }}</p>
+                    <p class="text-sm text-gray-500">Total Cutters</p>
+                </div>
+                <div class="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                    <p class="text-3xl font-bold text-purple-600" id="summary-orders">{% if lines %}{{ lines|last }}{% endif %}</p>
+                    <p class="text-sm text-gray-500">Order Groups</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CSRF Token for AJAX -->
+<script>
+    const csrfToken = '{{ csrf_token }}';
+    const bomPk = {{ bom.pk }};
+    const colorPalette = {{ color_palette|safe }};
+
+    const urls = {
+        addLine: '{% url "technology:bom_builder_add_line" bom.pk %}',
+        updateLine: '{% url "technology:bom_builder_update_line" bom.pk 0 %}'.replace('/0/', '/{line_pk}/'),
+        deleteLine: '{% url "technology:bom_builder_delete_line" bom.pk 0 %}'.replace('/0/', '/{line_pk}/'),
+        reorder: '{% url "technology:bom_builder_reorder" bom.pk %}',
+        searchItems: '{% url "technology:bom_builder_search_items" bom.pk %}',
+    };
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const bomLines = document.getElementById('bom-lines');
+    const itemSearch = document.getElementById('item-search');
+
+    // Initialize Sortable for drag-drop
+    if (bomLines) {
+        new Sortable(bomLines, {
+            animation: 150,
+            handle: '.drag-handle',
+            ghostClass: 'bg-blue-100',
+            onEnd: function(evt) {
+                saveLineOrder();
+            }
+        });
+    }
+
+    // Save line order after drag-drop
+    function saveLineOrder() {
+        const lineIds = Array.from(bomLines.querySelectorAll('.bom-line'))
+            .map(row => parseInt(row.dataset.lineId));
+
+        fetch(urls.reorder, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ line_order: lineIds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateOrderNumbers();
+            }
+        });
+    }
+
+    // Update displayed order numbers after reorder
+    function updateOrderNumbers() {
+        bomLines.querySelectorAll('.bom-line').forEach((row, idx) => {
+            const orderSpan = row.querySelector('td:nth-child(2) span');
+            if (orderSpan) {
+                orderSpan.textContent = idx + 1;
+                orderSpan.style.backgroundColor = colorPalette[idx % colorPalette.length];
+            }
+        });
+    }
+
+    // Add item from available items
+    document.querySelectorAll('.add-item-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const card = this.closest('.item-card');
+            addItemToBom(card);
+        });
+    });
+
+    // Add item to BOM
+    function addItemToBom(card) {
+        const itemId = card.dataset.itemId;
+        const hdbsCode = card.dataset.hdbsCode;
+        const size = card.dataset.size;
+        const chamfer = card.dataset.chamfer;
+        const cutterType = card.dataset.cutterType;
+
+        // Get next order number
+        const currentLines = bomLines.querySelectorAll('.bom-line').length;
+        const orderNumber = currentLines + 1;
+
+        fetch(urls.addLine, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                item_id: itemId,
+                quantity: 1,
+                order_number: orderNumber,
+                hdbs_code: hdbsCode,
+                cutter_size: size,
+                cutter_chamfer: chamfer,
+                cutter_type: cutterType
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload(); // Reload to show new line
+            }
+        });
+    }
+
+    // Add custom line
+    document.getElementById('add-custom-btn').addEventListener('click', function() {
+        const orderNumber = parseInt(document.getElementById('add-order').value) || 1;
+        const hdbsCode = document.getElementById('add-hdbs').value;
+        const size = document.getElementById('add-size').value;
+        const chamfer = document.getElementById('add-chamfer').value;
+        const qty = parseInt(document.getElementById('add-qty').value) || 1;
+
+        fetch(urls.addLine, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                quantity: qty,
+                order_number: orderNumber,
+                hdbs_code: hdbsCode,
+                cutter_size: size,
+                cutter_chamfer: chamfer
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        });
+    });
+
+    // Update quantity
+    document.querySelectorAll('.qty-input').forEach(input => {
+        input.addEventListener('change', function() {
+            const lineId = this.dataset.lineId;
+            const qty = parseInt(this.value) || 1;
+
+            fetch(urls.updateLine.replace('{line_pk}', lineId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ quantity: qty })
+            });
+        });
+    });
+
+    // Update color
+    document.querySelectorAll('.color-input').forEach(input => {
+        input.addEventListener('change', function() {
+            const lineId = this.dataset.lineId;
+            const color = this.value;
+
+            // Update the order badge color
+            const row = this.closest('tr');
+            const badge = row.querySelector('td:nth-child(2) span');
+            if (badge) {
+                badge.style.backgroundColor = color;
+            }
+
+            fetch(urls.updateLine.replace('{line_pk}', lineId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ color_code: color })
+            });
+        });
+    });
+
+    // Delete line
+    document.querySelectorAll('.delete-line-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (!confirm('Delete this line?')) return;
+
+            const lineId = this.dataset.lineId;
+
+            fetch(urls.deleteLine.replace('{line_pk}', lineId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.closest('tr').remove();
+                    updateSummary();
+                }
+            });
+        });
+    });
+
+    // Search items
+    let searchTimeout;
+    itemSearch.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        const query = this.value.trim();
+
+        searchTimeout = setTimeout(() => {
+            if (query.length >= 2) {
+                searchItems(query);
+            } else if (query.length === 0) {
+                location.reload(); // Reset to show all
+            }
+        }, 300);
+    });
+
+    function searchItems(query) {
+        fetch(`${urls.searchItems}?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('available-items');
+                container.innerHTML = data.items.map(item => `
+                    <div class="item-card border border-gray-200 dark:border-gray-700 rounded-lg p-3 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                         data-item-id="${item.id}"
+                         data-hdbs-code="${item.hdbs_code}"
+                         data-size="${item.size}"
+                         data-chamfer="${item.chamfer}"
+                         data-cutter-type="${item.cutter_type}">
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <p class="font-medium text-gray-900 dark:text-white text-sm">${item.code}</p>
+                                <p class="text-xs text-gray-500 truncate">${item.name}</p>
+                            </div>
+                            <button class="add-item-btn p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                    title="Add to BOM">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Re-init lucide icons
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+
+                // Re-attach event listeners
+                container.querySelectorAll('.add-item-btn').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const card = this.closest('.item-card');
+                        addItemToBom(card);
+                    });
+                });
+            });
+    }
+
+    function updateSummary() {
+        const lines = bomLines.querySelectorAll('.bom-line').length;
+        let totalCutters = 0;
+        bomLines.querySelectorAll('.qty-input').forEach(input => {
+            totalCutters += parseInt(input.value) || 0;
+        });
+
+        document.getElementById('summary-lines').textContent = lines;
+        document.getElementById('summary-cutters').textContent = totalCutters;
+        document.getElementById('total-count').textContent = totalCutters;
+    }
+});
+</script>
+{% endblock %}

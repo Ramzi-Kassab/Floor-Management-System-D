@@ -30,6 +30,13 @@ urlpatterns = [
     path("boms/<int:pk>/edit/", views.BOMUpdateView.as_view(), name="bom_update"),
     path("boms/<int:pk>/lines/add/", views.BOMLineCreateView.as_view(), name="bom_line_create"),
     path("boms/<int:pk>/lines/<int:line_pk>/delete/", views.BOMLineDeleteView.as_view(), name="bom_line_delete"),
+    # BOM Builder (Manual BOM creation)
+    path("boms/<int:pk>/builder/", views.BOMBuilderView.as_view(), name="bom_builder"),
+    path("boms/<int:pk>/builder/add-line/", views.BOMBuilderAddLineView.as_view(), name="bom_builder_add_line"),
+    path("boms/<int:pk>/builder/update-line/<int:line_pk>/", views.BOMBuilderUpdateLineView.as_view(), name="bom_builder_update_line"),
+    path("boms/<int:pk>/builder/delete-line/<int:line_pk>/", views.BOMBuilderDeleteLineView.as_view(), name="bom_builder_delete_line"),
+    path("boms/<int:pk>/builder/reorder/", views.BOMBuilderReorderView.as_view(), name="bom_builder_reorder"),
+    path("boms/<int:pk>/builder/search-items/", views.BOMBuilderSearchItemsView.as_view(), name="bom_builder_search_items"),
     # Connections
     path("connections/", views.ConnectionListView.as_view(), name="connection_list"),
     path("connections/create/", views.ConnectionCreateView.as_view(), name="connection_create"),

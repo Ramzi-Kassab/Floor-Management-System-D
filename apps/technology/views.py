@@ -7,6 +7,7 @@ Views for Design, BOM, and Cutter Layout management.
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import models
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
@@ -912,6 +913,305 @@ class BOMLineDeleteView(LoginRequiredMixin, View):
         line.delete()
         messages.success(request, "Line deleted.")
         return redirect("technology:bom_detail", pk=pk)
+
+
+# =============================================================================
+# BOM BUILDER VIEWS (Manual BOM creation with drag-drop)
+# =============================================================================
+
+
+class BOMBuilderView(LoginRequiredMixin, DetailView):
+    """
+    Manual BOM builder with drag-drop reordering.
+    Allows building BOM lines from PDC Cutters inventory items.
+    """
+
+    model = BOM
+    template_name = "technology/bom_builder.html"
+    context_object_name = "bom"
+
+    def get_context_data(self, **kwargs):
+        from apps.inventory.models import InventoryCategory, InventoryItem, InventoryStock, ItemAttribute
+        from django.db.models import Sum
+
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"BOM Builder - {self.object.code}"
+
+        # Get BOM lines ordered by order_number
+        lines = self.object.lines.select_related(
+            "inventory_item"
+        ).order_by("order_number", "line_number")
+
+        # Enrich lines with inventory data
+        lines_with_data = []
+        for line in lines:
+            item = line.inventory_item
+            stock_data = {"available": 0, "on_order": 0}
+            if item:
+                stock = InventoryStock.objects.filter(item=item).aggregate(
+                    available=Sum('quantity_available')
+                )
+                stock_data["available"] = stock['available'] or 0
+
+            lines_with_data.append({
+                'line': line,
+                'available': stock_data["available"],
+                'on_order': stock_data["on_order"],
+                'shortage': max(0, line.quantity - stock_data["available"]),
+            })
+
+        context["lines"] = lines_with_data
+
+        # Get available cutter items from inventory
+        # Try to find PDC Cutters category
+        cutter_category = InventoryCategory.objects.filter(
+            Q(code__icontains="CUT") | Q(name__icontains="Cutter")
+        ).first()
+
+        if cutter_category:
+            cutter_items = InventoryItem.objects.filter(
+                category=cutter_category,
+                is_active=True
+            ).select_related("category").prefetch_related("attributes")[:100]
+        else:
+            # Fallback: get all active items if no cutter category found
+            cutter_items = InventoryItem.objects.filter(
+                is_active=True
+            ).select_related("category").prefetch_related("attributes")[:50]
+
+        # Build cutter items with their attributes for display
+        cutter_items_data = []
+        for item in cutter_items:
+            # Get HDBS Code attribute if exists
+            hdbs_code = ""
+            size = ""
+            chamfer = ""
+            cutter_type = ""
+
+            for attr in item.attributes.all():
+                attr_code = attr.attribute.code.lower() if attr.attribute else ""
+                if "hdbs" in attr_code or "mat" in attr_code:
+                    hdbs_code = attr.value
+                elif "size" in attr_code:
+                    size = attr.value
+                elif "chamfer" in attr_code:
+                    chamfer = attr.value
+                elif "type" in attr_code:
+                    cutter_type = attr.value
+
+            cutter_items_data.append({
+                'item': item,
+                'hdbs_code': hdbs_code or item.code,
+                'size': size,
+                'chamfer': chamfer,
+                'cutter_type': cutter_type,
+            })
+
+        context["cutter_items"] = cutter_items_data
+
+        # Default color palette
+        context["color_palette"] = BOMLine.DEFAULT_COLORS
+
+        # Design info
+        context["design"] = self.object.design
+
+        return context
+
+
+class BOMBuilderAddLineView(LoginRequiredMixin, View):
+    """API: Add a line to BOM from builder."""
+
+    def post(self, request, pk):
+        import json
+        from apps.inventory.models import InventoryItem
+
+        bom = get_object_or_404(BOM, pk=pk)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+        item_id = data.get("item_id")
+        quantity = int(data.get("quantity", 1))
+        order_number = int(data.get("order_number", 1))
+        color_code = data.get("color_code", "")
+        hdbs_code = data.get("hdbs_code", "")
+        cutter_size = data.get("cutter_size", "")
+        cutter_chamfer = data.get("cutter_chamfer", "")
+        cutter_type = data.get("cutter_type", "")
+
+        # Get next line number
+        max_line = bom.lines.aggregate(max_line=models.Max("line_number"))
+        next_line = (max_line["max_line"] or 0) + 1
+
+        # Get inventory item if provided
+        inventory_item = None
+        if item_id:
+            try:
+                inventory_item = InventoryItem.objects.get(pk=item_id)
+            except InventoryItem.DoesNotExist:
+                pass
+
+        # Create line
+        line = BOMLine.objects.create(
+            bom=bom,
+            line_number=next_line,
+            inventory_item=inventory_item,
+            quantity=quantity,
+            order_number=order_number,
+            color_code=color_code or BOMLine.DEFAULT_COLORS[(order_number - 1) % len(BOMLine.DEFAULT_COLORS)],
+            hdbs_code=hdbs_code,
+            cutter_size=cutter_size,
+            cutter_chamfer=cutter_chamfer,
+            cutter_type=cutter_type,
+        )
+
+        return JsonResponse({
+            "success": True,
+            "line_id": line.id,
+            "line_number": line.line_number,
+            "order_number": line.order_number,
+            "color_code": line.color_code,
+        })
+
+
+class BOMBuilderUpdateLineView(LoginRequiredMixin, View):
+    """API: Update a BOM line."""
+
+    def post(self, request, pk, line_pk):
+        import json
+
+        line = get_object_or_404(BOMLine, pk=line_pk, bom_id=pk)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+        # Update fields if provided
+        if "quantity" in data:
+            line.quantity = int(data["quantity"])
+        if "order_number" in data:
+            line.order_number = int(data["order_number"])
+        if "color_code" in data:
+            line.color_code = data["color_code"]
+        if "hdbs_code" in data:
+            line.hdbs_code = data["hdbs_code"]
+        if "cutter_size" in data:
+            line.cutter_size = data["cutter_size"]
+        if "cutter_chamfer" in data:
+            line.cutter_chamfer = data["cutter_chamfer"]
+        if "cutter_type" in data:
+            line.cutter_type = data["cutter_type"]
+
+        line.save()
+
+        return JsonResponse({
+            "success": True,
+            "line_id": line.id,
+        })
+
+
+class BOMBuilderDeleteLineView(LoginRequiredMixin, View):
+    """API: Delete a BOM line."""
+
+    def post(self, request, pk, line_pk):
+        line = get_object_or_404(BOMLine, pk=line_pk, bom_id=pk)
+        line.delete()
+        return JsonResponse({"success": True})
+
+
+class BOMBuilderReorderView(LoginRequiredMixin, View):
+    """API: Reorder BOM lines via drag-drop."""
+
+    def post(self, request, pk):
+        import json
+
+        bom = get_object_or_404(BOM, pk=pk)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+        line_order = data.get("line_order", [])
+
+        # Update order numbers
+        for idx, line_id in enumerate(line_order, start=1):
+            try:
+                line = BOMLine.objects.get(pk=line_id, bom=bom)
+                line.order_number = idx
+                line.save(update_fields=["order_number"])
+            except BOMLine.DoesNotExist:
+                continue
+
+        return JsonResponse({"success": True})
+
+
+class BOMBuilderSearchItemsView(LoginRequiredMixin, View):
+    """API: Search inventory items for BOM builder."""
+
+    def get(self, request, pk):
+        from apps.inventory.models import InventoryCategory, InventoryItem
+
+        query = request.GET.get("q", "")
+        category_code = request.GET.get("category", "")
+
+        items = InventoryItem.objects.filter(is_active=True)
+
+        # Filter by category
+        if category_code:
+            items = items.filter(category__code=category_code)
+        else:
+            # Default to cutter-related categories
+            cutter_category = InventoryCategory.objects.filter(
+                Q(code__icontains="CUT") | Q(name__icontains="Cutter")
+            ).first()
+            if cutter_category:
+                items = items.filter(category=cutter_category)
+
+        # Search
+        if query:
+            items = items.filter(
+                Q(code__icontains=query) |
+                Q(name__icontains=query) |
+                Q(description__icontains=query)
+            )
+
+        items = items.select_related("category").prefetch_related("attributes")[:50]
+
+        results = []
+        for item in items:
+            # Extract attributes
+            hdbs_code = item.code
+            size = ""
+            chamfer = ""
+            cutter_type = ""
+
+            for attr in item.attributes.all():
+                attr_code = attr.attribute.code.lower() if attr.attribute else ""
+                if "hdbs" in attr_code or "mat" in attr_code:
+                    hdbs_code = attr.value
+                elif "size" in attr_code:
+                    size = attr.value
+                elif "chamfer" in attr_code:
+                    chamfer = attr.value
+                elif "type" in attr_code:
+                    cutter_type = attr.value
+
+            results.append({
+                "id": item.id,
+                "code": item.code,
+                "name": item.name,
+                "hdbs_code": hdbs_code,
+                "size": size,
+                "chamfer": chamfer,
+                "cutter_type": cutter_type,
+                "category": item.category.name if item.category else "",
+            })
+
+        return JsonResponse({"items": results})
 
 
 # =============================================================================
