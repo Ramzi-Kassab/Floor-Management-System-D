@@ -2,116 +2,282 @@
 
 {% block title %}Bills of Materials - ARDT FMS{% endblock %}
 
+{% block extra_css %}
+<style>
+    .filter-chip {
+        @apply inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium cursor-pointer transition-all;
+    }
+    .filter-chip.active {
+        @apply bg-blue-600 text-white;
+    }
+    .filter-chip:not(.active) {
+        @apply bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600;
+    }
+    .table-header {
+        @apply px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none;
+    }
+    .table-header.sortable:hover {
+        @apply bg-gray-100 dark:hover:bg-gray-700;
+    }
+    .sort-icon {
+        @apply ml-1 opacity-0 transition-opacity;
+    }
+    .table-header:hover .sort-icon {
+        @apply opacity-50;
+    }
+    .table-header.sorted .sort-icon {
+        @apply opacity-100;
+    }
+</style>
+{% endblock %}
+
 {% block page_header %}
-<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-        <p class="text-gray-600 dark:text-gray-400">Material lists for drill bit designs</p>
-    </div>
-    <div class="mt-4 md:mt-0 flex gap-2">
-        <a href="{% url 'inventory:item_list' %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
-            <i data-lucide="package" class="w-4 h-4 mr-2"></i>Inventory
-        </a>
-        <a href="{% url 'technology:bom_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New BOM
-        </a>
+<div class="mb-6">
+    <!-- Modern Header -->
+    <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 mb-6 shadow-lg">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            <div class="text-white">
+                <h1 class="text-2xl font-bold flex items-center">
+                    <i data-lucide="file-stack" class="w-7 h-7 mr-3"></i>
+                    Bills of Materials
+                </h1>
+                <p class="text-blue-100 mt-1">Manage cutter BOMs for drill bit designs</p>
+            </div>
+            <div class="mt-4 lg:mt-0 flex flex-wrap gap-2">
+                <a href="{% url 'inventory:item_list' %}" class="inline-flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 backdrop-blur-sm transition-colors">
+                    <i data-lucide="package" class="w-4 h-4 mr-2"></i>Inventory
+                </a>
+                <a href="{% url 'technology:bom_create' %}" class="inline-flex items-center px-4 py-2 bg-white text-blue-700 rounded-lg hover:bg-blue-50 font-medium shadow-sm transition-colors">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New BOM
+                </a>
+            </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+                <div class="text-blue-100 text-sm">Total BOMs</div>
+                <div class="text-white text-2xl font-bold">{{ boms_with_status|length }}</div>
+            </div>
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+                <div class="text-blue-100 text-sm">Materials Ready</div>
+                <div class="text-green-300 text-2xl font-bold" id="stat-ready">0</div>
+            </div>
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+                <div class="text-blue-100 text-sm">Shortages</div>
+                <div class="text-amber-300 text-2xl font-bold" id="stat-shortage">0</div>
+            </div>
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+                <div class="text-blue-100 text-sm">Draft</div>
+                <div class="text-white text-2xl font-bold" id="stat-draft">0</div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block content %}
+<!-- Filters Section -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
-    <form method="get" class="flex flex-col md:flex-row gap-4">
-        <div class="flex-1">
-            <div class="relative">
-                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                <input type="text" name="q" value="{{ search_query }}" placeholder="Search BOMs..."
-                       class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+    <form method="get" id="filter-form">
+        <!-- Search Bar -->
+        <div class="flex flex-col lg:flex-row gap-4 mb-4">
+            <div class="flex-1">
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"></i>
+                    <input type="text" name="q" value="{{ search_query }}"
+                           placeholder="Search by MAT No., HDBS Type, SMI Type..."
+                           class="w-full pl-11 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <select name="order_level" class="px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Levels</option>
+                    <option value="3" {% if request.GET.order_level == '3' %}selected{% endif %}>Level 3</option>
+                    <option value="4" {% if request.GET.order_level == '4' %}selected{% endif %}>Level 4</option>
+                </select>
+                <select name="size" class="px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Sizes</option>
+                    {% for size in sizes %}
+                    <option value="{{ size.pk }}" {% if request.GET.size == size.pk|stringformat:"i" %}selected{% endif %}>{{ size.size_display }}</option>
+                    {% endfor %}
+                </select>
+                <select name="status" class="px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Statuses</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-colors">
+                    <i data-lucide="filter" class="w-4 h-4"></i>
+                </button>
+                {% if search_query or current_status or request.GET.order_level or request.GET.size %}
+                <a href="{% url 'technology:bom_list' %}" class="px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-xl hover:bg-gray-200 transition-colors" title="Clear filters">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </a>
+                {% endif %}
             </div>
         </div>
-        <div class="w-full md:w-40">
-            <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                <option value="">All Statuses</option>
-                {% for value, label in status_choices %}
-                <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
+
+        <!-- Quick Filter Chips -->
+        <div class="flex flex-wrap gap-2">
+            <span class="text-sm text-gray-500 dark:text-gray-400 mr-2 self-center">Quick:</span>
+            <button type="button" class="filter-chip {% if request.GET.materials == 'ready' %}active{% endif %}" data-filter="materials" data-value="ready">
+                <i data-lucide="check-circle" class="w-3.5 h-3.5 mr-1.5"></i>Ready
+            </button>
+            <button type="button" class="filter-chip {% if request.GET.materials == 'shortage' %}active{% endif %}" data-filter="materials" data-value="shortage">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5 mr-1.5"></i>Shortage
+            </button>
+            <button type="button" class="filter-chip {% if current_status == 'DRAFT' %}active{% endif %}" data-filter="status" data-value="DRAFT">
+                Draft
+            </button>
+            <button type="button" class="filter-chip {% if current_status == 'ACTIVE' %}active{% endif %}" data-filter="status" data-value="ACTIVE">
+                Active
+            </button>
         </div>
-        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">Filter</button>
     </form>
 </div>
 
+<!-- BOM Table -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
     {% if boms_with_status %}
     <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
-                    <th class="px-6 py-3 font-medium">BOM Code</th>
-                    <th class="px-6 py-3 font-medium">Name</th>
-                    <th class="px-6 py-3 font-medium">Design</th>
-                    <th class="px-6 py-3 font-medium text-center">Items</th>
-                    <th class="px-6 py-3 font-medium text-center">Materials</th>
-                    <th class="px-6 py-3 font-medium">Status</th>
-                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+        <table class="w-full" id="bom-table">
+            <thead class="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+                <tr>
+                    <th class="table-header sortable" data-sort="mat5">
+                        L5 MAT No.
+                        <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 inline sort-icon"></i>
+                    </th>
+                    <th class="table-header sortable" data-sort="hdbs">
+                        HDBS Type
+                        <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 inline sort-icon"></i>
+                    </th>
+                    <th class="table-header sortable" data-sort="smi">
+                        SMI Type
+                        <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 inline sort-icon"></i>
+                    </th>
+                    <th class="table-header text-center sortable" data-sort="level">
+                        Level
+                        <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 inline sort-icon"></i>
+                    </th>
+                    <th class="table-header sortable" data-sort="mat34">
+                        Design MAT
+                        <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 inline sort-icon"></i>
+                    </th>
+                    <th class="table-header text-center sortable" data-sort="size">
+                        Size
+                        <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 inline sort-icon"></i>
+                    </th>
+                    <th class="table-header text-center">Items</th>
+                    <th class="table-header text-center">Materials</th>
+                    <th class="table-header text-center">Status</th>
+                    <th class="table-header text-right">Actions</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700" id="bom-tbody">
                 {% for item in boms_with_status %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                    <td class="px-6 py-4">
-                        <a href="{% url 'technology:bom_detail' item.bom.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                <tr class="hover:bg-blue-50/50 dark:hover:bg-gray-700/30 transition-colors bom-row"
+                    data-mat5="{{ item.bom.code }}"
+                    data-hdbs="{{ item.bom.design.hdbs_type }}"
+                    data-smi="{{ item.bom.design.smi_type }}"
+                    data-level="{{ item.bom.design.order_level }}"
+                    data-mat34="{{ item.bom.design.mat_no }}"
+                    data-size="{{ item.bom.design.size.size_decimal|default:0 }}"
+                    data-materials="{% if item.materials_ready %}ready{% elif item.materials_ready == False %}shortage{% else %}unknown{% endif %}"
+                    data-status="{{ item.bom.status }}">
+                    <!-- L5 MAT No. -->
+                    <td class="px-4 py-3">
+                        <a href="{% url 'technology:bom_detail' item.bom.pk %}" class="font-semibold text-blue-600 dark:text-blue-400 hover:underline">
                             {{ item.bom.code }}
                         </a>
                         <span class="text-xs text-gray-400 ml-1">Rev {{ item.bom.revision }}</span>
                     </td>
-                    <td class="px-6 py-4 text-gray-900 dark:text-white">
-                        <div class="max-w-[200px] truncate" title="{{ item.bom.name }}">{{ item.bom.name }}</div>
+                    <!-- HDBS Type -->
+                    <td class="px-4 py-3">
+                        <span class="font-medium text-gray-900 dark:text-white">{{ item.bom.design.hdbs_type|default:"--" }}</span>
                     </td>
-                    <td class="px-6 py-4">
-                        <a href="{% url 'technology:design_detail' item.bom.design.pk %}" class="text-gray-600 dark:text-gray-400 hover:underline text-xs">
-                            {{ item.bom.design.hdbs_type }}{% if item.bom.design.size %} ({{ item.bom.design.size }}){% endif %}
+                    <!-- SMI Type -->
+                    <td class="px-4 py-3">
+                        <span class="text-gray-600 dark:text-gray-400">{{ item.bom.design.smi_type|default:"--" }}</span>
+                    </td>
+                    <!-- Order Level -->
+                    <td class="px-4 py-3 text-center">
+                        {% if item.bom.design.order_level %}
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold
+                            {% if item.bom.design.order_level == '3' %}bg-purple-100 text-purple-700{% elif item.bom.design.order_level == '4' %}bg-indigo-100 text-indigo-700{% else %}bg-gray-100 text-gray-700{% endif %}">
+                            L{{ item.bom.design.order_level }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </td>
+                    <!-- Design MAT No. -->
+                    <td class="px-4 py-3">
+                        <a href="{% url 'technology:design_detail' item.bom.design.pk %}" class="text-gray-600 dark:text-gray-400 hover:text-blue-600 hover:underline font-mono text-sm">
+                            {{ item.bom.design.mat_no|default:"--" }}
                         </a>
                     </td>
-                    <td class="px-6 py-4 text-center">
-                        <span class="text-gray-600 dark:text-gray-400">{{ item.line_count }}</span>
+                    <!-- Size -->
+                    <td class="px-4 py-3 text-center">
+                        {% if item.bom.design.size %}
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            {{ item.bom.design.size.size_display }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
                     </td>
-                    <td class="px-6 py-4 text-center">
+                    <!-- Items Count -->
+                    <td class="px-4 py-3 text-center">
+                        <span class="text-gray-900 dark:text-white font-medium">{{ item.line_count }}</span>
+                    </td>
+                    <!-- Materials Status -->
+                    <td class="px-4 py-3 text-center">
                         {% if item.materials_ready == True %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
                             <i data-lucide="check" class="w-3 h-3 mr-1"></i>Ready
                         </span>
                         {% elif item.materials_ready == False %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
                             <i data-lucide="alert-triangle" class="w-3 h-3 mr-1"></i>Shortage
                         </span>
                         {% else %}
                         <span class="text-gray-400 text-xs">--</span>
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                            {% if item.bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% elif item.bom.status == 'DRAFT' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                    <!-- Status -->
+                    <td class="px-4 py-3 text-center">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold
+                            {% if item.bom.status == 'ACTIVE' %}bg-green-100 text-green-700{% elif item.bom.status == 'DRAFT' %}bg-yellow-100 text-yellow-700{% else %}bg-gray-100 text-gray-600{% endif %}">
                             {{ item.bom.get_status_display }}
                         </span>
                     </td>
-                    <td class="px-6 py-4 text-right">
-                        <div class="flex items-center justify-end space-x-1">
-                            <a href="{% url 'technology:bom_detail' item.bom.pk %}" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="View">
-                                <i data-lucide="eye" class="w-4 h-4"></i>
-                            </a>
-                            <a href="{% url 'technology:bom_builder' item.bom.pk %}" class="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded" title="Builder">
+                    <!-- Actions -->
+                    <td class="px-4 py-3">
+                        <div class="flex items-center justify-end gap-1">
+                            <a href="{% url 'technology:bom_builder' item.bom.pk %}"
+                               class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                               title="Open Builder">
                                 <i data-lucide="grid-3x3" class="w-4 h-4"></i>
                             </a>
-                            <a href="{% url 'technology:bom_update' item.bom.pk %}" class="p-1.5 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded" title="Edit">
-                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            <a href="{% url 'technology:bom_detail' item.bom.pk %}"
+                               class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                               title="View Details">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
                             </a>
-                            <form method="post" action="{% url 'technology:bom_delete' item.bom.pk %}" class="inline" onsubmit="return confirm('Are you sure you want to delete BOM {{ item.bom.code }}?');">
-                                {% csrf_token %}
-                                <button type="submit" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
-                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                </button>
-                            </form>
+                            <a href="{% url 'technology:bom_pdf_export' item.bom.pk %}"
+                               class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                               title="Export PDF">
+                                <i data-lucide="file-down" class="w-4 h-4"></i>
+                            </a>
+                            <button type="button"
+                                    class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors delete-bom-btn"
+                                    data-bom-id="{{ item.bom.pk }}"
+                                    data-bom-code="{{ item.bom.code }}"
+                                    title="Delete">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -119,33 +285,50 @@
             </tbody>
         </table>
     </div>
+
+    <!-- Pagination -->
     {% if page_obj.has_other_pages %}
-    <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+    <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30">
         <div class="flex items-center justify-between">
             <p class="text-sm text-gray-500">
-                Showing {{ page_obj.start_index }} - {{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+                Showing <span class="font-medium">{{ page_obj.start_index }}</span> - <span class="font-medium">{{ page_obj.end_index }}</span> of <span class="font-medium">{{ page_obj.paginator.count }}</span>
             </p>
             <div class="flex space-x-2">
                 {% if page_obj.has_previous %}
                 <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
-                   class="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">Previous</a>
+                   class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium transition-colors">Previous</a>
                 {% endif %}
-                <span class="px-3 py-1.5 text-sm text-gray-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                <span class="px-4 py-2 text-sm text-gray-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
                 {% if page_obj.has_next %}
                 <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
-                   class="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">Next</a>
+                   class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium transition-colors">Next</a>
                 {% endif %}
             </div>
         </div>
     </div>
     {% endif %}
+
     {% else %}
+    <!-- Empty State -->
     <div class="text-center py-16">
-        <i data-lucide="list" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
-        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No BOMs found</h3>
-        <p class="text-gray-500 dark:text-gray-400 mb-4">Create a bill of materials for your designs</p>
-        <a href="{% url 'technology:bom_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create BOM
+        <div class="w-20 h-20 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
+            <i data-lucide="file-stack" class="w-10 h-10 text-gray-400"></i>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">No BOMs found</h3>
+        <p class="text-gray-500 dark:text-gray-400 mb-6 max-w-sm mx-auto">
+            {% if search_query or current_status %}
+            No BOMs match your current filters. Try adjusting your search criteria.
+            {% else %}
+            Create your first Bill of Materials to get started with cutter management.
+            {% endif %}
+        </p>
+        {% if search_query or current_status %}
+        <a href="{% url 'technology:bom_list' %}" class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 mr-2">
+            <i data-lucide="x" class="w-4 h-4 mr-2"></i>Clear Filters
+        </a>
+        {% endif %}
+        <a href="{% url 'technology:bom_create' %}" class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm">
+            <i data-lucide="plus" class="w-5 h-5 mr-2"></i>Create First BOM
         </a>
     </div>
     {% endif %}
@@ -153,14 +336,177 @@
 
 <!-- Quick Links -->
 <div class="mt-6 flex flex-wrap gap-3">
-    <a href="{% url 'technology:design_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="layers" class="w-4 h-4 mr-2"></i>Designs
+    <a href="{% url 'technology:design_list' %}" class="inline-flex items-center px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium border border-gray-200 dark:border-gray-700 shadow-sm transition-colors">
+        <i data-lucide="layers" class="w-4 h-4 mr-2 text-purple-500"></i>Designs
     </a>
-    <a href="{% url 'technology:connection_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="link" class="w-4 h-4 mr-2"></i>Connections
+    <a href="{% url 'technology:hdbs_type_list' %}" class="inline-flex items-center px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium border border-gray-200 dark:border-gray-700 shadow-sm transition-colors">
+        <i data-lucide="tag" class="w-4 h-4 mr-2 text-blue-500"></i>HDBS Types
     </a>
-    <a href="{% url 'technology:breaker_slot_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="box" class="w-4 h-4 mr-2"></i>Breaker Slots
+    <a href="{% url 'technology:connection_list' %}" class="inline-flex items-center px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium border border-gray-200 dark:border-gray-700 shadow-sm transition-colors">
+        <i data-lucide="link" class="w-4 h-4 mr-2 text-green-500"></i>Connections
+    </a>
+    <a href="{% url 'technology:breaker_slot_list' %}" class="inline-flex items-center px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium border border-gray-200 dark:border-gray-700 shadow-sm transition-colors">
+        <i data-lucide="box" class="w-4 h-4 mr-2 text-orange-500"></i>Breaker Slots
     </a>
 </div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+        <div class="p-6">
+            <div class="w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">Delete BOM?</h3>
+            <p class="text-gray-500 dark:text-gray-400 text-center mb-6">
+                Are you sure you want to delete <span id="delete-bom-code" class="font-semibold text-gray-900 dark:text-white"></span>? This action cannot be undone.
+            </p>
+            <div class="flex gap-3">
+                <button type="button" id="cancel-delete" class="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 font-medium transition-colors">
+                    Cancel
+                </button>
+                <form id="delete-form" method="post" class="flex-1">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full px-4 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 font-medium transition-colors">
+                        Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Calculate stats
+    const rows = document.querySelectorAll('.bom-row');
+    let readyCount = 0, shortageCount = 0, draftCount = 0;
+
+    rows.forEach(row => {
+        const materials = row.dataset.materials;
+        const status = row.dataset.status;
+
+        if (materials === 'ready') readyCount++;
+        else if (materials === 'shortage') shortageCount++;
+        if (status === 'DRAFT') draftCount++;
+    });
+
+    document.getElementById('stat-ready').textContent = readyCount;
+    document.getElementById('stat-shortage').textContent = shortageCount;
+    document.getElementById('stat-draft').textContent = draftCount;
+
+    // Quick filter chips
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+        chip.addEventListener('click', function() {
+            const filter = this.dataset.filter;
+            const value = this.dataset.value;
+            const form = document.getElementById('filter-form');
+
+            // Toggle active state
+            if (this.classList.contains('active')) {
+                // Remove filter
+                const input = form.querySelector(`input[name="${filter}"]`);
+                if (input) input.remove();
+                if (filter === 'status') {
+                    form.querySelector('select[name="status"]').value = '';
+                }
+            } else {
+                // Add filter
+                if (filter === 'status') {
+                    form.querySelector('select[name="status"]').value = value;
+                } else {
+                    let input = form.querySelector(`input[name="${filter}"]`);
+                    if (!input) {
+                        input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = filter;
+                        form.appendChild(input);
+                    }
+                    input.value = value;
+                }
+            }
+
+            form.submit();
+        });
+    });
+
+    // Table sorting
+    let currentSort = { column: null, direction: 'asc' };
+
+    document.querySelectorAll('.table-header.sortable').forEach(header => {
+        header.addEventListener('click', function() {
+            const sortKey = this.dataset.sort;
+            const tbody = document.getElementById('bom-tbody');
+            const rowsArray = Array.from(tbody.querySelectorAll('.bom-row'));
+
+            // Toggle direction
+            if (currentSort.column === sortKey) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = sortKey;
+                currentSort.direction = 'asc';
+            }
+
+            // Update header styles
+            document.querySelectorAll('.table-header').forEach(h => h.classList.remove('sorted'));
+            this.classList.add('sorted');
+
+            // Sort rows
+            rowsArray.sort((a, b) => {
+                let aVal = a.dataset[sortKey] || '';
+                let bVal = b.dataset[sortKey] || '';
+
+                // Try numeric comparison
+                const aNum = parseFloat(aVal);
+                const bNum = parseFloat(bVal);
+
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return currentSort.direction === 'asc' ? aNum - bNum : bNum - aNum;
+                }
+
+                // String comparison
+                return currentSort.direction === 'asc'
+                    ? aVal.localeCompare(bVal)
+                    : bVal.localeCompare(aVal);
+            });
+
+            // Re-append sorted rows
+            rowsArray.forEach(row => tbody.appendChild(row));
+        });
+    });
+
+    // Delete modal
+    const deleteModal = document.getElementById('delete-modal');
+    const deleteForm = document.getElementById('delete-form');
+    const deleteBomCode = document.getElementById('delete-bom-code');
+
+    document.querySelectorAll('.delete-bom-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const bomId = this.dataset.bomId;
+            const bomCode = this.dataset.bomCode;
+
+            deleteBomCode.textContent = bomCode;
+            deleteForm.action = `/technology/boms/${bomId}/delete/`;
+            deleteModal.classList.remove('hidden');
+        });
+    });
+
+    document.getElementById('cancel-delete').addEventListener('click', function() {
+        deleteModal.classList.add('hidden');
+    });
+
+    deleteModal.addEventListener('click', function(e) {
+        if (e.target === deleteModal) {
+            deleteModal.classList.add('hidden');
+        }
+    });
+
+    // Reinitialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+</script>
 {% endblock %}
