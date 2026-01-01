@@ -576,18 +576,30 @@ class PRConvertToPOView(LoginRequiredMixin, View):
             return redirect("supplychain:pr_convert_to_po", pk=pk)
 
         vendor = None
-        supplier = None
         # Check if selection is a vendor (prefixed with "vendor_") or supplier (plain ID)
         if selection.startswith("vendor_"):
             vendor_id = selection.replace("vendor_", "")
             vendor = get_object_or_404(Vendor, pk=vendor_id)
         else:
+            # Supplier selected - find or create corresponding Vendor
             supplier = get_object_or_404(Supplier, pk=selection)
+            # Try to find existing vendor with same code, or create one
+            vendor, created = Vendor.objects.get_or_create(
+                vendor_code=supplier.code,
+                defaults={
+                    'name': supplier.name,
+                    'contact_name': supplier.contact_person,
+                    'email': supplier.email,
+                    'phone': supplier.phone,
+                    'address_line_1': supplier.address[:200] if supplier.address else '',
+                    'country': supplier.country,
+                    'status': Vendor.Status.ACTIVE,
+                }
+            )
 
         # Create PO
         po = PurchaseOrder.objects.create(
             vendor=vendor,
-            supplier=supplier,
             order_date=timezone.now().date(),
             required_date=pr.required_date or timezone.now().date(),
             requisition=pr,
