@@ -214,13 +214,17 @@
                     </td>
                     <!-- Design MAT No. -->
                     <td class="px-4 py-3">
+                        {% if item.bom.design %}
                         <a href="{% url 'technology:design_detail' item.bom.design.pk %}" class="text-gray-600 dark:text-gray-400 hover:text-blue-600 hover:underline font-mono text-sm">
                             {{ item.bom.design.mat_no|default:"--" }}
                         </a>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
                     </td>
                     <!-- Size -->
                     <td class="px-4 py-3 text-center">
-                        {% if item.bom.design.size %}
+                        {% if item.bom.design and item.bom.design.size %}
                         <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                             {{ item.bom.design.size.size_display }}
                         </span>
