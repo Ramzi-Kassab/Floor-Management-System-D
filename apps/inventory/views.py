@@ -3534,9 +3534,10 @@ class GRNPostView(LoginRequiredMixin, View):
     def _update_stock_balance(self, item, location, lot, owner_party,
                               ownership_type, quality_status, condition,
                               qty_change, cost_change):
-        """Update or create StockBalance entry."""
+        """Update or create StockBalance and InventoryStock entries."""
         from decimal import Decimal
 
+        # Update StockBalance (detailed inventory with dimensions)
         balance, created = StockBalance.objects.get_or_create(
             item=item,
             location=location,
@@ -3562,6 +3563,25 @@ class GRNPostView(LoginRequiredMixin, View):
 
         balance.last_movement_date = timezone.now()
         balance.save()
+
+        # Also update InventoryStock (simpler model used by item views)
+        lot_number = lot.lot_number if lot else ''
+        inv_stock, _ = InventoryStock.objects.get_or_create(
+            item=item,
+            location=location,
+            lot_number=lot_number,
+            serial_number='',
+            defaults={
+                'quantity_on_hand': Decimal('0'),
+                'quantity_reserved': Decimal('0'),
+                'quantity_available': Decimal('0'),
+            }
+        )
+
+        inv_stock.quantity_on_hand = (inv_stock.quantity_on_hand or Decimal('0')) + qty_change
+        inv_stock.quantity_available = inv_stock.quantity_on_hand - (inv_stock.quantity_reserved or Decimal('0'))
+        inv_stock.last_movement_date = timezone.now()
+        inv_stock.save()
 
     def _update_po_status(self, po):
         """Update PO status based on received quantities."""
