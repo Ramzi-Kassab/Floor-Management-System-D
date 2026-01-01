@@ -52,7 +52,11 @@
                 <div>
                     <dt class="text-sm text-gray-500">Design</dt>
                     <dd class="text-gray-900 dark:text-white">
+                        {% if bom.design %}
                         <a href="{% url 'technology:design_detail' bom.design.pk %}" class="text-blue-600 hover:underline">{{ bom.design.hdbs_type }}{% if bom.design.size %} ({{ bom.design.size }}){% endif %}</a>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
                     </dd>
                 </div>
                 <div>
@@ -230,7 +234,13 @@
                     {% for item in lines %}
                     {% if item.status != 'available' %}
                     <li class="flex items-center justify-between">
-                        <span class="text-gray-600 dark:text-gray-400">{{ item.line.inventory_item.code }}</span>
+                        <span class="text-gray-600 dark:text-gray-400">
+                            {% if item.line.inventory_item %}
+                            {{ item.line.inventory_item.code }}
+                            {% else %}
+                            {{ item.line.display_name }}
+                            {% endif %}
+                        </span>
                         <span class="text-red-600 font-mono">-{{ item.shortage|floatformat:0 }}</span>
                     </li>
                     {% endif %}
@@ -274,9 +284,11 @@
                 <a href="{% url 'inventory:item_list' %}" class="w-full inline-flex items-center px-4 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100">
                     <i data-lucide="package" class="w-4 h-4 mr-2"></i>Browse Inventory
                 </a>
+                {% if bom.design %}
                 <a href="{% url 'technology:design_detail' bom.design.pk %}" class="w-full inline-flex items-center px-4 py-2 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100">
                     <i data-lucide="layers" class="w-4 h-4 mr-2"></i>View Design
                 </a>
+                {% endif %}
             </div>
         </div>
     </div>
