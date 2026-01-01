@@ -810,17 +810,22 @@ class BOMDetailView(LoginRequiredMixin, DetailView):
 
         for line in lines:
             item = line.inventory_item
-            # Get total stock for this item
-            stock_data = InventoryStock.objects.filter(
-                item=item
-            ).aggregate(
-                total_on_hand=Sum('quantity_on_hand'),
-                total_available=Sum('quantity_available')
-            )
-
-            on_hand = stock_data['total_on_hand'] or 0
-            available = stock_data['total_available'] or 0
             required = line.quantity
+
+            # Get total stock for this item (only if inventory_item exists)
+            if item:
+                stock_data = InventoryStock.objects.filter(
+                    item=item
+                ).aggregate(
+                    total_on_hand=Sum('quantity_on_hand'),
+                    total_available=Sum('quantity_available')
+                )
+                on_hand = stock_data['total_on_hand'] or 0
+                available = stock_data['total_available'] or 0
+            else:
+                # No linked inventory item - show as unavailable
+                on_hand = 0
+                available = 0
 
             # Determine availability status
             if available >= required:
