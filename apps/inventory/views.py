@@ -3160,6 +3160,11 @@ class GRNFromPOView(LoginRequiredMixin, View):
         if not default_quality_status:
             default_quality_status = QualityStatus.objects.filter(is_active=True).first()
 
+        # Get default UOM for items without base_uom
+        default_uom = UnitOfMeasure.objects.filter(code='EA', is_active=True).first()
+        if not default_uom:
+            default_uom = UnitOfMeasure.objects.filter(is_active=True).first()
+
         try:
             # Create GRN header
             grn = GoodsReceiptNote.objects.create(
@@ -3194,6 +3199,13 @@ class GRNFromPOView(LoginRequiredMixin, View):
                             # Calculate expected quantity
                             qty_expected = (po_line.quantity_ordered or Decimal('0')) - (po_line.quantity_received or Decimal('0'))
 
+                            # Get UOM - prefer item's base_uom, fallback to default
+                            item_uom = None
+                            if po_line.inventory_item:
+                                item_uom = po_line.inventory_item.base_uom
+                            if not item_uom:
+                                item_uom = default_uom
+
                             GRNLine.objects.create(
                                 grn=grn,
                                 line_number=line_number,
@@ -3201,7 +3213,7 @@ class GRNFromPOView(LoginRequiredMixin, View):
                                 item=po_line.inventory_item,
                                 qty_expected=qty_expected,
                                 qty_received=qty,
-                                uom=po_line.inventory_item.base_uom if po_line.inventory_item else None,
+                                uom=item_uom,
                                 unit_cost=po_line.unit_price or Decimal('0'),
                                 condition=default_condition,
                                 quality_status=default_quality_status,
