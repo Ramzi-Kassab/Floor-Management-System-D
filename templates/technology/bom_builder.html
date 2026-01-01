@@ -17,6 +17,9 @@
         <a href="{% url 'technology:bom_pdf_import' bom.pk %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
             <i data-lucide="file-up" class="w-4 h-4 mr-2"></i>Import PDF
         </a>
+        <a href="{% url 'technology:bom_pdf_export' bom.pk %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i data-lucide="file-down" class="w-4 h-4 mr-2"></i>Export PDF
+        </a>
         <a href="{% url 'technology:bom_detail' bom.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
             <i data-lucide="eye" class="w-4 h-4 mr-2"></i>View BOM
         </a>

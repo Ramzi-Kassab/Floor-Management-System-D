@@ -1377,6 +1377,31 @@ class BOMPDFImportConfirmView(LoginRequiredMixin, View):
             return redirect('technology:bom_pdf_import_confirm', pk=pk)
 
 
+class BOMPDFExportView(LoginRequiredMixin, View):
+    """Export BOM to PDF."""
+
+    def get(self, request, pk):
+        from django.http import HttpResponse
+
+        bom = get_object_or_404(BOM, pk=pk)
+
+        try:
+            from apps.technology.services.pdf_generator import generate_bom_pdf
+
+            pdf_bytes = generate_bom_pdf(bom)
+
+            # Create response
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            filename = f"BOM_{bom.code}_{bom.revision}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            return response
+
+        except Exception as e:
+            messages.error(request, f"Error generating PDF: {str(e)}")
+            return redirect('technology:bom_detail', pk=pk)
+
+
 # =============================================================================
 # CUTTER LAYOUT VIEWS
 # =============================================================================
