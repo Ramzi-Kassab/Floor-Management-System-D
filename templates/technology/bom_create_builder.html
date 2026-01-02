@@ -156,13 +156,13 @@
                                                 </div>
                                                 <div class="p-2 max-h-40 overflow-y-auto">
                                                     <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="level" value="" checked> All
+                                                        <input type="checkbox" class="level-filter mr-2" value="" checked onchange="applyLevelFilter(this)"> (All)
                                                     </label>
                                                     <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="level" value="3" checked> Level 3
+                                                        <input type="checkbox" class="level-filter mr-2" value="3" checked onchange="applyLevelFilter(this)"> Level 3
                                                     </label>
                                                     <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="level" value="4" checked> Level 4
+                                                        <input type="checkbox" class="level-filter mr-2" value="4" checked onchange="applyLevelFilter(this)"> Level 4
                                                     </label>
                                                 </div>
                                             </div>
@@ -242,13 +242,13 @@
                                             <div class="filter-dropdown" id="filter-status-dropdown">
                                                 <div class="p-2 max-h-40 overflow-y-auto">
                                                     <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="status" value="" checked> All
+                                                        <input type="checkbox" class="status-filter mr-2" value="" checked onchange="applyStatusFilter(this)"> (All)
                                                     </label>
                                                     <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="status" value="DRAFT" checked> Draft
+                                                        <input type="checkbox" class="status-filter mr-2" value="DRAFT" checked onchange="applyStatusFilter(this)"> Draft
                                                     </label>
                                                     <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="status" value="ACTIVE" checked> Active
+                                                        <input type="checkbox" class="status-filter mr-2" value="ACTIVE" checked onchange="applyStatusFilter(this)"> Active
                                                     </label>
                                                 </div>
                                             </div>
@@ -531,7 +531,7 @@
 {% block extra_js %}
 <script>
     let cloneSourceId = null;
-    const filters = { level: [], mat: '', hdbs: '', size: [], status: [] };
+    const filters = { level: ['3', '4'], mat: '', hdbs: '', size: [], status: ['DRAFT', 'ACTIVE'] };
 
     // Size data from server
     const availableSizes = [
@@ -605,6 +605,54 @@
         applyFilters();
     }
 
+    // Generic checkbox filter handler
+    function handleCheckboxFilter(clickedCheckbox, filterClass, filterKey, allValues) {
+        const allCheckbox = document.querySelector(`.${filterClass}[value=""]`);
+        const itemCheckboxes = document.querySelectorAll(`.${filterClass}:not([value=""])`);
+
+        if (clickedCheckbox.value === '') {
+            // "All" was clicked
+            if (clickedCheckbox.checked) {
+                // Check all items
+                itemCheckboxes.forEach(cb => cb.checked = true);
+                filters[filterKey] = [...allValues];
+            } else {
+                // Uncheck all items
+                itemCheckboxes.forEach(cb => cb.checked = false);
+                filters[filterKey] = [];
+            }
+        } else {
+            // Individual item was clicked
+            if (!clickedCheckbox.checked) {
+                // Unchecked an item - uncheck "All"
+                allCheckbox.checked = false;
+            }
+
+            // Check if all individual items are now checked
+            const allItemsChecked = Array.from(itemCheckboxes).every(cb => cb.checked);
+            allCheckbox.checked = allItemsChecked;
+
+            // Update filter values
+            filters[filterKey] = Array.from(itemCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
+        }
+
+        // Update filtered state visual indicator
+        const isFiltered = filters[filterKey].length > 0 && filters[filterKey].length < allValues.length;
+        document.querySelector(`[data-column="${filterKey}"]`)?.classList.toggle('filtered', isFiltered);
+
+        applyFilters();
+    }
+
+    // Level filter
+    function applyLevelFilter(checkbox) {
+        handleCheckboxFilter(checkbox, 'level-filter', 'level', ['3', '4']);
+    }
+
+    // Status filter
+    function applyStatusFilter(checkbox) {
+        handleCheckboxFilter(checkbox, 'status-filter', 'status', ['DRAFT', 'ACTIVE']);
+    }
+
     // Apply all filters
     function applyFilters() {
         const rows = document.querySelectorAll('.design-row');
@@ -617,22 +665,16 @@
             if (filters.hdbs && !row.dataset.hdbs.includes(filters.hdbs)) visible = false;
 
             // Size filter
-            if (filters.size && filters.size.length > 0 && !filters.size.includes('')) {
-                const rowSize = row.dataset.size;
-                if (rowSize && !filters.size.includes(rowSize)) visible = false;
-            }
+            if (filters.size.length > 0 && row.dataset.size && !filters.size.includes(row.dataset.size)) visible = false;
+            if (filters.size.length === 0 && row.dataset.size) visible = false;
 
             // Level filter
-            if (filters.level && filters.level.length > 0 && !filters.level.includes('')) {
-                const rowLevel = row.dataset.level;
-                if (rowLevel && !filters.level.includes(rowLevel)) visible = false;
-            }
+            if (filters.level.length > 0 && row.dataset.level && !filters.level.includes(row.dataset.level)) visible = false;
+            if (filters.level.length === 0) visible = false;
 
             // Status filter
-            if (filters.status && filters.status.length > 0 && !filters.status.includes('')) {
-                const rowStatus = row.dataset.status;
-                if (rowStatus && !filters.status.includes(rowStatus)) visible = false;
-            }
+            if (filters.status.length > 0 && row.dataset.status && !filters.status.includes(row.dataset.status)) visible = false;
+            if (filters.status.length === 0) visible = false;
 
             row.style.display = visible ? '' : 'none';
             if (visible) visibleCount++;
@@ -652,29 +694,56 @@
         if (!container) return;
 
         let html = '<label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">' +
-                   '<input type="checkbox" class="size-filter mr-2" value="" checked onchange="applySizeFilter()"> (All)</label>';
+                   '<input type="checkbox" class="size-filter mr-2" value="" checked onchange="applySizeFilter(this)"> (All)</label>';
 
         availableSizes.forEach(size => {
             html += `<label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                       <input type="checkbox" class="size-filter mr-2" value="${size.id}" checked onchange="applySizeFilter()"> ${size.display}
+                       <input type="checkbox" class="size-filter mr-2" value="${size.id}" checked onchange="applySizeFilter(this)"> ${size.display}
                      </label>`;
         });
 
         container.innerHTML = html;
+
+        // Initialize filters.size with all size values
+        filters.size = availableSizes.map(s => String(s.id));
     }
 
     // Size filter
-    function applySizeFilter() {
+    function applySizeFilter(clickedCheckbox) {
         const allCheckbox = document.querySelector('.size-filter[value=""]');
         const sizeCheckboxes = document.querySelectorAll('.size-filter:not([value=""])');
+        const allSizeValues = availableSizes.map(s => String(s.id));
 
-        if (allCheckbox && allCheckbox.checked) {
-            filters.size = [];
+        if (clickedCheckbox.value === '') {
+            // "All" was clicked
+            if (clickedCheckbox.checked) {
+                // Check all items
+                sizeCheckboxes.forEach(cb => cb.checked = true);
+                filters.size = [...allSizeValues];
+            } else {
+                // Uncheck all items
+                sizeCheckboxes.forEach(cb => cb.checked = false);
+                filters.size = [];
+            }
         } else {
+            // Individual item was clicked
+            if (!clickedCheckbox.checked) {
+                // Unchecked an item - uncheck "All"
+                allCheckbox.checked = false;
+            }
+
+            // Check if all individual items are now checked
+            const allItemsChecked = Array.from(sizeCheckboxes).every(cb => cb.checked);
+            allCheckbox.checked = allItemsChecked;
+
+            // Update filter values
             filters.size = Array.from(sizeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
         }
 
-        document.querySelector('[data-column="size"]')?.classList.toggle('filtered', filters.size.length > 0);
+        // Update filtered state visual indicator
+        const isFiltered = filters.size.length > 0 && filters.size.length < allSizeValues.length;
+        document.querySelector('[data-column="size"]')?.classList.toggle('filtered', isFiltered);
+
         applyFilters();
     }
 
@@ -682,12 +751,12 @@
     function clearAllFilters() {
         filters.mat = '';
         filters.hdbs = '';
-        filters.size = [];
-        filters.level = [];
-        filters.status = [];
+        filters.size = availableSizes.map(s => String(s.id));
+        filters.level = ['3', '4'];
+        filters.status = ['DRAFT', 'ACTIVE'];
         document.getElementById('filter-mat-search').value = '';
         document.getElementById('filter-hdbs-search').value = '';
-        document.querySelectorAll('.size-filter, .filter-checkbox').forEach(cb => cb.checked = true);
+        document.querySelectorAll('.size-filter, .level-filter, .status-filter').forEach(cb => cb.checked = true);
         document.querySelectorAll('.th-filter').forEach(th => th.classList.remove('filtered'));
         applyFilters();
     }
