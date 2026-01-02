@@ -32,3 +32,8 @@ htmlcov/
 # Generated/backup files
 backups/
 staticfiles/
+
+# Keep data folder for persistent backups (technology data, etc.)
+# This allows user data to survive container rebuilds
+!data/
+!data/**

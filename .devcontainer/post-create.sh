@@ -16,7 +16,7 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 1: Install Python dependencies (must be first for Django SECRET_KEY gen)
 # -----------------------------------------------------------------------------
-echo "[1/7] Installing Python dependencies..."
+echo "[1/8] Installing Python dependencies..."
 pip install --upgrade pip
 pip install -r requirements.txt
 echo ""
@@ -24,7 +24,7 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 2: Create .env file from template if it doesn't exist
 # -----------------------------------------------------------------------------
-echo "[2/7] Setting up environment variables..."
+echo "[2/8] Setting up environment variables..."
 
 if [ ! -f .env ]; then
     cp .env.example .env
@@ -78,14 +78,14 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 3: Create required directories
 # -----------------------------------------------------------------------------
-echo "[3/7] Creating required directories..."
+echo "[3/8] Creating required directories..."
 mkdir -p logs media staticfiles
 echo ""
 
 # -----------------------------------------------------------------------------
 # Step 4: Run database migrations (with safe fallback for branched migrations)
 # -----------------------------------------------------------------------------
-echo "[4/7] Running database migrations..."
+echo "[4/8] Running database migrations..."
 
 # Note: This project has branched migrations in inventory and technology apps
 # that merge back together. On fresh databases, we use a safe approach.
@@ -118,21 +118,37 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 5: Collect static files
 # -----------------------------------------------------------------------------
-echo "[5/7] Collecting static files..."
+echo "[5/8] Collecting static files..."
 python manage.py collectstatic --no-input
 echo ""
 
 # -----------------------------------------------------------------------------
 # Step 6: Seed database with initial data
 # -----------------------------------------------------------------------------
-echo "[6/7] Seeding database with initial data..."
+echo "[6/8] Seeding database with initial data..."
 python manage.py seed_all
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 7: Create superuser
+# Step 7: Restore technology data if backup exists
 # -----------------------------------------------------------------------------
-echo "[7/7] Creating superuser..."
+echo "[7/8] Checking for technology data backup..."
+if [ -f data/technology_data_latest.json ]; then
+    echo "   - Found backup: data/technology_data_latest.json"
+    echo "   - Restoring technology data (Designs, BOMs)..."
+    python manage.py import_technology_data data/technology_data_latest.json --force
+    echo "   ✓ Technology data restored successfully"
+else
+    echo "   - No backup found (data/technology_data_latest.json)"
+    echo "   - To preserve your data before container rebuild, run:"
+    echo "     python manage.py export_technology_data"
+fi
+echo ""
+
+# -----------------------------------------------------------------------------
+# Step 8: Create superuser
+# -----------------------------------------------------------------------------
+echo "[8/8] Creating superuser..."
 
 # Create superuser using Django shell to avoid interactive prompts
 python manage.py shell << 'EOF'
@@ -177,6 +193,12 @@ echo "  To start the development server:"
 echo "    python manage.py runserver"
 echo ""
 echo "  Or use VS Code: Terminal > Run Task > Django: Run Server"
+echo ""
+echo "  ⚠️  DATA PERSISTENCE:"
+echo "  Before rebuilding container, backup your data:"
+echo "    python manage.py export_technology_data"
+echo ""
+echo "  Data will auto-restore on next container rebuild."
 echo ""
 echo "=============================================="
 
