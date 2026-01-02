@@ -989,6 +989,15 @@ class BOM(models.Model):
         ERP_SYNC = "ERP_SYNC", "ERP Sync"
 
     design = models.ForeignKey(Design, on_delete=models.CASCADE, related_name="boms")
+    smi_type = models.ForeignKey(
+        'SMIType',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='boms',
+        verbose_name='SMI Type',
+        help_text='Client-facing type for this L5 BOM'
+    )
     code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=200)
     revision = models.CharField(max_length=10, default="A")

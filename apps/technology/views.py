@@ -733,7 +733,8 @@ class BOMListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         from .filters import BOMFilter
         queryset = BOM.objects.select_related(
-            "design", "design__size", "design__iadc_code_ref", "created_by"
+            "design", "design__size", "design__iadc_code_ref", "created_by",
+            "smi_type", "smi_type__hdbs_type"
         ).prefetch_related(
             "lines__inventory_item"
         ).order_by("-created_at")
@@ -2980,14 +2981,28 @@ class BOMCreateWithBuilderView(LoginRequiredMixin, TemplateView):
 
         # Get SMI type from form and update design if provided
         # Check both field names - smi_type (from BOM info) or design_smi_type (from new design section)
-        smi_type = request.POST.get("smi_type", "").strip() or request.POST.get("design_smi_type", "").strip()
-        if smi_type and (not design.smi_type or design_mode == "new"):
-            design.smi_type = smi_type
-            design.save(update_fields=["smi_type"])
+        smi_type_name = request.POST.get("smi_type", "").strip() or request.POST.get("design_smi_type", "").strip()
+        smi_type_obj = None
+
+        if smi_type_name:
+            # Also update design's smi_type CharField for backward compatibility
+            if not design.smi_type or design_mode == "new":
+                design.smi_type = smi_type_name
+                design.save(update_fields=["smi_type"])
+
+            # Look up the SMIType object by name (and optionally match size)
+            smi_type_qs = SMIType.objects.filter(smi_name__iexact=smi_type_name, is_active=True)
+            if design.size:
+                # Try to find an SMI Type matching the design's size
+                smi_type_obj = smi_type_qs.filter(size=design.size).first()
+            if not smi_type_obj:
+                # Fall back to any matching SMI Type
+                smi_type_obj = smi_type_qs.first()
 
         # Create BOM
         bom = BOM.objects.create(
             design=design,
+            smi_type=smi_type_obj,
             code=bom_code,
             name=bom_name,
             revision=bom_revision,
