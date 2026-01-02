@@ -2976,6 +2976,13 @@ class BOMCreateWithBuilderView(LoginRequiredMixin, TemplateView):
         if not bom_name:
             bom_name = f"BOM for {design.hdbs_type} ({design.size})" if design.size else f"BOM for {design.hdbs_type}"
 
+        # Get SMI type from form and update design if provided
+        # Check both field names - smi_type (from BOM info) or design_smi_type (from new design section)
+        smi_type = request.POST.get("smi_type", "").strip() or request.POST.get("design_smi_type", "").strip()
+        if smi_type and (not design.smi_type or design_mode == "new"):
+            design.smi_type = smi_type
+            design.save(update_fields=["smi_type"])
+
         # Create BOM
         bom = BOM.objects.create(
             design=design,
