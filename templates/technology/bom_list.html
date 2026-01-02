@@ -466,6 +466,13 @@
 const filters = { mat5: '', hdbs: '', smi: '', mat34: '', level: ['3', '4'], materials: ['ready', 'shortage', 'unknown'], status: ['DRAFT', 'ACTIVE'], size: [] };
 let activeDropdown = null;
 
+// Size data from server
+const availableSizes = [
+    {% for size in sizes %}
+    { id: "{{ size.pk }}", decimal: {{ size.size_decimal }}, display: "{{ size.size_display }}" }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+
 // Toggle filter dropdown
 function toggleFilter(e, column) {
     e.stopPropagation();
@@ -551,6 +558,12 @@ function applyAllFilters() {
         if (!filters.materials.includes(row.dataset.materials)) visible = false;
         if (!filters.status.includes(row.dataset.status)) visible = false;
 
+        // Size filter (if specific sizes are selected)
+        if (filters.size && filters.size.length > 0 && !filters.size.includes('')) {
+            const rowSize = row.dataset.size;
+            if (rowSize && !filters.size.includes(rowSize)) visible = false;
+        }
+
         row.style.display = visible ? '' : 'none';
         if (visible) {
             visibleCount++;
@@ -570,10 +583,11 @@ function applyAllFilters() {
 document.getElementById('clear-all-filters').addEventListener('click', function() {
     document.getElementById('global-search').value = '';
     document.querySelectorAll('[data-filter]').forEach(input => input.value = '');
-    document.querySelectorAll('.level-filter, .materials-filter, .status-filter').forEach(cb => cb.checked = true);
+    document.querySelectorAll('.level-filter, .materials-filter, .status-filter, .size-filter').forEach(cb => cb.checked = true);
     document.querySelectorAll('.th-filter').forEach(th => th.classList.remove('filtered'));
     filters.mat5 = ''; filters.hdbs = ''; filters.smi = ''; filters.mat34 = '';
     filters.level = ['3', '4']; filters.materials = ['ready', 'shortage', 'unknown']; filters.status = ['DRAFT', 'ACTIVE'];
+    filters.size = [];  // Reset size filter
     applyAllFilters();
 });
 
@@ -592,8 +606,61 @@ document.querySelectorAll('.delete-bom-btn').forEach(btn => {
 document.getElementById('cancel-delete').addEventListener('click', () => deleteModal.classList.add('hidden'));
 deleteModal.addEventListener('click', e => { if (e.target === deleteModal) deleteModal.classList.add('hidden'); });
 
+// Populate size filter options
+function populateSizeFilter() {
+    const container = document.getElementById('size-filter-options');
+    if (!container || availableSizes.length === 0) return;
+
+    // Get unique sizes from visible rows
+    const rowSizes = new Set();
+    document.querySelectorAll('.bom-row').forEach(row => {
+        const sizeDecimal = row.dataset.size;
+        const sizeDisplay = row.dataset.sizeDisplay;
+        if (sizeDecimal && sizeDisplay) {
+            rowSizes.add(JSON.stringify({ decimal: sizeDecimal, display: sizeDisplay }));
+        }
+    });
+
+    // Build checkbox list
+    let html = '<label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">' +
+               '<input type="checkbox" class="size-filter mr-2" value="" checked onchange="applySizeFilter()"> (All)</label>';
+
+    // Use available sizes if we have them, otherwise use sizes from rows
+    const sizesToShow = availableSizes.length > 0 ? availableSizes :
+        Array.from(rowSizes).map(s => JSON.parse(s)).sort((a, b) => parseFloat(a.decimal) - parseFloat(b.decimal));
+
+    sizesToShow.forEach(size => {
+        const value = size.decimal || size.id;
+        html += `<label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                   <input type="checkbox" class="size-filter mr-2" value="${value}" checked onchange="applySizeFilter()"> ${size.display}
+                 </label>`;
+    });
+
+    container.innerHTML = html;
+
+    // Initialize filters.size with all sizes
+    filters.size = Array.from(document.querySelectorAll('.size-filter:checked')).map(cb => cb.value);
+}
+
+// Size filter
+function applySizeFilter() {
+    const allCheckbox = document.querySelector('.size-filter[value=""]');
+    const sizeCheckboxes = document.querySelectorAll('.size-filter:not([value=""])');
+
+    if (allCheckbox && allCheckbox.checked) {
+        // "All" is checked - include all sizes
+        filters.size = [];
+    } else {
+        filters.size = Array.from(sizeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
+    }
+
+    document.querySelector('[data-column="size"]').classList.toggle('filtered', filters.size.length > 0 && filters.size.length < availableSizes.length);
+    applyAllFilters();
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
+    populateSizeFilter();
     applyAllFilters();
     if (typeof lucide !== 'undefined') lucide.createIcons();
 });

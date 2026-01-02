@@ -535,6 +535,13 @@
     let cloneSourceId = null;
     const filters = { level: [], mat: '', hdbs: '', size: [], status: [] };
 
+    // Size data from server
+    const availableSizes = [
+        {% for size in sizes %}
+        { id: "{{ size.pk }}", decimal: {{ size.size_decimal }}, display: "{{ size.size_display }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
     // Toggle design mode
     function toggleDesignMode(mode) {
         document.getElementById('existing-design-section').classList.toggle('hidden', mode !== 'existing');
@@ -600,6 +607,24 @@
             if (filters.mat && !row.dataset.mat.includes(filters.mat)) visible = false;
             if (filters.hdbs && !row.dataset.hdbs.includes(filters.hdbs)) visible = false;
 
+            // Size filter
+            if (filters.size && filters.size.length > 0 && !filters.size.includes('')) {
+                const rowSize = row.dataset.size;
+                if (rowSize && !filters.size.includes(rowSize)) visible = false;
+            }
+
+            // Level filter
+            if (filters.level && filters.level.length > 0 && !filters.level.includes('')) {
+                const rowLevel = row.dataset.level;
+                if (rowLevel && !filters.level.includes(rowLevel)) visible = false;
+            }
+
+            // Status filter
+            if (filters.status && filters.status.length > 0 && !filters.status.includes('')) {
+                const rowStatus = row.dataset.status;
+                if (rowStatus && !filters.status.includes(rowStatus)) visible = false;
+            }
+
             row.style.display = visible ? '' : 'none';
             if (visible) visibleCount++;
 
@@ -612,12 +637,49 @@
         document.getElementById('design-count').textContent = `${visibleCount} designs`;
     }
 
+    // Populate size filter options
+    function populateSizeFilter() {
+        const container = document.getElementById('size-filter-options');
+        if (!container) return;
+
+        let html = '<label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">' +
+                   '<input type="checkbox" class="size-filter mr-2" value="" checked onchange="applySizeFilter()"> (All)</label>';
+
+        availableSizes.forEach(size => {
+            html += `<label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                       <input type="checkbox" class="size-filter mr-2" value="${size.id}" checked onchange="applySizeFilter()"> ${size.display}
+                     </label>`;
+        });
+
+        container.innerHTML = html;
+    }
+
+    // Size filter
+    function applySizeFilter() {
+        const allCheckbox = document.querySelector('.size-filter[value=""]');
+        const sizeCheckboxes = document.querySelectorAll('.size-filter:not([value=""])');
+
+        if (allCheckbox && allCheckbox.checked) {
+            filters.size = [];
+        } else {
+            filters.size = Array.from(sizeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
+        }
+
+        document.querySelector('[data-column="size"]')?.classList.toggle('filtered', filters.size.length > 0);
+        applyFilters();
+    }
+
     // Clear all filters
     function clearAllFilters() {
         filters.mat = '';
         filters.hdbs = '';
+        filters.size = [];
+        filters.level = [];
+        filters.status = [];
         document.getElementById('filter-mat-search').value = '';
         document.getElementById('filter-hdbs-search').value = '';
+        document.querySelectorAll('.size-filter, .filter-checkbox').forEach(cb => cb.checked = true);
+        document.querySelectorAll('.th-filter').forEach(th => th.classList.remove('filtered'));
         applyFilters();
     }
 
@@ -804,6 +866,7 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
+        populateSizeFilter();
         updateSummary();
         checkFormCompletion();
         if (typeof lucide !== 'undefined') lucide.createIcons();
