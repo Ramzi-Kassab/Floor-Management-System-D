@@ -732,7 +732,9 @@ class BOMListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         from .filters import BOMFilter
-        queryset = BOM.objects.select_related("design", "design__size", "created_by").prefetch_related(
+        queryset = BOM.objects.select_related(
+            "design", "design__size", "design__iadc_code_ref", "created_by"
+        ).prefetch_related(
             "lines__inventory_item"
         ).order_by("-created_at")
 
