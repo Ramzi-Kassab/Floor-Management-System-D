@@ -10,7 +10,7 @@
         </a></li>
         <li class="flex items-center">
             <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
-            <a href="{% url 'technology:index' %}" class="ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white text-sm">Technology</a>
+            <a href="{% url 'technology:design_list' %}" class="ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white text-sm">Technology</a>
         </li>
         <li class="flex items-center">
             <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
@@ -27,7 +27,7 @@
         <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Manage BOMs for designs with material tracking</p>
     </div>
     <div class="flex gap-2">
-        <a href="{% url 'technology:bom_builder' %}"
+        <a href="{% url 'technology:bom_create' %}"
            class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
             Create BOM
@@ -193,7 +193,7 @@
                            title="View">
                             <i data-lucide="eye" class="w-4 h-4"></i>
                         </a>
-                        <a href="{% url 'technology:bom_edit' item.bom.pk %}"
+                        <a href="{% url 'technology:bom_update' item.bom.pk %}"
                            class="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded"
                            title="Edit">
                             <i data-lucide="edit" class="w-4 h-4"></i>
@@ -213,7 +213,7 @@
                 <td colspan="10" class="text-center py-8 text-gray-500 dark:text-gray-400">
                     <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
                     <p>No BOMs found</p>
-                    <a href="{% url 'technology:bom_builder' %}" class="text-blue-600 hover:underline text-sm">Create your first BOM</a>
+                    <a href="{% url 'technology:bom_create' %}" class="text-blue-600 hover:underline text-sm">Create your first BOM</a>
                 </td>
             </tr>
             {% endfor %}
