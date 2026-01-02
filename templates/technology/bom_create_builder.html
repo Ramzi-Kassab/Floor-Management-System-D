@@ -5,15 +5,13 @@
 {% block extra_css %}
 <style>
     .filter-dropdown {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        z-index: 50;
+        position: fixed;
+        z-index: 9999;
         min-width: 200px;
         background: white;
         border: 1px solid #e5e7eb;
         border-radius: 0.5rem;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         display: none;
     }
     .dark .filter-dropdown {
@@ -554,10 +552,21 @@
     // Toggle filter dropdown
     function toggleFilter(e, column) {
         e.stopPropagation();
+        const dropdown = document.getElementById(`filter-${column}-dropdown`);
+        const btn = e.currentTarget;
+
         document.querySelectorAll('.filter-dropdown').forEach(d => {
             if (d.id !== `filter-${column}-dropdown`) d.classList.remove('active');
         });
-        document.getElementById(`filter-${column}-dropdown`).classList.toggle('active');
+
+        dropdown.classList.toggle('active');
+
+        if (dropdown.classList.contains('active')) {
+            // Position the dropdown below the button
+            const rect = btn.getBoundingClientRect();
+            dropdown.style.top = (rect.bottom + 4) + 'px';
+            dropdown.style.left = Math.max(8, rect.left) + 'px';
+        }
     }
 
     // Close dropdowns on click outside
