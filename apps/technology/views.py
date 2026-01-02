@@ -728,34 +728,17 @@ class BOMListView(LoginRequiredMixin, ListView):
     model = BOM
     template_name = "technology/bom_list.html"
     context_object_name = "boms"
-    paginate_by = 25
+    paginate_by = 50  # Higher limit since DataTables handles pagination
 
     def get_queryset(self):
+        from .filters import BOMFilter
         queryset = BOM.objects.select_related("design", "design__size", "created_by").prefetch_related(
             "lines__inventory_item"
         ).order_by("-created_at")
 
-        search = self.request.GET.get("q")
-        if search:
-            queryset = queryset.filter(
-                Q(code__icontains=search) | Q(name__icontains=search) |
-                Q(design__mat_no__icontains=search) | Q(design__hdbs_type__icontains=search) |
-                Q(design__smi_type__icontains=search)
-            )
-
-        status = self.request.GET.get("status")
-        if status:
-            queryset = queryset.filter(status=status)
-
-        order_level = self.request.GET.get("order_level")
-        if order_level:
-            queryset = queryset.filter(design__order_level=order_level)
-
-        size = self.request.GET.get("size")
-        if size:
-            queryset = queryset.filter(design__size_id=size)
-
-        return queryset
+        # Apply django-filter
+        self.filterset = BOMFilter(self.request.GET, queryset=queryset)
+        return self.filterset.qs
 
     def get_context_data(self, **kwargs):
         from apps.inventory.models import InventoryStock
@@ -763,12 +746,7 @@ class BOMListView(LoginRequiredMixin, ListView):
 
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Bills of Materials"
-        context["search_query"] = self.request.GET.get("q", "")
-        context["current_status"] = self.request.GET.get("status", "")
-        context["current_order_level"] = self.request.GET.get("order_level", "")
-        context["current_size"] = self.request.GET.get("size", "")
-        context["status_choices"] = BOM.Status.choices
-        context["order_level_choices"] = Design.OrderLevel.choices
+        context["filter"] = self.filterset
         context["sizes"] = BitSize.objects.filter(is_active=True).order_by("size_decimal")
 
         # Add material availability status for each BOM
