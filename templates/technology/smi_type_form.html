@@ -22,7 +22,7 @@
 
 {% block content %}
 <div class="max-w-3xl">
-    {% if request.GET.from == 'design' %}
+    {% if request.GET.from == 'design' or request.GET.from == 'bom' %}
     {% if request.GET.created == '1' %}
     <!-- Success - Type Created -->
     <div class="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-6 text-center">
@@ -32,23 +32,23 @@
             </div>
             <div>
                 <p class="text-lg font-medium text-green-800 dark:text-green-200">SMI Type Created Successfully!</p>
-                <p class="text-sm text-green-600 dark:text-green-400 mt-1">You can now close this tab to return to your Design form</p>
+                <p class="text-sm text-green-600 dark:text-green-400 mt-1">You can now close this tab to return to your {% if request.GET.from == 'bom' %}BOM{% else %}Design{% endif %} form</p>
             </div>
             <button type="button" onclick="window.close()" class="px-6 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 flex items-center gap-2">
                 <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                Close Tab & Return to Design
+                Close Tab & Return to {% if request.GET.from == 'bom' %}BOM{% else %}Design{% endif %}
             </button>
         </div>
     </div>
     {% else %}
-    <!-- Return to Design Banner -->
+    <!-- Return Banner -->
     <div class="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4">
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <i data-lucide="arrow-left-circle" class="w-5 h-5 text-amber-600 dark:text-amber-400"></i>
                 <div>
-                    <p class="text-sm font-medium text-amber-800 dark:text-amber-200">Creating from Design Form</p>
-                    <p class="text-xs text-amber-600 dark:text-amber-400">After saving, close this tab to return to your Design form</p>
+                    <p class="text-sm font-medium text-amber-800 dark:text-amber-200">Creating from {% if request.GET.from == 'bom' %}BOM{% else %}Design{% endif %} Form</p>
+                    <p class="text-xs text-amber-600 dark:text-amber-400">After saving, close this tab to return to your {% if request.GET.from == 'bom' %}BOM{% else %}Design{% endif %} form</p>
                 </div>
             </div>
             <button type="button" onclick="window.close()" class="px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-800/50 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800 flex items-center gap-2">
@@ -62,6 +62,22 @@
 
     <form method="post" class="space-y-6">
         {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-4">
+            <div class="flex gap-3">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0"></i>
+                <div>
+                    <p class="text-sm text-red-800 dark:text-red-200 font-medium">Please correct the errors below:</p>
+                    <ul class="mt-2 text-sm text-red-600 dark:text-red-400 list-disc list-inside">
+                        {% for field, errors in form.errors.items %}
+                        <li>{% if field != '__all__' %}<strong>{{ field }}:</strong> {% endif %}{{ errors.0 }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- SMI Information -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
