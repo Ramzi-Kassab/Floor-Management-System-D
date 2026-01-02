@@ -2380,9 +2380,10 @@ class HDBSTypeCreateView(LoginRequiredMixin, CreateView):
     template_name = "technology/hdbs_type_form.html"
 
     def get_success_url(self):
-        # If coming from design form, stay on page with success message
-        if self.request.GET.get('from') == 'design':
-            return f"{reverse_lazy('technology:hdbs_type_create')}?from=design&created=1"
+        # If coming from design or bom form, stay on page with success message
+        from_page = self.request.GET.get('from')
+        if from_page in ('design', 'bom'):
+            return f"{reverse_lazy('technology:hdbs_type_create')}?from={from_page}&created=1"
         return reverse_lazy("technology:hdbs_type_list")
 
     def get_context_data(self, **kwargs):
@@ -2390,10 +2391,15 @@ class HDBSTypeCreateView(LoginRequiredMixin, CreateView):
         context["page_title"] = "Add HDBS Type"
         context["submit_text"] = "Add Type"
         context["just_created"] = self.request.GET.get('created') == '1'
+        context["from_page"] = self.request.GET.get('from')
         return context
 
     def form_valid(self, form):
-        messages.success(self.request, f"HDBS Type {form.instance.hdbs_name} created successfully. You can now close this tab and return to your Design form.")
+        from_page = self.request.GET.get('from')
+        if from_page == 'bom':
+            messages.success(self.request, f"HDBS Type {form.instance.hdbs_name} created successfully. You can now close this tab and return to your BOM form.")
+        else:
+            messages.success(self.request, f"HDBS Type {form.instance.hdbs_name} created successfully. You can now close this tab and return to your Design form.")
         return super().form_valid(form)
 
 
@@ -2498,9 +2504,10 @@ class SMITypeCreateStandaloneView(LoginRequiredMixin, CreateView):
     template_name = "technology/smi_type_form.html"
 
     def get_success_url(self):
-        # If coming from design form, stay on page with success message
-        if self.request.GET.get('from') == 'design':
-            return f"{reverse_lazy('technology:smi_type_create_standalone')}?from=design&created=1"
+        # If coming from design or bom form, stay on page with success message
+        from_page = self.request.GET.get('from')
+        if from_page in ('design', 'bom'):
+            return f"{reverse_lazy('technology:smi_type_create_standalone')}?from={from_page}&created=1"
         return reverse_lazy("technology:hdbs_type_list")
 
     def get_context_data(self, **kwargs):
@@ -2508,10 +2515,14 @@ class SMITypeCreateStandaloneView(LoginRequiredMixin, CreateView):
         context["page_title"] = "Add SMI Type"
         context["submit_text"] = "Add SMI Type"
         context["just_created"] = self.request.GET.get('created') == '1'
+        context["from_page"] = self.request.GET.get('from')
         return context
 
     def form_valid(self, form):
-        if self.request.GET.get('from') == 'design':
+        from_page = self.request.GET.get('from')
+        if from_page == 'bom':
+            messages.success(self.request, f"SMI Type {form.instance.smi_name} added successfully. You can now close this tab and return to your BOM form.")
+        elif from_page == 'design':
             messages.success(self.request, f"SMI Type {form.instance.smi_name} added successfully. You can now close this tab and return to your Design form.")
         else:
             messages.success(self.request, f"SMI Type {form.instance.smi_name} added successfully.")

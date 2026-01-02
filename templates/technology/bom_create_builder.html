@@ -418,17 +418,33 @@
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 HDBS Type <span class="text-red-500">*</span>
                             </label>
-                            <input type="text" name="hdbs_type" id="id_design_hdbs_type"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                placeholder="e.g., GT65RHS" oninput="checkFormCompletion()">
+                            <div class="flex gap-2">
+                                <input type="text" name="hdbs_type" id="id_design_hdbs_type"
+                                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    placeholder="e.g., GT65RHS" oninput="checkFormCompletion()">
+                                <button type="button" onclick="openHdbsCreate()"
+                                    class="px-3 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+                                    title="Create new HDBS Type">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">Internal type name or <a href="#" onclick="openHdbsCreate(); return false;" class="text-purple-600 hover:underline">create new</a></p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 SMI Type (Optional)
                             </label>
-                            <input type="text" name="design_smi_type" id="id_design_smi_type"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                placeholder="Client-facing name">
+                            <div class="flex gap-2">
+                                <input type="text" name="design_smi_type" id="id_design_smi_type"
+                                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    placeholder="Client-facing name">
+                                <button type="button" onclick="openSmiCreate()"
+                                    class="px-3 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                                    title="Create new SMI Type">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">Client-facing name or <a href="#" onclick="openSmiCreate(); return false;" class="text-blue-600 hover:underline">create new</a></p>
                         </div>
                     </div>
                 </div>
@@ -937,6 +953,16 @@
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
     });
+
+    // Open HDBS Type create page
+    function openHdbsCreate() {
+        window.open('{% url "technology:hdbs_type_create" %}?from=bom', '_blank');
+    }
+
+    // Open SMI Type create page
+    function openSmiCreate() {
+        window.open('{% url "technology:smi_type_create_standalone" %}?from=bom', '_blank');
+    }
 
     // Event listeners
     document.getElementById('id_bom_code').addEventListener('input', updateSummary);
