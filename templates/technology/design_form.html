@@ -2307,11 +2307,30 @@ document.addEventListener('DOMContentLoaded', function() {
         createBtn.addEventListener('click', function() {
             closeDialog();
             if (typeKind === 'HDBS') {
-                // Open HDBS create page in new tab with return flag
-                window.open('{% url "technology:hdbs_type_create" %}?from=design', '_blank');
+                // Open HDBS create page in new tab with pre-filled data
+                let url = '{% url "technology:hdbs_type_create" %}?from=design';
+                // Pass the HDBS name they typed
+                url += '&hdbs_name=' + encodeURIComponent(value);
+                // Pass selected size if available
+                const sizeSelect = document.getElementById('id_size');
+                if (sizeSelect && sizeSelect.value) {
+                    url += '&size_id=' + encodeURIComponent(sizeSelect.value);
+                }
+                window.open(url, '_blank');
             } else {
-                // Open SMI create page with return flag
+                // Open SMI create page with pre-filled data
                 let url = '{% url "technology:smi_type_create_standalone" %}?from=design';
+                // Pass the SMI name they typed
+                url += '&smi_name=' + encodeURIComponent(value);
+                // Pass HDBS type if available
+                if (hdbsValue) {
+                    url += '&hdbs_name=' + encodeURIComponent(hdbsValue);
+                }
+                // Pass selected size if available
+                const sizeSelect = document.getElementById('id_size');
+                if (sizeSelect && sizeSelect.value) {
+                    url += '&size_id=' + encodeURIComponent(sizeSelect.value);
+                }
                 window.open(url, '_blank');
             }
             // Clear the field since they're creating new

@@ -166,6 +166,14 @@
 document.addEventListener('DOMContentLoaded', function() {
     const hdbsSelect = document.getElementById('id_hdbs_type');
     const sizeSelect = document.getElementById('id_size');
+    const smiNameInput = document.getElementById('id_smi_name');
+    const urlParams = new URLSearchParams(window.location.search);
+
+    // Pre-fill SMI name from URL param
+    const smiNameParam = urlParams.get('smi_name');
+    if (smiNameParam && smiNameInput && !smiNameInput.value) {
+        smiNameInput.value = smiNameParam;
+    }
 
     if (!hdbsSelect || !sizeSelect) return;
 
@@ -175,7 +183,11 @@ document.addEventListener('DOMContentLoaded', function() {
         text: opt.text
     }));
 
-    function updateSizeOptions(hdbsId) {
+    // Get URL params for pre-selection
+    const hdbsNameParam = urlParams.get('hdbs_name');
+    const sizeIdParam = urlParams.get('size_id');
+
+    function updateSizeOptions(hdbsId, selectSizeId = null) {
         if (!hdbsId) {
             // No HDBS selected - show all sizes
             sizeSelect.innerHTML = '';
@@ -185,6 +197,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 option.text = opt.text;
                 sizeSelect.appendChild(option);
             });
+            // Select size from param if provided
+            if (selectSizeId) {
+                sizeSelect.value = selectSizeId;
+            }
             return;
         }
 
@@ -198,7 +214,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const allowedSizeIds = hdbs.sizes.map(s => s.id.toString());
 
                 // Update size dropdown
-                const currentValue = sizeSelect.value;
+                const currentValue = selectSizeId || sizeSelect.value;
                 sizeSelect.innerHTML = '';
 
                 // Add empty option
@@ -230,21 +246,42 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 // Restore selection if still valid
-                if (Array.from(sizeSelect.options).some(o => o.value === currentValue)) {
+                if (currentValue && Array.from(sizeSelect.options).some(o => o.value === currentValue)) {
                     sizeSelect.value = currentValue;
                 }
             });
+    }
+
+    // Pre-select HDBS type by name from URL param
+    if (hdbsNameParam && !hdbsSelect.value) {
+        // Fetch HDBS types to find by name
+        fetch(`{% url "technology:api_hdbs_types" %}?show_inactive=1`)
+            .then(r => r.json())
+            .then(data => {
+                const hdbs = data.hdbs_types.find(h =>
+                    h.hdbs_name.toLowerCase() === hdbsNameParam.toLowerCase()
+                );
+                if (hdbs) {
+                    hdbsSelect.value = hdbs.id;
+                    // Update sizes and pre-select size from param
+                    updateSizeOptions(hdbs.id, sizeIdParam);
+                } else if (sizeIdParam) {
+                    // HDBS not found, but still select size
+                    sizeSelect.value = sizeIdParam;
+                }
+            });
+    } else if (hdbsSelect.value) {
+        // Initial update if HDBS is pre-selected
+        updateSizeOptions(hdbsSelect.value, sizeIdParam);
+    } else if (sizeIdParam) {
+        // No HDBS but size param provided
+        sizeSelect.value = sizeIdParam;
     }
 
     // Listen for HDBS type changes
     hdbsSelect.addEventListener('change', function() {
         updateSizeOptions(this.value);
     });
-
-    // Initial update if HDBS is pre-selected
-    if (hdbsSelect.value) {
-        updateSizeOptions(hdbsSelect.value);
-    }
 });
 </script>
 {% endblock %}

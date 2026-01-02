@@ -151,3 +151,35 @@
     </form>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Pre-fill form from URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+
+    // Pre-fill HDBS name if provided
+    const hdbsName = urlParams.get('hdbs_name');
+    if (hdbsName) {
+        const hdbsInput = document.getElementById('id_hdbs_name');
+        if (hdbsInput && !hdbsInput.value) {
+            hdbsInput.value = hdbsName;
+        }
+    }
+
+    // Pre-select size if provided
+    const sizeId = urlParams.get('size_id');
+    if (sizeId) {
+        const sizeCheckbox = document.querySelector(`input[name="sizes"][value="${sizeId}"]`);
+        if (sizeCheckbox && !sizeCheckbox.checked) {
+            sizeCheckbox.checked = true;
+            // Also highlight the parent label
+            const label = sizeCheckbox.closest('label');
+            if (label) {
+                label.classList.add('bg-purple-50', 'border-purple-300', 'dark:bg-purple-900/30', 'dark:border-purple-600');
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

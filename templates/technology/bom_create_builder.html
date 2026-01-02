@@ -1158,8 +1158,31 @@
             dialog.querySelector('#smi-validation-cancel').addEventListener('click', closeDialog);
             dialog.querySelector('#smi-validation-create').addEventListener('click', function() {
                 closeDialog();
-                // Open SMI create page in new tab
-                window.open('{% url "technology:smi_type_create_standalone" %}?from=bom', '_blank');
+                // Open SMI create page in new tab with pre-filled data
+                let url = '{% url "technology:smi_type_create_standalone" %}?from=bom';
+                // Pass the SMI name they typed
+                url += '&smi_name=' + encodeURIComponent(value);
+                // Pass HDBS type from context
+                if (context.hdbsType) {
+                    url += '&hdbs_name=' + encodeURIComponent(context.hdbsType);
+                }
+                // Pass size from selected design if available
+                if (context.mode === 'existing' && context.hasSelection) {
+                    const checkedRadio = document.querySelector('.design-radio:checked');
+                    if (checkedRadio) {
+                        const row = checkedRadio.closest('.design-row');
+                        const sizeId = row.dataset.size;
+                        if (sizeId) {
+                            url += '&size_id=' + encodeURIComponent(sizeId);
+                        }
+                    }
+                } else if (context.mode === 'new') {
+                    const sizeSelect = document.getElementById('id_design_size');
+                    if (sizeSelect && sizeSelect.value) {
+                        url += '&size_id=' + encodeURIComponent(sizeSelect.value);
+                    }
+                }
+                window.open(url, '_blank');
             });
         } else {
             dialog.querySelector('#smi-validation-ok').addEventListener('click', function() {
