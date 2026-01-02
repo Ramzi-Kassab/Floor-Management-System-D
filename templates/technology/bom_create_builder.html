@@ -2,6 +2,50 @@
 
 {% block title %}Create BOM - ARDT FMS{% endblock %}
 
+{% block extra_css %}
+<style>
+    .filter-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        z-index: 50;
+        min-width: 200px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        display: none;
+    }
+    .dark .filter-dropdown {
+        background: #1f2937;
+        border-color: #374151;
+    }
+    .filter-dropdown.active {
+        display: block;
+    }
+    .th-filter {
+        position: relative;
+        cursor: pointer;
+        user-select: none;
+    }
+    .th-filter:hover {
+        background: rgba(59, 130, 246, 0.1);
+    }
+    .child-row {
+        background: #f8fafc;
+    }
+    .dark .child-row {
+        background: #1e293b;
+    }
+    .expand-icon {
+        transition: transform 0.2s;
+    }
+    .expanded .expand-icon {
+        transform: rotate(90deg);
+    }
+</style>
+{% endblock %}
+
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
     <div>
@@ -38,17 +82,17 @@
                         </label>
                         <input type="text" name="bom_code" id="id_bom_code" required
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            placeholder="Enter Level 5 MAT No.">
+                            placeholder="Enter Level 5 MAT No." oninput="checkFormCompletion()">
                     </div>
 
-                    <!-- BOM Name -->
+                    <!-- SMI Type -->
                     <div>
-                        <label for="id_bom_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            BOM Name
+                        <label for="id_smi_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            SMI Type
                         </label>
-                        <input type="text" name="bom_name" id="id_bom_name"
+                        <input type="text" name="smi_type" id="id_smi_type"
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            placeholder="Optional - Auto-generated if empty">
+                            placeholder="Client-facing type name">
                     </div>
 
                     <!-- Revision -->
@@ -89,77 +133,129 @@
 
                 <!-- Existing Design Selection -->
                 <div id="existing-design-section">
-                    <!-- Filter Fields -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <!-- Level Filter -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Level
-                            </label>
-                            <select id="filter-level"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
-                                onchange="filterDesigns()">
-                                <option value="">All Levels</option>
-                                <option value="3">Level 3</option>
-                                <option value="4">Level 4</option>
-                            </select>
-                        </div>
-
-                        <!-- HDBS Type Filter -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                HDBS Type
-                            </label>
-                            <input type="text" id="filter-hdbs" placeholder="Type to filter..."
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
-                                oninput="filterDesigns()">
-                        </div>
-
-                        <!-- MAT No Filter -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                MAT No.
-                            </label>
-                            <input type="text" id="filter-mat" placeholder="Type to filter..."
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
-                                oninput="filterDesigns()">
-                        </div>
-
-                        <!-- Size Filter -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Size
-                            </label>
-                            <select id="filter-size"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
-                                onchange="filterDesigns()">
-                                <option value="">All Sizes</option>
-                                {% for size in sizes %}
-                                <option value="{{ size.pk }}">{{ size.size_display }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Results Count -->
-                    <div class="mb-2 flex items-center justify-between">
-                        <span class="text-sm text-gray-500" id="design-count">{{ designs|length }} designs available</span>
-                        <button type="button" onclick="clearFilters()" class="text-sm text-blue-600 hover:text-blue-800">
-                            Clear Filters
-                        </button>
-                    </div>
-
-                    <!-- Design Selection Table -->
+                    <!-- Design Selection Table with Excel-style filters -->
                     <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                        <div class="max-h-[300px] overflow-y-auto">
-                            <table class="w-full text-sm">
+                        <div class="max-h-[400px] overflow-y-auto">
+                            <table class="w-full text-sm" id="design-table">
                                 <thead class="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
                                     <tr>
-                                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase w-10"></th>
-                                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Level</th>
-                                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">MAT No.</th>
-                                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">HDBS Type</th>
-                                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Size</th>
+                                        <th class="px-2 py-2 text-left w-8"></th>
+                                        <th class="th-filter px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase" data-column="level">
+                                            <div class="flex items-center justify-between">
+                                                <span>Level</span>
+                                                <button type="button" class="filter-btn p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleFilter(event, 'level')">
+                                                    <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            </div>
+                                            <div class="filter-dropdown" id="filter-level-dropdown">
+                                                <div class="p-2 border-b border-gray-200 dark:border-gray-600">
+                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('level', 'asc')">
+                                                        <i data-lucide="arrow-up" class="w-3 h-3 inline mr-1"></i>Sort A-Z
+                                                    </button>
+                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('level', 'desc')">
+                                                        <i data-lucide="arrow-down" class="w-3 h-3 inline mr-1"></i>Sort Z-A
+                                                    </button>
+                                                </div>
+                                                <div class="p-2 max-h-40 overflow-y-auto">
+                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="level" value="" checked> All
+                                                    </label>
+                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="level" value="3" checked> Level 3
+                                                    </label>
+                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="level" value="4" checked> Level 4
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </th>
+                                        <th class="th-filter px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase" data-column="mat">
+                                            <div class="flex items-center justify-between">
+                                                <span>MAT No.</span>
+                                                <button type="button" class="filter-btn p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleFilter(event, 'mat')">
+                                                    <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            </div>
+                                            <div class="filter-dropdown" id="filter-mat-dropdown">
+                                                <div class="p-2 border-b border-gray-200 dark:border-gray-600">
+                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('mat', 'asc')">
+                                                        <i data-lucide="arrow-up" class="w-3 h-3 inline mr-1"></i>Sort A-Z
+                                                    </button>
+                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('mat', 'desc')">
+                                                        <i data-lucide="arrow-down" class="w-3 h-3 inline mr-1"></i>Sort Z-A
+                                                    </button>
+                                                </div>
+                                                <div class="p-2">
+                                                    <input type="text" class="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700"
+                                                           placeholder="Search MAT..." id="filter-mat-search" oninput="filterByText('mat', this.value)">
+                                                </div>
+                                            </div>
+                                        </th>
+                                        <th class="th-filter px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase" data-column="hdbs">
+                                            <div class="flex items-center justify-between">
+                                                <span>HDBS Type</span>
+                                                <button type="button" class="filter-btn p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleFilter(event, 'hdbs')">
+                                                    <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            </div>
+                                            <div class="filter-dropdown" id="filter-hdbs-dropdown">
+                                                <div class="p-2 border-b border-gray-200 dark:border-gray-600">
+                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('hdbs', 'asc')">
+                                                        <i data-lucide="arrow-up" class="w-3 h-3 inline mr-1"></i>Sort A-Z
+                                                    </button>
+                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('hdbs', 'desc')">
+                                                        <i data-lucide="arrow-down" class="w-3 h-3 inline mr-1"></i>Sort Z-A
+                                                    </button>
+                                                </div>
+                                                <div class="p-2">
+                                                    <input type="text" class="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700"
+                                                           placeholder="Search HDBS..." id="filter-hdbs-search" oninput="filterByText('hdbs', this.value)">
+                                                </div>
+                                            </div>
+                                        </th>
+                                        <th class="th-filter px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase" data-column="size">
+                                            <div class="flex items-center justify-between">
+                                                <span>Size</span>
+                                                <button type="button" class="filter-btn p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleFilter(event, 'size')">
+                                                    <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            </div>
+                                            <div class="filter-dropdown" id="filter-size-dropdown">
+                                                <div class="p-2 border-b border-gray-200 dark:border-gray-600">
+                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('size', 'asc')">
+                                                        <i data-lucide="arrow-up" class="w-3 h-3 inline mr-1"></i>Sort Small-Large
+                                                    </button>
+                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('size', 'desc')">
+                                                        <i data-lucide="arrow-down" class="w-3 h-3 inline mr-1"></i>Sort Large-Small
+                                                    </button>
+                                                </div>
+                                                <div class="p-2 max-h-40 overflow-y-auto" id="size-filter-options">
+                                                    <!-- Populated dynamically -->
+                                                </div>
+                                            </div>
+                                        </th>
+                                        <th class="th-filter px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase" data-column="status">
+                                            <div class="flex items-center justify-between">
+                                                <span>Status</span>
+                                                <button type="button" class="filter-btn p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleFilter(event, 'status')">
+                                                    <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            </div>
+                                            <div class="filter-dropdown" id="filter-status-dropdown">
+                                                <div class="p-2 max-h-40 overflow-y-auto">
+                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="status" value="" checked> All
+                                                    </label>
+                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="status" value="DRAFT" checked> Draft
+                                                    </label>
+                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                                        <input type="checkbox" class="filter-checkbox mr-2" data-column="status" value="ACTIVE" checked> Active
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </th>
+                                        <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase">BOMs</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700" id="design-table-body">
@@ -170,24 +266,73 @@
                                         data-mat="{{ design.mat_no|lower }}"
                                         data-hdbs="{{ design.hdbs_type|lower }}"
                                         data-size="{{ design.size_id|default:'' }}"
+                                        data-size-display="{{ design.size.size_display|default:'' }}"
+                                        data-status="{{ design.status }}"
+                                        data-bom-count="{{ design.boms.count }}"
                                         onclick="selectDesign(this)">
-                                        <td class="px-3 py-2">
-                                            <input type="radio" name="existing_design" value="{{ design.pk }}"
-                                                class="design-radio w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300">
+                                        <td class="px-2 py-2">
+                                            <div class="flex items-center gap-1">
+                                                {% if design.boms.count > 0 %}
+                                                <button type="button" class="expand-btn p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleBomRows(event, {{ design.pk }})">
+                                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5 expand-icon"></i>
+                                                </button>
+                                                {% endif %}
+                                                <input type="radio" name="existing_design" value="{{ design.pk }}"
+                                                    class="design-radio w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300">
+                                            </div>
                                         </td>
-                                        <td class="px-3 py-2">
-                                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold
+                                        <td class="px-2 py-2">
+                                            <span class="inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold
                                                 {% if design.order_level == '3' %}bg-purple-100 text-purple-700{% else %}bg-indigo-100 text-indigo-700{% endif %}">
                                                 L{{ design.order_level }}
                                             </span>
                                         </td>
-                                        <td class="px-3 py-2 font-mono text-gray-900 dark:text-white">{{ design.mat_no }}</td>
-                                        <td class="px-3 py-2 font-medium text-gray-700 dark:text-gray-300">{{ design.hdbs_type|default:"--" }}</td>
-                                        <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ design.size.size_display|default:"--" }}</td>
+                                        <td class="px-2 py-2 font-mono text-gray-900 dark:text-white text-xs">{{ design.mat_no }}</td>
+                                        <td class="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs">{{ design.hdbs_type|default:"--" }}</td>
+                                        <td class="px-2 py-2 text-gray-600 dark:text-gray-400 text-xs">{{ design.size.size_display|default:"--" }}</td>
+                                        <td class="px-2 py-2">
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
+                                                {% if design.status == 'ACTIVE' %}bg-green-100 text-green-700{% elif design.status == 'DRAFT' %}bg-yellow-100 text-yellow-700{% else %}bg-gray-100 text-gray-600{% endif %}">
+                                                {{ design.get_status_display }}
+                                            </span>
+                                        </td>
+                                        <td class="px-2 py-2 text-xs text-gray-500">
+                                            {% if design.boms.count > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
+                                                {{ design.boms.count }}
+                                            </span>
+                                            {% else %}
+                                            <span class="text-gray-400">0</span>
+                                            {% endif %}
+                                        </td>
                                     </tr>
+                                    <!-- Child BOM rows (hidden by default) -->
+                                    {% for bom in design.boms.all %}
+                                    <tr class="child-row bom-child-{{ design.pk }} hidden" data-parent="{{ design.pk }}">
+                                        <td class="px-2 py-1.5"></td>
+                                        <td colspan="5" class="px-2 py-1.5">
+                                            <div class="flex items-center gap-3 ml-4 text-xs">
+                                                <span class="text-gray-400">└</span>
+                                                <span class="font-mono text-blue-600">{{ bom.code }}</span>
+                                                <span class="text-gray-500">Rev {{ bom.revision }}</span>
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs
+                                                    {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-700{% else %}bg-yellow-100 text-yellow-700{% endif %}">
+                                                    {{ bom.get_status_display }}
+                                                </span>
+                                                <span class="text-gray-400">{{ bom.lines.count }} items</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-2 py-1.5 text-right">
+                                            <button type="button" class="inline-flex items-center px-2 py-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 rounded"
+                                                    onclick="cloneBom(event, {{ bom.pk }}, '{{ bom.code }}')">
+                                                <i data-lucide="copy" class="w-3 h-3 mr-1"></i>Clone
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
                                     {% empty %}
                                     <tr>
-                                        <td colspan="5" class="px-3 py-8 text-center text-gray-500">
+                                        <td colspan="7" class="px-3 py-8 text-center text-gray-500">
                                             No designs available. Create a new design below.
                                         </td>
                                     </tr>
@@ -197,12 +342,20 @@
                         </div>
                     </div>
 
+                    <!-- Results count -->
+                    <div class="mt-2 flex items-center justify-between text-sm text-gray-500">
+                        <span id="design-count">{{ designs|length }} designs</span>
+                        <button type="button" onclick="clearAllFilters()" class="text-blue-600 hover:text-blue-800 text-xs">
+                            Clear All Filters
+                        </button>
+                    </div>
+
                     <!-- Selected Design Display -->
-                    <div id="selected-design-info" class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 hidden">
+                    <div id="selected-design-info" class="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 hidden">
                         <div class="flex items-center justify-between">
                             <div>
                                 <p class="text-sm font-medium text-blue-800 dark:text-blue-200">Selected Design:</p>
-                                <p class="text-blue-600 dark:text-blue-300 font-mono" id="selected-design-text"></p>
+                                <p class="text-blue-600 dark:text-blue-300 font-mono text-sm" id="selected-design-text"></p>
                             </div>
                             <button type="button" onclick="clearDesignSelection()" class="text-blue-600 hover:text-blue-800">
                                 <i data-lucide="x" class="w-5 h-5"></i>
@@ -221,73 +374,62 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <!-- Order Level -->
                         <div>
-                            <label for="id_design_order_level" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Order Level <span class="text-red-500">*</span>
                             </label>
                             <select name="order_level" id="id_design_order_level"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                <option value="3">Level 3 - No cutters, upper section separate</option>
-                                <option value="4">Level 4 - No cutters, upper section welded/machined</option>
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="3">Level 3</option>
+                                <option value="4">Level 4</option>
                             </select>
                         </div>
-
-                        <!-- Category -->
                         <div>
-                            <label for="id_design_category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Category <span class="text-red-500">*</span>
                             </label>
                             <select name="category" id="id_design_category"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                 <option value="FC" selected>Fixed Cutter</option>
                                 <option value="MT">Mill Tooth</option>
                                 <option value="TCI">Tri Cone Inserts</option>
                             </select>
                         </div>
-
-                        <!-- Design MAT No. (L3/L4) -->
                         <div>
-                            <label for="id_design_mat_no" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 MAT No. (L3/L4) <span class="text-red-500">*</span>
                             </label>
                             <input type="text" name="mat_no" id="id_design_mat_no"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                placeholder="Design MAT No.">
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                placeholder="Design MAT No." oninput="checkFormCompletion()">
                         </div>
-
-                        <!-- Size -->
                         <div>
-                            <label for="id_design_size" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Size <span class="text-red-500">*</span>
                             </label>
                             <select name="size" id="id_design_size"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                onchange="onSizeChange()">
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                onchange="checkFormCompletion()">
                                 <option value="">-- Select Size --</option>
                                 {% for size in sizes %}
                                 <option value="{{ size.pk }}">{{ size.size_display }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-
-                        <!-- HDBS Type -->
                         <div>
-                            <label for="id_design_hdbs_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 HDBS Type <span class="text-red-500">*</span>
                             </label>
                             <input type="text" name="hdbs_type" id="id_design_hdbs_type"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                placeholder="e.g., GT65RHS">
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                placeholder="e.g., GT65RHS" oninput="checkFormCompletion()">
                         </div>
-
-                        <!-- SMI Type (Optional) -->
                         <div>
-                            <label for="id_design_smi_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 SMI Type (Optional)
                             </label>
-                            <input type="text" name="smi_type" id="id_design_smi_type"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            <input type="text" name="design_smi_type" id="id_design_smi_type"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 placeholder="Client-facing name">
                         </div>
                     </div>
@@ -307,8 +449,8 @@
                         <dd class="text-gray-900 dark:text-white font-mono" id="summary-bom-code">--</dd>
                     </div>
                     <div class="flex justify-between">
-                        <dt class="text-gray-500">BOM Name:</dt>
-                        <dd class="text-gray-900 dark:text-white" id="summary-bom-name">--</dd>
+                        <dt class="text-gray-500">SMI Type:</dt>
+                        <dd class="text-gray-900 dark:text-white" id="summary-smi-type">--</dd>
                     </div>
                     <div class="flex justify-between">
                         <dt class="text-gray-500">Design:</dt>
@@ -322,42 +464,58 @@
 
                 <hr class="my-4 border-gray-200 dark:border-gray-700">
 
-                <button type="submit" id="create-bom-btn"
-                    class="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center">
-                    <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
-                    Create BOM & Open Builder
-                </button>
+                <!-- Action Buttons -->
+                <div class="space-y-3">
+                    <button type="submit" id="create-bom-btn"
+                        class="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center">
+                        <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
+                        Create BOM & Open Builder
+                    </button>
+
+                    <button type="button" id="pdf-builder-btn" disabled
+                        class="w-full px-4 py-3 bg-gray-100 text-gray-400 rounded-lg font-medium transition-colors flex items-center justify-center cursor-not-allowed"
+                        onclick="openPdfBuilder()">
+                        <i data-lucide="file-text" class="w-5 h-5 mr-2"></i>
+                        Open PDF Builder
+                    </button>
+                </div>
 
                 <p class="text-xs text-gray-500 mt-3 text-center">
-                    After creating, you'll be redirected to the BOM Builder
+                    Fill required fields to enable PDF Builder
                 </p>
             </div>
 
-            <!-- Help Card -->
+            <!-- Quick Help -->
             <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6">
                 <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Quick Help</h3>
                 <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-2">
-                    <li class="flex items-start">
-                        <i data-lucide="circle" class="w-2 h-2 mr-2 mt-1.5 text-blue-500"></i>
-                        <span><strong>L5 MAT</strong> = BOM Code (Level 5 - With cutters)</span>
-                    </li>
-                    <li class="flex items-start">
-                        <i data-lucide="circle" class="w-2 h-2 mr-2 mt-1.5 text-purple-500"></i>
-                        <span><strong>L3/L4 MAT</strong> = Design (No cutters)</span>
-                    </li>
-                    <li class="flex items-start">
-                        <i data-lucide="circle" class="w-2 h-2 mr-2 mt-1.5 text-green-500"></i>
-                        <span><strong>HDBS Type</strong> = Internal naming (e.g., GT65RHS)</span>
-                    </li>
-                    <li class="flex items-start">
-                        <i data-lucide="circle" class="w-2 h-2 mr-2 mt-1.5 text-orange-500"></i>
-                        <span><strong>SMI Type</strong> = Client-facing name (optional)</span>
-                    </li>
+                    <li><strong>L5 MAT</strong> = BOM Code (Level 5 - With cutters)</li>
+                    <li><strong>L3/L4 MAT</strong> = Design (No cutters)</li>
+                    <li><strong>HDBS Type</strong> = Internal naming</li>
+                    <li><strong>SMI Type</strong> = Client-facing name</li>
                 </ul>
             </div>
         </div>
     </div>
 </form>
+
+<!-- Clone BOM Modal -->
+<div id="clone-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Clone BOM</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Clone <span id="clone-source-code" class="font-mono text-blue-600"></span> to create a new BOM.
+        </p>
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New BOM Code (L5 MAT)</label>
+            <input type="text" id="clone-new-code" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        </div>
+        <div class="flex gap-3">
+            <button type="button" onclick="closeCloneModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50">Cancel</button>
+            <button type="button" onclick="confirmClone()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Clone</button>
+        </div>
+    </div>
+</div>
 
 <!-- Error Modal -->
 <div id="error-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
@@ -367,121 +525,188 @@
             <h3 class="text-lg font-semibold">Error</h3>
         </div>
         <p id="error-message" class="text-gray-700 dark:text-gray-300 mb-4"></p>
-        <button onclick="closeErrorModal()" class="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200">
-            Close
-        </button>
+        <button onclick="closeErrorModal()" class="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200">Close</button>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Toggle design mode (existing vs new)
-    function toggleDesignMode(mode) {
-        const existingSection = document.getElementById('existing-design-section');
-        const newSection = document.getElementById('new-design-section');
-        const summaryMode = document.getElementById('summary-mode');
+    let cloneSourceId = null;
+    const filters = { level: [], mat: '', hdbs: '', size: [], status: [] };
 
-        if (mode === 'existing') {
-            existingSection.classList.remove('hidden');
-            newSection.classList.add('hidden');
-            summaryMode.textContent = 'Existing Design';
-        } else {
-            existingSection.classList.add('hidden');
-            newSection.classList.remove('hidden');
-            summaryMode.textContent = 'New Design';
-        }
+    // Toggle design mode
+    function toggleDesignMode(mode) {
+        document.getElementById('existing-design-section').classList.toggle('hidden', mode !== 'existing');
+        document.getElementById('new-design-section').classList.toggle('hidden', mode !== 'new');
+        document.getElementById('summary-mode').textContent = mode === 'existing' ? 'Existing Design' : 'New Design';
+        checkFormCompletion();
         updateSummary();
     }
 
-    // Filter designs based on filter inputs
-    function filterDesigns() {
-        const levelFilter = document.getElementById('filter-level').value;
-        const hdbsFilter = document.getElementById('filter-hdbs').value.toLowerCase();
-        const matFilter = document.getElementById('filter-mat').value.toLowerCase();
-        const sizeFilter = document.getElementById('filter-size').value;
+    // Toggle filter dropdown
+    function toggleFilter(e, column) {
+        e.stopPropagation();
+        document.querySelectorAll('.filter-dropdown').forEach(d => {
+            if (d.id !== `filter-${column}-dropdown`) d.classList.remove('active');
+        });
+        document.getElementById(`filter-${column}-dropdown`).classList.toggle('active');
+    }
 
+    // Close dropdowns on click outside
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.filter-dropdown').forEach(d => d.classList.remove('active'));
+    });
+
+    // Sort column
+    function sortColumn(column, direction) {
+        const tbody = document.getElementById('design-table-body');
+        const rows = Array.from(tbody.querySelectorAll('.design-row'));
+
+        rows.sort((a, b) => {
+            let aVal = a.dataset[column] || '';
+            let bVal = b.dataset[column] || '';
+            if (column === 'size') {
+                aVal = parseFloat(aVal) || 0;
+                bVal = parseFloat(bVal) || 0;
+            }
+            if (direction === 'asc') return aVal > bVal ? 1 : -1;
+            return aVal < bVal ? 1 : -1;
+        });
+
+        rows.forEach(row => {
+            const children = tbody.querySelectorAll(`.bom-child-${row.dataset.designId}`);
+            tbody.appendChild(row);
+            children.forEach(child => tbody.appendChild(child));
+        });
+
+        document.querySelectorAll('.filter-dropdown').forEach(d => d.classList.remove('active'));
+    }
+
+    // Filter by text
+    function filterByText(column, value) {
+        filters[column] = value.toLowerCase();
+        applyFilters();
+    }
+
+    // Apply all filters
+    function applyFilters() {
         const rows = document.querySelectorAll('.design-row');
         let visibleCount = 0;
 
         rows.forEach(row => {
-            const level = row.dataset.level;
-            const hdbs = row.dataset.hdbs;
-            const mat = row.dataset.mat;
-            const size = row.dataset.size;
+            let visible = true;
 
-            const matchLevel = !levelFilter || level === levelFilter;
-            const matchHdbs = !hdbsFilter || hdbs.includes(hdbsFilter);
-            const matchMat = !matFilter || mat.includes(matFilter);
-            const matchSize = !sizeFilter || size === sizeFilter;
+            if (filters.mat && !row.dataset.mat.includes(filters.mat)) visible = false;
+            if (filters.hdbs && !row.dataset.hdbs.includes(filters.hdbs)) visible = false;
 
-            if (matchLevel && matchHdbs && matchMat && matchSize) {
-                row.style.display = '';
-                visibleCount++;
-            } else {
-                row.style.display = 'none';
-            }
+            row.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+
+            // Hide child rows too
+            document.querySelectorAll(`.bom-child-${row.dataset.designId}`).forEach(child => {
+                child.classList.add('hidden');
+            });
         });
 
-        document.getElementById('design-count').textContent = `${visibleCount} designs found`;
+        document.getElementById('design-count').textContent = `${visibleCount} designs`;
     }
 
     // Clear all filters
-    function clearFilters() {
-        document.getElementById('filter-level').value = '';
-        document.getElementById('filter-hdbs').value = '';
-        document.getElementById('filter-mat').value = '';
-        document.getElementById('filter-size').value = '';
-        filterDesigns();
+    function clearAllFilters() {
+        filters.mat = '';
+        filters.hdbs = '';
+        document.getElementById('filter-mat-search').value = '';
+        document.getElementById('filter-hdbs-search').value = '';
+        applyFilters();
     }
 
-    // Select design from table
+    // Toggle BOM child rows
+    function toggleBomRows(e, designId) {
+        e.stopPropagation();
+        const btn = e.currentTarget;
+        const rows = document.querySelectorAll(`.bom-child-${designId}`);
+        const isExpanded = btn.classList.contains('expanded');
+
+        btn.classList.toggle('expanded');
+        rows.forEach(row => row.classList.toggle('hidden', isExpanded));
+    }
+
+    // Select design
     function selectDesign(row) {
-        // Clear previous selection
-        document.querySelectorAll('.design-row').forEach(r => {
-            r.classList.remove('bg-blue-100', 'dark:bg-blue-900/40');
-        });
-
-        // Highlight selected row
+        document.querySelectorAll('.design-row').forEach(r => r.classList.remove('bg-blue-100', 'dark:bg-blue-900/40'));
         row.classList.add('bg-blue-100', 'dark:bg-blue-900/40');
+        row.querySelector('.design-radio').checked = true;
 
-        // Check the radio button
-        const radio = row.querySelector('.design-radio');
-        radio.checked = true;
-
-        // Get design info
         const level = row.querySelector('td:nth-child(2)').textContent.trim();
         const mat = row.querySelector('td:nth-child(3)').textContent.trim();
         const hdbs = row.querySelector('td:nth-child(4)').textContent.trim();
         const size = row.querySelector('td:nth-child(5)').textContent.trim();
 
-        // Show selected design info
-        const infoBox = document.getElementById('selected-design-info');
-        const infoText = document.getElementById('selected-design-text');
-        infoText.textContent = `${level} | ${mat} | ${hdbs} | ${size}`;
-        infoBox.classList.remove('hidden');
+        document.getElementById('selected-design-text').textContent = `${level} | ${mat} | ${hdbs} | ${size}`;
+        document.getElementById('selected-design-info').classList.remove('hidden');
 
+        checkFormCompletion();
         updateSummary();
     }
 
     // Clear design selection
     function clearDesignSelection() {
-        document.querySelectorAll('.design-row').forEach(r => {
-            r.classList.remove('bg-blue-100', 'dark:bg-blue-900/40');
-        });
-        document.querySelectorAll('.design-radio').forEach(r => {
-            r.checked = false;
-        });
+        document.querySelectorAll('.design-row').forEach(r => r.classList.remove('bg-blue-100', 'dark:bg-blue-900/40'));
+        document.querySelectorAll('.design-radio').forEach(r => r.checked = false);
         document.getElementById('selected-design-info').classList.add('hidden');
+        checkFormCompletion();
         updateSummary();
     }
 
-    // Update summary on input changes
+    // Clone BOM
+    function cloneBom(e, bomId, bomCode) {
+        e.stopPropagation();
+        cloneSourceId = bomId;
+        document.getElementById('clone-source-code').textContent = bomCode;
+        document.getElementById('clone-new-code').value = '';
+        document.getElementById('clone-modal').classList.remove('hidden');
+    }
+
+    function closeCloneModal() {
+        document.getElementById('clone-modal').classList.add('hidden');
+        cloneSourceId = null;
+    }
+
+    async function confirmClone() {
+        const newCode = document.getElementById('clone-new-code').value.trim();
+        if (!newCode) {
+            alert('Please enter a new BOM code');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/technology/boms/${cloneSourceId}/clone/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ new_code: newCode })
+            });
+            const data = await response.json();
+            if (data.success) {
+                window.location.href = data.redirect_url;
+            } else {
+                showError(data.error || 'Failed to clone BOM');
+            }
+        } catch (error) {
+            showError('Network error');
+        }
+        closeCloneModal();
+    }
+
+    // Update summary
     function updateSummary() {
         const bomCode = document.getElementById('id_bom_code').value || '--';
-        const bomName = document.getElementById('id_bom_name').value || '(Auto-generated)';
+        const smiType = document.getElementById('id_smi_type').value || '--';
         document.getElementById('summary-bom-code').textContent = bomCode;
-        document.getElementById('summary-bom-name').textContent = bomName;
+        document.getElementById('summary-smi-type').textContent = smiType;
 
         const designMode = document.querySelector('input[name="design_mode"]:checked').value;
         let designText = '--';
@@ -490,24 +715,49 @@
             const checkedRadio = document.querySelector('.design-radio:checked');
             if (checkedRadio) {
                 const row = checkedRadio.closest('.design-row');
-                const mat = row.querySelector('td:nth-child(3)').textContent.trim();
-                const hdbs = row.querySelector('td:nth-child(4)').textContent.trim();
-                designText = `${mat} - ${hdbs}`;
+                designText = `${row.querySelector('td:nth-child(3)').textContent.trim()} - ${row.querySelector('td:nth-child(4)').textContent.trim()}`;
             }
         } else {
             const matNo = document.getElementById('id_design_mat_no').value;
             const hdbs = document.getElementById('id_design_hdbs_type').value;
-            if (matNo && hdbs) {
-                designText = `${matNo} - ${hdbs} (New)`;
-            } else if (matNo) {
-                designText = `${matNo} (New)`;
-            }
+            if (matNo) designText = hdbs ? `${matNo} - ${hdbs} (New)` : `${matNo} (New)`;
         }
-
         document.getElementById('summary-design').textContent = designText;
     }
 
-    // Error modal
+    // Check form completion for PDF Builder
+    function checkFormCompletion() {
+        const bomCode = document.getElementById('id_bom_code').value.trim();
+        const designMode = document.querySelector('input[name="design_mode"]:checked').value;
+        let hasDesign = false;
+
+        if (designMode === 'existing') {
+            hasDesign = document.querySelector('.design-radio:checked') !== null;
+        } else {
+            const matNo = document.getElementById('id_design_mat_no').value.trim();
+            const hdbs = document.getElementById('id_design_hdbs_type').value.trim();
+            const size = document.getElementById('id_design_size').value;
+            hasDesign = matNo && hdbs && size;
+        }
+
+        const btn = document.getElementById('pdf-builder-btn');
+        if (bomCode && hasDesign) {
+            btn.disabled = false;
+            btn.classList.remove('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+            btn.classList.add('bg-purple-600', 'text-white', 'hover:bg-purple-700');
+        } else {
+            btn.disabled = true;
+            btn.classList.add('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+            btn.classList.remove('bg-purple-600', 'text-white', 'hover:bg-purple-700');
+        }
+    }
+
+    function openPdfBuilder() {
+        // Save form and redirect to PDF builder
+        document.getElementById('bom-create-form').submit();
+    }
+
+    // Error handling
     function showError(message) {
         document.getElementById('error-message').textContent = message;
         document.getElementById('error-modal').classList.remove('hidden');
@@ -520,25 +770,18 @@
     // Form submission
     document.getElementById('bom-create-form').addEventListener('submit', async function(e) {
         e.preventDefault();
-
         const btn = document.getElementById('create-bom-btn');
         const originalText = btn.innerHTML;
         btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 mr-2 animate-spin"></i>Creating...';
         btn.disabled = true;
 
         try {
-            const formData = new FormData(this);
-
             const response = await fetch(this.action || window.location.href, {
                 method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                }
+                body: new FormData(this),
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
-
             const data = await response.json();
-
             if (data.success) {
                 window.location.href = data.redirect_url;
             } else {
@@ -557,13 +800,12 @@
 
     // Event listeners
     document.getElementById('id_bom_code').addEventListener('input', updateSummary);
-    document.getElementById('id_bom_name').addEventListener('input', updateSummary);
-    document.getElementById('id_design_mat_no')?.addEventListener('input', updateSummary);
-    document.getElementById('id_design_hdbs_type')?.addEventListener('input', updateSummary);
+    document.getElementById('id_smi_type').addEventListener('input', updateSummary);
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
         updateSummary();
+        checkFormCompletion();
         if (typeof lucide !== 'undefined') lucide.createIcons();
     });
 </script>

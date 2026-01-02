@@ -925,6 +925,53 @@ class BOMDeleteView(LoginRequiredMixin, DeleteView):
         return redirect(self.success_url)
 
 
+class BOMCloneView(LoginRequiredMixin, View):
+    """Clone an existing BOM with a new code."""
+
+    def post(self, request, pk):
+        import json
+        source_bom = get_object_or_404(BOM, pk=pk)
+
+        try:
+            data = json.loads(request.body)
+            new_code = data.get("new_code", "").strip()
+        except json.JSONDecodeError:
+            new_code = request.POST.get("new_code", "").strip()
+
+        if not new_code:
+            return JsonResponse({"success": False, "error": "New BOM code is required"}, status=400)
+
+        if BOM.objects.filter(code=new_code).exists():
+            return JsonResponse({"success": False, "error": f"BOM with code {new_code} already exists"}, status=400)
+
+        # Clone the BOM
+        new_bom = BOM.objects.create(
+            design=source_bom.design,
+            code=new_code,
+            name=f"{source_bom.name} (Clone)" if source_bom.name else "",
+            revision="A",
+            status=BOM.Status.DRAFT,
+            created_by=request.user,
+        )
+
+        # Clone all lines
+        for line in source_bom.lines.all():
+            BOMLine.objects.create(
+                bom=new_bom,
+                order_number=line.order_number,
+                inventory_item=line.inventory_item,
+                display_name=line.display_name,
+                quantity=line.quantity,
+                color=line.color,
+                notes=line.notes,
+            )
+
+        return JsonResponse({
+            "success": True,
+            "redirect_url": reverse("technology:bom_builder", args=[new_bom.pk])
+        })
+
+
 class BOMLineCreateView(LoginRequiredMixin, View):
     """Add a line to a BOM."""
 
@@ -2787,11 +2834,12 @@ class BOMCreateWithBuilderView(LoginRequiredMixin, TemplateView):
         context["bom_form"] = BOMWithDesignForm()
         context["design_form"] = QuickDesignForm()
 
-        # Get designs for selection (L3/L4 only)
+        # Get designs for selection (L3/L4 only) - include all statuses
         context["designs"] = Design.objects.filter(
-            order_level__in=["3", "4"],
-            status__in=[Design.Status.DRAFT, Design.Status.ACTIVE]
-        ).select_related("size").order_by("-created_at")[:50]
+            order_level__in=["3", "4"]
+        ).select_related("size").prefetch_related(
+            "boms", "boms__lines"
+        ).order_by("-created_at")
 
         # Get HDBS Types for quick design creation
         context["hdbs_types"] = HDBSType.objects.filter(
