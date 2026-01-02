@@ -445,6 +445,76 @@ def check_seed_data():
 
     return all_passed
 
+
+def check_technology_data_backup():
+    """Check technology data backup status and offer to export."""
+    print_header("Technology Data Backup")
+
+    backup_file = PROJECT_ROOT / "data" / "technology_data_latest.json"
+
+    # Count current designs and BOMs in database
+    code, out, err = run_command('python -c "import django; django.setup(); from apps.technology.models import Design, BOM; print(f\'{Design.objects.count()}|{BOM.objects.count()}\')"')
+
+    try:
+        design_count, bom_count = out.strip().split('|')
+        design_count = int(design_count)
+        bom_count = int(bom_count)
+    except (ValueError, AttributeError):
+        print(f"  {YELLOW}○{RESET} Unable to count technology data")
+        return True
+
+    print(f"  Current data: {BOLD}{design_count}{RESET} Designs, {BOLD}{bom_count}{RESET} BOMs")
+
+    # Check if backup exists
+    if backup_file.exists():
+        import json
+        try:
+            with open(backup_file) as f:
+                backup_data = json.load(f)
+            backup_designs = len(backup_data.get('designs', []))
+            backup_boms = len(backup_data.get('boms', []))
+            backup_date = backup_data.get('exported_at', 'Unknown')[:19].replace('T', ' ')
+            print(f"  Last backup: {BOLD}{backup_designs}{RESET} Designs, {BOLD}{backup_boms}{RESET} BOMs")
+            print(f"  Backup date: {backup_date}")
+
+            # Check if backup is outdated
+            if design_count > backup_designs or bom_count > backup_boms:
+                print(f"\n  {YELLOW}⚠ Backup may be outdated{RESET}")
+                print_status("Backup up to date", False, "New data since last backup")
+
+                if ask_yes_no("Export current data now?"):
+                    print()
+                    code = run_interactive("python manage.py export_technology_data")
+                    if code == 0:
+                        print(f"\n  {GREEN}✓ Data exported successfully{RESET}")
+                        return True
+                    return False
+                return False
+            else:
+                print_status("Backup up to date", True)
+                return True
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"  {YELLOW}⚠{RESET} Backup file corrupted: {e}")
+            return False
+    else:
+        if design_count > 0 or bom_count > 0:
+            print(f"\n  {YELLOW}⚠ No backup exists!{RESET}")
+            print(f"  {YELLOW}  Data will be lost on container rebuild{RESET}")
+            print_status("Backup exists", False, "No backup found")
+
+            if ask_yes_no("Export current data now?"):
+                print()
+                code = run_interactive("python manage.py export_technology_data")
+                if code == 0:
+                    print(f"\n  {GREEN}✓ Data exported successfully{RESET}")
+                    return True
+                return False
+            return False
+        else:
+            print(f"  {GREEN}✓{RESET} No user data to backup (empty)")
+            return True
+
+
 def offer_run_server():
     """Offer to run the development server."""
     print()
@@ -470,6 +540,7 @@ def main():
     results.append(("Migrations Applied", check_migrations()))
     results.append(("Pending Changes", check_pending_migrations()))
     results.append(("Seed Data", check_seed_data()))
+    results.append(("Technology Data Backup", check_technology_data_backup()))
     results.append(("System Check", check_system()))
     results.append(("Model Locations", check_model_locations()))
     results.append(("Migration Conflicts", check_migration_conflicts()))
