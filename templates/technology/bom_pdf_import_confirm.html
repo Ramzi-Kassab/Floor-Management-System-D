@@ -236,9 +236,20 @@
             </div>
             <div class="pdf-viewer-container">
                 {% if bom.source_pdf_file %}
-                <iframe src="{{ bom.source_pdf_file.url }}#toolbar=1&navpanes=0&scrollbar=1"
-                        class="w-full h-full"
-                        title="BOM PDF"></iframe>
+                <object data="{{ bom.source_pdf_file.url }}" type="application/pdf" class="w-full h-full">
+                    <!-- Fallback if object tag doesn't work -->
+                    <div class="flex items-center justify-center h-full text-gray-400">
+                        <div class="text-center p-8">
+                            <i data-lucide="file-text" class="w-16 h-16 mx-auto mb-4 opacity-50"></i>
+                            <p class="mb-4">PDF preview not available in this browser</p>
+                            <a href="{{ bom.source_pdf_file.url }}" target="_blank"
+                               class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
+                                Open PDF in New Tab
+                            </a>
+                        </div>
+                    </div>
+                </object>
                 {% else %}
                 <div class="flex items-center justify-center h-full text-gray-400">
                     <div class="text-center">

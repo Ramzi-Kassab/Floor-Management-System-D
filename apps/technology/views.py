@@ -1475,6 +1475,56 @@ class BOMPDFImportConfirmView(LoginRequiredMixin, View):
         bom = get_object_or_404(BOM, pk=pk)
 
         parsed_data = request.session.get('parsed_bom_data')
+
+        # If no parsed data in session but BOM has a PDF, auto-parse it
+        if not parsed_data and bom.source_pdf_file:
+            from apps.technology.services.pdf_parser import parse_bom_pdf
+            try:
+                result = parse_bom_pdf(file_path=bom.source_pdf_file.path)
+                parsed_data = {
+                    'header': {
+                        'sn_number': result.header.sn_number,
+                        'mat_number': result.header.mat_number,
+                        'date_created': result.header.date_created.isoformat() if result.header.date_created else None,
+                        'revision_level': result.header.revision_level,
+                        'software_version': result.header.software_version,
+                    },
+                    'bom_lines': [
+                        {
+                            'order_number': line.order_number,
+                            'size': line.size,
+                            'chamfer': line.chamfer,
+                            'cutter_type': line.cutter_type,
+                            'count': line.count,
+                            'mat_number': line.mat_number,
+                            'family_number': line.family_number,
+                            'color_code': line.color_code,
+                        }
+                        for line in result.bom_lines
+                    ],
+                    'cutter_positions': [
+                        {
+                            'blade_number': pos.blade_number,
+                            'row_number': pos.row_number,
+                            'location': pos.location,
+                            'position_in_location': pos.position_in_location,
+                            'cutter_type': pos.cutter_type,
+                            'order_number': pos.order_number,
+                            'chamfer': pos.chamfer,
+                        }
+                        for pos in result.cutter_positions
+                    ],
+                    'raw_text': result.raw_text[:5000] if result.raw_text else '',
+                }
+                # Store in session for subsequent requests
+                request.session['parsed_bom_data'] = parsed_data
+                if result.errors:
+                    for err in result.errors:
+                        messages.warning(request, err)
+            except Exception as e:
+                messages.error(request, f"Error parsing PDF: {str(e)}")
+                return redirect('technology:bom_pdf_import', pk=pk)
+
         if not parsed_data:
             messages.warning(request, "No parsed data found. Please upload a PDF first.")
             return redirect('technology:bom_pdf_import', pk=pk)
