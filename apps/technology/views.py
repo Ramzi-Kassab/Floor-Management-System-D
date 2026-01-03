@@ -1470,6 +1470,8 @@ class BOMPDFImportConfirmView(LoginRequiredMixin, View):
     """Confirm and apply parsed PDF data to BOM."""
 
     def get(self, request, pk):
+        import json
+
         bom = get_object_or_404(BOM, pk=pk)
 
         parsed_data = request.session.get('parsed_bom_data')
@@ -1477,10 +1479,16 @@ class BOMPDFImportConfirmView(LoginRequiredMixin, View):
             messages.warning(request, "No parsed data found. Please upload a PDF first.")
             return redirect('technology:bom_pdf_import', pk=pk)
 
+        # Serialize data for JavaScript
+        bom_lines_json = json.dumps(parsed_data.get('bom_lines', []))
+        cutter_positions_json = json.dumps(parsed_data.get('cutter_positions', []))
+
         from django.shortcuts import render
         return render(request, 'technology/bom_pdf_import_confirm.html', {
             'bom': bom,
             'parsed_data': parsed_data,
+            'bom_lines_json': bom_lines_json,
+            'cutter_positions_json': cutter_positions_json,
             'page_title': f"Confirm Import - {bom.code}",
         })
 

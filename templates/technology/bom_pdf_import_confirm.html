@@ -515,9 +515,9 @@ function bomImportManager() {
         selectedLine: null,
         draggedCutter: null,
 
-        // Data from parsed PDF
-        bomLines: {{ parsed_data.bom_lines|safe }},
-        cutterPositions: {{ parsed_data.cutter_positions|default:"[]"|safe }},
+        // Data from parsed PDF (properly serialized JSON)
+        bomLines: {{ bom_lines_json|safe }},
+        cutterPositions: {{ cutter_positions_json|safe }},
 
         // Color palette matching the parser
         colorPalette: [
