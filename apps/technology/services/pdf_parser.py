@@ -176,66 +176,107 @@ class BOMPDFParser:
         # Example: 1 1313 18C-60 CT418 17 1146346
         # The table finder extracts this in a structured way
 
-        tables = self.page.find_tables()
-        for table in tables.tables:
-            data = table.extract()
-            for row in data:
-                # Look for rows that match BOM line pattern
-                if row and len(row) >= 6:
-                    first_cell = str(row[0] or "").strip()
+        try:
+            tables = self.page.find_tables()
+            if tables and hasattr(tables, 'tables'):
+                for table in tables.tables:
+                    try:
+                        data = table.extract()
+                        for row in data:
+                            # Look for rows that match BOM line pattern
+                            if row and len(row) >= 5:  # Reduced minimum to 5 for flexibility
+                                first_cell = str(row[0] or "").strip()
 
-                    # Check if first cell is a single digit (order number)
-                    if first_cell.isdigit() and len(first_cell) <= 2:
-                        try:
-                            line = BOMLineInfo()
-                            line.order_number = int(first_cell)
-                            line.size = str(row[1] or "").strip().replace('\xad', '-')
-                            line.chamfer = str(row[2] or "").strip().replace('\xad', '-')
-                            line.cutter_type = str(row[3] or "").strip().replace('\xad', '-')
-                            line.count = int(str(row[4] or "0").strip())
-                            line.mat_number = str(row[5] or "").strip()
+                                # Check if first cell is a 1-2 digit number (order number)
+                                if first_cell.isdigit() and len(first_cell) <= 2:
+                                    try:
+                                        line = BOMLineInfo()
+                                        line.order_number = int(first_cell)
 
-                            if len(row) > 6 and row[6]:
-                                line.family_number = str(row[6]).strip()
+                                        # Try to extract fields, being flexible about column positions
+                                        if len(row) >= 6:
+                                            line.size = str(row[1] or "").strip().replace('\xad', '-')
+                                            line.chamfer = str(row[2] or "").strip().replace('\xad', '-')
+                                            line.cutter_type = str(row[3] or "").strip().replace('\xad', '-')
+                                            line.count = int(str(row[4] or "0").strip() or "0")
+                                            line.mat_number = str(row[5] or "").strip()
 
-                            # Assign default color
-                            color_idx = (line.order_number - 1) % len(self.DEFAULT_COLORS)
-                            line.color_code = self.DEFAULT_COLORS[color_idx]
+                                            if len(row) > 6 and row[6]:
+                                                line.family_number = str(row[6]).strip()
+                                        elif len(row) >= 5:
+                                            # Compressed format
+                                            line.size = str(row[1] or "").strip().replace('\xad', '-')
+                                            line.chamfer = str(row[2] or "").strip().replace('\xad', '-')
+                                            line.cutter_type = str(row[3] or "").strip().replace('\xad', '-')
+                                            line.count = int(str(row[4] or "0").strip() or "0")
 
-                            # Only add if we have valid data
-                            if line.size and line.cutter_type and line.count > 0:
-                                bom_lines.append(line)
-                        except (ValueError, IndexError):
-                            continue
+                                        # Assign default color
+                                        color_idx = (line.order_number - 1) % len(self.DEFAULT_COLORS)
+                                        line.color_code = self.DEFAULT_COLORS[color_idx]
 
-        # Fallback: parse from raw text if table extraction failed
+                                        # Only add if we have valid data (size or cutter_type, and count > 0)
+                                        if (line.size or line.cutter_type) and line.count > 0:
+                                            # Check we don't already have this order number
+                                            if not any(l.order_number == line.order_number for l in bom_lines):
+                                                bom_lines.append(line)
+                                    except (ValueError, IndexError) as e:
+                                        continue
+                    except Exception as table_err:
+                        # Continue with next table if one fails
+                        continue
+        except Exception as e:
+            # Table extraction completely failed, will use text fallback
+            pass
+
+        # Fallback: parse from raw text if table extraction failed or found nothing
         if not bom_lines:
             bom_lines = self._parse_bom_from_text()
+
+        # Sort by order number
+        bom_lines.sort(key=lambda x: x.order_number)
 
         return bom_lines
 
     def _parse_bom_from_text(self) -> list:
         """Fallback parser for BOM lines from raw text."""
         bom_lines = []
+        text = self.raw_text.replace('\xad', '-')
 
-        # Pattern: Order Size Chamfer Type Count Mat#
+        # Try multiple patterns for different PDF formats
+
+        # Pattern 1: Standard format - Order Size Chamfer Type Count Mat#
         # Example: 1 1313 18C-60 CT418 17 1146346
-        pattern = r'(\d)\s+(\d+(?:MM)?)\s+([\w\-]+)\s+([\w\-]+)\s+(\d+)\s+(\d+)'
+        pattern1 = r'(\d{1,2})\s+(\d+(?:MM)?)\s+([\w\-]+)\s+([\w\-]+)\s+(\d+)\s+(\d+)'
 
-        for match in re.finditer(pattern, self.raw_text.replace('\xad', '-')):
-            line = BOMLineInfo()
-            line.order_number = int(match.group(1))
-            line.size = match.group(2)
-            line.chamfer = match.group(3)
-            line.cutter_type = match.group(4)
-            line.count = int(match.group(5))
-            line.mat_number = match.group(6)
+        # Pattern 2: Flexible whitespace - handles various column alignments
+        pattern2 = r'^(\d{1,2})\s+([A-Z0-9]+)\s+([\w\-]+)\s+([\w\-]+)\s+(\d+)\s+(\d+)'
 
-            # Assign default color
-            color_idx = (line.order_number - 1) % len(self.DEFAULT_COLORS)
-            line.color_code = self.DEFAULT_COLORS[color_idx]
+        # Pattern 3: Tab-separated or multiple spaces
+        pattern3 = r'(\d{1,2})[\s\t]+(\d+)[\s\t]+([\w\-]+)[\s\t]+([\w\-]+)[\s\t]+(\d+)[\s\t]+(\d+)'
 
-            bom_lines.append(line)
+        for pattern in [pattern1, pattern2, pattern3]:
+            for match in re.finditer(pattern, text, re.MULTILINE):
+                order_num = int(match.group(1))
+                # Skip if we already have this order number
+                if any(l.order_number == order_num for l in bom_lines):
+                    continue
+
+                line = BOMLineInfo()
+                line.order_number = order_num
+                line.size = match.group(2)
+                line.chamfer = match.group(3)
+                line.cutter_type = match.group(4)
+                line.count = int(match.group(5))
+                line.mat_number = match.group(6)
+
+                # Assign default color
+                color_idx = (line.order_number - 1) % len(self.DEFAULT_COLORS)
+                line.color_code = self.DEFAULT_COLORS[color_idx]
+
+                bom_lines.append(line)
+
+        # Sort by order number
+        bom_lines.sort(key=lambda x: x.order_number)
 
         return bom_lines
 

@@ -1,182 +1,703 @@
 {% extends "base.html" %}
 
-{% block title %}Confirm Import - {{ bom.code }} - ARDT FMS{% endblock %}
+{% block title %}Import PDF - {{ bom.code }} - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Cutter Grid Styles */
+    .cutter-grid {
+        display: grid;
+        grid-template-columns: 40px repeat(5, 1fr);
+        gap: 2px;
+        font-size: 10px;
+    }
+    .grid-header {
+        background: #1e3a5f;
+        color: white;
+        padding: 4px 2px;
+        text-align: center;
+        font-weight: 600;
+        font-size: 9px;
+    }
+    .blade-label {
+        background: #7c3aed;
+        color: white;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 11px;
+        padding: 4px;
+    }
+    .row-group {
+        display: contents;
+    }
+    .row-label {
+        background: #4f46e5;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 10px;
+    }
+    .grid-cell {
+        background: white;
+        border: 1px solid #e5e7eb;
+        min-height: 36px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        padding: 2px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .grid-cell:hover {
+        background: #f0f9ff;
+        border-color: #3b82f6;
+    }
+    .grid-cell.drop-target {
+        background: #dbeafe;
+        border: 2px dashed #3b82f6;
+    }
+    .cutter-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        color: white;
+        font-weight: bold;
+        font-size: 10px;
+        cursor: grab;
+        transition: transform 0.1s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .cutter-chip:hover {
+        transform: scale(1.15);
+    }
+    .cutter-chip.dragging {
+        opacity: 0.5;
+    }
+
+    /* BOM Line Row */
+    .bom-line-row {
+        transition: background 0.2s;
+    }
+    .bom-line-row:hover {
+        background: #f0f9ff !important;
+    }
+    .bom-line-row.selected {
+        background: #dbeafe !important;
+        outline: 2px solid #3b82f6;
+    }
+
+    /* Editable cell styling */
+    .editable-cell {
+        cursor: text;
+        padding: 2px 4px;
+        border-radius: 4px;
+        transition: background 0.15s;
+    }
+    .editable-cell:hover {
+        background: #e5e7eb;
+    }
+    .editable-cell:focus {
+        outline: 2px solid #3b82f6;
+        background: white;
+    }
+
+    /* PDF Viewer */
+    .pdf-viewer-container {
+        height: calc(100vh - 200px);
+        min-height: 500px;
+        background: #374151;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    /* Tab styles */
+    .tab-btn {
+        padding: 8px 16px;
+        border-bottom: 2px solid transparent;
+        color: #6b7280;
+        font-weight: 500;
+        transition: all 0.15s;
+    }
+    .tab-btn:hover {
+        color: #3b82f6;
+    }
+    .tab-btn.active {
+        color: #3b82f6;
+        border-bottom-color: #3b82f6;
+    }
+
+    /* Sync indicator */
+    .sync-badge {
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+</style>
+{% endblock %}
 
 {% block page_header %}
-<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-4">
     <div>
         <div class="flex items-center gap-3">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Confirm Import</h1>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Interactive BOM Import</h1>
+            {% if parsed_data.bom_lines %}
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                <i data-lucide="check" class="w-3.5 h-3.5 mr-1"></i>Parsed Successfully
+                <i data-lucide="check" class="w-3.5 h-3.5 mr-1"></i>{{ parsed_data.bom_lines|length }} lines parsed
             </span>
+            {% else %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5 mr-1"></i>No lines parsed
+            </span>
+            {% endif %}
         </div>
-        <p class="text-gray-600 dark:text-gray-400">Review the parsed data before importing to {{ bom.code }}</p>
+        <p class="text-gray-600 dark:text-gray-400 text-sm mt-1">Review, edit, and sync data between BOM lines and cutter grid</p>
     </div>
     <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
-        <a href="{% url 'technology:bom_pdf_import' bom.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
-            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Upload Different PDF
+        <a href="{% url 'technology:bom_pdf_import' bom.pk %}" class="inline-flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 border border-gray-300 rounded-lg">
+            <i data-lucide="upload" class="w-4 h-4 mr-2"></i>Upload Different
+        </a>
+        <a href="{% url 'technology:bom_builder' bom.pk %}" class="inline-flex items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 border border-gray-300 rounded-lg">
+            <i data-lucide="x" class="w-4 h-4 mr-2"></i>Cancel
         </a>
     </div>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Main Content -->
-    <div class="lg:col-span-2 space-y-6">
-        <!-- Header Info -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                <i data-lucide="file-text" class="w-5 h-5 inline mr-2 text-blue-500"></i>
-                PDF Header Information
-            </h2>
-            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                    <dt class="text-sm text-gray-500">SN Number</dt>
-                    <dd class="text-gray-900 dark:text-white font-mono">{{ parsed_data.header.sn_number|default:"-" }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm text-gray-500">Mat Number</dt>
-                    <dd class="text-gray-900 dark:text-white font-mono font-medium">{{ parsed_data.header.mat_number|default:"-" }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm text-gray-500">Date Created</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ parsed_data.header.date_created|default:"-" }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm text-gray-500">Revision Level</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ parsed_data.header.revision_level|default:"-" }}</dd>
-                </div>
-                <div class="col-span-2">
-                    <dt class="text-sm text-gray-500">Software Version</dt>
-                    <dd class="text-gray-900 dark:text-white text-sm">{{ parsed_data.header.software_version|default:"-" }}</dd>
-                </div>
-            </dl>
-        </div>
-
-        <!-- BOM Lines Preview -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                    <i data-lucide="list" class="w-5 h-5 inline mr-2 text-green-500"></i>
-                    BOM Lines to Import
-                </h2>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    {{ parsed_data.bom_lines|length }} lines
-                </span>
-            </div>
-
-            {% if parsed_data.bom_lines %}
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
-                            <th class="px-3 py-2 w-16">Order</th>
-                            <th class="px-3 py-2">Size</th>
-                            <th class="px-3 py-2">Chamfer</th>
-                            <th class="px-3 py-2">Type</th>
-                            <th class="px-3 py-2 text-center">Count</th>
-                            <th class="px-3 py-2">Mat #</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                        {% for line in parsed_data.bom_lines %}
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                            <td class="px-3 py-2">
-                                <span class="w-6 h-6 inline-flex items-center justify-center rounded-full text-xs font-bold text-white"
-                                      style="background-color: {{ line.color_code }}">
-                                    {{ line.order_number }}
-                                </span>
-                            </td>
-                            <td class="px-3 py-2 font-mono text-gray-900 dark:text-white">{{ line.size }}</td>
-                            <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ line.chamfer }}</td>
-                            <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">{{ line.cutter_type }}</td>
-                            <td class="px-3 py-2 text-center font-bold text-blue-600">{{ line.count }}</td>
-                            <td class="px-3 py-2 font-mono text-gray-500">{{ line.mat_number }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                    <tfoot>
-                        <tr class="bg-gray-50 dark:bg-gray-700/50 font-medium">
-                            <td colspan="4" class="px-3 py-2 text-right text-gray-600 dark:text-gray-400">Total Cutters:</td>
-                            <td class="px-3 py-2 text-center text-lg font-bold text-green-600">
-                                {% widthratio 0 1 0 as total %}
-                                {% for line in parsed_data.bom_lines %}
-                                    {% with total|add:line.count as total %}{% endwith %}
-                                {% endfor %}
-                                {{ parsed_data.bom_lines|length }}
-                            </td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-            {% else %}
-            <div class="text-center py-8">
-                <i data-lucide="alert-circle" class="w-12 h-12 text-amber-300 mx-auto mb-3"></i>
-                <p class="text-gray-500 dark:text-gray-400">No BOM lines were parsed from the PDF</p>
-                <p class="text-xs text-gray-400 mt-1">The PDF format may not be recognized</p>
-            </div>
-            {% endif %}
+<div x-data="bomImportManager()" x-init="init()" class="space-y-4">
+    <!-- View Mode Tabs -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+        <div class="flex border-b border-gray-200 dark:border-gray-700">
+            <button type="button" @click="viewMode = 'split'"
+                    :class="viewMode === 'split' ? 'active' : ''"
+                    class="tab-btn flex items-center gap-2">
+                <i data-lucide="columns" class="w-4 h-4"></i>
+                Split View
+            </button>
+            <button type="button" @click="viewMode = 'pdf'"
+                    :class="viewMode === 'pdf' ? 'active' : ''"
+                    class="tab-btn flex items-center gap-2">
+                <i data-lucide="file-text" class="w-4 h-4"></i>
+                PDF Only
+            </button>
+            <button type="button" @click="viewMode = 'grid'"
+                    :class="viewMode === 'grid' ? 'active' : ''"
+                    class="tab-btn flex items-center gap-2">
+                <i data-lucide="grid-3x3" class="w-4 h-4"></i>
+                Grid Only
+            </button>
+            <button type="button" @click="viewMode = 'table'"
+                    :class="viewMode === 'table' ? 'active' : ''"
+                    class="tab-btn flex items-center gap-2">
+                <i data-lucide="table" class="w-4 h-4"></i>
+                Table Only
+            </button>
+            <button type="button" @click="showDebug = !showDebug"
+                    class="tab-btn flex items-center gap-2 ml-auto"
+                    :class="showDebug ? 'active' : ''">
+                <i data-lucide="bug" class="w-4 h-4"></i>
+                Debug
+            </button>
         </div>
     </div>
 
-    <!-- Sidebar -->
-    <div class="space-y-6">
-        <!-- Import Options -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Import Options</h2>
+    <!-- Main Content Area -->
+    <div class="grid gap-4" :class="{
+        'grid-cols-1 lg:grid-cols-2': viewMode === 'split',
+        'grid-cols-1': viewMode !== 'split'
+    }">
+        <!-- PDF Viewer Panel -->
+        <div x-show="viewMode === 'split' || viewMode === 'pdf'" x-cloak
+             class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4 text-red-500"></i>
+                    Original PDF
+                </h3>
+                {% if bom.source_pdf_file %}
+                <a href="{{ bom.source_pdf_file.url }}" target="_blank"
+                   class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                    <i data-lucide="external-link" class="w-3 h-3"></i>Open in new tab
+                </a>
+                {% endif %}
+            </div>
+            <div class="pdf-viewer-container">
+                {% if bom.source_pdf_file %}
+                <iframe src="{{ bom.source_pdf_file.url }}#toolbar=1&navpanes=0&scrollbar=1"
+                        class="w-full h-full"
+                        title="BOM PDF"></iframe>
+                {% else %}
+                <div class="flex items-center justify-center h-full text-gray-400">
+                    <div class="text-center">
+                        <i data-lucide="file-x" class="w-16 h-16 mx-auto mb-2 opacity-50"></i>
+                        <p>No PDF file available</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
 
-            <form method="post" class="space-y-4">
-                {% csrf_token %}
+        <!-- Data Panel (Grid + Table) -->
+        <div x-show="viewMode === 'split' || viewMode === 'grid' || viewMode === 'table'" x-cloak
+             class="space-y-4">
 
-                <div class="flex items-start gap-3">
-                    <input type="checkbox" name="clear_existing" value="yes" id="clear_existing"
-                           class="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+            <!-- Header Info Card -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="info" class="w-4 h-4 text-blue-500"></i>
+                        Parsed Header
+                    </h3>
+                    <span class="text-xs text-gray-500">Target: {{ bom.code }}</span>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                     <div>
-                        <label for="clear_existing" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Clear existing lines
-                        </label>
-                        <p class="text-xs text-gray-500">Remove all existing BOM lines before importing</p>
+                        <span class="text-gray-500 text-xs">Mat Number</span>
+                        <p class="font-mono font-medium text-gray-900 dark:text-white">{{ parsed_data.header.mat_number|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 text-xs">SN Number</span>
+                        <p class="font-mono text-gray-900 dark:text-white">{{ parsed_data.header.sn_number|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 text-xs">Revision</span>
+                        <p class="text-gray-900 dark:text-white">{{ parsed_data.header.revision_level|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 text-xs">Date</span>
+                        <p class="text-gray-900 dark:text-white">{{ parsed_data.header.date_created|default:"-" }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cutter Grid Card -->
+            <div x-show="viewMode === 'split' || viewMode === 'grid'" x-cloak
+                 class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="grid-3x3" class="w-4 h-4 text-purple-500"></i>
+                        Cutter Grid Layout
+                        <span x-show="hasChanges" class="sync-badge inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">
+                            <i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i>Modified
+                        </span>
+                    </h3>
+                    <div class="flex gap-2">
+                        <button type="button" @click="rebuildGridFromLines()"
+                                class="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200">
+                            <i data-lucide="refresh-cw" class="w-3 h-3 inline mr-1"></i>Rebuild from BOM
+                        </button>
                     </div>
                 </div>
 
-                <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                    <button type="submit" class="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium">
-                        <i data-lucide="check" class="w-5 h-5 inline mr-2"></i>
-                        Confirm Import
+                <!-- Grid Structure: 7 blades x 4 rows x 5 locations -->
+                <div class="overflow-x-auto">
+                    <div class="min-w-[600px]">
+                        <!-- Header Row -->
+                        <div class="cutter-grid mb-1">
+                            <div class="grid-header"></div>
+                            <div class="grid-header">CONE</div>
+                            <div class="grid-header">NOSE</div>
+                            <div class="grid-header">SHOULDER</div>
+                            <div class="grid-header">GAUGE</div>
+                            <div class="grid-header">PAD</div>
+                        </div>
+
+                        <!-- Blade Rows -->
+                        <template x-for="blade in 7" :key="'blade-'+blade">
+                            <div class="mb-2">
+                                <div class="flex items-center gap-1 mb-1">
+                                    <span class="text-xs font-bold text-purple-600 w-8" x-text="'B' + blade"></span>
+                                </div>
+                                <template x-for="row in 4" :key="'row-'+blade+'-'+row">
+                                    <div class="cutter-grid mb-px">
+                                        <div class="row-label text-xs" x-text="'R' + row"></div>
+                                        <template x-for="loc in ['CONE', 'NOSE', 'SHOULDER', 'GAUGE', 'PAD']" :key="loc">
+                                            <div class="grid-cell"
+                                                 :data-blade="blade"
+                                                 :data-row="row"
+                                                 :data-location="loc"
+                                                 @dragover.prevent="handleDragOver($event)"
+                                                 @dragleave="handleDragLeave($event)"
+                                                 @drop="handleDrop($event, blade, row, loc)">
+                                                <template x-for="(cutter, idx) in getCuttersAt(blade, row, loc)" :key="idx">
+                                                    <div class="cutter-chip"
+                                                         :style="'background-color: ' + getColorForOrder(cutter.order_number)"
+                                                         :title="cutter.cutter_type + ' (' + cutter.chamfer + ')'"
+                                                         draggable="true"
+                                                         @dragstart="handleDragStart($event, blade, row, loc, idx)"
+                                                         @dragend="handleDragEnd($event)"
+                                                         x-text="cutter.order_number">
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Grid Legend -->
+                <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                    <span class="text-gray-500">Legend:</span>
+                    <template x-for="line in bomLines" :key="line.order_number">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
+                              :style="'background-color: ' + line.color_code + '20; color: ' + line.color_code">
+                            <span class="w-3 h-3 rounded-full" :style="'background-color: ' + line.color_code"></span>
+                            <span x-text="line.order_number + ': ' + line.cutter_type"></span>
+                        </span>
+                    </template>
+                </div>
+            </div>
+
+            <!-- BOM Lines Table -->
+            <div x-show="viewMode === 'split' || viewMode === 'table'" x-cloak
+                 class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="list" class="w-4 h-4 text-green-500"></i>
+                        BOM Lines
+                        <span class="text-sm font-normal text-gray-500" x-text="'(' + bomLines.length + ' items, ' + totalCutters + ' cutters)'"></span>
+                    </h3>
+                    <button type="button" @click="addNewLine()"
+                            class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200">
+                        <i data-lucide="plus" class="w-3 h-3 inline mr-1"></i>Add Line
                     </button>
                 </div>
 
-                <a href="{% url 'technology:bom_builder' bom.pk %}" class="block w-full px-6 py-3 text-center border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    Cancel
-                </a>
-            </form>
-        </div>
-
-        <!-- Target BOM Info -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Target BOM</h2>
-            <dl class="space-y-3 text-sm">
-                <div class="flex justify-between">
-                    <dt class="text-gray-500">Code</dt>
-                    <dd class="text-gray-900 dark:text-white font-mono">{{ bom.code }}</dd>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50 text-xs">
+                                <th class="px-3 py-2 w-12">#</th>
+                                <th class="px-3 py-2">Size</th>
+                                <th class="px-3 py-2">Chamfer</th>
+                                <th class="px-3 py-2">Type</th>
+                                <th class="px-3 py-2 text-center w-20">Count</th>
+                                <th class="px-3 py-2">Mat #</th>
+                                <th class="px-3 py-2 w-16">Color</th>
+                                <th class="px-3 py-2 w-12"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            <template x-for="(line, index) in bomLines" :key="line.order_number">
+                                <tr class="bom-line-row"
+                                    :class="{'selected': selectedLine === line.order_number}"
+                                    @click="selectLine(line.order_number)">
+                                    <td class="px-3 py-2">
+                                        <span class="w-6 h-6 inline-flex items-center justify-center rounded-full text-xs font-bold text-white"
+                                              :style="'background-color: ' + line.color_code"
+                                              x-text="line.order_number"></span>
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="text" x-model="line.size"
+                                               @change="updateLine(index, 'size', line.size)"
+                                               class="editable-cell w-16 bg-transparent font-mono">
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="text" x-model="line.chamfer"
+                                               @change="updateLine(index, 'chamfer', line.chamfer)"
+                                               class="editable-cell w-20 bg-transparent">
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="text" x-model="line.cutter_type"
+                                               @change="updateLine(index, 'cutter_type', line.cutter_type)"
+                                               class="editable-cell w-24 bg-transparent font-medium">
+                                    </td>
+                                    <td class="px-3 py-2 text-center">
+                                        <input type="number" x-model.number="line.count" min="0"
+                                               @change="updateLine(index, 'count', line.count)"
+                                               class="editable-cell w-14 bg-transparent text-center font-bold text-blue-600">
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="text" x-model="line.mat_number"
+                                               @change="updateMatNumber(index, line.mat_number)"
+                                               class="editable-cell w-24 bg-transparent font-mono text-gray-500"
+                                               title="Changes here will update all matching items">
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="color" x-model="line.color_code"
+                                               @change="updateLine(index, 'color_code', line.color_code)"
+                                               class="w-6 h-6 rounded cursor-pointer">
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <button type="button" @click.stop="deleteLine(index)"
+                                                class="text-red-400 hover:text-red-600">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-gray-50 dark:bg-gray-700/50 font-medium">
+                                <td colspan="4" class="px-3 py-2 text-right text-gray-600 dark:text-gray-400">Total Cutters:</td>
+                                <td class="px-3 py-2 text-center text-lg font-bold text-green-600" x-text="totalCutters"></td>
+                                <td colspan="3"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
                 </div>
-                <div class="flex justify-between">
-                    <dt class="text-gray-500">Name</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ bom.name }}</dd>
-                </div>
-                <div class="flex justify-between">
-                    <dt class="text-gray-500">Design</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ bom.design.hdbs_type|default:"--" }}</dd>
-                </div>
-                <div class="flex justify-between">
-                    <dt class="text-gray-500">Current Lines</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ bom.lines.count }}</dd>
-                </div>
-            </dl>
+            </div>
         </div>
     </div>
+
+    <!-- Debug Panel -->
+    <div x-show="showDebug" x-cloak class="bg-gray-900 rounded-xl shadow-sm p-4 text-white">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold flex items-center gap-2">
+                <i data-lucide="bug" class="w-4 h-4 text-amber-400"></i>
+                Debug: Raw Extracted Text
+            </h3>
+            <button @click="showDebug = false" class="text-gray-400 hover:text-white">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+        <pre class="text-xs font-mono bg-gray-800 p-3 rounded overflow-auto max-h-64 whitespace-pre-wrap">{{ parsed_data.raw_text|default:"No raw text captured" }}</pre>
+    </div>
+
+    <!-- Import Actions -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+        <form method="post" class="flex flex-wrap items-center justify-between gap-4">
+            {% csrf_token %}
+
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="clear_existing" value="yes"
+                           class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Clear existing BOM lines before import</span>
+                </label>
+
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="import_grid" value="yes" checked
+                           class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Import grid positions</span>
+                </label>
+            </div>
+
+            <!-- Hidden inputs to pass modified data -->
+            <input type="hidden" name="bom_lines_json" :value="JSON.stringify(bomLines)">
+            <input type="hidden" name="cutter_positions_json" :value="JSON.stringify(cutterPositions)">
+
+            <div class="flex gap-2">
+                <button type="submit"
+                        class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2">
+                    <i data-lucide="check" class="w-5 h-5"></i>
+                    Confirm Import
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function bomImportManager() {
+    return {
+        viewMode: 'split',
+        showDebug: false,
+        hasChanges: false,
+        selectedLine: null,
+        draggedCutter: null,
+
+        // Data from parsed PDF
+        bomLines: {{ parsed_data.bom_lines|safe }},
+        cutterPositions: {{ parsed_data.cutter_positions|default:"[]"|safe }},
+
+        // Color palette matching the parser
+        colorPalette: [
+            "#4A4A4A", "#9E9E9E", "#6B6B6B", "#E0E0E0", "#2196F3",
+            "#FF9800", "#4CAF50", "#9C27B0", "#F44336", "#00BCD4"
+        ],
+
+        init() {
+            // Initialize empty grid positions if none parsed
+            if (this.cutterPositions.length === 0 && this.bomLines.length > 0) {
+                console.log('No grid positions parsed, showing empty grid');
+            }
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        get totalCutters() {
+            return this.bomLines.reduce((sum, line) => sum + (parseInt(line.count) || 0), 0);
+        },
+
+        getColorForOrder(orderNum) {
+            const line = this.bomLines.find(l => l.order_number === orderNum);
+            if (line) return line.color_code;
+            const idx = (orderNum - 1) % this.colorPalette.length;
+            return this.colorPalette[idx];
+        },
+
+        getCuttersAt(blade, row, location) {
+            return this.cutterPositions.filter(p =>
+                p.blade_number === blade &&
+                p.row_number === row &&
+                p.location === location
+            ).sort((a, b) => a.position_in_location - b.position_in_location);
+        },
+
+        selectLine(orderNum) {
+            this.selectedLine = this.selectedLine === orderNum ? null : orderNum;
+        },
+
+        updateLine(index, field, value) {
+            this.hasChanges = true;
+            // If cutter_type or order_number changes, update grid positions too
+            if (field === 'cutter_type') {
+                const oldType = this.bomLines[index].cutter_type;
+                this.cutterPositions.forEach(pos => {
+                    if (pos.order_number === this.bomLines[index].order_number) {
+                        pos.cutter_type = value;
+                    }
+                });
+            }
+        },
+
+        updateMatNumber(index, newMatNumber) {
+            // When MAT number changes, update all items with same cutter type
+            const cutterType = this.bomLines[index].cutter_type;
+            this.bomLines.forEach(line => {
+                if (line.cutter_type === cutterType) {
+                    line.mat_number = newMatNumber;
+                }
+            });
+            this.hasChanges = true;
+        },
+
+        addNewLine() {
+            const maxOrder = Math.max(0, ...this.bomLines.map(l => l.order_number));
+            const newOrder = maxOrder + 1;
+            const colorIdx = (newOrder - 1) % this.colorPalette.length;
+
+            this.bomLines.push({
+                order_number: newOrder,
+                size: '',
+                chamfer: '',
+                cutter_type: '',
+                count: 0,
+                mat_number: '',
+                family_number: '',
+                color_code: this.colorPalette[colorIdx]
+            });
+            this.hasChanges = true;
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        deleteLine(index) {
+            if (confirm('Delete this line? Grid positions for this order will also be removed.')) {
+                const orderNum = this.bomLines[index].order_number;
+                this.bomLines.splice(index, 1);
+                // Remove grid positions for this order
+                this.cutterPositions = this.cutterPositions.filter(p => p.order_number !== orderNum);
+                // Renumber remaining lines
+                this.bomLines.forEach((line, idx) => {
+                    line.order_number = idx + 1;
+                });
+                this.hasChanges = true;
+            }
+        },
+
+        rebuildGridFromLines() {
+            if (confirm('This will clear the current grid and distribute cutters based on BOM line counts. Continue?')) {
+                this.cutterPositions = [];
+                const locations = ['CONE', 'NOSE', 'SHOULDER', 'GAUGE', 'PAD'];
+
+                this.bomLines.forEach(line => {
+                    let remaining = line.count;
+                    let posIndex = 1;
+
+                    // Distribute cutters across blades
+                    for (let blade = 1; blade <= 7 && remaining > 0; blade++) {
+                        for (let row = 1; row <= 4 && remaining > 0; row++) {
+                            for (let loc of locations) {
+                                if (remaining <= 0) break;
+                                this.cutterPositions.push({
+                                    blade_number: blade,
+                                    row_number: row,
+                                    location: loc,
+                                    position_in_location: posIndex++,
+                                    cutter_type: line.cutter_type,
+                                    order_number: line.order_number,
+                                    chamfer: line.chamfer
+                                });
+                                remaining--;
+                            }
+                        }
+                    }
+                });
+
+                this.hasChanges = true;
+            }
+        },
+
+        // Drag and drop handlers
+        handleDragStart(event, blade, row, location, idx) {
+            this.draggedCutter = { blade, row, location, idx };
+            event.target.classList.add('dragging');
+            event.dataTransfer.effectAllowed = 'move';
+        },
+
+        handleDragEnd(event) {
+            event.target.classList.remove('dragging');
+            this.draggedCutter = null;
+        },
+
+        handleDragOver(event) {
+            event.currentTarget.classList.add('drop-target');
+        },
+
+        handleDragLeave(event) {
+            event.currentTarget.classList.remove('drop-target');
+        },
+
+        handleDrop(event, targetBlade, targetRow, targetLocation) {
+            event.currentTarget.classList.remove('drop-target');
+
+            if (!this.draggedCutter) return;
+
+            const { blade, row, location, idx } = this.draggedCutter;
+
+            // Find the cutter being dragged
+            const cutters = this.getCuttersAt(blade, row, location);
+            if (idx >= cutters.length) return;
+
+            const cutter = cutters[idx];
+            const cutterIndex = this.cutterPositions.findIndex(p =>
+                p.blade_number === blade &&
+                p.row_number === row &&
+                p.location === location &&
+                p.position_in_location === cutter.position_in_location
+            );
+
+            if (cutterIndex === -1) return;
+
+            // Move to new position
+            this.cutterPositions[cutterIndex].blade_number = targetBlade;
+            this.cutterPositions[cutterIndex].row_number = targetRow;
+            this.cutterPositions[cutterIndex].location = targetLocation;
+            this.cutterPositions[cutterIndex].position_in_location =
+                this.getCuttersAt(targetBlade, targetRow, targetLocation).length + 1;
+
+            this.hasChanges = true;
+            this.draggedCutter = null;
+        }
+    };
+}
+</script>
 {% endblock %}

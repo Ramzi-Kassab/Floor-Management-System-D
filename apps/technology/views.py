@@ -1432,9 +1432,23 @@ class BOMPDFImportView(LoginRequiredMixin, View):
                     }
                     for line in parsed_data.bom_lines
                 ],
+                'cutter_positions': [
+                    {
+                        'blade_number': pos.blade_number,
+                        'row_number': pos.row_number,
+                        'location': pos.location,
+                        'position_in_location': pos.position_in_location,
+                        'cutter_type': pos.cutter_type,
+                        'order_number': pos.order_number,
+                        'chamfer': pos.chamfer,
+                    }
+                    for pos in parsed_data.cutter_positions
+                ],
+                'raw_text': parsed_data.raw_text[:5000] if parsed_data.raw_text else '',  # First 5000 chars for debugging
             }
 
-            # Save the PDF file to BOM
+            # Save the PDF file to BOM - reset file position first
+            pdf_file.seek(0)
             bom.source_pdf_file = pdf_file
             bom.save(update_fields=['source_pdf_file'])
 
@@ -1471,6 +1485,7 @@ class BOMPDFImportConfirmView(LoginRequiredMixin, View):
         })
 
     def post(self, request, pk):
+        import json
         from datetime import datetime as dt
 
         bom = get_object_or_404(BOM, pk=pk)
@@ -1482,7 +1497,26 @@ class BOMPDFImportConfirmView(LoginRequiredMixin, View):
 
         try:
             header = parsed_data['header']
-            bom_lines_data = parsed_data['bom_lines']
+
+            # Check if we have modified data from the interactive form
+            bom_lines_json = request.POST.get('bom_lines_json', '')
+            cutter_positions_json = request.POST.get('cutter_positions_json', '')
+
+            if bom_lines_json:
+                try:
+                    bom_lines_data = json.loads(bom_lines_json)
+                except json.JSONDecodeError:
+                    bom_lines_data = parsed_data['bom_lines']
+            else:
+                bom_lines_data = parsed_data['bom_lines']
+
+            if cutter_positions_json:
+                try:
+                    cutter_positions_data = json.loads(cutter_positions_json)
+                except json.JSONDecodeError:
+                    cutter_positions_data = parsed_data.get('cutter_positions', [])
+            else:
+                cutter_positions_data = parsed_data.get('cutter_positions', [])
 
             # Update BOM with header info
             bom.source_type = BOM.SourceType.PDF_IMPORT
@@ -1502,33 +1536,62 @@ class BOMPDFImportConfirmView(LoginRequiredMixin, View):
             # Clear existing lines if requested
             if request.POST.get('clear_existing') == 'yes':
                 bom.lines.all().delete()
+                # Also clear cutter positions
+                BOMCutterPosition.objects.filter(bom=bom).delete()
 
             # Get max line number
             max_line = bom.lines.aggregate(max_line=models.Max("line_number"))
             next_line_num = (max_line["max_line"] or 0) + 1
 
-            # Create BOM lines
+            # Create BOM lines and map order numbers to BOMLine objects
             lines_created = 0
+            order_to_line = {}  # Map order_number to BOMLine for grid positions
+
             for line_data in bom_lines_data:
-                BOMLine.objects.create(
+                bom_line = BOMLine.objects.create(
                     bom=bom,
                     line_number=next_line_num,
                     order_number=line_data['order_number'],
-                    quantity=line_data['count'],
-                    color_code=line_data['color_code'],
-                    cutter_size=line_data['size'],
-                    cutter_chamfer=line_data['chamfer'],
-                    cutter_type=line_data['cutter_type'],
-                    hdbs_code=line_data['mat_number'],
+                    quantity=line_data.get('count', 0),
+                    color_code=line_data.get('color_code', '#4A4A4A'),
+                    cutter_size=line_data.get('size', ''),
+                    cutter_chamfer=line_data.get('chamfer', ''),
+                    cutter_type=line_data.get('cutter_type', ''),
+                    hdbs_code=line_data.get('mat_number', ''),
                     family_number=line_data.get('family_number', ''),
                 )
+                order_to_line[line_data['order_number']] = bom_line
                 next_line_num += 1
                 lines_created += 1
+
+            # Import cutter grid positions if requested
+            positions_created = 0
+            if request.POST.get('import_grid') == 'yes' and cutter_positions_data:
+                for pos_data in cutter_positions_data:
+                    order_num = pos_data.get('order_number', 1)
+                    bom_line = order_to_line.get(order_num)
+
+                    BOMCutterPosition.objects.create(
+                        bom=bom,
+                        bom_line=bom_line,
+                        blade_number=pos_data.get('blade_number', 1),
+                        row_number=pos_data.get('row_number', 1),
+                        blade_location=pos_data.get('location', 'CONE'),
+                        position_in_location=pos_data.get('position_in_location', 1),
+                        cutter_type_display=pos_data.get('cutter_type', ''),
+                        order_number_display=order_num,
+                        chamfer_display=pos_data.get('chamfer', ''),
+                    )
+                    positions_created += 1
 
             # Clear session data
             del request.session['parsed_bom_data']
 
-            messages.success(request, f"Successfully imported {lines_created} lines from PDF.")
+            if positions_created > 0:
+                messages.success(request, f"Successfully imported {lines_created} lines and {positions_created} grid positions from PDF.")
+            else:
+                messages.success(request, f"Successfully imported {lines_created} lines from PDF.")
+
             return redirect('technology:bom_builder', pk=pk)
 
         except Exception as e:
