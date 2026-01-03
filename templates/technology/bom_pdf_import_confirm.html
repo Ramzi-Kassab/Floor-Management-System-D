@@ -326,21 +326,49 @@
                                         <div class="row-label text-xs" x-text="'R' + row"></div>
                                         <template x-for="loc in ['CONE', 'NOSE', 'SHOULDER', 'GAUGE', 'PAD']" :key="loc">
                                             <div class="grid-cell"
+                                                 :class="{
+                                                     'ring-2 ring-blue-400': highlightedOrder && getCuttersAt(blade, row, loc).some(c => c.order_number === highlightedOrder),
+                                                     'bg-blue-50': highlightedOrder && getCuttersAt(blade, row, loc).some(c => c.order_number === highlightedOrder)
+                                                 }"
                                                  :data-blade="blade"
                                                  :data-row="row"
                                                  :data-location="loc"
+                                                 @click="handleCellClick($event, blade, row, loc)"
+                                                 @contextmenu.prevent="showCellMenu($event, blade, row, loc)"
                                                  @dragover.prevent="handleDragOver($event)"
                                                  @dragleave="handleDragLeave($event)"
                                                  @drop="handleDrop($event, blade, row, loc)">
                                                 <template x-for="(cutter, idx) in getCuttersAt(blade, row, loc)" :key="idx">
-                                                    <div class="cutter-chip"
+                                                    <div class="cutter-chip group relative"
                                                          :style="'background-color: ' + getColorForOrder(cutter.order_number)"
-                                                         :title="cutter.cutter_type + ' (' + cutter.chamfer + ')'"
                                                          draggable="true"
                                                          @dragstart="handleDragStart($event, blade, row, loc, idx)"
                                                          @dragend="handleDragEnd($event)"
+                                                         @click.stop="showCutterDetails(cutter, blade, row, loc)"
+                                                         @contextmenu.stop.prevent="showCutterMenu($event, cutter, blade, row, loc, idx)"
                                                          x-text="cutter.order_number">
+                                                        <!-- Enhanced Tooltip -->
+                                                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
+                                                            <div class="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-xl">
+                                                                <div class="font-bold" x-text="cutter.cutter_type || 'Unknown'"></div>
+                                                                <div class="text-gray-300" x-text="'Size: ' + (getLineForOrder(cutter.order_number)?.size || '-')"></div>
+                                                                <div class="text-gray-300" x-text="'Chamfer: ' + (cutter.chamfer || '-')"></div>
+                                                                <div class="text-gray-300" x-text="'Mat#: ' + (getLineForOrder(cutter.order_number)?.mat_number || '-')"></div>
+                                                                <template x-if="getLineForOrder(cutter.order_number)?.inventory_item_code">
+                                                                    <div class="text-green-400 flex items-center gap-1 mt-1 border-t border-gray-700 pt-1">
+                                                                        <span>✓ Linked:</span>
+                                                                        <span x-text="getLineForOrder(cutter.order_number)?.inventory_item_code"></span>
+                                                                    </div>
+                                                                </template>
+                                                                <div class="text-blue-300 text-[10px] mt-1">Click for details</div>
+                                                            </div>
+                                                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                                                        </div>
                                                     </div>
+                                                </template>
+                                                <!-- Empty cell indicator - click to add -->
+                                                <template x-if="getCuttersAt(blade, row, loc).length === 0">
+                                                    <span class="text-gray-300 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">+</span>
                                                 </template>
                                             </div>
                                         </template>
@@ -348,6 +376,156 @@
                                 </template>
                             </div>
                         </template>
+                    </div>
+                </div>
+
+                <!-- Context Menu (hidden, shown on right-click) -->
+                <div x-show="contextMenu.show" x-cloak
+                     :style="'left: ' + contextMenu.x + 'px; top: ' + contextMenu.y + 'px'"
+                     @click.away="contextMenu.show = false"
+                     class="fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 min-w-[160px]">
+                    <template x-if="contextMenu.type === 'cell'">
+                        <div>
+                            <button @click="addCutterToCell()" class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                                <i data-lucide="plus-circle" class="w-4 h-4 text-green-500"></i>Add Cutter Here
+                            </button>
+                            <button @click="clearCell()" class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                                <i data-lucide="trash" class="w-4 h-4 text-red-500"></i>Clear Cell
+                            </button>
+                        </div>
+                    </template>
+                    <template x-if="contextMenu.type === 'cutter'">
+                        <div>
+                            <button @click="editCutter()" class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                                <i data-lucide="edit" class="w-4 h-4 text-blue-500"></i>Edit Cutter
+                            </button>
+                            <button @click="duplicateCutter()" class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                                <i data-lucide="copy" class="w-4 h-4 text-purple-500"></i>Duplicate
+                            </button>
+                            <button @click="removeCutter()" class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600">
+                                <i data-lucide="x-circle" class="w-4 h-4"></i>Remove
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Add Cutter Dialog -->
+                <div x-show="addCutterDialog.show" x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                     @click.self="addCutterDialog.show = false">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-80">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <i data-lucide="plus-circle" class="w-5 h-5 text-green-500"></i>
+                            Add Cutter
+                            <span class="text-sm font-normal text-gray-500" x-text="'B' + addCutterDialog.blade + 'R' + addCutterDialog.row + ' ' + addCutterDialog.location"></span>
+                        </h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Order #</label>
+                                <select x-model.number="addCutterDialog.orderNumber"
+                                        class="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600">
+                                    <template x-for="line in bomLines" :key="line.order_number">
+                                        <option :value="line.order_number" x-text="'#' + line.order_number + ' - ' + line.cutter_type"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div class="flex gap-2 pt-2">
+                                <button @click="confirmAddCutter()" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                                    Add
+                                </button>
+                                <button @click="addCutterDialog.show = false" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inventory Lookup Modal -->
+                <div x-show="inventoryLookup.show" x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                     @click.self="inventoryLookup.show = false"
+                     @keydown.escape.window="inventoryLookup.show = false">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-[500px] max-h-[80vh] flex flex-col">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <i data-lucide="search" class="w-5 h-5 text-blue-500"></i>
+                            Search Inventory
+                            <span class="text-sm font-normal text-gray-500" x-text="'for Order #' + (bomLines[inventoryLookup.lineIndex]?.order_number || '')"></span>
+                        </h3>
+                        <div class="space-y-4 flex-1 overflow-hidden flex flex-col">
+                            <!-- Search Input -->
+                            <div class="relative">
+                                <input type="text" x-model="inventoryLookup.query"
+                                       @input.debounce.300ms="searchInventory()"
+                                       @keydown.enter.prevent="searchInventory()"
+                                       placeholder="Search by code, name, or MAT number..."
+                                       class="w-full px-4 py-2 pl-10 border rounded-lg dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500">
+                                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-3 text-gray-400"></i>
+                            </div>
+
+                            <!-- Auto-search from BOM line data -->
+                            <div class="flex gap-2 text-xs">
+                                <button type="button" @click="searchByLineData('type')"
+                                        class="px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200">
+                                    <span x-text="'Type: ' + (bomLines[inventoryLookup.lineIndex]?.cutter_type || '-')"></span>
+                                </button>
+                                <button type="button" @click="searchByLineData('size')"
+                                        class="px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200">
+                                    <span x-text="'Size: ' + (bomLines[inventoryLookup.lineIndex]?.size || '-')"></span>
+                                </button>
+                                <button type="button" @click="searchByLineData('mat')"
+                                        class="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                                        x-show="bomLines[inventoryLookup.lineIndex]?.mat_number">
+                                    <span x-text="'MAT#: ' + (bomLines[inventoryLookup.lineIndex]?.mat_number || '')"></span>
+                                </button>
+                            </div>
+
+                            <!-- Results -->
+                            <div class="flex-1 overflow-y-auto min-h-[200px] max-h-[300px] border rounded-lg dark:border-gray-700">
+                                <template x-if="inventoryLookup.loading">
+                                    <div class="flex items-center justify-center h-full text-gray-400">
+                                        <i data-lucide="loader-2" class="w-6 h-6 animate-spin mr-2"></i>
+                                        Searching...
+                                    </div>
+                                </template>
+                                <template x-if="!inventoryLookup.loading && inventoryLookup.results.length === 0">
+                                    <div class="flex items-center justify-center h-full text-gray-400">
+                                        <div class="text-center">
+                                            <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                                            <p x-text="inventoryLookup.query ? 'No items found' : 'Enter search query'"></p>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="!inventoryLookup.loading && inventoryLookup.results.length > 0">
+                                    <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                                        <template x-for="item in inventoryLookup.results" :key="item.id">
+                                            <button type="button"
+                                                    @click="selectInventoryItem(item)"
+                                                    class="w-full px-4 py-3 text-left hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors">
+                                                <div class="flex items-start justify-between">
+                                                    <div class="flex-1">
+                                                        <div class="font-medium text-gray-900 dark:text-white" x-text="item.code"></div>
+                                                        <div class="text-sm text-gray-600 dark:text-gray-400 line-clamp-1" x-text="item.name"></div>
+                                                    </div>
+                                                    <div class="text-right text-xs text-gray-500 ml-2">
+                                                        <div x-show="item.mat_number" x-text="'MAT: ' + item.mat_number" class="font-mono"></div>
+                                                        <div x-show="item.category" x-text="item.category"></div>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="flex gap-2 pt-2">
+                                <button type="button" @click="inventoryLookup.show = false"
+                                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -359,6 +537,9 @@
                               :style="'background-color: ' + line.color_code + '20; color: ' + line.color_code">
                             <span class="w-3 h-3 rounded-full" :style="'background-color: ' + line.color_code"></span>
                             <span x-text="line.order_number + ': ' + line.cutter_type"></span>
+                            <template x-if="line.inventory_item_id">
+                                <i data-lucide="link" class="w-3 h-3 text-green-600"></i>
+                            </template>
                         </span>
                     </template>
                 </div>
@@ -424,10 +605,22 @@
                                                class="editable-cell w-14 bg-transparent text-center font-bold text-blue-600">
                                     </td>
                                     <td class="px-3 py-2">
-                                        <input type="text" x-model="line.mat_number"
-                                               @change="updateMatNumber(index, line.mat_number)"
-                                               class="editable-cell w-24 bg-transparent font-mono text-gray-500"
-                                               title="Changes here will update all matching items">
+                                        <div class="flex items-center gap-1">
+                                            <input type="text" x-model="line.mat_number"
+                                                   @change="updateMatNumber(index, line.mat_number)"
+                                                   class="editable-cell w-20 bg-transparent font-mono text-gray-500"
+                                                   title="Changes here will update all matching items">
+                                            <button type="button" @click.stop="openInventoryLookup(index)"
+                                                    class="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded"
+                                                    title="Search Inventory">
+                                                <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                            <template x-if="line.inventory_item_id">
+                                                <span class="text-green-500" title="Linked to inventory">
+                                                    <i data-lucide="link" class="w-3 h-3"></i>
+                                                </span>
+                                            </template>
+                                        </div>
                                     </td>
                                     <td class="px-3 py-2">
                                         <input type="color" x-model="line.color_code"
@@ -513,7 +706,39 @@ function bomImportManager() {
         showDebug: false,
         hasChanges: false,
         selectedLine: null,
+        highlightedOrder: null,
         draggedCutter: null,
+
+        // Context menu state
+        contextMenu: {
+            show: false,
+            x: 0,
+            y: 0,
+            type: 'cell', // 'cell' or 'cutter'
+            blade: 0,
+            row: 0,
+            location: '',
+            cutter: null,
+            cutterIdx: -1
+        },
+
+        // Add cutter dialog
+        addCutterDialog: {
+            show: false,
+            blade: 0,
+            row: 0,
+            location: '',
+            orderNumber: 1
+        },
+
+        // Inventory lookup modal
+        inventoryLookup: {
+            show: false,
+            lineIndex: -1,
+            query: '',
+            results: [],
+            loading: false
+        },
 
         // Data from parsed PDF (properly serialized JSON)
         bomLines: {{ bom_lines_json|safe }},
@@ -526,7 +751,6 @@ function bomImportManager() {
         ],
 
         init() {
-            // Initialize empty grid positions if none parsed
             if (this.cutterPositions.length === 0 && this.bomLines.length > 0) {
                 console.log('No grid positions parsed, showing empty grid');
             }
@@ -537,11 +761,19 @@ function bomImportManager() {
             return this.bomLines.reduce((sum, line) => sum + (parseInt(line.count) || 0), 0);
         },
 
+        get gridCutterCount() {
+            return this.cutterPositions.length;
+        },
+
         getColorForOrder(orderNum) {
             const line = this.bomLines.find(l => l.order_number === orderNum);
             if (line) return line.color_code;
             const idx = (orderNum - 1) % this.colorPalette.length;
             return this.colorPalette[idx];
+        },
+
+        getLineForOrder(orderNum) {
+            return this.bomLines.find(l => l.order_number === orderNum);
         },
 
         getCuttersAt(blade, row, location) {
@@ -554,23 +786,38 @@ function bomImportManager() {
 
         selectLine(orderNum) {
             this.selectedLine = this.selectedLine === orderNum ? null : orderNum;
+            this.highlightedOrder = this.selectedLine;
+        },
+
+        highlightLine(orderNum) {
+            this.highlightedOrder = orderNum;
+        },
+
+        unhighlightLine() {
+            if (!this.selectedLine) {
+                this.highlightedOrder = null;
+            }
         },
 
         updateLine(index, field, value) {
             this.hasChanges = true;
-            // If cutter_type or order_number changes, update grid positions too
             if (field === 'cutter_type') {
-                const oldType = this.bomLines[index].cutter_type;
                 this.cutterPositions.forEach(pos => {
                     if (pos.order_number === this.bomLines[index].order_number) {
                         pos.cutter_type = value;
                     }
                 });
             }
+            if (field === 'chamfer') {
+                this.cutterPositions.forEach(pos => {
+                    if (pos.order_number === this.bomLines[index].order_number) {
+                        pos.chamfer = value;
+                    }
+                });
+            }
         },
 
         updateMatNumber(index, newMatNumber) {
-            // When MAT number changes, update all items with same cutter type
             const cutterType = this.bomLines[index].cutter_type;
             this.bomLines.forEach(line => {
                 if (line.cutter_type === cutterType) {
@@ -603,9 +850,7 @@ function bomImportManager() {
             if (confirm('Delete this line? Grid positions for this order will also be removed.')) {
                 const orderNum = this.bomLines[index].order_number;
                 this.bomLines.splice(index, 1);
-                // Remove grid positions for this order
                 this.cutterPositions = this.cutterPositions.filter(p => p.order_number !== orderNum);
-                // Renumber remaining lines
                 this.bomLines.forEach((line, idx) => {
                     line.order_number = idx + 1;
                 });
@@ -622,7 +867,6 @@ function bomImportManager() {
                     let remaining = line.count;
                     let posIndex = 1;
 
-                    // Distribute cutters across blades
                     for (let blade = 1; blade <= 7 && remaining > 0; blade++) {
                         for (let row = 1; row <= 4 && remaining > 0; row++) {
                             for (let loc of locations) {
@@ -642,6 +886,136 @@ function bomImportManager() {
                     }
                 });
 
+                this.hasChanges = true;
+            }
+        },
+
+        // Cell click - open add dialog if empty
+        handleCellClick(event, blade, row, location) {
+            const cutters = this.getCuttersAt(blade, row, location);
+            if (cutters.length === 0 && this.bomLines.length > 0) {
+                this.addCutterDialog.blade = blade;
+                this.addCutterDialog.row = row;
+                this.addCutterDialog.location = location;
+                this.addCutterDialog.orderNumber = this.bomLines[0]?.order_number || 1;
+                this.addCutterDialog.show = true;
+                this.$nextTick(() => lucide.createIcons());
+            }
+        },
+
+        // Context menus
+        showCellMenu(event, blade, row, location) {
+            this.contextMenu = {
+                show: true,
+                x: event.clientX,
+                y: event.clientY,
+                type: 'cell',
+                blade, row, location,
+                cutter: null,
+                cutterIdx: -1
+            };
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        showCutterMenu(event, cutter, blade, row, location, idx) {
+            this.contextMenu = {
+                show: true,
+                x: event.clientX,
+                y: event.clientY,
+                type: 'cutter',
+                blade, row, location,
+                cutter,
+                cutterIdx: idx
+            };
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        showCutterDetails(cutter, blade, row, location) {
+            const line = this.getLineForOrder(cutter.order_number);
+            alert(`Cutter Details:\n\nPosition: B${blade}R${row} ${location}\nOrder #: ${cutter.order_number}\nType: ${cutter.cutter_type || line?.cutter_type || 'Unknown'}\nSize: ${line?.size || '-'}\nChamfer: ${cutter.chamfer || line?.chamfer || '-'}\nMat #: ${line?.mat_number || '-'}`);
+        },
+
+        addCutterToCell() {
+            this.contextMenu.show = false;
+            this.addCutterDialog.blade = this.contextMenu.blade;
+            this.addCutterDialog.row = this.contextMenu.row;
+            this.addCutterDialog.location = this.contextMenu.location;
+            this.addCutterDialog.orderNumber = this.bomLines[0]?.order_number || 1;
+            this.addCutterDialog.show = true;
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        confirmAddCutter() {
+            const line = this.getLineForOrder(this.addCutterDialog.orderNumber);
+            const existing = this.getCuttersAt(
+                this.addCutterDialog.blade,
+                this.addCutterDialog.row,
+                this.addCutterDialog.location
+            );
+
+            this.cutterPositions.push({
+                blade_number: this.addCutterDialog.blade,
+                row_number: this.addCutterDialog.row,
+                location: this.addCutterDialog.location,
+                position_in_location: existing.length + 1,
+                cutter_type: line?.cutter_type || '',
+                order_number: this.addCutterDialog.orderNumber,
+                chamfer: line?.chamfer || ''
+            });
+
+            this.addCutterDialog.show = false;
+            this.hasChanges = true;
+        },
+
+        clearCell() {
+            this.contextMenu.show = false;
+            const { blade, row, location } = this.contextMenu;
+            this.cutterPositions = this.cutterPositions.filter(p =>
+                !(p.blade_number === blade && p.row_number === row && p.location === location)
+            );
+            this.hasChanges = true;
+        },
+
+        editCutter() {
+            this.contextMenu.show = false;
+            const line = this.getLineForOrder(this.contextMenu.cutter?.order_number);
+            if (line) {
+                this.selectedLine = line.order_number;
+                this.highlightedOrder = line.order_number;
+            }
+        },
+
+        duplicateCutter() {
+            this.contextMenu.show = false;
+            const { cutter, blade, row, location } = this.contextMenu;
+            const existing = this.getCuttersAt(blade, row, location);
+
+            this.cutterPositions.push({
+                blade_number: blade,
+                row_number: row,
+                location: location,
+                position_in_location: existing.length + 1,
+                cutter_type: cutter.cutter_type,
+                order_number: cutter.order_number,
+                chamfer: cutter.chamfer
+            });
+
+            this.hasChanges = true;
+        },
+
+        removeCutter() {
+            this.contextMenu.show = false;
+            const { blade, row, location, cutter } = this.contextMenu;
+
+            const idx = this.cutterPositions.findIndex(p =>
+                p.blade_number === blade &&
+                p.row_number === row &&
+                p.location === location &&
+                p.position_in_location === cutter.position_in_location
+            );
+
+            if (idx !== -1) {
+                this.cutterPositions.splice(idx, 1);
                 this.hasChanges = true;
             }
         },
@@ -672,8 +1046,6 @@ function bomImportManager() {
             if (!this.draggedCutter) return;
 
             const { blade, row, location, idx } = this.draggedCutter;
-
-            // Find the cutter being dragged
             const cutters = this.getCuttersAt(blade, row, location);
             if (idx >= cutters.length) return;
 
@@ -687,7 +1059,6 @@ function bomImportManager() {
 
             if (cutterIndex === -1) return;
 
-            // Move to new position
             this.cutterPositions[cutterIndex].blade_number = targetBlade;
             this.cutterPositions[cutterIndex].row_number = targetRow;
             this.cutterPositions[cutterIndex].location = targetLocation;
@@ -696,6 +1067,92 @@ function bomImportManager() {
 
             this.hasChanges = true;
             this.draggedCutter = null;
+        },
+
+        // Inventory lookup functions
+        openInventoryLookup(lineIndex) {
+            this.inventoryLookup.lineIndex = lineIndex;
+            this.inventoryLookup.query = '';
+            this.inventoryLookup.results = [];
+            this.inventoryLookup.loading = false;
+            this.inventoryLookup.show = true;
+            this.$nextTick(() => {
+                lucide.createIcons();
+                // Focus search input
+                const input = document.querySelector('[x-model="inventoryLookup.query"]');
+                if (input) input.focus();
+            });
+        },
+
+        searchByLineData(field) {
+            const line = this.bomLines[this.inventoryLookup.lineIndex];
+            if (!line) return;
+
+            switch (field) {
+                case 'type':
+                    this.inventoryLookup.query = line.cutter_type || '';
+                    break;
+                case 'size':
+                    this.inventoryLookup.query = line.size || '';
+                    break;
+                case 'mat':
+                    this.inventoryLookup.query = line.mat_number || '';
+                    break;
+            }
+            this.searchInventory();
+        },
+
+        async searchInventory() {
+            const query = this.inventoryLookup.query.trim();
+            if (query.length < 2) {
+                this.inventoryLookup.results = [];
+                return;
+            }
+
+            this.inventoryLookup.loading = true;
+            try {
+                const response = await fetch(`/inventory/api/items/lookup/?q=${encodeURIComponent(query)}&limit=15`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.inventoryLookup.results = data || [];
+                } else {
+                    this.inventoryLookup.results = [];
+                }
+            } catch (error) {
+                console.error('Inventory search error:', error);
+                this.inventoryLookup.results = [];
+            } finally {
+                this.inventoryLookup.loading = false;
+                this.$nextTick(() => lucide.createIcons());
+            }
+        },
+
+        selectInventoryItem(item) {
+            const lineIndex = this.inventoryLookup.lineIndex;
+            if (lineIndex < 0 || lineIndex >= this.bomLines.length) return;
+
+            const line = this.bomLines[lineIndex];
+
+            // Update the line with inventory item data
+            line.mat_number = item.mat_number || item.code;
+            line.inventory_item_id = item.id;
+            line.inventory_item_code = item.code;
+            line.inventory_item_name = item.name;
+
+            // Propagate to lines with same cutter type
+            const cutterType = line.cutter_type;
+            this.bomLines.forEach((l, idx) => {
+                if (idx !== lineIndex && l.cutter_type === cutterType) {
+                    l.mat_number = item.mat_number || item.code;
+                    l.inventory_item_id = item.id;
+                    l.inventory_item_code = item.code;
+                    l.inventory_item_name = item.name;
+                }
+            });
+
+            this.hasChanges = true;
+            this.inventoryLookup.show = false;
+            this.$nextTick(() => lucide.createIcons());
         }
     };
 }
