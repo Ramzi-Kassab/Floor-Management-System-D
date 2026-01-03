@@ -1,16 +1,18 @@
 """
-ARDT FMS - BOM PDF Parser Service
+ARDT FMS - BOM PDF Parser Service (Enhanced)
 
 Parses ADesc-format PDFs to extract:
 - Header info (SN Number, Mat Number, Date, Revision, Software Version)
 - BOM Summary Table (Order, Size, Chamfer, Type, Count, Mat #, Family #, Group)
 - Cutter Layout Grid (Blades B1-B7, Rows R1-R4, Locations CONE/NOSE/SHOULDER/GAUGE/PAD)
+
+This parser uses multiple extraction strategies to handle various PDF formats.
 """
 
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Tuple
 
 
 @dataclass
@@ -57,10 +59,11 @@ class ParsedBOMData:
     cutter_positions: list = field(default_factory=list)
     errors: list = field(default_factory=list)
     raw_text: str = ""
+    tables_data: list = field(default_factory=list)  # For debugging
 
 
 class BOMPDFParser:
-    """Parser for ADesc-format BOM PDFs."""
+    """Enhanced parser for ADesc-format BOM PDFs."""
 
     # Default color palette matching BOMLine.DEFAULT_COLORS
     DEFAULT_COLORS = [
@@ -76,6 +79,22 @@ class BOMPDFParser:
         "#00BCD4",  # Order 10: Cyan
     ]
 
+    # Known cutter type patterns
+    CUTTER_TYPE_PATTERNS = [
+        r'CT\d+[A-Z]*',      # CT418, CT179T, CT200NL
+        r'WC-[A-Z0-9]+',     # WC-MAT400
+        r'PDC\d+',           # PDC cutters
+        r'TSP\d+',           # TSP cutters
+    ]
+
+    # Known chamfer patterns
+    CHAMFER_PATTERNS = [
+        r'\d+C-\d+',         # 18C-60
+        r'U-\d+',            # U-60
+        r'DROP-IN',
+        r'NA',
+    ]
+
     def __init__(self, pdf_path: str = None, pdf_bytes: bytes = None):
         """Initialize parser with PDF file path or bytes."""
         self.pdf_path = pdf_path
@@ -83,6 +102,7 @@ class BOMPDFParser:
         self.doc = None
         self.page = None
         self.raw_text = ""
+        self.tables_data = []
 
     def parse(self) -> ParsedBOMData:
         """Parse the PDF and return structured data."""
@@ -113,10 +133,23 @@ class BOMPDFParser:
             self.raw_text = self.page.get_text()
             result.raw_text = self.raw_text
 
-            # Parse components
+            # Extract tables for debugging
+            try:
+                tables = self.page.find_tables()
+                if tables and hasattr(tables, 'tables'):
+                    for table in tables.tables:
+                        try:
+                            self.tables_data.append(table.extract())
+                        except:
+                            pass
+                result.tables_data = self.tables_data
+            except:
+                pass
+
+            # Parse components using multiple strategies
             result.header = self._parse_header()
-            result.bom_lines = self._parse_bom_table()
-            result.cutter_positions = self._parse_cutter_grid()
+            result.bom_lines = self._parse_bom_lines_smart()
+            result.cutter_positions = self._parse_cutter_grid_smart()
 
         except Exception as e:
             result.errors.append(f"Error parsing PDF: {str(e)}")
@@ -129,287 +162,486 @@ class BOMPDFParser:
     def _parse_header(self) -> BOMHeaderInfo:
         """Parse header information from PDF text."""
         header = BOMHeaderInfo()
+        text = self.raw_text.replace('\xad', '-')
 
         # SN Number
-        match = re.search(r'SN\s*Number[:\s]*(\S+)', self.raw_text, re.IGNORECASE)
+        match = re.search(r'SN\s*Number[:\s]*(\S+)', text, re.IGNORECASE)
         if match:
             header.sn_number = match.group(1).strip()
 
         # Mat Number
-        match = re.search(r'Mat\s*Number[:\s]*(\d+)', self.raw_text, re.IGNORECASE)
+        match = re.search(r'Mat\s*Number[:\s]*(\d+)', text, re.IGNORECASE)
         if match:
             header.mat_number = match.group(1).strip()
 
-        # Date Created
-        match = re.search(r'Date\s*Created[:\s]*(\d+/\d+/\d+\s*\d+:\d+:\d+\s*(?:AM|PM)?)', self.raw_text, re.IGNORECASE)
-        if match:
-            date_str = match.group(1).strip()
-            try:
-                # Try common date formats
-                for fmt in ['%m/%d/%Y %I:%M:%S %p', '%m/%d/%Y %H:%M:%S', '%d/%m/%Y %H:%M:%S']:
+        # Date Created - try multiple formats
+        date_patterns = [
+            r'Date\s*Created[:\s]*(\d+/\d+/\d+\s+\d+:\d+:\d+\s*(?:AM|PM)?)',
+            r'Date\s*Created[:\s]*(\d+-\d+-\d+\s+\d+:\d+:\d+)',
+            r'Date\s*Created[:\s]*(\d+/\d+/\d+)',
+        ]
+        for pattern in date_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                date_str = match.group(1).strip()
+                for fmt in ['%m/%d/%Y %I:%M:%S %p', '%m/%d/%Y %H:%M:%S', '%d/%m/%Y %H:%M:%S', '%Y-%m-%d %H:%M:%S', '%m/%d/%Y']:
                     try:
                         header.date_created = datetime.strptime(date_str, fmt)
                         break
                     except ValueError:
                         continue
-            except Exception:
-                pass
+                if header.date_created:
+                    break
 
         # Revision Level
-        match = re.search(r'Revision\s*Level[:\s]*(.+?)(?=\n|ADesc)', self.raw_text, re.IGNORECASE | re.DOTALL)
+        match = re.search(r'Revision\s*Level[:\s]*([^\n]+)', text, re.IGNORECASE)
         if match:
             header.revision_level = match.group(1).strip().replace('\xad', '-')
 
         # Software Version
-        match = re.search(r'ADesc\s*Software\s*Version[:\s]*(.+?)(?=\n|Size)', self.raw_text, re.IGNORECASE | re.DOTALL)
+        match = re.search(r'ADesc\s*Software\s*Version[:\s]*([^\n]+)', text, re.IGNORECASE)
         if match:
             header.software_version = match.group(1).strip()
 
         return header
 
-    def _parse_bom_table(self) -> list:
-        """Parse BOM summary table from PDF."""
-        bom_lines = []
-
-        # Look for the structured table data
-        # Format: Order Size Chamfer Type Count Mat# [Family#] [Group]
-        # Example: 1 1313 18C-60 CT418 17 1146346
-        # The table finder extracts this in a structured way
-
-        try:
-            tables = self.page.find_tables()
-            if tables and hasattr(tables, 'tables'):
-                for table in tables.tables:
-                    try:
-                        data = table.extract()
-                        for row in data:
-                            # Look for rows that match BOM line pattern
-                            if row and len(row) >= 5:  # Reduced minimum to 5 for flexibility
-                                first_cell = str(row[0] or "").strip()
-
-                                # Check if first cell is a 1-2 digit number (order number)
-                                if first_cell.isdigit() and len(first_cell) <= 2:
-                                    try:
-                                        line = BOMLineInfo()
-                                        line.order_number = int(first_cell)
-
-                                        # Try to extract fields, being flexible about column positions
-                                        if len(row) >= 6:
-                                            line.size = str(row[1] or "").strip().replace('\xad', '-')
-                                            line.chamfer = str(row[2] or "").strip().replace('\xad', '-')
-                                            line.cutter_type = str(row[3] or "").strip().replace('\xad', '-')
-                                            line.count = int(str(row[4] or "0").strip() or "0")
-                                            line.mat_number = str(row[5] or "").strip()
-
-                                            if len(row) > 6 and row[6]:
-                                                line.family_number = str(row[6]).strip()
-                                        elif len(row) >= 5:
-                                            # Compressed format
-                                            line.size = str(row[1] or "").strip().replace('\xad', '-')
-                                            line.chamfer = str(row[2] or "").strip().replace('\xad', '-')
-                                            line.cutter_type = str(row[3] or "").strip().replace('\xad', '-')
-                                            line.count = int(str(row[4] or "0").strip() or "0")
-
-                                        # Assign default color
-                                        color_idx = (line.order_number - 1) % len(self.DEFAULT_COLORS)
-                                        line.color_code = self.DEFAULT_COLORS[color_idx]
-
-                                        # Only add if we have valid data (size or cutter_type, and count > 0)
-                                        if (line.size or line.cutter_type) and line.count > 0:
-                                            # Check we don't already have this order number
-                                            if not any(l.order_number == line.order_number for l in bom_lines):
-                                                bom_lines.append(line)
-                                    except (ValueError, IndexError) as e:
-                                        continue
-                    except Exception as table_err:
-                        # Continue with next table if one fails
-                        continue
-        except Exception as e:
-            # Table extraction completely failed, will use text fallback
-            pass
-
-        # Fallback: parse from raw text if table extraction failed or found nothing
-        if not bom_lines:
-            bom_lines = self._parse_bom_from_text()
-
-        # Sort by order number
-        bom_lines.sort(key=lambda x: x.order_number)
-
-        return bom_lines
-
-    def _parse_bom_from_text(self) -> list:
-        """Fallback parser for BOM lines from raw text."""
+    def _parse_bom_lines_smart(self) -> List[BOMLineInfo]:
+        """Smart BOM line extraction using multiple strategies."""
         bom_lines = []
         text = self.raw_text.replace('\xad', '-')
 
-        # Try multiple patterns for different PDF formats
-
-        # Pattern 1: Standard format - Order Size Chamfer Type Count Mat#
-        # Example: 1 1313 18C-60 CT418 17 1146346
-        pattern1 = r'(\d{1,2})\s+(\d+(?:MM)?)\s+([\w\-]+)\s+([\w\-]+)\s+(\d+)\s+(\d+)'
-
-        # Pattern 2: Flexible whitespace - handles various column alignments
-        pattern2 = r'^(\d{1,2})\s+([A-Z0-9]+)\s+([\w\-]+)\s+([\w\-]+)\s+(\d+)\s+(\d+)'
-
-        # Pattern 3: Tab-separated or multiple spaces
-        pattern3 = r'(\d{1,2})[\s\t]+(\d+)[\s\t]+([\w\-]+)[\s\t]+([\w\-]+)[\s\t]+(\d+)[\s\t]+(\d+)'
-
-        for pattern in [pattern1, pattern2, pattern3]:
-            for match in re.finditer(pattern, text, re.MULTILINE):
-                order_num = int(match.group(1))
-                # Skip if we already have this order number
-                if any(l.order_number == order_num for l in bom_lines):
+        # Strategy 1: Look for consolidated cell with all BOM data
+        for table_data in self.tables_data:
+            for row in table_data:
+                if not row:
                     continue
+                for cell in row:
+                    if cell and 'Size' in str(cell) and 'Chamfer' in str(cell) and 'Type' in str(cell):
+                        # This cell contains the BOM table header and data
+                        lines = self._extract_bom_from_consolidated_cell(str(cell))
+                        if lines:
+                            bom_lines.extend(lines)
 
-                line = BOMLineInfo()
-                line.order_number = order_num
-                line.size = match.group(2)
-                line.chamfer = match.group(3)
-                line.cutter_type = match.group(4)
-                line.count = int(match.group(5))
-                line.mat_number = match.group(6)
+        # Strategy 2: Parse line-by-line format (each field on separate line)
+        if not bom_lines:
+            bom_lines = self._extract_bom_line_by_line_format(text)
 
-                # Assign default color
-                color_idx = (line.order_number - 1) % len(self.DEFAULT_COLORS)
-                line.color_code = self.DEFAULT_COLORS[color_idx]
+        # Strategy 3: Look for structured table data from PyMuPDF
+        if not bom_lines:
+            for table_data in self.tables_data:
+                lines = self._extract_bom_from_table(table_data)
+                if lines:
+                    bom_lines.extend(lines)
 
-                bom_lines.append(line)
+        # Strategy 4: Pattern matching on raw text
+        if not bom_lines:
+            bom_lines = self._extract_bom_from_text_patterns(text)
+
+        # Strategy 5: Generic line-by-line analysis
+        if not bom_lines:
+            bom_lines = self._extract_bom_line_by_line(text)
+
+        # Deduplicate by order number
+        seen_orders = set()
+        unique_lines = []
+        for line in bom_lines:
+            if line.order_number not in seen_orders:
+                seen_orders.add(line.order_number)
+                unique_lines.append(line)
 
         # Sort by order number
-        bom_lines.sort(key=lambda x: x.order_number)
+        unique_lines.sort(key=lambda x: x.order_number)
+
+        return unique_lines
+
+    def _extract_bom_line_by_line_format(self, text: str) -> List[BOMLineInfo]:
+        """Extract BOM when each field is on a separate line.
+
+        Format detected:
+        Order#
+        Size
+        Chamfer
+        Type
+        Count
+        Mat#
+        """
+        lines = []
+        text_lines = text.split('\n')
+
+        # Look for pattern: header followed by sequential field values
+        # First, find where the BOM data starts (after headers)
+        start_idx = 0
+        for i, line in enumerate(text_lines):
+            if 'Size' in line and 'Chamfer' in line and 'Type' in line:
+                start_idx = i + 1
+                break
+            # Also check for single-word headers
+            if line.strip() == 'Group':
+                start_idx = i + 1
+                break
+
+        # Now parse sequential groups of 6 values
+        i = start_idx
+        while i < len(text_lines):
+            line = text_lines[i].strip()
+
+            # Check if this is an order number (1-2 digits alone on a line)
+            if line.isdigit() and 1 <= int(line) <= 20:
+                order_num = int(line)
+
+                # Try to read the next 5 fields
+                try:
+                    # Collect the next few lines that are single values
+                    fields = [line]  # order_number
+                    j = i + 1
+                    while j < len(text_lines) and len(fields) < 6:
+                        next_line = text_lines[j].strip()
+                        # Stop if we hit another order number or grid marker
+                        if next_line and next_line.isdigit() and 1 <= int(next_line) <= 20 and len(fields) >= 5:
+                            break
+                        if next_line in ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'R1', 'R2', 'R3', 'R4']:
+                            break
+                        if next_line and next_line not in ['Group']:
+                            fields.append(next_line)
+                        j += 1
+
+                    # Parse the fields if we have enough
+                    if len(fields) >= 5:
+                        bom_line = BOMLineInfo()
+                        bom_line.order_number = order_num
+                        bom_line.size = fields[1] if len(fields) > 1 else ""
+                        bom_line.chamfer = fields[2] if len(fields) > 2 else ""
+                        bom_line.cutter_type = fields[3] if len(fields) > 3 else ""
+
+                        # Count should be a number
+                        count_str = fields[4] if len(fields) > 4 else "0"
+                        # Sometimes count has trailing space/text
+                        count_match = re.match(r'^(\d+)', count_str)
+                        bom_line.count = int(count_match.group(1)) if count_match else 0
+
+                        bom_line.mat_number = fields[5] if len(fields) > 5 else ""
+
+                        # Validate: count should be reasonable (1-200)
+                        if bom_line.count > 0 and bom_line.count < 500:
+                            # Validate cutter_type looks like a cutter
+                            if re.match(r'^(CT|WC-|PDC|TSP)', bom_line.cutter_type):
+                                color_idx = (bom_line.order_number - 1) % len(self.DEFAULT_COLORS)
+                                bom_line.color_code = self.DEFAULT_COLORS[color_idx]
+                                if not any(l.order_number == bom_line.order_number for l in lines):
+                                    lines.append(bom_line)
+                                i = j - 1  # Continue from where we left off
+
+                except (ValueError, IndexError):
+                    pass
+
+            i += 1
+
+        return lines
+
+    def _extract_bom_from_consolidated_cell(self, cell_content: str) -> List[BOMLineInfo]:
+        """Extract BOM lines from a cell that contains all BOM data."""
+        lines = []
+        cell_content = cell_content.replace('\xad', '-')
+
+        # Split by newlines
+        rows = cell_content.split('\n')
+
+        # Skip header row
+        for row_text in rows:
+            row_text = row_text.strip()
+            if not row_text:
+                continue
+
+            # Skip header line
+            if 'Size' in row_text and 'Chamfer' in row_text:
+                continue
+
+            # Try to parse as BOM line
+            parts = row_text.split()
+            if not parts:
+                continue
+
+            first_part = parts[0]
+            if not first_part.isdigit():
+                continue
+
+            order_num = int(first_part)
+            if order_num < 1 or order_num > 20:
+                continue
+
+            # Check if this line has enough parts for a complete BOM line
+            if len(parts) >= 4:
+                try:
+                    line = BOMLineInfo()
+                    line.order_number = order_num
+
+                    # Smart field detection - find the cutter type first
+                    # Cutter types match patterns like CT###, WC-XXX, etc.
+                    cutter_idx = -1
+                    for idx, part in enumerate(parts[1:], 1):
+                        if re.match(r'^(CT\d+|WC-\w+|PDC\d+|TSP\d+)', part):
+                            cutter_idx = idx
+                            break
+
+                    if cutter_idx > 0:
+                        # Fields before cutter_type are size and/or chamfer
+                        pre_cutter_parts = parts[1:cutter_idx]
+                        post_cutter_parts = parts[cutter_idx+1:]
+
+                        line.cutter_type = parts[cutter_idx]
+
+                        # Assign pre-cutter fields (could be size, chamfer, or both)
+                        if len(pre_cutter_parts) >= 2:
+                            line.size = pre_cutter_parts[0]
+                            line.chamfer = pre_cutter_parts[1]
+                        elif len(pre_cutter_parts) == 1:
+                            # Single field - could be size or chamfer
+                            val = pre_cutter_parts[0]
+                            if re.match(r'^\d+$|^\d+MM$', val):
+                                line.size = val
+                            else:
+                                line.chamfer = val
+
+                        # Post-cutter fields: count, mat_number, family_number
+                        if len(post_cutter_parts) >= 1 and post_cutter_parts[0].isdigit():
+                            line.count = int(post_cutter_parts[0])
+                        if len(post_cutter_parts) >= 2:
+                            line.mat_number = post_cutter_parts[1]
+                        if len(post_cutter_parts) >= 3:
+                            line.family_number = post_cutter_parts[2]
+                    else:
+                        # Fallback to positional parsing
+                        line.size = parts[1] if len(parts) > 1 else ""
+                        line.chamfer = parts[2] if len(parts) > 2 else ""
+                        line.cutter_type = parts[3] if len(parts) > 3 else ""
+                        line.count = int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 0
+                        line.mat_number = parts[5] if len(parts) > 5 else ""
+
+                    color_idx = (line.order_number - 1) % len(self.DEFAULT_COLORS)
+                    line.color_code = self.DEFAULT_COLORS[color_idx]
+
+                    if line.count > 0 and line.cutter_type:
+                        if not any(l.order_number == line.order_number for l in lines):
+                            lines.append(line)
+                except (ValueError, IndexError):
+                    continue
+
+        return lines
+
+    def _extract_bom_from_table(self, table_data: List[List]) -> List[BOMLineInfo]:
+        """Extract BOM lines from a table structure."""
+        lines = []
+        if not table_data:
+            return lines
+
+        for row in table_data:
+            if not row or len(row) < 5:
+                continue
+
+            first_cell = str(row[0] or "").strip()
+
+            # Check if first cell is an order number (1-2 digits)
+            if first_cell.isdigit() and 1 <= int(first_cell) <= 99:
+                try:
+                    line = BOMLineInfo()
+                    line.order_number = int(first_cell)
+
+                    # Clean and assign values
+                    if len(row) >= 2:
+                        line.size = self._clean_cell(row[1])
+                    if len(row) >= 3:
+                        line.chamfer = self._clean_cell(row[2])
+                    if len(row) >= 4:
+                        line.cutter_type = self._clean_cell(row[3])
+                    if len(row) >= 5:
+                        count_str = self._clean_cell(row[4])
+                        line.count = int(count_str) if count_str.isdigit() else 0
+                    if len(row) >= 6:
+                        line.mat_number = self._clean_cell(row[5])
+                    if len(row) >= 7:
+                        line.family_number = self._clean_cell(row[6])
+
+                    # Assign color
+                    color_idx = (line.order_number - 1) % len(self.DEFAULT_COLORS)
+                    line.color_code = self.DEFAULT_COLORS[color_idx]
+
+                    if line.count > 0 and (line.size or line.cutter_type):
+                        lines.append(line)
+                except (ValueError, IndexError):
+                    continue
+
+        return lines
+
+    def _extract_bom_from_text_patterns(self, text: str) -> List[BOMLineInfo]:
+        """Extract BOM lines using regex patterns on raw text."""
+        lines = []
+
+        # Pattern: Order Size Chamfer Type Count Mat#
+        # Handle various spacing and formats
+        patterns = [
+            # Standard format: 1 1313 18C-60 CT418 17 1146346
+            r'(\d{1,2})\s+(\d+(?:MM)?)\s+([\w\-]+)\s+((?:CT|WC-|PDC|TSP)[\w\-]+)\s+(\d+)\s+(\d+)',
+            # With possible extra whitespace
+            r'^(\d{1,2})\s+(\d+(?:MM)?)\s+([\w\-]+)\s+([\w\-]+)\s+(\d+)\s*(\d*)',
+            # Tab separated
+            r'(\d{1,2})\t+(\d+(?:MM)?)\t+([\w\-]+)\t+([\w\-]+)\t+(\d+)\t*(\d*)',
+        ]
+
+        for pattern in patterns:
+            for match in re.finditer(pattern, text, re.MULTILINE):
+                try:
+                    order_num = int(match.group(1))
+
+                    # Skip if already found
+                    if any(l.order_number == order_num for l in lines):
+                        continue
+
+                    line = BOMLineInfo()
+                    line.order_number = order_num
+                    line.size = match.group(2)
+                    line.chamfer = match.group(3)
+                    line.cutter_type = match.group(4)
+                    line.count = int(match.group(5))
+                    if len(match.groups()) >= 6 and match.group(6):
+                        line.mat_number = match.group(6)
+
+                    color_idx = (line.order_number - 1) % len(self.DEFAULT_COLORS)
+                    line.color_code = self.DEFAULT_COLORS[color_idx]
+
+                    if line.count > 0:
+                        lines.append(line)
+                except (ValueError, IndexError):
+                    continue
+
+        return lines
+
+    def _extract_bom_line_by_line(self, text: str) -> List[BOMLineInfo]:
+        """Last resort: analyze text line by line for BOM data."""
+        lines_text = text.split('\n')
+        bom_lines = []
+
+        # Look for lines that start with a number and contain cutter-like data
+        for i, line_text in enumerate(lines_text):
+            line_text = line_text.strip()
+            if not line_text:
+                continue
+
+            # Check if line starts with order number
+            parts = line_text.split()
+            if not parts:
+                continue
+
+            first_part = parts[0]
+            if first_part.isdigit() and 1 <= int(first_part) <= 20:
+                # This might be a BOM line
+                # Try to parse remaining parts
+                if len(parts) >= 5:
+                    try:
+                        line = BOMLineInfo()
+                        line.order_number = int(first_part)
+
+                        # Look for size (usually 4 digits or with MM)
+                        for j, part in enumerate(parts[1:], 1):
+                            if re.match(r'^\d{3,4}$|^\d+MM$', part):
+                                line.size = part
+                            elif re.match(r'^\d+C-\d+$|^U-\d+$|^NA$', part, re.IGNORECASE):
+                                line.chamfer = part
+                            elif re.match(r'^CT\d+|^WC-|^PDC|^TSP', part):
+                                line.cutter_type = part
+                            elif part.isdigit() and not line.count:
+                                line.count = int(part)
+                            elif part.isdigit() and line.count and not line.mat_number:
+                                line.mat_number = part
+
+                        color_idx = (line.order_number - 1) % len(self.DEFAULT_COLORS)
+                        line.color_code = self.DEFAULT_COLORS[color_idx]
+
+                        if line.count > 0 and (line.size or line.cutter_type):
+                            if not any(l.order_number == line.order_number for l in bom_lines):
+                                bom_lines.append(line)
+                    except (ValueError, IndexError):
+                        continue
 
         return bom_lines
 
-    def _parse_cutter_grid(self) -> list:
-        """Parse cutter layout grid from PDF."""
+    def _clean_cell(self, value) -> str:
+        """Clean a table cell value."""
+        if value is None:
+            return ""
+        return str(value).strip().replace('\xad', '-').replace('\n', ' ')
+
+    def _parse_cutter_grid_smart(self) -> List[CutterPositionInfo]:
+        """Smart cutter grid extraction."""
         positions = []
+        text = self.raw_text.replace('\xad', '-')
 
-        # The grid has structure:
-        # B1 - R1 - [CONE locations] [NOSE] [SHOULDER] [GAUGE] [PAD]
-        #    - R2 - [locations...]
-        # etc.
+        # Build a map of order_number -> cutter info from BOM lines
+        # This helps us identify cutters in the grid
 
-        # Look for blade/row markers and their associated cutter data
-        tables = self.page.find_tables()
+        # Find blade and row markers in text
+        # Pattern: B1, B2, etc. followed by R1, R2, etc.
+        current_blade = 0
+        current_row = 0
 
-        for table in tables.tables:
-            data = table.extract()
-            current_blade = 0
-            current_row = 0
+        lines = text.split('\n')
+        location_keywords = ['CONE', 'NOSE', 'SHOULDER', 'GAUGE', 'PAD']
 
-            for row in data:
-                if not row:
-                    continue
-
-                first_cell = str(row[0] or "").strip()
-
-                # Check for blade marker (B1, B2, etc.)
-                blade_match = re.match(r'B(\d+)', first_cell)
-                if blade_match:
-                    current_blade = int(blade_match.group(1))
-                    continue
-
-                # Check for row marker (R1, R2, etc.) in any cell
-                for cell_idx, cell in enumerate(row):
-                    if cell:
-                        row_match = re.search(r'R(\d+)', str(cell))
-                        if row_match:
-                            current_row = int(row_match.group(1))
-
-                            # Parse the rest of the row for cutter data
-                            # Look for patterns like: CT418 SHOULDER\n1 4 PAD\n18C-60 18C-60
-                            for other_cell in row[cell_idx + 1:]:
-                                if other_cell:
-                                    positions.extend(
-                                        self._parse_grid_cell(
-                                            str(other_cell),
-                                            current_blade,
-                                            current_row
-                                        )
-                                    )
-                            break
-
-        return positions
-
-    def _parse_grid_cell(self, cell_text: str, blade: int, row: int) -> list:
-        """Parse a grid cell containing cutter data."""
-        positions = []
-        cell_text = cell_text.replace('\xad', '-')
-
-        # Locations to look for
-        locations = ['CONE', 'NOSE', 'SHOULDER', 'GAUGE', 'PAD']
-
-        # Split by newlines
-        lines = cell_text.split('\n')
-
-        # Parse each section
-        current_location = None
-        cutter_types = []
-        order_numbers = []
-        chamfers = []
-
-        for line in lines:
+        for line_idx, line in enumerate(lines):
             line = line.strip()
             if not line:
                 continue
 
-            # Check if line contains a location marker
-            for loc in locations:
+            # Check for blade marker
+            blade_match = re.match(r'^B(\d+)$', line)
+            if blade_match:
+                current_blade = int(blade_match.group(1))
+                current_row = 0
+                continue
+
+            # Check for row marker
+            row_match = re.match(r'^R(\d+)$', line)
+            if row_match:
+                current_row = int(row_match.group(1))
+                continue
+
+            # Check for location data
+            for loc in location_keywords:
                 if loc in line:
-                    # Save previous location data
-                    if current_location and cutter_types:
-                        for idx, ct in enumerate(cutter_types):
-                            pos = CutterPositionInfo()
-                            pos.blade_number = blade
-                            pos.row_number = row
-                            pos.location = current_location
-                            pos.position_in_location = idx + 1
-                            pos.cutter_type = ct
-                            if idx < len(order_numbers):
-                                try:
-                                    pos.order_number = int(order_numbers[idx])
-                                except ValueError:
-                                    pos.order_number = 1
-                            if idx < len(chamfers):
-                                pos.chamfer = chamfers[idx]
-                            positions.append(pos)
+                    # Extract cutters for this location
+                    # Look for order numbers and cutter types nearby
+                    loc_positions = self._extract_location_cutters(
+                        lines, line_idx, current_blade, current_row, loc
+                    )
+                    positions.extend(loc_positions)
 
-                        cutter_types = []
-                        order_numbers = []
-                        chamfers = []
+        return positions
 
-                    current_location = loc
-                    # Extract cutter types from this line (before location marker)
-                    parts = line.split(loc)[0].strip().split()
-                    cutter_types.extend([p for p in parts if p and not p.isdigit()])
-                    break
-            else:
-                # Line doesn't contain location, could be order numbers, chamfers, or cutter types
-                parts = line.split()
-                for part in parts:
-                    if part.isdigit():
-                        order_numbers.append(part)
-                    elif re.match(r'[\d\w]+-\d+|U-\d+|NA', part):
-                        chamfers.append(part)
-                    elif re.match(r'CT\d+|WC-\w+', part):
-                        cutter_types.append(part)
+    def _extract_location_cutters(
+        self, lines: List[str], start_idx: int, blade: int, row: int, location: str
+    ) -> List[CutterPositionInfo]:
+        """Extract cutter positions for a specific location."""
+        positions = []
+        if blade == 0 or row == 0:
+            return positions
 
-        # Save last location data
-        if current_location and cutter_types:
-            for idx, ct in enumerate(cutter_types):
+        # Look at surrounding lines for order numbers and cutter types
+        context_lines = lines[max(0, start_idx-2):min(len(lines), start_idx+3)]
+        context = ' '.join(context_lines)
+
+        # Find order numbers in context
+        order_matches = re.findall(r'\b(\d)\b', context)
+
+        position_count = 0
+        for order_str in order_matches:
+            order_num = int(order_str)
+            if 1 <= order_num <= 10:  # Valid order range
+                position_count += 1
                 pos = CutterPositionInfo()
                 pos.blade_number = blade
                 pos.row_number = row
-                pos.location = current_location
-                pos.position_in_location = idx + 1
-                pos.cutter_type = ct
-                if idx < len(order_numbers):
-                    try:
-                        pos.order_number = int(order_numbers[idx])
-                    except ValueError:
-                        pos.order_number = 1
-                if idx < len(chamfers):
-                    pos.chamfer = chamfers[idx]
+                pos.location = location
+                pos.position_in_location = position_count
+                pos.order_number = order_num
                 positions.append(pos)
 
         return positions
