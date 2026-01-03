@@ -1657,6 +1657,34 @@ class BOMPDFImportConfirmView(LoginRequiredMixin, View):
             return redirect('technology:bom_pdf_import_confirm', pk=pk)
 
 
+class BOMPDFServeView(LoginRequiredMixin, View):
+    """Serve BOM PDF file without X-Frame-Options to allow embedding."""
+
+    def get(self, request, pk):
+        from django.http import FileResponse
+        import os
+
+        bom = get_object_or_404(BOM, pk=pk)
+
+        if not bom.source_pdf_file:
+            from django.http import HttpResponseNotFound
+            return HttpResponseNotFound("No PDF file available")
+
+        file_path = bom.source_pdf_file.path
+        if not os.path.exists(file_path):
+            from django.http import HttpResponseNotFound
+            return HttpResponseNotFound("PDF file not found")
+
+        response = FileResponse(
+            open(file_path, 'rb'),
+            content_type='application/pdf'
+        )
+        response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_path)}"'
+        # Allow embedding in same origin
+        response['X-Frame-Options'] = 'SAMEORIGIN'
+        return response
+
+
 class BOMPDFExportView(LoginRequiredMixin, View):
     """Export BOM to PDF."""
 

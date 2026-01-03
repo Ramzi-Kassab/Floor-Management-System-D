@@ -43,6 +43,7 @@ urlpatterns = [
     # BOM PDF Import/Export
     path("boms/<int:pk>/import-pdf/", views.BOMPDFImportView.as_view(), name="bom_pdf_import"),
     path("boms/<int:pk>/import-pdf/confirm/", views.BOMPDFImportConfirmView.as_view(), name="bom_pdf_import_confirm"),
+    path("boms/<int:pk>/pdf-view/", views.BOMPDFServeView.as_view(), name="bom_pdf_serve"),
     path("boms/<int:pk>/export-pdf/", views.BOMPDFExportView.as_view(), name="bom_pdf_export"),
     # Connections
     path("connections/", views.ConnectionListView.as_view(), name="connection_list"),
