@@ -6,16 +6,24 @@ Run this periodically or after major changes/migrations.
 Usage:
     python scripts/health_check.py
     ./hc  (short alias)
+    ./hc --reset-decisions  (clear saved answers)
 """
 import os
 import sys
 import subprocess
+import json
+import hashlib
 from pathlib import Path
+from datetime import datetime
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 os.chdir(PROJECT_ROOT)
+
+# Persistence state file
+STATE_FILE = PROJECT_ROOT / ".hc_state.json"
+BACKUP_INTERVAL = 10  # Auto-backup every N runs
 
 # Colors for terminal output
 GREEN = '\033[92m'
@@ -25,6 +33,45 @@ BLUE = '\033[94m'
 CYAN = '\033[96m'
 RESET = '\033[0m'
 BOLD = '\033[1m'
+
+def load_state():
+    """Load persistent state from file."""
+    if STATE_FILE.exists():
+        try:
+            with open(STATE_FILE, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {
+        'run_count': 0,
+        'decisions': {},  # question_hash -> {'answer': bool, 'saved_at': timestamp}
+        'last_backup': None,
+        'test_data_snapshot': None
+    }
+
+def save_state(state):
+    """Save persistent state to file."""
+    try:
+        with open(STATE_FILE, 'w') as f:
+            json.dump(state, f, indent=2, default=str)
+    except IOError as e:
+        print(f"  {YELLOW}Warning: Could not save state: {e}{RESET}")
+
+def get_question_key(question):
+    """Generate a stable key for a question."""
+    # Create hash of question text (normalized)
+    normalized = question.lower().strip()
+    return hashlib.md5(normalized.encode()).hexdigest()[:12]
+
+# Global state - loaded at startup
+_state = None
+
+def get_state():
+    """Get the global state (lazy load)."""
+    global _state
+    if _state is None:
+        _state = load_state()
+    return _state
 
 def run_command(cmd, capture=True):
     """Run a shell command and return output."""
@@ -40,14 +87,51 @@ def run_interactive(cmd):
     """Run command with live output."""
     return subprocess.run(cmd, shell=True).returncode
 
-def ask_yes_no(question, default='y'):
-    """Ask a yes/no question and return True for yes."""
-    suffix = "[Y/n]" if default.lower() == 'y' else "[y/N]"
+def ask_yes_no(question, default='y', save_key=None):
+    """Ask a yes/no question and return True for yes.
+
+    If save_key is provided, will check for saved decisions and offer to save.
+    If save_key is None, generates one from the question text.
+    """
+    state = get_state()
+    question_key = save_key or get_question_key(question)
+
+    # Check for saved decision
+    if question_key in state.get('decisions', {}):
+        saved = state['decisions'][question_key]
+        saved_answer = saved.get('answer', False)
+        action = "Yes" if saved_answer else "No"
+        print(f"  {CYAN}?{RESET} {question} → {GREEN}Auto: {action}{RESET} (saved)")
+        return saved_answer
+
+    suffix = "[Y/n/s=save]" if default.lower() == 'y' else "[y/N/s=save]"
     try:
         answer = input(f"  {CYAN}?{RESET} {question} {suffix}: ").strip().lower()
+
+        # Check if user wants to save this decision
+        save_decision = False
+        if answer.startswith('s') or answer.endswith('s'):
+            save_decision = True
+            answer = answer.replace('s', '').strip()
+
         if not answer:
             answer = default.lower()
-        return answer in ('y', 'yes')
+
+        result = answer in ('y', 'yes')
+
+        # Save decision if requested
+        if save_decision:
+            if 'decisions' not in state:
+                state['decisions'] = {}
+            state['decisions'][question_key] = {
+                'answer': result,
+                'question': question,
+                'saved_at': datetime.now().isoformat()
+            }
+            save_state(state)
+            print(f"  {GREEN}✓ Decision saved - will auto-apply next time{RESET}")
+
+        return result
     except (EOFError, KeyboardInterrupt):
         print()
         return False
@@ -526,15 +610,116 @@ def offer_run_server():
         except KeyboardInterrupt:
             print(f"\n  {YELLOW}Server stopped{RESET}")
 
+def auto_backup_test_data():
+    """Automatically backup test data (runs every BACKUP_INTERVAL runs)."""
+    state = get_state()
+    run_count = state.get('run_count', 0)
+
+    # Check if it's time for auto-backup
+    if run_count > 0 and run_count % BACKUP_INTERVAL == 0:
+        print(f"\n  {CYAN}━━━ Auto-Backup (every {BACKUP_INTERVAL} runs) ━━━{RESET}")
+        print(f"  Run #{run_count} - triggering automatic data backup...")
+
+        # Export technology data
+        code = run_interactive("python manage.py export_technology_data")
+        if code == 0:
+            state['last_backup'] = datetime.now().isoformat()
+            save_state(state)
+            print(f"  {GREEN}✓ Auto-backup completed{RESET}")
+        else:
+            print(f"  {YELLOW}⚠ Auto-backup failed{RESET}")
+
+        # Also export DB snapshot for testing data
+        snapshot_file = PROJECT_ROOT / "data" / "test_data_snapshot.json"
+        snapshot_file.parent.mkdir(exist_ok=True)
+
+        # Capture key test data counts
+        test_data = {
+            'snapshot_at': datetime.now().isoformat(),
+            'run_count': run_count,
+        }
+
+        # Get counts for key models
+        models_to_count = [
+            ('designs', 'from apps.technology.models import Design; print(Design.objects.count())'),
+            ('boms', 'from apps.technology.models import BOM; print(BOM.objects.count())'),
+            ('inventory_items', 'from apps.inventory.models import InventoryItem; print(InventoryItem.objects.count())'),
+            ('categories', 'from apps.inventory.models import InventoryCategory; print(InventoryCategory.objects.count())'),
+            ('attributes', 'from apps.inventory.models import Attribute; print(Attribute.objects.count())'),
+        ]
+
+        for key, cmd in models_to_count:
+            code, out, err = run_command(f'python -c "import django; django.setup(); {cmd}" 2>&1')
+            try:
+                test_data[key] = int(out.strip())
+            except ValueError:
+                test_data[key] = 0
+
+        try:
+            with open(snapshot_file, 'w') as f:
+                json.dump(test_data, f, indent=2)
+            print(f"  {GREEN}✓ Test data snapshot saved{RESET}")
+            state['test_data_snapshot'] = test_data
+            save_state(state)
+        except IOError as e:
+            print(f"  {YELLOW}⚠ Could not save snapshot: {e}{RESET}")
+
+def show_saved_decisions():
+    """Display saved decisions and offer to manage them."""
+    state = get_state()
+    decisions = state.get('decisions', {})
+
+    if not decisions:
+        print(f"  {YELLOW}No saved decisions yet{RESET}")
+        return
+
+    print(f"\n  {CYAN}Saved Decisions ({len(decisions)}):{RESET}")
+    for key, data in decisions.items():
+        answer = "Yes" if data.get('answer') else "No"
+        question = data.get('question', 'Unknown')[:50]
+        print(f"    • {question}... → {BOLD}{answer}{RESET}")
+
+def clear_saved_decisions():
+    """Clear all saved decisions."""
+    state = get_state()
+    state['decisions'] = {}
+    save_state(state)
+    print(f"  {GREEN}✓ All saved decisions cleared{RESET}")
+
 def main():
+    # Handle command line args
+    if '--reset-decisions' in sys.argv:
+        clear_saved_decisions()
+        print("  Run ./hc again to start fresh.")
+        return 0
+
+    if '--show-decisions' in sys.argv:
+        show_saved_decisions()
+        return 0
+
+    # Increment run counter
+    state = get_state()
+    state['run_count'] = state.get('run_count', 0) + 1
+    save_state(state)
+
+    run_count = state['run_count']
+
     print(f"\n{BOLD}{'#'*60}{RESET}")
-    print(f"{BOLD}#  Floor Management System - Health Check{RESET}")
+    print(f"{BOLD}#  Floor Management System - Health Check  (Run #{run_count}){RESET}")
     print(f"{BOLD}{'#'*60}{RESET}")
+
+    # Show saved decisions hint on first few runs
+    if run_count <= 3 and not state.get('decisions'):
+        print(f"\n  {CYAN}Tip: Add 's' to any answer to save it (e.g., 'ys' or 'ns'){RESET}")
+        print(f"  {CYAN}     Saved answers auto-apply on future runs{RESET}")
 
     results = []
 
     # Git pull first
     git_pull()
+
+    # Auto-backup every N runs
+    auto_backup_test_data()
 
     results.append(("Database", check_database()))
     results.append(("Migrations Applied", check_migrations()))
@@ -562,6 +747,19 @@ def main():
     else:
         print(f"  {YELLOW}{passed}/{total} checks passed{RESET}")
         print(f"  {RED}{total-passed} issue(s) need attention{RESET}")
+
+    # Show persistence info
+    state = get_state()
+    decisions_count = len(state.get('decisions', {}))
+    next_backup = BACKUP_INTERVAL - (state.get('run_count', 0) % BACKUP_INTERVAL)
+
+    print(f"\n  {CYAN}━━━ Persistence Info ━━━{RESET}")
+    print(f"  Total runs: {state.get('run_count', 0)}")
+    print(f"  Saved decisions: {decisions_count}")
+    print(f"  Next auto-backup in: {next_backup} runs")
+    if state.get('last_backup'):
+        print(f"  Last backup: {state['last_backup'][:19].replace('T', ' ')}")
+    print(f"\n  {CYAN}Options: ./hc --reset-decisions | ./hc --show-decisions{RESET}")
 
     # Offer to run server
     offer_run_server()

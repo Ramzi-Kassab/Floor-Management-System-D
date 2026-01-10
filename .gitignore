@@ -33,6 +33,9 @@ htmlcov/
 backups/
 staticfiles/
 
+# Health check local state (personal decisions/run count)
+.hc_state.json
+
 # Keep data folder for persistent backups (technology data, etc.)
 # This allows user data to survive container rebuilds
 !data/
