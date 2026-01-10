@@ -1387,10 +1387,27 @@ class ItemAttributeValue(models.Model):
 
     @property
     def display_value(self):
-        """Return the appropriate value based on attribute type."""
+        """Return the appropriate value based on attribute type, formatted correctly."""
         attr_type = self.attribute.attribute_type
         if attr_type == CategoryAttribute.AttributeType.NUMBER:
-            return self.number_value
+            if self.number_value is None:
+                return None
+            # Format based on number_type (INTEGER vs DECIMAL)
+            number_type = getattr(self.attribute, 'number_type', 'DECIMAL')
+            if number_type == 'INTEGER':
+                # Display as integer (no decimals)
+                return int(self.number_value)
+            else:
+                # Display as decimal, removing trailing zeros
+                from decimal import Decimal
+                if isinstance(self.number_value, Decimal):
+                    # Normalize to remove trailing zeros, but keep at least one decimal if needed
+                    normalized = self.number_value.normalize()
+                    # If it's a whole number, return as int
+                    if normalized == normalized.to_integral_value():
+                        return int(normalized)
+                    return str(normalized)
+                return self.number_value
         elif attr_type == CategoryAttribute.AttributeType.BOOLEAN:
             return "Yes" if self.boolean_value else "No"
         elif attr_type == CategoryAttribute.AttributeType.DATE:
