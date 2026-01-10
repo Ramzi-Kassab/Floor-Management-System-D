@@ -6941,10 +6941,14 @@
                         showMsg('Original PDF generated!', 'success');
                         window.open(result.download_url, '_blank');
                     } else {
+                        console.error('PDF generation error:', result);
+                        alert('PDF Error: ' + result.error);
                         showMsg('Error: ' + result.error, 'error');
                     }
                 })
                 .catch(err => {
+                    console.error('PDF generation failed:', err);
+                    alert('PDF Error: ' + err.message);
                     showMsg('Error generating PDF: ' + err.message, 'error');
                 });
             });
@@ -7041,10 +7045,14 @@
                         showMsg('Modified PDF generated!', 'success');
                         window.open(result.download_url, '_blank');
                     } else {
+                        console.error('PDF generation error:', result);
+                        alert('PDF Error: ' + result.error);
                         showMsg('Error: ' + result.error, 'error');
                     }
                 })
                 .catch(err => {
+                    console.error('PDF generation failed:', err);
+                    alert('PDF Error: ' + err.message);
                     showMsg('Error generating PDF: ' + err.message, 'error');
                 });
             });
