@@ -140,21 +140,28 @@ class HalliburtonPDFGenerator:
         # Render HTML
         html_content = template.render(**context)
 
+        # Track errors for better debugging
+        errors = []
+
         # Try Playwright first (best quality)
         if PLAYWRIGHT_AVAILABLE:
             try:
                 return self._generate_with_playwright(html_content, output_path)
             except Exception as e:
-                print(f"Playwright failed: {e}, trying WeasyPrint...")
+                errors.append(f"Playwright: {e}")
+                print(f"Playwright failed: {e}")
 
         # Try WeasyPrint as fallback
         if WEASYPRINT_AVAILABLE:
             try:
                 return self._generate_with_weasyprint(html_content, output_path)
             except Exception as e:
-                print(f"WeasyPrint failed: {e}, saving as HTML...")
+                errors.append(f"WeasyPrint: {e}")
+                print(f"WeasyPrint failed: {e}")
 
         # Last resort: save as HTML file
+        if errors:
+            print(f"All PDF backends failed, saving as HTML. Errors: {errors}")
         return self._save_as_html(html_content, output_path)
 
     def _generate_with_playwright(self, html_content: str, output_path: str) -> str:
