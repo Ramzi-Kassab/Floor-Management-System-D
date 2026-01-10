@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cutter Map - {{ header.mat_number }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            background: #000;
+            color: #fff;
+            padding: 10px;
+        }
+
+        .page {
+            width: 100%;
+            background: #1a1a1a;
+            padding: 15px;
+        }
+
+        /* Header Section */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .header-row {
+            display: flex;
+            gap: 30px;
+        }
+
+        .header-item {
+            display: flex;
+            gap: 5px;
+        }
+
+        .header-label {
+            color: #888;
+            font-weight: bold;
+        }
+
+        .header-value {
+            color: #fff;
+        }
+
+        .header-right {
+            text-align: right;
+        }
+
+        .drill-bit-image {
+            max-width: 150px;
+            max-height: 150px;
+        }
+
+        /* BOM Summary Table */
+        .bom-section {
+            margin-bottom: 15px;
+        }
+
+        .bom-title {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #aaa;
+        }
+
+        .bom-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9px;
+        }
+
+        .bom-table th {
+            background: #333;
+            color: #fff;
+            padding: 4px 6px;
+            text-align: left;
+            border: 1px solid #444;
+        }
+
+        .bom-table td {
+            padding: 3px 6px;
+            border: 1px solid #333;
+        }
+
+        .bom-table tr:nth-child(even) {
+            background: #222;
+        }
+
+        .color-box {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            margin-right: 5px;
+            vertical-align: middle;
+            border: 1px solid #555;
+        }
+
+        /* Blade Layout Section */
+        .blades-section {
+            margin-top: 15px;
+        }
+
+        .blade {
+            margin-bottom: 15px;
+            background: #222;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .blade-header {
+            font-weight: bold;
+            font-size: 11px;
+            margin-bottom: 8px;
+            color: #4af;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #444;
+        }
+
+        .blade-rows {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .blade-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .row-label {
+            font-weight: bold;
+            color: #888;
+            min-width: 25px;
+        }
+
+        .row-positions {
+            display: flex;
+            gap: 3px;
+            flex-wrap: wrap;
+        }
+
+        .position-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-right: 10px;
+        }
+
+        .position-label {
+            font-size: 7px;
+            color: #666;
+            margin-bottom: 2px;
+        }
+
+        .position-cells {
+            display: flex;
+            gap: 2px;
+        }
+
+        .cutter-cell {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: bold;
+            border-radius: 50%;
+            border: 1px solid #555;
+        }
+
+        .cutter-cell img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Scale adjustments */
+        .scale-container {
+            transform-origin: top left;
+            transform: scale({{ scale }});
+        }
+
+        /* Group legend */
+        .group-legend {
+            margin-top: 10px;
+            padding: 8px;
+            background: #222;
+            border-radius: 4px;
+        }
+
+        .group-legend-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #aaa;
+        }
+
+        .group-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .group-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #444;
+            font-size: 8px;
+            color: #666;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <div class="header-row">
+                    <div class="header-item">
+                        <span class="header-label">Mat Number:</span>
+                        <span class="header-value">{{ header.mat_number }}</span>
+                    </div>
+                    <div class="header-item">
+                        <span class="header-label">SN Number:</span>
+                        <span class="header-value">{{ header.sn_number }}</span>
+                    </div>
+                </div>
+                <div class="header-row">
+                    <div class="header-item">
+                        <span class="header-label">Date Created:</span>
+                        <span class="header-value">{{ header.date_created }}</span>
+                    </div>
+                    <div class="header-item">
+                        <span class="header-label">Revision Level:</span>
+                        <span class="header-value">{{ header.revision_level }}</span>
+                    </div>
+                </div>
+                <div class="header-row">
+                    <div class="header-item">
+                        <span class="header-label">ADesc Software Version:</span>
+                        <span class="header-value">{{ header.software_version }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="header-right">
+                {% if drill_bit_image and drill_bit_image.data %}
+                <img src="{{ drill_bit_image.data }}" class="drill-bit-image" alt="Drill Bit">
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- BOM Summary -->
+        <div class="bom-section">
+            <div class="bom-title">Bill of Materials Summary</div>
+            <table class="bom-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Size</th>
+                        <th>Chamfer</th>
+                        <th>Type</th>
+                        <th>Count</th>
+                        <th>Mat Number</th>
+                        <th>Family #</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in summary %}
+                    <tr>
+                        <td>
+                            <span class="color-box" style="background-color: {{ item.fill_color or '#666' }};"></span>
+                            {{ item.index }}
+                        </td>
+                        <td>{{ item.size }}</td>
+                        <td>{{ item.chamfer }}</td>
+                        <td>{{ item.type }}</td>
+                        <td>{{ item.count }}</td>
+                        <td>{{ item.mat_number }}</td>
+                        <td>{{ item.family_number }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Blade Layouts -->
+        <div class="blades-section scale-container">
+            {% for blade in blades %}
+            <div class="blade">
+                <div class="blade-header">{{ blade.name }}</div>
+                <div class="blade-rows">
+                    {% for row_key in ['r1', 'r2', 'r3', 'r4'] %}
+                    {% set row = blade[row_key] %}
+                    {% if row and row is has_cells %}
+                    <div class="blade-row">
+                        <span class="row-label">{{ row_key|upper }}</span>
+                        <div class="row-positions">
+                            {% for pos_name in ['CONE', 'NOSE', 'SHOULDER', 'GAUGE', 'PAD'] %}
+                            {% if row[pos_name] %}
+                            <div class="position-group">
+                                <span class="position-label">{{ pos_name }}</span>
+                                <div class="position-cells">
+                                    {% for cell in row[pos_name] %}
+                                    <div class="cutter-cell" style="background-color: {{ cell.color or '#444' }};">
+                                        {% if cutter_shapes and cutter_shapes[cell.group] and cutter_shapes[cell.group].data %}
+                                        <img src="{{ cutter_shapes[cell.group].data }}" alt="{{ cell.group }}">
+                                        {% else %}
+                                        {{ cell.group }}
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Group Legend (if applicable) -->
+        {% if has_group_legend and groups %}
+        <div class="group-legend">
+            <div class="group-legend-title">Groups</div>
+            <div class="group-items">
+                {% for group in groups %}
+                <div class="group-item">
+                    <span class="color-box" style="background-color: {{ group.color or '#666' }};"></span>
+                    <span>{{ group.index }}: {{ group.indices|join(', ') if group.indices else group.index }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <div class="footer">
+            Generated by Floor Management System - Cutter Map Module
+        </div>
+    </div>
+</body>
+</html>

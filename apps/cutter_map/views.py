@@ -243,7 +243,10 @@ def generate_pdf(request, document_id=None):
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, output_filename)
 
-        generator.generate(data, output_path)
+        # Generate returns the actual path (may be .html if PDF backends unavailable)
+        actual_output_path = generator.generate(data, output_path)
+        actual_filename = os.path.basename(actual_output_path)
+        is_html = actual_output_path.endswith('.html')
 
         # If document exists, save reference
         if document_id:
@@ -251,9 +254,10 @@ def generate_pdf(request, document_id=None):
             doc.edited_data = data
             doc.status = CutterMapDocument.Status.GENERATED
 
-            # Save file to model
-            with open(output_path, 'rb') as f:
-                doc.generated_pdf.save(output_filename, ContentFile(f.read()))
+            # Save file to model (only if PDF)
+            if not is_html and os.path.exists(actual_output_path):
+                with open(actual_output_path, 'rb') as f:
+                    doc.generated_pdf.save(actual_filename, ContentFile(f.read()))
             doc.save()
 
             CutterMapHistory.objects.create(
@@ -262,12 +266,25 @@ def generate_pdf(request, document_id=None):
                 user=request.user
             )
 
-        return JsonResponse({
+        # Determine file type and message
+        if is_html:
+            file_type = 'html'
+            message = 'HTML file generated (PDF backends not available - install playwright or weasyprint)'
+        else:
+            file_type = 'pdf'
+            message = None
+
+        response_data = {
             'success': True,
-            'filename': output_filename,
-            'download_url': f'/cutter-map/download/{output_filename}',
-            'output_path': output_path
-        })
+            'filename': actual_filename,
+            'download_url': f'/cutter-map/download/{actual_filename}',
+            'output_path': actual_output_path,
+            'file_type': file_type
+        }
+        if message:
+            response_data['message'] = message
+
+        return JsonResponse(response_data)
 
     except Exception as e:
         import traceback
