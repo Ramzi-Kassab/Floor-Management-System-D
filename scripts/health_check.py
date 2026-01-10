@@ -396,6 +396,8 @@ def check_seed_data():
         ('Ownership Types', 'from apps.inventory.models import OwnershipType; print(OwnershipType.objects.count())', 3, 'seed_ownership_types', 'Inventory'),
         ('Adjustment Reasons', 'from apps.inventory.models import AdjustmentReason; print(AdjustmentReason.objects.count())', 5, 'seed_adjustment_reasons', 'Inventory'),
         ('Parties', 'from apps.inventory.models import Party; print(Party.objects.count())', 1, 'seed_parties', 'Inventory'),
+        # PDC Cutters category attributes (18 attributes linked to CUT-PDC/CT-PDC category)
+        ('PDC Cutters Attrs', 'from apps.inventory.models import InventoryCategory, CategoryAttribute; cat = InventoryCategory.objects.filter(code__in=["CUT-PDC", "CT-PDC"]).first(); print(cat.category_attributes.count() if cat else 0)', 18, 'seed_pdc_cutters', 'Inventory'),
 
         # Technology seeds
         ('Applications', 'from apps.technology.models import Application; print(Application.objects.count())', 15, 'seed_applications', 'Technology'),
