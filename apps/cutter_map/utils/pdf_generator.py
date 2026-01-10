@@ -1,13 +1,14 @@
 """
-Halliburton PDF Generator - Using Playwright for browser-based PDF rendering
-This ensures the PDF output looks EXACTLY like the Full Page web view
-because it uses the same rendering engine as the browser.
+Halliburton PDF Generator - Multi-backend PDF generation
+
+Supports multiple rendering backends with automatic fallback:
+1. Playwright (browser-based, best quality) - requires system libraries
+2. WeasyPrint (pure Python, good quality) - no system dependencies
 """
 
 import os
 import tempfile
 from jinja2 import Environment, FileSystemLoader
-from playwright.sync_api import sync_playwright
 
 # Get the templates directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +26,7 @@ def has_cells_filter(row_data):
 
 
 class HalliburtonPDFGenerator:
-    """Generates Halliburton-style PDFs using Playwright browser-based rendering"""
+    """Generates Halliburton-style PDFs with fallback backends"""
 
     def __init__(self):
         """Initialize Jinja2 environment with custom filters"""
@@ -67,7 +68,9 @@ class HalliburtonPDFGenerator:
 
     def generate(self, data: dict, output_path: str) -> str:
         """
-        Generate PDF from data dictionary using HTML template and Playwright.
+        Generate PDF from data dictionary using HTML template.
+
+        Tries Playwright first, falls back to WeasyPrint if Playwright fails.
 
         Args:
             data: Dictionary containing header, summary, blades, images, groups
@@ -116,24 +119,38 @@ class HalliburtonPDFGenerator:
         # Render HTML
         html_content = template.render(**context)
 
-        # Create a temporary HTML file
+        # Try Playwright first (best quality)
+        try:
+            return self._generate_with_playwright(html_content, output_path)
+        except Exception as playwright_error:
+            print(f"Playwright failed: {playwright_error}")
+            print("Falling back to WeasyPrint...")
+
+        # Fallback to WeasyPrint
+        try:
+            return self._generate_with_weasyprint(html_content, output_path)
+        except Exception as weasyprint_error:
+            print(f"WeasyPrint also failed: {weasyprint_error}")
+            raise RuntimeError(
+                f"PDF generation failed. Playwright error: {playwright_error}. "
+                f"WeasyPrint error: {weasyprint_error}. "
+                "Try: pip install weasyprint OR sudo apt-get install libdbus-1-3"
+            )
+
+    def _generate_with_playwright(self, html_content: str, output_path: str) -> str:
+        """Generate PDF using Playwright browser rendering."""
+        from playwright.sync_api import sync_playwright
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as tmp:
             tmp.write(html_content)
             tmp_path = tmp.name
 
         try:
-            # Use Playwright to convert HTML to PDF
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
                 page = browser.new_page()
-
-                # Load the HTML file
                 page.goto(f'file:///{tmp_path}')
-
-                # Wait for any images to load
                 page.wait_for_load_state('networkidle')
-
-                # Generate PDF with minimal margins - fills page width
                 page.pdf(
                     path=output_path,
                     format='Tabloid',
@@ -145,14 +162,27 @@ class HalliburtonPDFGenerator:
                         'left': '0.25in'
                     }
                 )
-
                 browser.close()
-
         finally:
-            # Clean up temp file
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
+        return output_path
+
+    def _generate_with_weasyprint(self, html_content: str, output_path: str) -> str:
+        """Generate PDF using WeasyPrint (pure Python, no browser needed)."""
+        from weasyprint import HTML, CSS
+
+        # WeasyPrint CSS for tabloid size
+        css = CSS(string='''
+            @page {
+                size: 11in 17in;
+                margin: 0.2in 0.25in;
+            }
+        ''')
+
+        html_doc = HTML(string=html_content)
+        html_doc.write_pdf(output_path, stylesheets=[css])
         return output_path
 
 
