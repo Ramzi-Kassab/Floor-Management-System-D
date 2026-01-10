@@ -25,17 +25,19 @@ def setup_pdc_cutters():
     )
     print(f"  Parent: CUTTERS {'(created)' if created else '(exists)'}")
 
-    # Create PDC Cutters category
-    pdc, created = InventoryCategory.objects.get_or_create(
-        code='CT-PDC',
-        defaults={
-            'name': 'PDC Cutters',
-            'parent': cutters,
-            'item_type': 'COMPONENT',
-            'code_prefix': 'PDC'
-        }
-    )
-    print(f"  Category: CT-PDC {'(created)' if created else '(exists)'}")
+    # Get or create PDC Cutters category (check both possible codes)
+    pdc = InventoryCategory.objects.filter(code__in=['CUT-PDC', 'CT-PDC']).first()
+    if not pdc:
+        pdc = InventoryCategory.objects.create(
+            code='CUT-PDC',
+            name='PDC Cutters',
+            parent=cutters,
+            item_type='COMPONENT',
+            code_prefix='PDC'
+        )
+        print(f"  Category: CUT-PDC (created)")
+    else:
+        print(f"  Category: {pdc.code} (exists, ID={pdc.pk})")
 
     # Full attribute configurations
     pdc_attributes = [
