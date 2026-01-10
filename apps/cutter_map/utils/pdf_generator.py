@@ -1,32 +1,13 @@
 """
-Halliburton PDF Generator - Multi-backend PDF generation
-
-Supports multiple rendering backends with automatic fallback:
-1. Playwright (browser-based, best quality)
-2. WeasyPrint (pure Python, good quality)
-3. HTML export (fallback, user prints to PDF)
+Halliburton PDF Generator - Using Playwright for browser-based PDF rendering
+This ensures the PDF output looks EXACTLY like the Full Page web view
+because it uses the same rendering engine as the browser.
 """
 
 import os
 import tempfile
-import shutil
 from jinja2 import Environment, FileSystemLoader
-
-# Try to import rendering backends
-PLAYWRIGHT_AVAILABLE = False
-WEASYPRINT_AVAILABLE = False
-
-try:
-    from playwright.sync_api import sync_playwright
-    PLAYWRIGHT_AVAILABLE = True
-except ImportError:
-    pass
-
-try:
-    from weasyprint import HTML, CSS
-    WEASYPRINT_AVAILABLE = True
-except ImportError:
-    pass
+from playwright.sync_api import sync_playwright
 
 # Get the templates directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -86,12 +67,7 @@ class HalliburtonPDFGenerator:
 
     def generate(self, data: dict, output_path: str) -> str:
         """
-        Generate PDF from data dictionary using HTML template.
-
-        Tries multiple backends in order:
-        1. Playwright (browser-based, best quality)
-        2. WeasyPrint (pure Python, good quality)
-        3. Falls back to HTML file if no PDF backend available
+        Generate PDF from data dictionary using HTML template and Playwright.
 
         Args:
             data: Dictionary containing header, summary, blades, images, groups
@@ -140,42 +116,24 @@ class HalliburtonPDFGenerator:
         # Render HTML
         html_content = template.render(**context)
 
-        # Track errors for better debugging
-        errors = []
-
-        # Try Playwright first (best quality)
-        if PLAYWRIGHT_AVAILABLE:
-            try:
-                return self._generate_with_playwright(html_content, output_path)
-            except Exception as e:
-                errors.append(f"Playwright: {e}")
-                print(f"Playwright failed: {e}")
-
-        # Try WeasyPrint as fallback
-        if WEASYPRINT_AVAILABLE:
-            try:
-                return self._generate_with_weasyprint(html_content, output_path)
-            except Exception as e:
-                errors.append(f"WeasyPrint: {e}")
-                print(f"WeasyPrint failed: {e}")
-
-        # Last resort: save as HTML file
-        if errors:
-            print(f"All PDF backends failed, saving as HTML. Errors: {errors}")
-        return self._save_as_html(html_content, output_path)
-
-    def _generate_with_playwright(self, html_content: str, output_path: str) -> str:
-        """Generate PDF using Playwright browser rendering."""
+        # Create a temporary HTML file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as tmp:
             tmp.write(html_content)
             tmp_path = tmp.name
 
         try:
+            # Use Playwright to convert HTML to PDF
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
                 page = browser.new_page()
+
+                # Load the HTML file
                 page.goto(f'file:///{tmp_path}')
+
+                # Wait for any images to load
                 page.wait_for_load_state('networkidle')
+
+                # Generate PDF with minimal margins - fills page width
                 page.pdf(
                     path=output_path,
                     format='Tabloid',
@@ -187,26 +145,15 @@ class HalliburtonPDFGenerator:
                         'left': '0.25in'
                     }
                 )
+
                 browser.close()
+
         finally:
+            # Clean up temp file
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
         return output_path
-
-    def _generate_with_weasyprint(self, html_content: str, output_path: str) -> str:
-        """Generate PDF using WeasyPrint."""
-        html_doc = HTML(string=html_content)
-        html_doc.write_pdf(output_path)
-        return output_path
-
-    def _save_as_html(self, html_content: str, output_path: str) -> str:
-        """Save as HTML file (fallback when no PDF backend available)."""
-        # Change extension to .html
-        html_path = output_path.rsplit('.', 1)[0] + '.html'
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        return html_path
 
 
 # Standalone function for direct PDF generation from dict

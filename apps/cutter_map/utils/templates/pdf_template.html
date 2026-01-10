@@ -2,371 +2,626 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Cutter Map - {{ header.mat_number }}</title>
+    <title>{{ header.mat_number }} - Cutter Layout</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /*
+         * PDF Template with Dynamic Scaling
+         * Reference: 1283277_B.pdf with 17 cutters = 100%
+         * Scale formula: scale = min(1, 17 / max_cutters)
+         */
+
+        /* Dynamic scale based on max cutters (passed from generator) */
+        :root {
+            --scale: {{ scale | default(1.0) }};
+            --base-cutter-width: 51px;
+            --base-cutter-circle: 39px;
+            --base-cutter-font: 18px;
+            --base-type-font: 8px;
+            --base-pos-label-height: 69px;
+            --base-blade-label-width: 58px;
+            --base-row-label-width: 40px;
+            --base-blade-font: 37px;
+            --base-row-font: 18px;
+
+            /* Calculated scaled values */
+            --cutter-width: calc(var(--base-cutter-width) * var(--scale));
+            --cutter-circle: calc(var(--base-cutter-circle) * var(--scale));
+            --cutter-font: calc(var(--base-cutter-font) * var(--scale));
+            --type-font: calc(var(--base-type-font) * var(--scale));
+            --pos-label-height: calc(var(--base-pos-label-height) * var(--scale));
+            --blade-label-width: calc(var(--base-blade-label-width) * var(--scale));
+            --row-label-width: calc(var(--base-row-label-width) * var(--scale));
+            --blade-font: calc(var(--base-blade-font) * var(--scale));
+            --row-font: calc(var(--base-row-font) * var(--scale));
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        @page {
+            size: 11in 17in;
+            margin: 0.2in 0.25in;
         }
 
         body {
             font-family: Arial, sans-serif;
-            font-size: 10px;
-            background: #000;
-            color: #fff;
-            padding: 10px;
-        }
-
-        .page {
+            font-size: 11px;
+            background: white;
+            color: #333;
             width: 100%;
-            background: #1a1a1a;
-            padding: 15px;
         }
 
-        /* Header Section */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
+        .doc-preview {
+            background: white;
+            width: 100%;
+        }
+
+        /* ========== HEADER FRAME (thick border like original) ========== */
+        .doc-header-frame {
+            border: 2px solid #000;
             margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #444;
-        }
-
-        .header-left {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-        }
-
-        .header-row {
-            display: flex;
-            gap: 30px;
-        }
-
-        .header-item {
-            display: flex;
-            gap: 5px;
-        }
-
-        .header-label {
-            color: #888;
-            font-weight: bold;
-        }
-
-        .header-value {
-            color: #fff;
-        }
-
-        .header-right {
-            text-align: right;
-        }
-
-        .drill-bit-image {
-            max-width: 150px;
-            max-height: 150px;
-        }
-
-        /* BOM Summary Table */
-        .bom-section {
-            margin-bottom: 15px;
-        }
-
-        .bom-title {
-            font-size: 12px;
-            font-weight: bold;
-            margin-bottom: 5px;
-            color: #aaa;
-        }
-
-        .bom-table {
+            display: table;
             width: 100%;
             border-collapse: collapse;
-            font-size: 9px;
         }
-
-        .bom-table th {
-            background: #333;
-            color: #fff;
-            padding: 4px 6px;
-            text-align: left;
-            border: 1px solid #444;
+        .doc-header-inner {
+            display: table-row;
         }
-
-        .bom-table td {
-            padding: 3px 6px;
-            border: 1px solid #333;
-        }
-
-        .bom-table tr:nth-child(even) {
-            background: #222;
-        }
-
-        .color-box {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            margin-right: 5px;
+        .doc-logo {
+            display: table-cell;
+            width: 42%;
+            padding: 6px 12px;
             vertical-align: middle;
-            border: 1px solid #555;
+            border-right: 2px solid #000;
+        }
+        .doc-logo img {
+            height: 24px;
+            width: auto;
+        }
+        .doc-logo-text {
+            color: #C8102E;
+            font-weight: bold;
+            font-size: 22px;
+            letter-spacing: 1px;
+        }
+        .doc-header-info {
+            display: table-cell;
+            vertical-align: top;
+        }
+        .doc-header-row {
+            display: flex;
+            font-size: 10px;
+            border-bottom: 2px solid #000;
+        }
+        .doc-header-row:last-child {
+            border-bottom: none;
+        }
+        /* Each header item with border */
+        .doc-header-item {
+            flex: 1;
+            white-space: nowrap;
+            border-right: 2px solid #000;
+            padding: 5px 8px;
+            background: white;
+        }
+        .doc-header-item:last-child {
+            border-right: none;
+        }
+        .doc-header-label { font-weight: normal; color: #000; }
+        .doc-header-value { font-weight: bold; color: #000; }
+
+        /* ========== CONTENT AREA: BOM + Group + Drill Bit ========== */
+        .doc-content {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            width: 100%;
         }
 
-        /* Blade Layout Section */
-        .blades-section {
-            margin-top: 15px;
+        /* BOM Table - takes maximum width, leaving space for group and drill bit */
+        .doc-bom {
+            flex: 1;
+            min-width: 0;
+        }
+        .doc-bom table {
+            font-size: 10px;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        /* Header row with border */
+        .doc-bom th {
+            background: #555;
+            color: white;
+            padding: 4px 6px;
+            font-size: 9px;
+            font-weight: bold;
+            text-align: center;
+            border: 1px solid #000;
+        }
+        /* Data rows - NO borders, alternating colors */
+        .doc-bom td {
+            padding: 3px 6px;
+            border: none;
+            text-align: center;
+            color: #000;
+        }
+        .doc-bom tbody tr:nth-child(odd) {
+            background: #ffffff;
+        }
+        .doc-bom tbody tr:nth-child(even) {
+            background: #e8e8e8;
         }
 
-        .blade {
-            margin-bottom: 15px;
-            background: #222;
-            padding: 8px;
-            border-radius: 4px;
+        /* Group Legend - vertical layout like original PDF - NO borders */
+        .doc-group-legend {
+            border: none;
+            background: #fff;
+            margin-left: 15px;
+            margin-right: 8px;
+            font-size: 10px;
+            border-collapse: collapse;
+            flex-shrink: 0;
         }
-
-        .blade-header {
+        .doc-group-legend th,
+        .doc-group-legend td {
+            border: none;
+        }
+        .group-legend-header {
+            font-weight: bold;
+            font-size: 9px;
+            color: #000;
+            background: #e0e0e0;
+        }
+        .group-legend-header th {
+            padding: 3px 8px;
+            text-align: center;
+            border: none;
+            font-weight: bold;
+            color: #000;
+            background: #e0e0e0;
+        }
+        .group-legend-header-shape {
+            padding: 3px 8px;
+            text-align: center;
+            border: none;
+            font-weight: bold;
+            color: #000;
+        }
+        .group-legend-header-group {
+            padding: 3px 8px;
+            text-align: center;
+            border: none;
+            font-weight: bold;
+            color: #000;
+        }
+        .group-legend-row {
+        }
+        .group-legend-cell {
+            padding: 3px 8px;
+            vertical-align: middle;
+            text-align: center;
+            border: none;
+        }
+        .group-legend-cell .group-num {
             font-weight: bold;
             font-size: 11px;
-            margin-bottom: 8px;
-            color: #4af;
-            padding-bottom: 4px;
-            border-bottom: 1px solid #444;
+            display: inline;
+            min-width: 20px;
+            color: #000;
+        }
+        .group-shape-img {
+            width: 28px;
+            height: 28px;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto;
+        }
+        .group-values {
+            font-size: 11px;
+            font-weight: bold;
+            min-width: 35px;
+            color: #000;
         }
 
-        .blade-rows {
+        /* Drill bit face image - sized to match BOM height */
+        .doc-drill-preview {
+            margin-left: 8px;
+            background: white;
+            display: flex;
+            align-items: flex-start;
+            flex-shrink: 0;
+        }
+        .doc-drill-preview img {
+            width: 130px;
+            height: 130px;
+            object-fit: contain;
+            background: white;
+            border: none;
+        }
+
+        /* ========== BLADE STYLES ========== */
+        .blade-block {
+            margin-bottom: 8px;
+            background: white;
+            page-break-inside: avoid;
+            border: 2px solid #888;
+            width: 100%;
+        }
+        .blade-inner {
+            display: flex;
+            align-items: stretch;
+            width: 100%;
+        }
+
+        /* Blade label (B1, B2, etc.) - scaled */
+        .blade-label {
+            width: var(--blade-label-width);
+            min-width: var(--blade-label-width);
+            background: #808080;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: var(--blade-font);
+            color: white;
+        }
+
+        .blade-rows-wrap {
+            flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 5px;
         }
 
         .blade-row {
             display: flex;
-            align-items: center;
-            gap: 8px;
+            align-items: stretch;
+            min-height: calc(70px * var(--scale));
         }
 
+        /* Row label (R1, R2, etc.) - scaled */
         .row-label {
-            font-weight: bold;
-            color: #888;
-            min-width: 25px;
-        }
-
-        .row-positions {
-            display: flex;
-            gap: 3px;
-            flex-wrap: wrap;
-        }
-
-        .position-group {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-right: 10px;
-        }
-
-        .position-label {
-            font-size: 7px;
-            color: #666;
-            margin-bottom: 2px;
-        }
-
-        .position-cells {
-            display: flex;
-            gap: 2px;
-        }
-
-        .cutter-cell {
-            width: 24px;
-            height: 24px;
+            width: var(--row-label-width);
+            min-width: var(--row-label-width);
+            background: #d0d0d0;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 9px;
             font-weight: bold;
-            border-radius: 50%;
-            border: 1px solid #555;
+            font-size: var(--row-font);
+            color: #000;
         }
 
-        .cutter-cell img {
+        /* Cutters container - FULL WIDTH, no wrapping */
+        .positions-wrap {
+            display: flex;
+            flex: 1;
+            flex-wrap: nowrap;
+            padding: 4px 8px;
+            background: white;
+            align-items: center;
+        }
+
+        /* Position label (CONE, NOSE, etc.) - scaled */
+        .pos-label {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            font-size: calc(10px * var(--scale));
+            font-weight: bold;
+            color: #000;
+            padding: 3px 3px;
+            margin-right: 2px;
+            background: #e8e8e8;
+            border-radius: 2px;
+            height: var(--pos-label-height);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Individual cutter - scaled width */
+        .cutter {
+            text-align: center;
+            width: var(--cutter-width);
+            min-width: calc(var(--cutter-width) * 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2px;
+        }
+
+        /* Cutter type text - scaled */
+        .cutter-type {
+            font-size: var(--type-font);
+            color: #000;
+            height: calc(12px * var(--scale));
+            line-height: calc(12px * var(--scale));
+            white-space: nowrap;
+            font-weight: 600;
+        }
+
+        /* Cutter circle - NO border, scaled */
+        .cutter-circle {
+            width: var(--cutter-circle);
+            height: var(--cutter-circle);
+            border-radius: 50%;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: var(--cutter-font);
+        }
+
+        /* Circle colors based on GROUP - distinct grayscale shades */
+        /* Groups 1-7 */
+        .cutter-circle.group-1 { background: #e8e8e8; color: #333; }
+        .cutter-circle.group-2 { background: #d0d0d0; color: #333; }
+        .cutter-circle.group-3 { background: #b8b8b8; color: #333; }
+        .cutter-circle.group-4 { background: #a0a0a0; color: #333; }
+        .cutter-circle.group-5 { background: #888888; color: white; }
+        .cutter-circle.group-6 { background: #707070; color: white; }
+        .cutter-circle.group-7 { background: #585858; color: white; }
+        /* Groups 8-14 */
+        .cutter-circle.group-8 { background: #404040; color: white; }
+        .cutter-circle.group-9 { background: #333333; color: white; }
+        .cutter-circle.group-10 { background: #c0c0c0; color: #333; }
+        .cutter-circle.group-11 { background: #989898; color: #333; }
+        .cutter-circle.group-12 { background: #686868; color: white; }
+        .cutter-circle.group-13 { background: #505050; color: white; }
+        .cutter-circle.group-14 { background: #383838; color: white; }
+        /* Groups 15-20 (fallback colors) */
+        .cutter-circle.group-15 { background: #f0f0f0; color: #333; }
+        .cutter-circle.group-16 { background: #e0e0e0; color: #333; }
+        .cutter-circle.group-17 { background: #d0d0d0; color: #333; }
+        .cutter-circle.group-18 { background: #b0b0b0; color: #333; }
+        .cutter-circle.group-19 { background: #909090; color: white; }
+        .cutter-circle.group-20 { background: #787878; color: white; }
+
+        /* Cutter shape image (extracted from PDF) */
+        .cutter-shape {
+            position: relative;
+            width: var(--cutter-circle);
+            height: var(--cutter-circle);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cutter-shape-img {
             width: 100%;
             height: 100%;
             object-fit: contain;
         }
-
-        /* Scale adjustments */
-        .scale-container {
-            transform-origin: top left;
-            transform: scale({{ scale }});
-        }
-
-        /* Group legend */
-        .group-legend {
-            margin-top: 10px;
-            padding: 8px;
-            background: #222;
-            border-radius: 4px;
-        }
-
-        .group-legend-title {
+        .cutter-group-label {
+            position: absolute;
             font-weight: bold;
-            margin-bottom: 5px;
-            color: #aaa;
+            font-size: var(--cutter-font);
+            color: white;
+            text-shadow: 0 0 2px black, 0 0 2px black;
         }
 
-        .group-items {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
+        /* BOM shape image (extracted from PDF) */
+        .bom-shape-img {
+            width: 20px;
+            height: 18px;
+            object-fit: contain;
+            vertical-align: middle;
+            margin-right: 5px;
         }
 
-        .group-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
+        /* BOM row color indicator - uses same colors as cutter circles */
+        .bom-color-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 14px;
+            margin-right: 5px;
+            vertical-align: middle;
+            border: 1px solid #999;
         }
+        .bom-color-indicator.group-1 { background: #e8e8e8; }
+        .bom-color-indicator.group-2 { background: #d0d0d0; }
+        .bom-color-indicator.group-3 { background: #b8b8b8; }
+        .bom-color-indicator.group-4 { background: #a0a0a0; }
+        .bom-color-indicator.group-5 { background: #888888; }
+        .bom-color-indicator.group-6 { background: #707070; }
+        .bom-color-indicator.group-7 { background: #585858; }
+        .bom-color-indicator.group-8 { background: #404040; }
+        .bom-color-indicator.group-9 { background: #333333; }
+        .bom-color-indicator.group-10 { background: #c0c0c0; }
+        .bom-color-indicator.group-11 { background: #989898; }
+        .bom-color-indicator.group-12 { background: #686868; }
+        .bom-color-indicator.group-13 { background: #505050; }
+        .bom-color-indicator.group-14 { background: #383838; }
+        .bom-color-indicator.group-15 { background: #f0f0f0; }
+        .bom-color-indicator.group-16 { background: #e0e0e0; }
+        .bom-color-indicator.group-17 { background: #d0d0d0; }
+        .bom-color-indicator.group-18 { background: #b0b0b0; }
+        .bom-color-indicator.group-19 { background: #909090; }
+        .bom-color-indicator.group-20 { background: #787878; }
 
-        /* Footer */
-        .footer {
-            margin-top: 15px;
-            padding-top: 10px;
-            border-top: 1px solid #444;
-            font-size: 8px;
-            color: #666;
-            text-align: center;
+        /* Chamfer text - scaled */
+        .cutter-chamfer {
+            font-size: var(--type-font);
+            color: #444;
+            height: calc(12px * var(--scale));
+            line-height: calc(12px * var(--scale));
+            white-space: nowrap;
         }
     </style>
 </head>
 <body>
-    <div class="page">
-        <!-- Header -->
-        <div class="header">
-            <div class="header-left">
-                <div class="header-row">
-                    <div class="header-item">
-                        <span class="header-label">Mat Number:</span>
-                        <span class="header-value">{{ header.mat_number }}</span>
+    <div class="doc-preview">
+        <!-- Header Frame -->
+        <div class="doc-header-frame">
+            <div class="doc-header-inner">
+                <div class="doc-logo">
+                    {% if images and images.halliburton_logo and images.halliburton_logo.data %}
+                        <img src="{{ images.halliburton_logo.data }}" alt="Halliburton">
+                    {% else %}
+                        <span class="doc-logo-text">HALLIBURTON</span>
+                    {% endif %}
+                </div>
+
+                <div class="doc-header-info">
+                    <div class="doc-header-row">
+                        <div class="doc-header-item">
+                            <span class="doc-header-label">SN Number: </span>
+                            <span class="doc-header-value">{{ header.sn_number or '0' }}</span>
+                        </div>
+                        <div class="doc-header-item">
+                            <span class="doc-header-label">Mat Number: </span>
+                            <span class="doc-header-value">{{ header.mat_number or '' }}</span>
+                        </div>
+                        <div class="doc-header-item">
+                            <span class="doc-header-label">Date Created: </span>
+                            <span class="doc-header-value">{{ header.date_created or '' }}</span>
+                        </div>
                     </div>
-                    <div class="header-item">
-                        <span class="header-label">SN Number:</span>
-                        <span class="header-value">{{ header.sn_number }}</span>
+                    <div class="doc-header-row">
+                        <div class="doc-header-item">
+                            <span class="doc-header-label">Revision Level: </span>
+                            <span class="doc-header-value">{{ header.revision_level or '' }}</span>
+                        </div>
+                        <div class="doc-header-item">
+                            <span class="doc-header-label">ADesc Software Version: </span>
+                            <span class="doc-header-value">{{ header.software_version or '' }}</span>
+                        </div>
                     </div>
                 </div>
-                <div class="header-row">
-                    <div class="header-item">
-                        <span class="header-label">Date Created:</span>
-                        <span class="header-value">{{ header.date_created }}</span>
-                    </div>
-                    <div class="header-item">
-                        <span class="header-label">Revision Level:</span>
-                        <span class="header-value">{{ header.revision_level }}</span>
-                    </div>
-                </div>
-                <div class="header-row">
-                    <div class="header-item">
-                        <span class="header-label">ADesc Software Version:</span>
-                        <span class="header-value">{{ header.software_version }}</span>
-                    </div>
-                </div>
-            </div>
-            <div class="header-right">
-                {% if drill_bit_image and drill_bit_image.data %}
-                <img src="{{ drill_bit_image.data }}" class="drill-bit-image" alt="Drill Bit">
-                {% endif %}
             </div>
         </div>
 
-        <!-- BOM Summary -->
-        <div class="bom-section">
-            <div class="bom-title">Bill of Materials Summary</div>
-            <table class="bom-table">
+        <!-- Content Row: BOM + Group Legend + Drill Bit -->
+        <div class="doc-content">
+            <!-- BOM Summary Table -->
+            <div class="doc-bom">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Size</th>
+                            <th>Chamfer</th>
+                            <th>Type</th>
+                            <th>Count</th>
+                            <th>Mat #</th>
+                            <th>Family #</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in summary %}
+                        {% set bom_shape = cutter_shapes.get(row.index|string) if cutter_shapes else none %}
+                        <tr>
+                            <td>
+                                {% if bom_shape and bom_shape.data %}
+                                <img src="{{ bom_shape.data }}" alt="{{ row.index }}" class="bom-shape-img">
+                                {% endif %}
+                                {{ row.index }}
+                            </td>
+                            <td>{{ row.size or '' }}</td>
+                            <td>{{ row.chamfer or '' }}</td>
+                            <td>{{ row.type or '' }}</td>
+                            <td>{{ row.count or '' }}</td>
+                            <td>{{ row.mat_number or '' }}</td>
+                            <td>{{ row.family_number or '' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Group Legend -->
+            {% if groups %}
+            <table class="doc-group-legend" style="border: none; border-collapse: collapse;">
+                <!-- Header row -->
                 <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Size</th>
-                        <th>Chamfer</th>
-                        <th>Type</th>
-                        <th>Count</th>
-                        <th>Mat Number</th>
-                        <th>Family #</th>
+                    <tr class="group-legend-header">
+                        <th style="border: none; padding: 3px 8px; background: #e0e0e0; font-weight: bold; font-size: 9px;">#</th>
+                        <th style="border: none; padding: 3px 8px; background: #e0e0e0; font-weight: bold; font-size: 9px;">Group</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for item in summary %}
-                    <tr>
-                        <td>
-                            <span class="color-box" style="background-color: {{ item.fill_color or '#666' }};"></span>
-                            {{ item.index }}
+                <!-- Shape rows -->
+                {% if images and images.group_shapes and images.group_shapes|length > 0 %}
+                    {% for shape in images.group_shapes %}
+                    <tr class="group-legend-row">
+                        <td style="border: none; padding: 3px 8px; text-align: center; vertical-align: middle;">
+                            {% if shape.data %}
+                            <img src="{{ shape.data }}" alt="Shape" class="group-shape-img">
+                            {% endif %}
                         </td>
-                        <td>{{ item.size }}</td>
-                        <td>{{ item.chamfer }}</td>
-                        <td>{{ item.type }}</td>
-                        <td>{{ item.count }}</td>
-                        <td>{{ item.mat_number }}</td>
-                        <td>{{ item.family_number }}</td>
+                        <td style="border: none; padding: 3px 8px; text-align: center; vertical-align: middle;">
+                            <span class="group-values">{{ shape.group_text or '' }}</span>
+                        </td>
                     </tr>
                     {% endfor %}
+                {% elif images and images.group_shape and images.group_shape.data %}
+                    <tr class="group-legend-row">
+                        <td style="border: none; padding: 3px 8px; text-align: center; vertical-align: middle;">
+                            <img src="{{ images.group_shape.data }}" alt="Shape" class="group-shape-img">
+                        </td>
+                        <td style="border: none; padding: 3px 8px; text-align: center; vertical-align: middle;">
+                            <span class="group-values">{{ groups | join(',') }}</span>
+                        </td>
+                    </tr>
+                {% endif %}
                 </tbody>
             </table>
+            {% endif %}
+
+            <!-- Drill Bit Face Preview -->
+            {% if drill_bit_image and drill_bit_image.data %}
+            <div class="doc-drill-preview">
+                <img src="{{ drill_bit_image.data }}" alt="Drill Bit Face">
+            </div>
+            {% elif images and images.drill_bit_face and images.drill_bit_face.data %}
+            <div class="doc-drill-preview">
+                <img src="{{ images.drill_bit_face.data }}" alt="Drill Bit Face">
+            </div>
+            {% elif images and images.drill_bit_preview and images.drill_bit_preview.data %}
+            <div class="doc-drill-preview">
+                <img src="{{ images.drill_bit_preview.data }}" alt="Drill Bit Preview">
+            </div>
+            {% endif %}
         </div>
 
-        <!-- Blade Layouts -->
-        <div class="blades-section scale-container">
-            {% for blade in blades %}
-            <div class="blade">
-                <div class="blade-header">{{ blade.name }}</div>
-                <div class="blade-rows">
+        <!-- Blade Blocks -->
+        {% for blade in blades %}
+        <div class="blade-block">
+            <div class="blade-inner">
+                <div class="blade-label">{{ blade.name }}</div>
+                <div class="blade-rows-wrap">
                     {% for row_key in ['r1', 'r2', 'r3', 'r4'] %}
-                    {% set row = blade[row_key] %}
-                    {% if row and row is has_cells %}
-                    <div class="blade-row">
-                        <span class="row-label">{{ row_key|upper }}</span>
-                        <div class="row-positions">
-                            {% for pos_name in ['CONE', 'NOSE', 'SHOULDER', 'GAUGE', 'PAD'] %}
-                            {% if row[pos_name] %}
-                            <div class="position-group">
-                                <span class="position-label">{{ pos_name }}</span>
-                                <div class="position-cells">
-                                    {% for cell in row[pos_name] %}
-                                    <div class="cutter-cell" style="background-color: {{ cell.color or '#444' }};">
-                                        {% if cutter_shapes and cutter_shapes[cell.group] and cutter_shapes[cell.group].data %}
-                                        <img src="{{ cutter_shapes[cell.group].data }}" alt="{{ cell.group }}">
-                                        {% else %}
-                                        {{ cell.group }}
-                                        {% endif %}
-                                    </div>
-                                    {% endfor %}
-                                </div>
+                        {% set row = blade[row_key] %}
+                        {% if row and (row.CONE or row.NOSE or row.SHOULDER or row.GAUGE or row.PAD) %}
+                        <div class="blade-row">
+                            <div class="row-label">{{ row_key | upper }}</div>
+                            <div class="positions-wrap">
+                                {% for pos in ['CONE', 'NOSE', 'SHOULDER', 'GAUGE', 'PAD'] %}
+                                    {% if row[pos] %}
+                                        <div class="pos-label">{{ pos }}</div>
+                                        {% for cell in row[pos] %}
+                                        <div class="cutter">
+                                            <div class="cutter-type">{{ cell.type or '' }}</div>
+                                            {% set shape = cutter_shapes.get(cell.group) if cutter_shapes else none %}
+                                            {% if shape and shape.data %}
+                                            <div class="cutter-shape">
+                                                <img src="{{ shape.data }}" alt="{{ cell.group }}" class="cutter-shape-img">
+                                                <span class="cutter-group-label">{{ cell.group or '' }}</span>
+                                            </div>
+                                            {% else %}
+                                            <div class="cutter-circle">{{ cell.group or '' }}</div>
+                                            {% endif %}
+                                            <div class="cutter-chamfer">{{ cell.chamfer or '' }}</div>
+                                        </div>
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endfor %}
                             </div>
-                            {% endif %}
-                            {% endfor %}
                         </div>
-                    </div>
-                    {% endif %}
+                        {% endif %}
                     {% endfor %}
                 </div>
             </div>
-            {% endfor %}
         </div>
-
-        <!-- Group Legend (if applicable) -->
-        {% if has_group_legend and groups %}
-        <div class="group-legend">
-            <div class="group-legend-title">Groups</div>
-            <div class="group-items">
-                {% for group in groups %}
-                <div class="group-item">
-                    <span class="color-box" style="background-color: {{ group.color or '#666' }};"></span>
-                    <span>{{ group.index }}: {{ group.indices|join(', ') if group.indices else group.index }}</span>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Footer -->
-        <div class="footer">
-            Generated by Floor Management System - Cutter Map Module
-        </div>
+        {% endfor %}
     </div>
 </body>
 </html>
