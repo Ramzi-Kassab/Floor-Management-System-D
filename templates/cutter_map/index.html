@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Cutter Map Editor - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Cutter Map specific styles */
+    .upload-zone {
+        border: 2px dashed #cbd5e0;
+        transition: all 0.3s ease;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+        border-color: #3b82f6;
+        background-color: rgba(59, 130, 246, 0.05);
+    }
+    .cutter-map-table {
+        font-size: 0.875rem;
+    }
+    .cutter-map-table th,
+    .cutter-map-table td {
+        padding: 0.5rem;
+        border: 1px solid #e5e7eb;
+    }
+    .dark .cutter-map-table th,
+    .dark .cutter-map-table td {
+        border-color: #374151;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="p-6" x-data="cutterMapApp()">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Cutter Map Editor</h1>
+        <p class="text-gray-600 dark:text-gray-400">Upload, edit, and generate cutter map PDFs</p>
+    </div>
+
+    <!-- Upload Section (shown when no data loaded) -->
+    <div x-show="!hasData" class="max-w-2xl mx-auto">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Upload PDF</h2>
+
+            <form @submit.prevent="uploadFile" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="upload-zone rounded-lg p-8 text-center cursor-pointer"
+                     @click="$refs.fileInput.click()"
+                     @dragover.prevent="$event.currentTarget.classList.add('dragover')"
+                     @dragleave.prevent="$event.currentTarget.classList.remove('dragover')"
+                     @drop.prevent="handleDrop($event)">
+
+                    <input type="file"
+                           x-ref="fileInput"
+                           @change="handleFileSelect($event)"
+                           accept=".pdf"
+                           class="hidden">
+
+                    <i data-lucide="upload-cloud" class="w-12 h-12 mx-auto text-gray-400 mb-4"></i>
+                    <p class="text-gray-600 dark:text-gray-400 mb-2">
+                        <span class="font-medium text-blue-600">Click to upload</span> or drag and drop
+                    </p>
+                    <p class="text-sm text-gray-500">PDF files only (max 16MB)</p>
+
+                    <p x-show="selectedFile" class="mt-4 text-sm font-medium text-green-600" x-text="selectedFile?.name"></p>
+                </div>
+
+                <button type="submit"
+                        :disabled="!selectedFile || uploading"
+                        class="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!uploading">Upload and Extract</span>
+                    <span x-show="uploading" class="flex items-center justify-center">
+                        <svg class="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processing...
+                    </span>
+                </button>
+            </form>
+
+            <!-- Error message -->
+            <div x-show="error" class="mt-4 p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg" x-text="error"></div>
+        </div>
+
+        <!-- Recent Documents -->
+        {% if documents %}
+        <div class="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Recent Documents</h2>
+            <div class="space-y-2">
+                {% for doc in documents %}
+                <a href="{% url 'cutter_map:editor' doc.id %}"
+                   class="block p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ doc.mat_number|default:doc.original_filename }}</p>
+                            <p class="text-sm text-gray-500">{{ doc.get_status_display }} - {{ doc.created_at|date:"M d, Y H:i" }}</p>
+                        </div>
+                        <span class="px-2 py-1 text-xs rounded-full
+                            {% if doc.status == 'SYNCED' %}bg-green-100 text-green-800
+                            {% elif doc.status == 'GENERATED' %}bg-blue-100 text-blue-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ doc.get_status_display }}
+                        </span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Editor Section (shown when data is loaded) -->
+    <div x-show="hasData" class="space-y-6">
+        <!-- Toolbar -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex flex-wrap items-center gap-4">
+                <button @click="resetData()" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                    <i data-lucide="upload" class="w-4 h-4 inline mr-2"></i>New Upload
+                </button>
+                <button @click="validateData()" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                    <i data-lucide="check-circle" class="w-4 h-4 inline mr-2"></i>Validate
+                </button>
+                <button @click="generatePDF()" :disabled="generating" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg disabled:opacity-50">
+                    <i data-lucide="file-text" class="w-4 h-4 inline mr-2"></i>Generate PDF
+                </button>
+                <button @click="generatePPT()" :disabled="generating" class="px-4 py-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg disabled:opacity-50">
+                    <i data-lucide="presentation" class="w-4 h-4 inline mr-2"></i>Generate PPT
+                </button>
+                <div class="flex-grow"></div>
+                <button @click="syncToERP()"
+                        :disabled="syncing || !parentDesignMat"
+                        class="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg disabled:opacity-50">
+                    <i data-lucide="database" class="w-4 h-4 inline mr-2"></i>
+                    <span x-text="syncing ? 'Syncing...' : 'Sync to ERP'"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- L3/L4 Design Linking Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                <i data-lucide="link" class="w-5 h-5 inline mr-2"></i>Link to Parent Design (L3/L4)
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Enter the Level 3 or Level 4 MAT number to link this L5 BOM. If the design doesn't exist, it will be created.
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- L3/L4 MAT Input -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Parent Design MAT (L3/L4) <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <input type="text"
+                               x-model="parentDesignMat"
+                               @input.debounce.500ms="lookupDesign()"
+                               placeholder="e.g., 1234567"
+                               class="flex-grow px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
+                                      bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                                      focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <button @click="lookupDesign()"
+                                :disabled="!parentDesignMat || lookingUp"
+                                class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200
+                                       rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 disabled:opacity-50">
+                            <i data-lucide="search" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Design Status -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Design Status
+                    </label>
+                    <div class="px-3 py-2 border rounded-lg"
+                         :class="designStatus === 'found' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
+                                 designStatus === 'not_found' ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' :
+                                 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'">
+
+                        <!-- Loading -->
+                        <div x-show="lookingUp" class="flex items-center text-gray-600 dark:text-gray-400">
+                            <svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            Looking up...
+                        </div>
+
+                        <!-- Found -->
+                        <div x-show="!lookingUp && designStatus === 'found'" class="text-green-700 dark:text-green-300">
+                            <i data-lucide="check-circle" class="w-4 h-4 inline mr-1"></i>
+                            Design found: <span class="font-medium" x-text="foundDesign?.hdbs_type"></span>
+                            (Level <span x-text="foundDesign?.order_level || '?'"></span>)
+                        </div>
+
+                        <!-- Not Found -->
+                        <div x-show="!lookingUp && designStatus === 'not_found'" class="text-yellow-700 dark:text-yellow-300">
+                            <i data-lucide="plus-circle" class="w-4 h-4 inline mr-1"></i>
+                            Design not found - will be created as new L3/L4 design
+                        </div>
+
+                        <!-- Empty -->
+                        <div x-show="!lookingUp && designStatus === 'empty'" class="text-gray-500 dark:text-gray-400">
+                            Enter a MAT number to lookup
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- L5 BOM Info -->
+            <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <h3 class="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
+                    <i data-lucide="file-text" class="w-4 h-4 inline mr-1"></i>
+                    L5 BOM from PDF
+                </h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-600 dark:text-gray-400">L5 MAT:</span>
+                        <span class="font-medium text-gray-900 dark:text-white ml-1" x-text="data?.header?.mat_number || '-'"></span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600 dark:text-gray-400">SN:</span>
+                        <span class="font-medium text-gray-900 dark:text-white ml-1" x-text="data?.header?.sn_number || '-'"></span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600 dark:text-gray-400">BOM Items:</span>
+                        <span class="font-medium text-gray-900 dark:text-white ml-1" x-text="data?.summary?.length || 0"></span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600 dark:text-gray-400">Blades:</span>
+                        <span class="font-medium text-gray-900 dark:text-white ml-1" x-text="data?.blades?.length || 0"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data display placeholder - Will be expanded -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                Extracted Data: <span x-text="data?.header?.mat_number || 'Unknown'"></span>
+            </h2>
+            <pre class="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-auto max-h-96 text-sm" x-text="JSON.stringify(data, null, 2)"></pre>
+        </div>
+    </div>
+
+    <!-- Validation Modal -->
+    <div x-show="showValidation"
+         x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.self="showValidation = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
+            <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Validation Results</h3>
+            <div x-show="validationResult?.is_valid" class="p-4 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg mb-4">
+                <i data-lucide="check-circle" class="w-5 h-5 inline mr-2"></i>All validations passed!
+            </div>
+            <div x-show="!validationResult?.is_valid">
+                <template x-for="msg in validationResult?.messages || []" :key="msg.message">
+                    <div class="p-3 mb-2 rounded-lg"
+                         :class="msg.type === 'warning' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'">
+                        <span x-text="msg.message"></span>
+                    </div>
+                </template>
+            </div>
+            <button @click="showValidation = false" class="mt-4 w-full px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function cutterMapApp() {
+    return {
+        selectedFile: null,
+        uploading: false,
+        generating: false,
+        syncing: false,
+        lookingUp: false,
+        error: null,
+        data: null,
+        documentId: null,
+        showValidation: false,
+        validationResult: null,
+
+        // L3/L4 Design linking
+        parentDesignMat: '',
+        designStatus: 'empty',  // 'empty', 'found', 'not_found'
+        foundDesign: null,
+
+        get hasData() {
+            return this.data !== null;
+        },
+
+        handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                this.selectedFile = file;
+                this.error = null;
+            } else {
+                this.error = 'Please select a valid PDF file';
+            }
+        },
+
+        handleDrop(event) {
+            event.currentTarget.classList.remove('dragover');
+            const file = event.dataTransfer.files[0];
+            if (file && file.type === 'application/pdf') {
+                this.selectedFile = file;
+                this.error = null;
+            } else {
+                this.error = 'Please drop a valid PDF file';
+            }
+        },
+
+        async uploadFile() {
+            if (!this.selectedFile) return;
+
+            this.uploading = true;
+            this.error = null;
+
+            const formData = new FormData();
+            formData.append('original_pdf', this.selectedFile);
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+            try {
+                const response = await fetch('{% url "cutter_map:upload" %}', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    this.data = result.data;
+                    this.documentId = result.document_id;
+                } else {
+                    this.error = result.error || 'Upload failed';
+                }
+            } catch (err) {
+                this.error = 'Network error: ' + err.message;
+            } finally {
+                this.uploading = false;
+            }
+        },
+
+        resetData() {
+            this.data = null;
+            this.documentId = null;
+            this.selectedFile = null;
+            this.error = null;
+            this.parentDesignMat = '';
+            this.designStatus = 'empty';
+            this.foundDesign = null;
+        },
+
+        async lookupDesign() {
+            if (!this.parentDesignMat || this.parentDesignMat.trim() === '') {
+                this.designStatus = 'empty';
+                this.foundDesign = null;
+                return;
+            }
+
+            this.lookingUp = true;
+            try {
+                const response = await fetch(`/cutter-map/api/lookup-design/?mat_no=${encodeURIComponent(this.parentDesignMat.trim())}`, {
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                });
+                const result = await response.json();
+
+                if (result.found) {
+                    this.designStatus = 'found';
+                    this.foundDesign = result.design;
+                } else {
+                    this.designStatus = 'not_found';
+                    this.foundDesign = null;
+                }
+            } catch (err) {
+                this.error = 'Design lookup failed: ' + err.message;
+                this.designStatus = 'empty';
+            } finally {
+                this.lookingUp = false;
+            }
+        },
+
+        async syncToERP() {
+            if (!this.parentDesignMat) {
+                this.error = 'Please enter a Parent Design MAT number';
+                return;
+            }
+
+            this.syncing = true;
+            this.error = null;
+
+            try {
+                const response = await fetch('/cutter-map/api/sync-to-erp/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        document_id: this.documentId,
+                        parent_design_mat: this.parentDesignMat.trim(),
+                        data: this.data
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`Successfully synced to ERP!\n\nDesign: ${result.design_mat}\nBOM: ${result.bom_code}\nBOM Lines: ${result.bom_lines_created}\nPocket Configs: ${result.pocket_configs_created || 0}\nPockets: ${result.pockets_created || 0}`);
+                    await this.lookupDesign();
+                } else {
+                    this.error = result.error || 'Sync failed';
+                }
+            } catch (err) {
+                this.error = 'Sync failed: ' + err.message;
+            } finally {
+                this.syncing = false;
+            }
+        },
+
+        async validateData() {
+            try {
+                const response = await fetch('{% url "cutter_map:validate" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify(this.data)
+                });
+
+                this.validationResult = await response.json();
+                this.showValidation = true;
+            } catch (err) {
+                this.error = 'Validation failed: ' + err.message;
+            }
+        },
+
+        async generatePDF() {
+            this.generating = true;
+            try {
+                const url = this.documentId
+                    ? `/cutter-map/generate/${this.documentId}/`
+                    : '{% url "cutter_map:generate_pdf" %}';
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify(this.data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    window.open(result.download_url, '_blank');
+                } else {
+                    this.error = result.error || 'Generation failed';
+                }
+            } catch (err) {
+                this.error = 'Generation failed: ' + err.message;
+            } finally {
+                this.generating = false;
+            }
+        },
+
+        async generatePPT() {
+            this.generating = true;
+            try {
+                const url = this.documentId
+                    ? `/cutter-map/generate-ppt/${this.documentId}/`
+                    : '{% url "cutter_map:generate_ppt" %}';
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify(this.data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    window.open(result.download_url, '_blank');
+                } else {
+                    this.error = result.error || 'Generation failed';
+                }
+            } catch (err) {
+                this.error = 'Generation failed: ' + err.message;
+            } finally {
+                this.generating = false;
+            }
+        },
+
+        init() {
+            // Re-initialize Lucide icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

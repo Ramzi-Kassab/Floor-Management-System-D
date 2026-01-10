@@ -58,6 +58,9 @@ urlpatterns = [
     # Technology / Engineering
     path('technology/', include('apps.technology.urls', namespace='technology')),
 
+    # Cutter Map PDF Editor
+    path('cutter-map/', include('apps.cutter_map.urls', namespace='cutter_map')),
+
     # Procedure Engine
     path('procedures/', include('apps.procedures.urls', namespace='procedures')),
     path('forms/', include('apps.forms_engine.urls', namespace='forms_engine')),

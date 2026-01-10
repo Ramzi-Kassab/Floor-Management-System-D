@@ -83,6 +83,7 @@ LOCAL_APPS = [
     'apps.sales',
     'apps.workorders',
     'apps.technology',
+    'apps.cutter_map',  # Cutter Map PDF Editor
 
     # Quality & Inventory
     'apps.quality',
