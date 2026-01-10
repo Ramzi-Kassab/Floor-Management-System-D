@@ -7089,7 +7089,9 @@
             el.textContent = msg;
             el.className = 'message ' + type;
             el.classList.remove('hidden');
-            setTimeout(() => el.classList.add('hidden'), 4000);
+            // Longer timeout for errors (10s) vs success (4s)
+            const timeout = type === 'error' ? 10000 : 4000;
+            setTimeout(() => el.classList.add('hidden'), timeout);
         }
     </script>
 </body>
