@@ -7,6 +7,20 @@ from decimal import Decimal
 register = template.Library()
 
 
+def _format_decimal(value):
+    """Format a Decimal without scientific notation and remove trailing zeros."""
+    if value is None:
+        return ''
+    if isinstance(value, Decimal):
+        # Convert to string with fixed notation (no scientific)
+        # Then strip trailing zeros and unnecessary decimal point
+        str_val = format(value, 'f')
+        if '.' in str_val:
+            str_val = str_val.rstrip('0').rstrip('.')
+        return str_val
+    return str(value)
+
+
 @register.filter
 def format_number(value, number_type='DECIMAL'):
     """
@@ -24,12 +38,8 @@ def format_number(value, number_type='DECIMAL'):
             # Convert to int for display
             return int(float(value))
         else:
-            # For decimal, remove trailing zeros
-            if isinstance(value, Decimal):
-                # Normalize to remove trailing zeros
-                normalized = value.normalize()
-                return str(normalized)
-            return value
+            # For decimal, remove trailing zeros without scientific notation
+            return _format_decimal(value)
     except (ValueError, TypeError):
         return value
 
@@ -52,10 +62,8 @@ def format_range(attr):
             return ''
         if number_type == 'INTEGER':
             return str(int(float(val)))
-        # For decimal, remove trailing zeros
-        if isinstance(val, Decimal):
-            return str(val.normalize())
-        return str(val)
+        # For decimal, remove trailing zeros without scientific notation
+        return _format_decimal(val)
 
     min_str = fmt(attr.min_value)
     max_str = fmt(attr.max_value)
