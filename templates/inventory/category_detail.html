@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load inventory_filters %}
 
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
@@ -199,10 +200,10 @@
                                     {% if attr.attribute_type == 'NUMBER' %}
                                         {% if attr.unit %}{{ attr.unit.code }}{% endif %}
                                         {% if attr.min_value is not None or attr.max_value is not None %}
-                                            <span class="text-blue-600">[{% if attr.min_value is not None %}{{ attr.min_value }}{% endif %}-{% if attr.max_value is not None %}{{ attr.max_value }}{% endif %}]</span>
+                                            <span class="text-blue-600">{{ attr|format_range }}</span>
                                         {% endif %}
                                         {% if not attr.allow_negative %}<span class="text-orange-500" title="Positive only">+</span>{% endif %}
-                                        {% if attr.decimal_places %}<span class="text-gray-400">.{{ attr.decimal_places }}dp</span>{% endif %}
+                                        {% if attr.number_type == 'DECIMAL' and attr.decimal_places %}<span class="text-gray-400">.{{ attr.decimal_places }}dp</span>{% endif %}
                                     {% elif attr.attribute_type == 'TEXT' %}
                                         {% if attr.max_length %}<span class="text-gray-400">max {{ attr.max_length }}</span>{% endif %}
                                         {% if attr.is_multiline %}<span class="text-purple-500" title="Multiline">ML</span>{% endif %}
