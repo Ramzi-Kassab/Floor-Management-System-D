@@ -265,7 +265,7 @@ def generate_pdf(request, document_id=None):
         return JsonResponse({
             'success': True,
             'filename': output_filename,
-            'download_url': f'/cutter-map/download/pdf/{document_id or 0}/{output_filename}',
+            'download_url': f'/cutter-map/download/{output_filename}',
             'output_path': output_path
         })
 
@@ -316,7 +316,7 @@ def generate_ppt(request, document_id=None):
         return JsonResponse({
             'success': True,
             'filename': output_filename,
-            'download_url': f'/cutter-map/download/ppt/{document_id or 0}/{output_filename}'
+            'download_url': f'/cutter-map/download/{output_filename}'
         })
 
     except Exception as e:
@@ -377,7 +377,7 @@ def export_json(request, document_id=None):
     return JsonResponse({
         'success': True,
         'filename': output_filename,
-        'download_url': f'/cutter-map/download/json/{output_filename}'
+        'download_url': f'/cutter-map/download/{output_filename}'
     })
 
 
@@ -387,6 +387,46 @@ def download_json(request, filename):
     file_path = os.path.join(settings.MEDIA_ROOT, 'cutter_maps', 'exports', filename)
     if os.path.exists(file_path):
         return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=filename)
+    raise Http404("File not found")
+
+
+def download_file(request, filename):
+    """
+    Simple file download - matches Flask /download/<filename> pattern.
+    No login required for direct file access (files are in generated folder).
+    """
+    # Check in generated folder
+    file_path = os.path.join(settings.MEDIA_ROOT, 'cutter_maps', 'generated', filename)
+    if os.path.exists(file_path):
+        # Determine content type based on extension
+        if filename.lower().endswith('.pdf'):
+            content_type = 'application/pdf'
+        elif filename.lower().endswith('.pptx'):
+            content_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        elif filename.lower().endswith('.json'):
+            content_type = 'application/json'
+        else:
+            content_type = 'application/octet-stream'
+
+        response = FileResponse(
+            open(file_path, 'rb'),
+            as_attachment=True,
+            filename=filename,
+            content_type=content_type
+        )
+        return response
+
+    # Also check exports folder for JSON
+    if filename.lower().endswith('.json'):
+        file_path = os.path.join(settings.MEDIA_ROOT, 'cutter_maps', 'exports', filename)
+        if os.path.exists(file_path):
+            return FileResponse(
+                open(file_path, 'rb'),
+                as_attachment=True,
+                filename=filename,
+                content_type='application/json'
+            )
+
     raise Http404("File not found")
 
 

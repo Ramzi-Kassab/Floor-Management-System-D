@@ -32,7 +32,9 @@ urlpatterns = [
     path('generate-ppt/', views.generate_ppt, name='generate_ppt'),
     path('generate-ppt/<int:document_id>/', views.generate_ppt, name='generate_ppt_document'),
 
-    # Downloads
+    # Downloads - simple route like Flask (no auth required for direct file access)
+    path('download/<str:filename>', views.download_file, name='download_file'),
+    # Legacy routes with document_id
     path('download/pdf/<int:document_id>/<str:filename>', views.download_pdf, name='download_pdf'),
     path('download/ppt/<int:document_id>/<str:filename>', views.download_ppt, name='download_ppt'),
     path('download/json/<str:filename>', views.download_json, name='download_json'),
