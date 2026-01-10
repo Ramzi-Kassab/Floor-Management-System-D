@@ -805,6 +805,10 @@ class CategoryAttribute(models.Model):
         BOOLEAN = "BOOLEAN", "Yes/No"
         DATE = "DATE", "Date"
 
+    class NumberType(models.TextChoices):
+        INTEGER = "INTEGER", "Integer (whole numbers)"
+        DECIMAL = "DECIMAL", "Decimal (with decimals)"
+
     category = models.ForeignKey(
         InventoryCategory,
         on_delete=models.CASCADE,
@@ -826,7 +830,23 @@ class CategoryAttribute(models.Model):
         help_text="How this attribute is used in this category"
     )
 
-    # For NUMBER type
+    # ==========================================================================
+    # NUMBER type configuration
+    # ==========================================================================
+    number_type = models.CharField(
+        max_length=20,
+        choices=NumberType.choices,
+        default=NumberType.DECIMAL,
+        help_text="For NUMBER: Integer (whole numbers) or Decimal"
+    )
+    allow_negative = models.BooleanField(
+        default=True,
+        help_text="For NUMBER: Allow negative values?"
+    )
+    decimal_places = models.PositiveSmallIntegerField(
+        default=2,
+        help_text="For DECIMAL: Number of decimal places (0-10)"
+    )
     unit = models.ForeignKey(
         UnitOfMeasure,
         on_delete=models.SET_NULL,
@@ -837,6 +857,32 @@ class CategoryAttribute(models.Model):
     )
     min_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
     max_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+
+    # ==========================================================================
+    # TEXT type configuration
+    # ==========================================================================
+    max_length = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="For TEXT: Maximum character length"
+    )
+    is_multiline = models.BooleanField(
+        default=False,
+        help_text="For TEXT: Allow multiple lines (textarea vs input)"
+    )
+
+    # ==========================================================================
+    # Common configuration (all types)
+    # ==========================================================================
+    placeholder = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Placeholder/hint text shown in input field"
+    )
+    field_help_text = models.TextField(
+        blank=True,
+        help_text="Help text/description shown below the field"
+    )
 
     # Options for dropdown - works with TEXT and NUMBER
     options = models.JSONField(

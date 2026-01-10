@@ -25,7 +25,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-2xl">
+<div class="max-w-3xl">
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
         <form method="post">
             {% csrf_token %}
@@ -57,63 +57,142 @@
                     </div>
                 </div>
 
-                <!-- Attribute Configuration for this Category -->
+                <!-- Attribute Type Selection -->
                 <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Configuration for this Category</h3>
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                        <i data-lucide="settings-2" class="w-5 h-5 inline mr-2"></i>
+                        Configuration for this Category
+                    </h3>
 
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Attribute Type *</label>
+                        {{ form.attribute_type }}
+                        <p class="text-xs text-gray-500 mt-1">How this attribute is used: Text, Number, Yes/No, or Date</p>
+                    </div>
+                </div>
+
+                <!-- NUMBER Type Configuration -->
+                <div id="number-config" class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                    <h4 class="font-medium text-blue-800 dark:text-blue-300 mb-4">
+                        <i data-lucide="hash" class="w-4 h-4 inline mr-1"></i>
+                        Number Configuration
+                    </h4>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Attribute Type *</label>
-                            {{ form.attribute_type }}
-                            <p class="text-xs text-gray-500 mt-1">How this attribute is used</p>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Number Type</label>
+                            {{ form.number_type }}
+                            <p class="text-xs text-gray-500 mt-1">Integer (1, 2, 3) or Decimal (1.5, 2.75)</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Unit</label>
-                            {{ form.unit }}
-                            <p class="text-xs text-gray-500 mt-1">For NUMBER type: mm, kg, etc.</p>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Decimal Places</label>
+                            {{ form.decimal_places }}
+                            <p class="text-xs text-gray-500 mt-1">For decimal: 2 = 0.00, 4 = 0.0000</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 mt-4">
+                        <div class="flex items-center">
+                            {{ form.allow_negative }}
+                            <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Allow Negative</label>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Min Value</label>
+                            {{ form.min_value }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Value</label>
+                            {{ form.max_value }}
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Unit of Measure</label>
+                        {{ form.unit }}
+                        <p class="text-xs text-gray-500 mt-1">e.g., mm, kg, inches</p>
+                    </div>
+                </div>
+
+                <!-- TEXT Type Configuration -->
+                <div id="text-config" class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                    <h4 class="font-medium text-green-800 dark:text-green-300 mb-4">
+                        <i data-lucide="type" class="w-4 h-4 inline mr-1"></i>
+                        Text Configuration
+                    </h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Length</label>
+                            {{ form.max_length }}
+                            <p class="text-xs text-gray-500 mt-1">Maximum characters allowed (optional)</p>
+                        </div>
+                        <div class="flex items-center pt-6">
+                            {{ form.is_multiline }}
+                            <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Multi-line (textarea)</label>
                         </div>
                     </div>
                 </div>
 
-                <!-- Number Validation -->
-                <div class="grid grid-cols-2 gap-4">
+                <!-- Options for Dropdown/Select -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h4 class="font-medium text-gray-900 dark:text-white mb-4">
+                        <i data-lucide="list" class="w-4 h-4 inline mr-1"></i>
+                        Dropdown Options
+                    </h4>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Min Value</label>
-                        {{ form.min_value }}
-                        <p class="text-xs text-gray-500 mt-1">For NUMBER type validation</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Value</label>
-                        {{ form.max_value }}
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Options (JSON Array)</label>
+                        {{ form.options }}
+                        <div class="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs">
+                            <p class="font-medium text-gray-700 dark:text-gray-300 mb-1">Format examples:</p>
+                            <ul class="text-gray-600 dark:text-gray-400 space-y-1">
+                                <li><code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">["Premium", "Standard", "Economy"]</code></li>
+                                <li><code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">[{"value": "PDC", "label": "PDC Diamond"}]</code></li>
+                            </ul>
+                            <p class="mt-2 text-gray-500">TEXT with options = dropdown. NUMBER with options = suggested values.</p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Options for SELECT type -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Options (for Select type)</label>
-                    {{ form.options }}
-                    <div class="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs">
-                        <p class="font-medium text-gray-700 dark:text-gray-300 mb-1">Format examples:</p>
-                        <ul class="text-gray-600 dark:text-gray-400 space-y-1">
-                            <li><code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">["Premium", "Standard", "Economy"]</code></li>
-                            <li><code class="bg-gray-200 dark:bg-gray-600 px-1 rounded">[{"value": "PDC", "label": "PDC Diamond"}, {"value": "TSP", "label": "TSP Diamond"}]</code></li>
-                        </ul>
+                <!-- Common Configuration -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h4 class="font-medium text-gray-900 dark:text-white mb-4">
+                        <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                        Field Settings
+                    </h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default Value</label>
+                            {{ form.default_value }}
+                            <p class="text-xs text-gray-500 mt-1">Pre-filled value for new items</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Placeholder</label>
+                            {{ form.placeholder }}
+                            <p class="text-xs text-gray-500 mt-1">Hint text shown in empty field</p>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Help Text</label>
+                        {{ form.field_help_text }}
+                        <p class="text-xs text-gray-500 mt-1">Detailed description shown below the field</p>
                     </div>
                 </div>
 
                 <!-- Flags -->
-                <div class="grid grid-cols-3 gap-4">
-                    <div class="flex items-center">
-                        {{ form.is_required }}
-                        <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Required</label>
-                    </div>
-                    <div class="flex items-center">
-                        {{ form.is_used_in_name }}
-                        <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Use in Auto-Name</label>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Display Order</label>
-                        {{ form.display_order }}
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h4 class="font-medium text-gray-900 dark:text-white mb-4">
+                        <i data-lucide="flag" class="w-4 h-4 inline mr-1"></i>
+                        Behavior
+                    </h4>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="flex items-center">
+                            {{ form.is_required }}
+                            <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Required</label>
+                        </div>
+                        <div class="flex items-center">
+                            {{ form.is_used_in_name }}
+                            <label class="ml-2 text-sm text-gray-700 dark:text-gray-300">Use in Auto-Name</label>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Display Order</label>
+                            {{ form.display_order }}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -131,4 +210,21 @@
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const typeSelect = document.getElementById('id_attribute_type');
+    const numberConfig = document.getElementById('number-config');
+    const textConfig = document.getElementById('text-config');
+
+    function updateVisibility() {
+        const type = typeSelect.value;
+        numberConfig.style.display = (type === 'NUMBER') ? 'block' : 'none';
+        textConfig.style.display = (type === 'TEXT') ? 'block' : 'none';
+    }
+
+    typeSelect.addEventListener('change', updateVisibility);
+    updateVisibility(); // Initial state
+});
+</script>
 {% endblock %}

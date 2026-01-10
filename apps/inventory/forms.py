@@ -347,10 +347,21 @@ class CategoryAttributeForm(forms.ModelForm):
             "category",
             "attribute",
             "attribute_type",
+            # NUMBER type configuration
+            "number_type",
+            "allow_negative",
+            "decimal_places",
             "unit",
             "min_value",
             "max_value",
+            # TEXT type configuration
+            "max_length",
+            "is_multiline",
+            # Common configuration
             "options",
+            "default_value",
+            "placeholder",
+            "field_help_text",
             "is_required",
             "is_used_in_name",
             "display_order",
@@ -359,13 +370,28 @@ class CategoryAttributeForm(forms.ModelForm):
             "category": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "attribute": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "attribute_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            # NUMBER type widgets
+            "number_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "allow_negative": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "decimal_places": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": "0", "max": "10"}),
             "unit": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "min_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
-            "max_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "min_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "any"}),
+            "max_value": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "any"}),
+            # TEXT type widgets
+            "max_length": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": "1", "placeholder": "e.g., 100"}),
+            "is_multiline": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            # Common widgets
             "options": forms.Textarea(attrs={
                 "class": TAILWIND_TEXTAREA,
                 "rows": 2,
                 "placeholder": '["Option1", "Option2"]'
+            }),
+            "default_value": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Default value"}),
+            "placeholder": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "e.g., Enter value..."}),
+            "field_help_text": forms.Textarea(attrs={
+                "class": TAILWIND_TEXTAREA,
+                "rows": 2,
+                "placeholder": "Help text shown below the field"
             }),
             "is_required": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "is_used_in_name": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),

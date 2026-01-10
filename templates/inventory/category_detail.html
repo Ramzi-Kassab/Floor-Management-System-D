@@ -163,9 +163,8 @@
                                 <th class="pb-2 font-medium">Code</th>
                                 <th class="pb-2 font-medium">Name</th>
                                 <th class="pb-2 font-medium">Type</th>
-                                <th class="pb-2 font-medium">Unit</th>
-                                <th class="pb-2 font-medium text-center">Required</th>
-                                <th class="pb-2 font-medium text-center">In Name</th>
+                                <th class="pb-2 font-medium">Configuration</th>
+                                <th class="pb-2 font-medium text-center">Flags</th>
                                 <th class="pb-2 font-medium text-right">Actions</th>
                             </tr>
                         </thead>
@@ -173,7 +172,14 @@
                             {% for attr in own_attributes %}
                             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                                 <td class="py-2 font-mono text-xs">{{ attr.code }}</td>
-                                <td class="py-2">{{ attr.name }}</td>
+                                <td class="py-2">
+                                    {{ attr.name }}
+                                    {% if attr.field_help_text %}
+                                    <span class="text-gray-400 ml-1" title="{{ attr.field_help_text }}">
+                                        <i data-lucide="info" class="w-3 h-3 inline"></i>
+                                    </span>
+                                    {% endif %}
+                                </td>
                                 <td class="py-2">
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                                         {% if attr.attribute_type == 'NUMBER' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
@@ -183,20 +189,37 @@
                                         {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
                                         {{ attr.get_attribute_type_display }}
                                     </span>
-                                </td>
-                                <td class="py-2 text-gray-500">{{ attr.unit|default:"-" }}</td>
-                                <td class="py-2 text-center">
-                                    {% if attr.is_required %}
-                                    <i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>
-                                    {% else %}
-                                    <i data-lucide="minus" class="w-4 h-4 text-gray-400 inline"></i>
+                                    {% if attr.attribute_type == 'NUMBER' %}
+                                    <span class="ml-1 text-xs text-gray-500">
+                                        ({{ attr.get_number_type_display|default:"Decimal" }})
+                                    </span>
                                     {% endif %}
                                 </td>
-                                <td class="py-2 text-center">
+                                <td class="py-2 text-xs text-gray-500">
+                                    {% if attr.attribute_type == 'NUMBER' %}
+                                        {% if attr.unit %}{{ attr.unit.code }}{% endif %}
+                                        {% if attr.min_value is not None or attr.max_value is not None %}
+                                            <span class="text-blue-600">[{% if attr.min_value is not None %}{{ attr.min_value }}{% endif %}-{% if attr.max_value is not None %}{{ attr.max_value }}{% endif %}]</span>
+                                        {% endif %}
+                                        {% if not attr.allow_negative %}<span class="text-orange-500" title="Positive only">+</span>{% endif %}
+                                        {% if attr.decimal_places %}<span class="text-gray-400">.{{ attr.decimal_places }}dp</span>{% endif %}
+                                    {% elif attr.attribute_type == 'TEXT' %}
+                                        {% if attr.max_length %}<span class="text-gray-400">max {{ attr.max_length }}</span>{% endif %}
+                                        {% if attr.is_multiline %}<span class="text-purple-500" title="Multiline">ML</span>{% endif %}
+                                    {% endif %}
+                                    {% if attr.options %}
+                                        <span class="text-green-600" title="{{ attr.options|length }} options">{{ attr.options|length }} opts</span>
+                                    {% endif %}
+                                    {% if attr.default_value %}
+                                        <span class="text-gray-400" title="Default: {{ attr.default_value }}">def</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-2 text-center space-x-1">
+                                    {% if attr.is_required %}
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300" title="Required">REQ</span>
+                                    {% endif %}
                                     {% if attr.is_used_in_name %}
-                                    <i data-lucide="check" class="w-4 h-4 text-green-600 inline"></i>
-                                    {% else %}
-                                    <i data-lucide="minus" class="w-4 h-4 text-gray-400 inline"></i>
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" title="Used in auto-generated name">NAME</span>
                                     {% endif %}
                                 </td>
                                 <td class="py-2 text-right space-x-2">
