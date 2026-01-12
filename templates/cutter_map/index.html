@@ -4331,20 +4331,14 @@
                         <tbody>`;
 
             (viewData.summary || []).forEach(r => {
-                let shapeHtml = '';
-                if (cutterShapes[r.index] && cutterShapes[r.index].data) {
-                    shapeHtml = `<img src="${cutterShapes[r.index].data}" alt="${r.index}" class="bom-shape-img">`;
-                }
-                html += `<tr><td>${shapeHtml}${r.index}</td><td>${r.size}</td><td>${r.chamfer}</td><td>${r.type}</td><td>${r.count}</td><td>${r.mat_number}</td><td>${r.family_number||''}</td></tr>`;
+                html += `<tr><td>${r.index}</td><td>${r.size}</td><td>${r.chamfer}</td><td>${r.type}</td><td>${r.count}</td><td>${r.mat_number}</td><td>${r.family_number||''}</td></tr>`;
             });
 
             html += `</tbody></table></div>`;
 
-            // Group Legend - vertical table layout like PDF
+            // Group Legend - vertical table layout like PDF (without shapes)
             // Show group legend if there are groups (matching PDF template)
             if (groups.length > 0) {
-                const groupShapes = images.group_shapes || [];
-
                 html += `<div class="doc-group-legend">`;
 
                 // Header row
@@ -4353,31 +4347,15 @@
                     <div class="group-legend-header-group">Group</div>
                 </div>`;
 
-                // Show shapes with their group numbers
-                if (groupShapes.length > 0) {
-                    groupShapes.forEach((shape, idx) => {
-                        html += `<div class="group-legend-row">
-                            <div class="group-legend-cell">`;
-                        if (shape.data) {
-                            html += `<img src="${shape.data}" class="group-shape-img" alt="Shape">`;
-                        }
-                        html += `</div>
-                            <div class="group-legend-cell">
-                                <span class="group-values">${shape.group_text || ''}</span>
-                            </div>
-                        </div>`;
-                    });
-                } else if (images.group_shape && images.group_shape.data) {
-                    // Single shape for all groups
+                // Show group numbers only (no shapes)
+                groups.forEach((group, idx) => {
                     html += `<div class="group-legend-row">
+                        <div class="group-legend-cell">${idx + 1}</div>
                         <div class="group-legend-cell">
-                            <img src="${images.group_shape.data}" class="group-shape-img" alt="Shape">
-                        </div>
-                        <div class="group-legend-cell">
-                            <span class="group-values">${groups.join(',')}</span>
+                            <span class="group-values">${group}</span>
                         </div>
                     </div>`;
-                }
+                });
 
                 html += `</div>`;
             }
