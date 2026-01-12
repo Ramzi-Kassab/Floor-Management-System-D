@@ -479,8 +479,11 @@ def image_to_base64(img: 'Image') -> str:
 def extract_cutter_shapes(page, raw_words: List, bom_rows: List) -> Dict[int, Dict]:
     """
     Extract cutter shape images from the CL (Cutter Layout) area.
-    Maps each BOM index to its shape image with transparent background.
+    Maps each BOM index to its shape image using hybrid matching:
+    1. First try containment (index center inside shape bounds)
+    2. Fall back to looking for shapes directly below the index
 
+    Uses proportional thresholds for dynamic PDF handling.
     Returns dict: {index: {'width': w, 'height': h, 'data': base64_url}}
     """
     if not HAS_PIL:
@@ -491,72 +494,89 @@ def extract_cutter_shapes(page, raw_words: List, bom_rows: List) -> Dict[int, Di
     cutter_shapes = {}
     image_list = page.get_images(full=True)
     bom_indices = set(row.index for row in bom_rows)
+    doc = page.parent
 
-    # Get first occurrence of each group number in CL area
-    group_positions = {}
-    for rw in raw_words:
-        x0, y0, x1, y1, text = rw[0], rw[1], rw[2], rw[3], rw[4]
-        if text.isdigit() and len(text) <= 2 and y0 > 150:
-            group = int(text)
-            if group in bom_indices and group not in group_positions:
-                group_positions[group] = {
-                    'cx': (x0 + x1) / 2,
-                    'cy': (y0 + y1) / 2
-                }
+    # Use proportional threshold for CL area (below header/BOM area)
+    page_height = page.rect.height
+    cl_area_y_threshold = page_height * 0.15  # CL area starts ~15% down
 
-    # Build hash -> transparent image map (deduplicated)
+    # Build hash -> image data map and collect all shape rectangles
     hash_to_image = {}
+    shape_rects = []  # List of (hash, w, h, x0, y0, x1, y1)
+
     for img_info in image_list:
         xref = img_info[0]
         try:
-            base_image = page.parent.extract_image(xref)
+            base_image = doc.extract_image(xref)
             w, h = base_image['width'], base_image['height']
-            # Only cutter-sized images
+
+            # Only cutter-sized images (20-200px)
             if not (20 < w < 200 and 20 < h < 200):
                 continue
 
             img_hash = hashlib.md5(base_image['image']).hexdigest()[:12]
+
+            # Store image data (deduplicated by hash)
             if img_hash not in hash_to_image:
-                # Use flood-fill for better transparent backgrounds
                 pil_img = Image.open(io.BytesIO(base_image['image']))
                 trans_img = make_transparent_floodfill(pil_img)
                 if trans_img:
                     hash_to_image[img_hash] = {
                         'width': w,
                         'height': h,
-                        'data': image_to_base64(trans_img),
-                        'xref': xref
+                        'data': image_to_base64(trans_img)
                     }
+
+            # Collect all rectangles in CL area
+            rects = page.get_image_rects(xref)
+            for rect in rects:
+                if rect.y0 > cl_area_y_threshold:
+                    shape_rects.append((img_hash, w, h, rect.x0, rect.y0, rect.x1, rect.y1))
         except:
             continue
 
-    # For each group, find which shape is nearby and map it
-    for group, pos in group_positions.items():
-        best_hash = None
-        best_dist = float('inf')
+    # Get ALL occurrences of each index in CL area
+    index_occurrences = {idx: [] for idx in bom_indices}
+    for rw in raw_words:
+        x0, y0, x1, y1, text = rw[0], rw[1], rw[2], rw[3], rw[4]
+        if text.isdigit() and len(text) <= 2 and y0 > cl_area_y_threshold:
+            idx = int(text)
+            if idx in bom_indices:
+                cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+                index_occurrences[idx].append((x0, y0, x1, y1, cx, cy))
 
-        for img_hash, img_data in hash_to_image.items():
-            xref = img_data['xref']
-            try:
-                rects = page.get_image_rects(xref)
-            except:
-                continue
+    # Match shapes to indices using hybrid approach
+    for idx in bom_indices:
+        occurrences = index_occurrences[idx]
+        if not occurrences:
+            continue
 
-            for rect in rects:
-                if rect.y0 < 150:
-                    continue
+        found_hash = None
 
-                img_cx = (rect.x0 + rect.x1) / 2
-                img_cy = (rect.y0 + rect.y1) / 2
-                dist = ((pos['cx'] - img_cx)**2 + (pos['cy'] - img_cy)**2)**0.5
+        # Method 1: Containment - index center inside shape bounds
+        for ox0, oy0, ox1, oy1, ocx, ocy in occurrences:
+            for shash, w, h, sx0, sy0, sx1, sy1 in shape_rects:
+                if sx0 <= ocx <= sx1 and sy0 <= ocy <= sy1:
+                    found_hash = shash
+                    break
+            if found_hash:
+                break
 
-                if dist < best_dist and dist < 65:
-                    best_dist = dist
-                    best_hash = img_hash
+        # Method 2: Shape directly below index (same x column, within 50px vertically)
+        if not found_hash:
+            for ox0, oy0, ox1, oy1, ocx, ocy in occurrences:
+                for shash, w, h, sx0, sy0, sx1, sy1 in shape_rects:
+                    scx = (sx0 + sx1) / 2
+                    # Same column (within 15px) and shape starts below index
+                    if abs(scx - ocx) < 15 and 0 < sy0 - oy1 < 50:
+                        found_hash = shash
+                        break
+                if found_hash:
+                    break
 
-        if best_hash:
-            img_data = hash_to_image[best_hash]
-            cutter_shapes[group] = {
+        if found_hash and found_hash in hash_to_image:
+            img_data = hash_to_image[found_hash]
+            cutter_shapes[idx] = {
                 'width': img_data['width'],
                 'height': img_data['height'],
                 'data': img_data['data']
