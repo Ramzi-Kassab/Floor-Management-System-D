@@ -539,6 +539,7 @@
                 </thead>
                 <tbody>
                 <!-- Shape rows -->
+                {# Only show proper group shapes - no fallbacks that might show CL shapes #}
                 {% if images and images.group_shapes and images.group_shapes|length > 0 %}
                     {% for shape in images.group_shapes %}
                     <tr class="group-legend-row">
@@ -552,15 +553,18 @@
                         </td>
                     </tr>
                     {% endfor %}
-                {% elif images and images.group_shape and images.group_shape.data %}
+                {% else %}
+                    {# No group shapes - show groups without shapes #}
+                    {% for group in groups %}
                     <tr class="group-legend-row">
                         <td style="border: none; padding: 3px 8px; text-align: center; vertical-align: middle;">
-                            <img src="{{ images.group_shape.data }}" alt="Shape" class="group-shape-img">
+                            {{ loop.index }}
                         </td>
                         <td style="border: none; padding: 3px 8px; text-align: center; vertical-align: middle;">
-                            <span class="group-values">{{ groups | join(',') }}</span>
+                            <span class="group-values">{{ group }}</span>
                         </td>
                     </tr>
+                    {% endfor %}
                 {% endif %}
                 </tbody>
             </table>
