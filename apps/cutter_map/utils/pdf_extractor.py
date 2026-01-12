@@ -1729,8 +1729,10 @@ def extract_images(page, doc, group_data=None, group_format='unknown') -> Dict:
                             'position': (rect.x0, rect.y0, rect.x1, rect.y1)
                         }
 
-                # 3. Group shape(s) - small cutter shapes in group area (middle-right)
-                elif rect.x0 > group_x_threshold and rect.y0 < 130 and 20 < width < 100 and 20 < height < 100:
+                # 3. Group shape(s) - small shapes in group area (middle-right, header)
+                # Proper group shapes are typically smaller than CL shapes (which are 100x100, 81x90, 100x80)
+                # Group shapes are usually around 70x66 or similar - exclude CL-sized shapes
+                elif rect.x0 > group_x_threshold and rect.y0 < 130 and 20 < width < 80 and 20 < height < 80:
                     shape_info = {
                         'data': data_url,
                         'width': width,
