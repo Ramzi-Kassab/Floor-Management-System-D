@@ -504,6 +504,7 @@ def extract_cutter_shapes(page, raw_words: List, bom_rows: List) -> Dict[int, Di
     hash_to_image = {}
     shape_rects = []  # List of (hash, w, h, x0, y0, x1, y1)
 
+    # Method 1: Extract XObject images via get_images()
     for img_info in image_list:
         xref = img_info[0]
         try:
@@ -534,6 +535,47 @@ def extract_cutter_shapes(page, raw_words: List, bom_rows: List) -> Dict[int, Di
                     shape_rects.append((img_hash, w, h, rect.x0, rect.y0, rect.x1, rect.y1))
         except:
             continue
+
+    # Method 2: Extract inline images via get_text() - these are NOT in get_images()
+    # Some PDFs embed shapes as inline images in the content stream
+    try:
+        import fitz as fitz_module
+        text_dict = page.get_text('dict', flags=fitz_module.TEXT_PRESERVE_IMAGES)
+        for block in text_dict.get('blocks', []):
+            if block.get('type') == 1:  # Image block
+                bbox = block.get('bbox', [])
+                if len(bbox) < 4 or bbox[1] <= cl_area_y_threshold:
+                    continue
+
+                w = block.get('width', 0)
+                h = block.get('height', 0)
+                img_data = block.get('image')
+
+                if not img_data or not (20 < w < 200 and 20 < h < 200):
+                    continue
+
+                img_hash = hashlib.md5(img_data).hexdigest()[:12]
+                x0, y0, x1, y1 = bbox
+
+                # Store image data (deduplicated by hash)
+                if img_hash not in hash_to_image:
+                    try:
+                        pil_img = Image.open(io.BytesIO(img_data))
+                        trans_img = make_transparent_floodfill(pil_img)
+                        if trans_img:
+                            hash_to_image[img_hash] = {
+                                'width': w,
+                                'height': h,
+                                'data': image_to_base64(trans_img)
+                            }
+                    except:
+                        continue
+
+                # Add to shape rects
+                if img_hash in hash_to_image:
+                    shape_rects.append((img_hash, w, h, x0, y0, x1, y1))
+    except:
+        pass  # If inline image extraction fails, continue with XObject images only
 
     # Get ALL occurrences of each index in CL area
     index_occurrences = {idx: [] for idx in bom_indices}
