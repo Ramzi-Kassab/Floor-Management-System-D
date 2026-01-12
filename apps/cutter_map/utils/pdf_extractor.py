@@ -1782,20 +1782,24 @@ def extract_images(page, doc, group_data=None, group_format='unknown') -> Dict:
                     if best_match:
                         group_text = str(best_match.get('value', ''))
 
-                images_data['group_shapes'].append({
-                    'data': shape_info['data'],
-                    'width': shape_info['width'],
-                    'height': shape_info['height'],
-                    'y0': shape_info['y0'],
-                    'group_text': group_text
-                })
+                # Only include shapes that have a valid group_text match
+                # This filters out CL shapes that happen to appear in header area
+                if group_text:
+                    images_data['group_shapes'].append({
+                        'data': shape_info['data'],
+                        'width': shape_info['width'],
+                        'height': shape_info['height'],
+                        'y0': shape_info['y0'],
+                        'group_text': group_text
+                    })
 
-            # Also set group_shape to first one for backward compatibility
-            images_data['group_shape'] = {
-                'data': potential_group_shapes[0]['data'],
-                'width': potential_group_shapes[0]['width'],
-                'height': potential_group_shapes[0]['height']
-            }
+            # Set group_shape to first matched shape (not just first potential)
+            if images_data['group_shapes']:
+                images_data['group_shape'] = {
+                    'data': images_data['group_shapes'][0]['data'],
+                    'width': images_data['group_shapes'][0]['width'],
+                    'height': images_data['group_shapes'][0]['height']
+                }
 
         # Render drill bit preview from page (cleaner than extracted JPEG)
         if images_data.get('_drill_preview_rect'):
