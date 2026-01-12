@@ -572,24 +572,6 @@ def extract_cutter_shapes(page, raw_words: List, bom_rows: List) -> Dict[int, Di
                 'data': img_data['data']
             }
 
-    # Fallback: For indices without shapes, try to find another index with the
-    # same cutter type that does have a shape (e.g., CT31 NA and CT31 DROP-IN
-    # should share the same shape)
-    idx_to_type = {row.index: row.cutter_type for row in bom_rows}
-    for idx in bom_indices:
-        if idx in cutter_shapes:
-            continue  # Already has a shape
-
-        cutter_type = idx_to_type.get(idx, '')
-        if not cutter_type or cutter_type in ('WCMAT400', 'WC-MAT400'):
-            continue  # Matrix pads don't have shapes
-
-        # Find another index with the same cutter type that has a shape
-        for other_idx, other_type in idx_to_type.items():
-            if other_type == cutter_type and other_idx in cutter_shapes:
-                cutter_shapes[idx] = cutter_shapes[other_idx].copy()
-                break
-
     return cutter_shapes
 
 
