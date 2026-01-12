@@ -1,0 +1,62 @@
+{
+  "exported_at": "2026-01-12T00:58:15.437404",
+  "designs": [
+    {
+      "mat_no": "1283567",
+      "hdbs_type": "HXi54s",
+      "smi_type": "HXi54s",
+      "ref_mat_no": "",
+      "ardt_item_no": "",
+      "category": "FC",
+      "size_code": "6.125",
+      "series": "HXI",
+      "body_material": "S",
+      "no_of_blades": 5,
+      "total_pockets_count": null,
+      "pocket_rows_count": 1,
+      "pocket_layout_number": "1",
+      "cutter_size": 4,
+      "gage_length": null,
+      "gage_relief": null,
+      "erosion_sleeve": false,
+      "nozzle_count": null,
+      "nozzle_bore_size": "",
+      "nozzle_config": "",
+      "tfa": null,
+      "port_count": null,
+      "port_size": null,
+      "connection_mat_no": "",
+      "upper_section_type_code": null,
+      "connection_type_ref_code": null,
+      "connection_size_ref_code": null,
+      "connection_ref_mat_no": null,
+      "breaker_slot_mat_no": null,
+      "formation_type_ref_code": null,
+      "application_ref_code": null,
+      "iadc_code_ref_code": null,
+      "special_technology_codes": [],
+      "order_level": "4",
+      "status": "DRAFT",
+      "revision": "",
+      "description": "6 1/8\" - HXi54s - 1283567",
+      "notes": ""
+    }
+  ],
+  "boms": [
+    {
+      "design_mat_no": "1283567",
+      "code": "2020054",
+      "name": "BOM for HXi54s (6 1/8\")",
+      "revision": "A",
+      "status": "DRAFT",
+      "effective_date": null,
+      "notes": "",
+      "source_type": "MANUAL",
+      "source_mat_number": "",
+      "source_sn_number": "",
+      "source_revision_level": "",
+      "source_software_version": "",
+      "lines": []
+    }
+  ]
+}
