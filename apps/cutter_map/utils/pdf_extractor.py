@@ -545,7 +545,9 @@ def extract_cutter_shapes(page, raw_words: List, bom_rows: List) -> Dict[int, Di
                 cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
                 index_occurrences[idx].append((x0, y0, x1, y1, cx, cy))
 
-    # Match shapes to indices using hybrid approach
+    # Match shapes to indices using CONTAINMENT only
+    # The index number must be INSIDE the shape's bounding rectangle
+    # This correctly handles indices without shapes (like WCMAT400 matrix pads)
     for idx in bom_indices:
         occurrences = index_occurrences[idx]
         if not occurrences:
@@ -553,7 +555,7 @@ def extract_cutter_shapes(page, raw_words: List, bom_rows: List) -> Dict[int, Di
 
         found_hash = None
 
-        # Method 1: Containment - index center inside shape bounds
+        # Containment matching - index center must be inside shape bounds
         for ox0, oy0, ox1, oy1, ocx, ocy in occurrences:
             for shash, w, h, sx0, sy0, sx1, sy1 in shape_rects:
                 if sx0 <= ocx <= sx1 and sy0 <= ocy <= sy1:
@@ -561,18 +563,6 @@ def extract_cutter_shapes(page, raw_words: List, bom_rows: List) -> Dict[int, Di
                     break
             if found_hash:
                 break
-
-        # Method 2: Shape directly below index (same x column, within 50px vertically)
-        if not found_hash:
-            for ox0, oy0, ox1, oy1, ocx, ocy in occurrences:
-                for shash, w, h, sx0, sy0, sx1, sy1 in shape_rects:
-                    scx = (sx0 + sx1) / 2
-                    # Same column (within 15px) and shape starts below index
-                    if abs(scx - ocx) < 15 and 0 < sy0 - oy1 < 50:
-                        found_hash = shash
-                        break
-                if found_hash:
-                    break
 
         if found_hash and found_hash in hash_to_image:
             img_data = hash_to_image[found_hash]
