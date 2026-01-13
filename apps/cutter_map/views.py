@@ -704,9 +704,10 @@ def api_sync_to_erp(request):
             }
 
         # 4. Create DesignPocketConfig entries (grouped by size + shape)
-        # Clear existing pocket configs and pockets
-        parent_design.pocket_configs.all().delete()
+        # Clear existing pockets FIRST (they reference pocket_configs via protected FK)
+        # Then clear pocket_configs
         parent_design.pockets.all().delete()
+        parent_design.pocket_configs.all().delete()
 
         # Group by (size, shape)
         config_groups = {}  # (size, shape) → {indices: [], count: 0, color: ''}
