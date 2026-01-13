@@ -2953,222 +2953,26 @@ class APISMITypesFilterView(LoginRequiredMixin, View):
 
 class BOMCreateWithBuilderView(LoginRequiredMixin, TemplateView):
     """
-    Combined BOM creation and builder page.
+    BOM creation page - Design selection for Cutter Map workflow.
 
-    This view allows:
-    1. Creating a new BOM with a Level 5 MAT code
-    2. Linking to an existing Design (L3/L4) or creating a new one inline
-    3. Immediately using the builder to add BOM lines
-    4. Auto-syncing total cutter count to Design
+    This view shows a list of L3/L4 Designs for the user to select,
+    then redirects to the Cutter Map app to import PDF and create the BOM.
     """
 
     template_name = "technology/bom_create_builder.html"
 
     def get_context_data(self, **kwargs):
-        from apps.inventory.models import InventoryCategory, InventoryItem
-        from .forms import QuickDesignForm, BOMWithDesignForm
-
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Create BOM"
-
-        # Forms
-        context["bom_form"] = BOMWithDesignForm()
-        context["design_form"] = QuickDesignForm()
 
         # Get designs for selection (L3/L4 only) - include all statuses
         context["designs"] = Design.objects.filter(
             order_level__in=["3", "4"]
         ).select_related("size").prefetch_related(
-            "boms", "boms__lines"
+            "boms"
         ).order_by("-created_at")
 
-        # Get HDBS Types for quick design creation
-        context["hdbs_types"] = HDBSType.objects.filter(
-            is_active=True
-        ).prefetch_related("sizes").order_by("hdbs_name")
-
-        # Get sizes
-        context["sizes"] = BitSize.objects.filter(is_active=True).order_by("size_decimal")
-
-        # Get cutter items for builder (same as BOMBuilderView)
-        cutter_category = InventoryCategory.objects.filter(
-            Q(code__icontains="CUT") | Q(name__icontains="Cutter")
-        ).first()
-
-        if cutter_category:
-            cutter_items = InventoryItem.objects.filter(
-                category=cutter_category,
-                is_active=True
-            ).select_related("category").prefetch_related("attribute_values", "attribute_values__attribute")[:100]
-        else:
-            cutter_items = InventoryItem.objects.filter(
-                is_active=True
-            ).select_related("category").prefetch_related("attribute_values", "attribute_values__attribute")[:50]
-
-        cutter_items_data = []
-        for item in cutter_items:
-            hdbs_code = ""
-            size = ""
-            chamfer = ""
-            cutter_type = ""
-
-            for attr in item.attribute_values.all():
-                attr_code = attr.attribute.code.lower() if attr.attribute else ""
-                if "hdbs" in attr_code or "mat" in attr_code:
-                    hdbs_code = attr.text_value
-                elif "size" in attr_code:
-                    size = attr.text_value
-                elif "chamfer" in attr_code:
-                    chamfer = attr.text_value
-                elif "type" in attr_code:
-                    cutter_type = attr.text_value
-
-            cutter_items_data.append({
-                'item': item,
-                'hdbs_code': hdbs_code or item.code,
-                'size': size,
-                'chamfer': chamfer,
-                'cutter_type': cutter_type,
-            })
-
-        context["cutter_items"] = cutter_items_data
-        context["color_palette"] = BOMLine.DEFAULT_COLORS
-
         return context
-
-    def post(self, request):
-        """Handle BOM creation with optional Design creation."""
-        from .forms import QuickDesignForm, BOMWithDesignForm
-
-        bom_form = BOMWithDesignForm(request.POST)
-        design_form = QuickDesignForm(request.POST)
-
-        design_mode = request.POST.get("design_mode", "existing")
-        design = None
-
-        # Validate and create design if new mode
-        if design_mode == "new":
-            if design_form.is_valid():
-                design = design_form.save(commit=False)
-                design.created_by = request.user
-                design.save()
-            else:
-                # Return errors as JSON for AJAX handling
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({
-                        'success': False,
-                        'errors': design_form.errors,
-                        'error_type': 'design'
-                    }, status=400)
-                messages.error(request, "Please fix the Design form errors.")
-                return self.render_to_response(self.get_context_data(
-                    bom_form=bom_form,
-                    design_form=design_form,
-                ))
-        else:
-            # Use existing design
-            existing_design_id = request.POST.get("existing_design")
-            if existing_design_id:
-                try:
-                    design = Design.objects.get(pk=existing_design_id)
-                except Design.DoesNotExist:
-                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                        return JsonResponse({
-                            'success': False,
-                            'error': 'Selected design not found'
-                        }, status=400)
-                    messages.error(request, "Selected design not found.")
-                    return self.render_to_response(self.get_context_data(
-                        bom_form=bom_form,
-                        design_form=design_form,
-                    ))
-            else:
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({
-                        'success': False,
-                        'error': 'Please select a design or create a new one'
-                    }, status=400)
-                messages.error(request, "Please select a design or create a new one.")
-                return self.render_to_response(self.get_context_data(
-                    bom_form=bom_form,
-                    design_form=design_form,
-                ))
-
-        # Create BOM
-        bom_code = request.POST.get("bom_code", "").strip()
-        bom_name = request.POST.get("bom_name", "").strip()
-        bom_revision = request.POST.get("bom_revision", "A").strip()
-
-        if not bom_code:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({
-                    'success': False,
-                    'error': 'BOM Code (L5 MAT) is required'
-                }, status=400)
-            messages.error(request, "BOM Code (L5 MAT) is required.")
-            return self.render_to_response(self.get_context_data(
-                bom_form=bom_form,
-                design_form=design_form,
-            ))
-
-        # Check uniqueness
-        if BOM.objects.filter(code=bom_code).exists():
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({
-                    'success': False,
-                    'error': f'BOM with code {bom_code} already exists'
-                }, status=400)
-            messages.error(request, f"BOM with code '{bom_code}' already exists.")
-            return self.render_to_response(self.get_context_data(
-                bom_form=bom_form,
-                design_form=design_form,
-            ))
-
-        # Generate name if not provided
-        if not bom_name:
-            bom_name = f"BOM for {design.hdbs_type} ({design.size})" if design.size else f"BOM for {design.hdbs_type}"
-
-        # Get SMI type from form and update design if provided
-        # Check both field names - smi_type (from BOM info) or design_smi_type (from new design section)
-        smi_type_name = request.POST.get("smi_type", "").strip() or request.POST.get("design_smi_type", "").strip()
-        smi_type_obj = None
-
-        if smi_type_name:
-            # Also update design's smi_type CharField for backward compatibility
-            if not design.smi_type or design_mode == "new":
-                design.smi_type = smi_type_name
-                design.save(update_fields=["smi_type"])
-
-            # Look up the SMIType object by name (and optionally match size)
-            smi_type_qs = SMIType.objects.filter(smi_name__iexact=smi_type_name, is_active=True)
-            if design.size:
-                # Try to find an SMI Type matching the design's size
-                smi_type_obj = smi_type_qs.filter(size=design.size).first()
-            if not smi_type_obj:
-                # Fall back to any matching SMI Type
-                smi_type_obj = smi_type_qs.first()
-
-        # Create BOM
-        bom = BOM.objects.create(
-            design=design,
-            smi_type=smi_type_obj,
-            code=bom_code,
-            name=bom_name,
-            revision=bom_revision,
-            status=BOM.Status.DRAFT,
-            created_by=request.user,
-        )
-
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({
-                'success': True,
-                'bom_id': bom.id,
-                'bom_code': bom.code,
-                'redirect_url': reverse("technology:bom_builder", kwargs={"pk": bom.pk}),
-            })
-
-        messages.success(request, f"BOM {bom.code} created successfully.")
-        return redirect("technology:bom_builder", pk=bom.pk)
 
 
 class APIDesignsFilterView(LoginRequiredMixin, View):

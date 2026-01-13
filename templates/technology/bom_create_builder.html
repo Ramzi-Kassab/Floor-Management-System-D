@@ -29,17 +29,18 @@
     .th-filter:hover {
         background: rgba(59, 130, 246, 0.1);
     }
-    .child-row {
-        background: #f8fafc;
+    .design-row {
+        cursor: pointer;
+        transition: background-color 0.15s;
     }
-    .dark .child-row {
-        background: #1e293b;
+    .design-row:hover {
+        background: rgba(59, 130, 246, 0.1);
     }
-    .expand-icon {
-        transition: transform 0.2s;
+    .design-row.selected {
+        background: rgba(147, 51, 234, 0.15) !important;
     }
-    .expanded .expand-icon {
-        transform: rotate(90deg);
+    .dark .design-row.selected {
+        background: rgba(147, 51, 234, 0.3) !important;
     }
 </style>
 {% endblock %}
@@ -48,7 +49,7 @@
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Create BOM</h1>
-        <p class="text-gray-600 dark:text-gray-400">Step 1: Select a Design (L3/L4 MAT), then import from PDF or create manually</p>
+        <p class="text-gray-600 dark:text-gray-400">Select a Design (L3/L4 MAT) to start creating a new BOM via Cutter Map</p>
     </div>
     <div class="mt-4 md:mt-0">
         <a href="{% url 'technology:bom_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
@@ -59,1406 +60,285 @@
 {% endblock %}
 
 {% block content %}
-<form method="post" id="bom-create-form">
-    {% csrf_token %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Column: Design Selection -->
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="layers" class="w-5 h-5 mr-2 text-purple-600"></i>
+                    Select Design (L3/L4 MAT)
+                </h2>
+                <span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                    {{ designs|length }} designs available
+                </span>
+            </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Left Column: Design Selection First, then BOM Info -->
-        <div class="lg:col-span-2 space-y-6">
-            <!-- STEP 1: Design Selection Card (Required First) -->
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-purple-600 text-white text-sm font-bold mr-3">1</span>
-                        <i data-lucide="layers" class="w-5 h-5 mr-2 text-purple-600"></i>
-                        Select Design (L3/L4 MAT) <span class="text-red-500 ml-1">*</span>
-                    </h2>
-                    <span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">Required First</span>
-                </div>
+            <!-- Search Box -->
+            <div class="mb-4">
+                <input type="text" id="design-search" placeholder="Search by MAT, HDBS Type, or Size..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    oninput="filterDesigns(this.value)">
+            </div>
 
-                <!-- Design Mode Toggle -->
-                <div class="mb-4">
-                    <div class="flex space-x-4">
-                        <label class="inline-flex items-center cursor-pointer">
-                            <input type="radio" name="design_mode" value="existing" checked
-                                class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                                onchange="toggleDesignMode('existing')">
-                            <span class="ml-2 text-gray-700 dark:text-gray-300">Select Existing Design</span>
-                        </label>
-                        <label class="inline-flex items-center cursor-pointer">
-                            <input type="radio" name="design_mode" value="new"
-                                class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                                onchange="toggleDesignMode('new')">
-                            <span class="ml-2 text-gray-700 dark:text-gray-300">Create New Design</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Existing Design Selection -->
-                <div id="existing-design-section">
-                    <!-- Design Selection Table with Excel-style filters -->
-                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                        <div class="max-h-[400px] overflow-y-auto">
-                            <table class="w-full text-sm" id="design-table">
-                                <thead class="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
-                                    <tr>
-                                        <th class="px-2 py-2 text-left w-8"></th>
-                                        <th class="th-filter px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase" data-column="level">
-                                            <div class="flex items-center justify-between">
-                                                <span>Level</span>
-                                                <button type="button" class="filter-btn p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleFilter(event, 'level')">
-                                                    <i data-lucide="filter" class="w-3.5 h-3.5"></i>
-                                                </button>
-                                            </div>
-                                            <div class="filter-dropdown" id="filter-level-dropdown">
-                                                <div class="p-2 border-b border-gray-200 dark:border-gray-600">
-                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('level', 'asc')">
-                                                        <i data-lucide="arrow-up" class="w-3 h-3 inline mr-1"></i>Sort A-Z
-                                                    </button>
-                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('level', 'desc')">
-                                                        <i data-lucide="arrow-down" class="w-3 h-3 inline mr-1"></i>Sort Z-A
-                                                    </button>
-                                                </div>
-                                                <div class="p-2 max-h-40 overflow-y-auto">
-                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="level-filter mr-2" value="" checked onchange="applyLevelFilter(this)"> (All)
-                                                    </label>
-                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="level-filter mr-2" value="3" checked onchange="applyLevelFilter(this)"> Level 3
-                                                    </label>
-                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="level-filter mr-2" value="4" checked onchange="applyLevelFilter(this)"> Level 4
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </th>
-                                        <th class="th-filter px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase" data-column="mat">
-                                            <div class="flex items-center justify-between">
-                                                <span>MAT No.</span>
-                                                <button type="button" class="filter-btn p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleFilter(event, 'mat')">
-                                                    <i data-lucide="filter" class="w-3.5 h-3.5"></i>
-                                                </button>
-                                            </div>
-                                            <div class="filter-dropdown" id="filter-mat-dropdown">
-                                                <div class="p-2 border-b border-gray-200 dark:border-gray-600">
-                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('mat', 'asc')">
-                                                        <i data-lucide="arrow-up" class="w-3 h-3 inline mr-1"></i>Sort A-Z
-                                                    </button>
-                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('mat', 'desc')">
-                                                        <i data-lucide="arrow-down" class="w-3 h-3 inline mr-1"></i>Sort Z-A
-                                                    </button>
-                                                </div>
-                                                <div class="p-2">
-                                                    <input type="text" class="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700"
-                                                           placeholder="Search MAT..." id="filter-mat-search" oninput="filterByText('mat', this.value)">
-                                                </div>
-                                            </div>
-                                        </th>
-                                        <th class="th-filter px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase" data-column="hdbs">
-                                            <div class="flex items-center justify-between">
-                                                <span>HDBS Type</span>
-                                                <button type="button" class="filter-btn p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleFilter(event, 'hdbs')">
-                                                    <i data-lucide="filter" class="w-3.5 h-3.5"></i>
-                                                </button>
-                                            </div>
-                                            <div class="filter-dropdown" id="filter-hdbs-dropdown">
-                                                <div class="p-2 border-b border-gray-200 dark:border-gray-600">
-                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('hdbs', 'asc')">
-                                                        <i data-lucide="arrow-up" class="w-3 h-3 inline mr-1"></i>Sort A-Z
-                                                    </button>
-                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('hdbs', 'desc')">
-                                                        <i data-lucide="arrow-down" class="w-3 h-3 inline mr-1"></i>Sort Z-A
-                                                    </button>
-                                                </div>
-                                                <div class="p-2">
-                                                    <input type="text" class="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700"
-                                                           placeholder="Search HDBS..." id="filter-hdbs-search" oninput="filterByText('hdbs', this.value)">
-                                                </div>
-                                            </div>
-                                        </th>
-                                        <th class="th-filter px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase" data-column="size">
-                                            <div class="flex items-center justify-between">
-                                                <span>Size</span>
-                                                <button type="button" class="filter-btn p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleFilter(event, 'size')">
-                                                    <i data-lucide="filter" class="w-3.5 h-3.5"></i>
-                                                </button>
-                                            </div>
-                                            <div class="filter-dropdown" id="filter-size-dropdown">
-                                                <div class="p-2 border-b border-gray-200 dark:border-gray-600">
-                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('size', 'asc')">
-                                                        <i data-lucide="arrow-up" class="w-3 h-3 inline mr-1"></i>Sort Small-Large
-                                                    </button>
-                                                    <button type="button" class="w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="sortColumn('size', 'desc')">
-                                                        <i data-lucide="arrow-down" class="w-3 h-3 inline mr-1"></i>Sort Large-Small
-                                                    </button>
-                                                </div>
-                                                <div class="p-2 max-h-40 overflow-y-auto" id="size-filter-options">
-                                                    <!-- Populated dynamically -->
-                                                </div>
-                                            </div>
-                                        </th>
-                                        <th class="th-filter px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase" data-column="status">
-                                            <div class="flex items-center justify-between">
-                                                <span>Status</span>
-                                                <button type="button" class="filter-btn p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleFilter(event, 'status')">
-                                                    <i data-lucide="filter" class="w-3.5 h-3.5"></i>
-                                                </button>
-                                            </div>
-                                            <div class="filter-dropdown" id="filter-status-dropdown">
-                                                <div class="p-2 max-h-40 overflow-y-auto">
-                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="status-filter mr-2" value="" checked onchange="applyStatusFilter(this)"> (All)
-                                                    </label>
-                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="status-filter mr-2" value="DRAFT" checked onchange="applyStatusFilter(this)"> Draft
-                                                    </label>
-                                                    <label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                        <input type="checkbox" class="status-filter mr-2" value="ACTIVE" checked onchange="applyStatusFilter(this)"> Active
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </th>
-                                        <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 uppercase">BOMs</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-200 dark:divide-gray-700" id="design-table-body">
-                                    {% for design in designs %}
-                                    <tr class="design-row hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors"
-                                        data-design-id="{{ design.pk }}"
-                                        data-level="{{ design.order_level }}"
-                                        data-mat="{{ design.mat_no|lower }}"
-                                        data-hdbs="{{ design.hdbs_type|lower }}"
-                                        data-size="{{ design.size_id|default:'' }}"
-                                        data-size-display="{{ design.size.size_display|default:'' }}"
-                                        data-status="{{ design.status }}"
-                                        data-bom-count="{{ design.boms.count }}"
-                                        onclick="selectDesign(this)">
-                                        <td class="px-2 py-2">
-                                            <div class="flex items-center gap-1">
-                                                {% if design.boms.count > 0 %}
-                                                <button type="button" class="expand-btn p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" onclick="toggleBomRows(event, {{ design.pk }})">
-                                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5 expand-icon"></i>
-                                                </button>
-                                                {% endif %}
-                                                <input type="radio" name="existing_design" value="{{ design.pk }}"
-                                                    class="design-radio w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300">
-                                            </div>
-                                        </td>
-                                        <td class="px-2 py-2">
-                                            <span class="inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold
-                                                {% if design.order_level == '3' %}bg-purple-100 text-purple-700{% else %}bg-indigo-100 text-indigo-700{% endif %}">
-                                                L{{ design.order_level }}
-                                            </span>
-                                        </td>
-                                        <td class="px-2 py-2 font-mono text-gray-900 dark:text-white text-xs">{{ design.mat_no }}</td>
-                                        <td class="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs">{{ design.hdbs_type|default:"--" }}</td>
-                                        <td class="px-2 py-2 text-gray-600 dark:text-gray-400 text-xs">{{ design.size.size_display|default:"--" }}</td>
-                                        <td class="px-2 py-2">
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
-                                                {% if design.status == 'ACTIVE' %}bg-green-100 text-green-700{% elif design.status == 'DRAFT' %}bg-yellow-100 text-yellow-700{% else %}bg-gray-100 text-gray-600{% endif %}">
-                                                {{ design.get_status_display }}
-                                            </span>
-                                        </td>
-                                        <td class="px-2 py-2 text-xs text-gray-500">
-                                            {% if design.boms.count > 0 %}
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
-                                                {{ design.boms.count }}
-                                            </span>
-                                            {% else %}
-                                            <span class="text-gray-400">0</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    <!-- Child BOM rows (hidden by default) -->
-                                    {% for bom in design.boms.all %}
-                                    <tr class="child-row bom-child-{{ design.pk }} hidden" data-parent="{{ design.pk }}">
-                                        <td class="px-2 py-1.5"></td>
-                                        <td colspan="5" class="px-2 py-1.5">
-                                            <div class="flex items-center gap-3 ml-4 text-xs">
-                                                <span class="text-gray-400">└</span>
-                                                <span class="font-mono text-blue-600">{{ bom.code }}</span>
-                                                <span class="text-gray-500">Rev {{ bom.revision }}</span>
-                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs
-                                                    {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-700{% else %}bg-yellow-100 text-yellow-700{% endif %}">
-                                                    {{ bom.get_status_display }}
-                                                </span>
-                                                <span class="text-gray-400">{{ bom.lines.count }} items</span>
-                                            </div>
-                                        </td>
-                                        <td class="px-2 py-1.5 text-right">
-                                            <button type="button" class="inline-flex items-center px-2 py-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 rounded"
-                                                    onclick="cloneBom(event, {{ bom.pk }}, '{{ bom.code }}')">
-                                                <i data-lucide="copy" class="w-3 h-3 mr-1"></i>Clone
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                    {% empty %}
-                                    <tr>
-                                        <td colspan="7" class="px-3 py-8 text-center text-gray-500">
-                                            No designs available. Create a new design below.
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Results count -->
-                    <div class="mt-2 flex items-center justify-between text-sm text-gray-500">
-                        <span id="design-count">{{ designs|length }} designs</span>
-                        <button type="button" onclick="clearAllFilters()" class="text-blue-600 hover:text-blue-800 text-xs">
-                            Clear All Filters
-                        </button>
-                    </div>
-
-                    <!-- Selected Design Display -->
-                    <div id="selected-design-info" class="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 hidden">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm font-medium text-blue-800 dark:text-blue-200">Selected Design:</p>
-                                <p class="text-blue-600 dark:text-blue-300 font-mono text-sm" id="selected-design-text"></p>
-                            </div>
-                            <button type="button" onclick="clearDesignSelection()" class="text-blue-600 hover:text-blue-800">
-                                <i data-lucide="x" class="w-5 h-5"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- New Design Form -->
-                <div id="new-design-section" class="hidden">
-                    <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
-                        <p class="text-sm text-blue-700 dark:text-blue-300">
-                            <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
-                            Create a new Design (Level 3 or 4). This will be linked to your BOM.
-                        </p>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Order Level <span class="text-red-500">*</span>
-                            </label>
-                            <select name="order_level" id="id_design_order_level"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                <option value="3">Level 3</option>
-                                <option value="4">Level 4</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Category <span class="text-red-500">*</span>
-                            </label>
-                            <select name="category" id="id_design_category"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                <option value="FC" selected>Fixed Cutter</option>
-                                <option value="MT">Mill Tooth</option>
-                                <option value="TCI">Tri Cone Inserts</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                MAT No. (L3/L4) <span class="text-red-500">*</span>
-                            </label>
-                            <input type="text" name="mat_no" id="id_design_mat_no"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                placeholder="Design MAT No." oninput="checkFormCompletion()">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Size <span class="text-red-500">*</span>
-                            </label>
-                            <select name="size" id="id_design_size"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                onchange="checkFormCompletion()">
-                                <option value="">-- Select Size --</option>
-                                {% for size in sizes %}
-                                <option value="{{ size.pk }}">{{ size.size_display }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                HDBS Type <span class="text-red-500">*</span>
-                            </label>
-                            <div class="flex gap-2">
-                                <input type="text" name="hdbs_type" id="id_design_hdbs_type"
-                                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                    placeholder="e.g., GT65RHS" oninput="checkFormCompletion()">
-                                <button type="button" onclick="openHdbsCreate()"
-                                    class="px-3 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
-                                    title="Create new HDBS Type">
-                                    <i data-lucide="plus" class="w-4 h-4"></i>
-                                </button>
-                            </div>
-                            <p class="mt-1 text-xs text-gray-500">Internal type name or <a href="#" onclick="openHdbsCreate(); return false;" class="text-purple-600 hover:underline">create new</a></p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                SMI Type (Optional)
-                            </label>
-                            <div class="flex gap-2">
-                                <input type="text" name="design_smi_type" id="id_design_smi_type"
-                                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                    placeholder="Client-facing name">
-                                <button type="button" onclick="openSmiCreate()"
-                                    class="px-3 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
-                                    title="Create new SMI Type">
-                                    <i data-lucide="plus" class="w-4 h-4"></i>
-                                </button>
-                            </div>
-                            <p class="mt-1 text-xs text-gray-500">Client-facing name or <a href="#" onclick="openSmiCreate(); return false;" class="text-blue-600 hover:underline">create new</a></p>
-                        </div>
-                    </div>
+            <!-- Design Selection Table -->
+            <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                <div class="max-h-[500px] overflow-y-auto">
+                    <table class="w-full text-sm" id="design-table">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase w-12"></th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Level</th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">MAT No.</th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">HDBS Type</th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Size</th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">BOMs</th>
+                            </tr>
+                        </thead>
+                        <tbody id="design-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                            {% for design in designs %}
+                            <tr class="design-row hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                                data-design-id="{{ design.pk }}"
+                                data-level="L{{ design.order_level }}"
+                                data-mat="{{ design.mat_no|lower }}"
+                                data-hdbs="{{ design.hdbs_type|lower }}"
+                                data-size="{{ design.size.size_decimal|default:'' }}"
+                                onclick="selectDesign(this)">
+                                <td class="px-3 py-3">
+                                    <div class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center design-check">
+                                    </div>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                        {% if design.order_level == '3' %}bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300
+                                        {% else %}bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300{% endif %}">
+                                        L{{ design.order_level }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-3 font-mono font-medium text-gray-900 dark:text-white">{{ design.mat_no }}</td>
+                                <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ design.hdbs_type }}</td>
+                                <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ design.size.size_display|default:"-" }}</td>
+                                <td class="px-3 py-3">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                        {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                        {{ design.status }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-3 text-gray-500">{{ design.boms.count }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="px-3 py-8 text-center text-gray-500">
+                                    No designs found. <a href="{% url 'technology:design_create' %}" class="text-purple-600 hover:underline">Create a new Design</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <!-- STEP 2: Choose Creation Method (shown after design is selected) -->
-            <div id="step2-creation-method" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hidden">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold mr-3">2</span>
-                        <i data-lucide="git-branch" class="w-5 h-5 mr-2 text-blue-600"></i>
-                        Choose Creation Method
-                    </h2>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Option A: Import from PDF via Cutter Map -->
-                    <div class="relative border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-xl p-6 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all cursor-pointer group"
-                         onclick="goToCutterMap()">
-                        <div class="absolute top-3 right-3">
-                            <span class="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-full">
-                                Recommended
-                            </span>
-                        </div>
-                        <div class="flex flex-col items-center text-center">
-                            <div class="w-16 h-16 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                <i data-lucide="file-scan" class="w-8 h-8 text-purple-600 dark:text-purple-400"></i>
-                            </div>
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Import from PDF</h3>
-                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                Upload a Halliburton BOM PDF and extract cutter layout data automatically
-                            </p>
-                            <button type="button" id="cutter-map-btn"
-                                class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors">
-                                <i data-lucide="upload" class="w-4 h-4 mr-2"></i>
-                                Open Cutter Map
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Option B: Create Manually -->
-                    <div class="relative border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer group"
-                         onclick="showManualCreation()">
-                        <div class="flex flex-col items-center text-center">
-                            <div class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                <i data-lucide="edit-3" class="w-8 h-8 text-gray-600 dark:text-gray-400"></i>
-                            </div>
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Create Manually</h3>
-                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                Enter the L5 MAT code and BOM details manually
-                            </p>
-                            <button type="button" id="manual-create-btn"
-                                class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors">
-                                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-                                Create Manually
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- STEP 3: BOM Information (shown when manual creation is selected) -->
-            <div id="step3-bom-info" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hidden">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-600 text-white text-sm font-bold mr-3">3</span>
-                        <i data-lucide="file-text" class="w-5 h-5 mr-2 text-green-600"></i>
-                        BOM Information (L5 MAT)
-                    </h2>
-                    <button type="button" onclick="hideManualCreation()" class="text-gray-400 hover:text-gray-600">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <!-- BOM Code (L5 MAT) -->
-                    <div>
-                        <label for="id_bom_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            BOM Code (L5 MAT) <span class="text-red-500">*</span>
-                        </label>
-                        <input type="text" name="bom_code" id="id_bom_code"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            placeholder="Enter Level 5 MAT No." oninput="checkFormCompletion()">
-                    </div>
-
-                    <!-- SMI Type -->
-                    <div>
-                        <label for="id_smi_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            SMI Type
-                        </label>
-                        <input type="text" name="smi_type" id="id_smi_type"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            placeholder="Client-facing type name">
-                    </div>
-
-                    <!-- Revision -->
-                    <div>
-                        <label for="id_bom_revision" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Revision
-                        </label>
-                        <input type="text" name="bom_revision" id="id_bom_revision" value="A"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    </div>
-                </div>
-
-                <div class="mt-4 flex justify-end">
-                    <button type="submit" id="create-bom-btn"
-                        class="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors">
-                        <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
-                        Create BOM & Open Builder
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right Column: Progress & Summary -->
-        <div class="space-y-6">
-            <!-- Progress Steps Card -->
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 sticky top-4">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Progress</h2>
-
-                <!-- Step Progress Indicator -->
-                <div class="space-y-4 mb-6">
-                    <!-- Step 1: Design Selection -->
-                    <div class="flex items-start" id="progress-step1">
-                        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center text-sm font-bold" id="step1-indicator">
-                            1
-                        </div>
-                        <div class="ml-3 flex-1">
-                            <p class="text-sm font-medium text-gray-900 dark:text-white">Select Design</p>
-                            <p class="text-xs text-gray-500" id="step1-status">Required - choose L3/L4 MAT</p>
-                        </div>
-                    </div>
-
-                    <!-- Step 2: Method -->
-                    <div class="flex items-start opacity-50" id="progress-step2">
-                        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400 flex items-center justify-center text-sm font-bold" id="step2-indicator">
-                            2
-                        </div>
-                        <div class="ml-3 flex-1">
-                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Choose Method</p>
-                            <p class="text-xs text-gray-400" id="step2-status">PDF import or manual</p>
-                        </div>
-                    </div>
-
-                    <!-- Step 3: BOM Details -->
-                    <div class="flex items-start opacity-50" id="progress-step3">
-                        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400 flex items-center justify-center text-sm font-bold" id="step3-indicator">
-                            3
-                        </div>
-                        <div class="ml-3 flex-1">
-                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">BOM Details</p>
-                            <p class="text-xs text-gray-400" id="step3-status">Enter L5 MAT code</p>
-                        </div>
-                    </div>
-                </div>
-
-                <hr class="my-4 border-gray-200 dark:border-gray-700">
-
-                <!-- Summary -->
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Selected Design</h3>
-                <dl class="space-y-2 text-sm">
-                    <div class="flex justify-between">
-                        <dt class="text-gray-500">Design:</dt>
-                        <dd class="text-gray-900 dark:text-white font-mono" id="summary-design">--</dd>
-                    </div>
-                    <div class="flex justify-between">
-                        <dt class="text-gray-500">HDBS Type:</dt>
-                        <dd class="text-gray-900 dark:text-white" id="summary-hdbs">--</dd>
-                    </div>
-                    <div class="flex justify-between">
-                        <dt class="text-gray-500">Size:</dt>
-                        <dd class="text-gray-900 dark:text-white" id="summary-size">--</dd>
-                    </div>
-                    <div class="flex justify-between">
-                        <dt class="text-gray-500">Mode:</dt>
-                        <dd class="text-gray-900 dark:text-white" id="summary-mode">Select Design</dd>
-                    </div>
-                </dl>
-
-                <hr class="my-4 border-gray-200 dark:border-gray-700">
-
-                <!-- Quick Actions - shown after design selected -->
-                <div id="quick-actions" class="space-y-3 hidden">
-                    <button type="button" onclick="goToCutterMap()"
-                        class="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors flex items-center justify-center">
-                        <i data-lucide="file-scan" class="w-5 h-5 mr-2"></i>
-                        Import from PDF (Cutter Map)
-                    </button>
-
-                    <button type="button" onclick="showManualCreation()"
-                        class="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium transition-colors flex items-center justify-center">
-                        <i data-lucide="edit-3" class="w-5 h-5 mr-2"></i>
-                        Create Manually
-                    </button>
-                </div>
-
-                <!-- Prompt to select design first -->
-                <div id="select-design-prompt" class="text-center py-4">
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                        <i data-lucide="arrow-up" class="w-4 h-4 inline mr-1"></i>
-                        Select a Design (L3/L4) first
-                    </p>
-                </div>
-            </div>
-
-            <!-- Quick Help -->
-            <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6">
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Quick Help</h3>
-                <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-2">
-                    <li><strong>L3/L4 MAT</strong> = Design (base drill bit, no cutters)</li>
-                    <li><strong>L5 MAT</strong> = BOM Code (design with cutters)</li>
-                    <li><strong>Cutter Map</strong> = PDF extraction tool</li>
-                    <li><strong>HDBS Type</strong> = Internal naming</li>
-                    <li><strong>SMI Type</strong> = Client-facing name</li>
-                </ul>
+            <!-- Results count -->
+            <div class="mt-3 flex items-center justify-between text-sm text-gray-500">
+                <span id="design-count">Showing {{ designs|length }} designs</span>
+                <a href="{% url 'technology:design_create' %}" class="text-purple-600 hover:text-purple-800 text-sm">
+                    <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Create New Design
+                </a>
             </div>
         </div>
     </div>
-</form>
 
-<!-- Clone BOM Modal -->
-<div id="clone-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Clone BOM</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Clone <span id="clone-source-code" class="font-mono text-blue-600"></span> to create a new BOM.
-        </p>
-        <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New BOM Code (L5 MAT)</label>
-            <input type="text" id="clone-new-code" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    <!-- Right Column: Selected Design & Action -->
+    <div class="space-y-6">
+        <!-- Selected Design Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Selected Design</h3>
+
+            <!-- No Selection State -->
+            <div id="no-selection" class="text-center py-8">
+                <div class="w-16 h-16 mx-auto rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-4">
+                    <i data-lucide="mouse-pointer-click" class="w-8 h-8 text-gray-400"></i>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400">Click on a Design from the table to select it</p>
+            </div>
+
+            <!-- Selection Made State -->
+            <div id="design-selected" class="hidden">
+                <div class="space-y-3 mb-6">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">Level:</span>
+                        <span id="selected-level" class="font-medium text-gray-900 dark:text-white">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">MAT No.:</span>
+                        <span id="selected-mat" class="font-mono font-medium text-purple-600 dark:text-purple-400">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">HDBS Type:</span>
+                        <span id="selected-hdbs" class="font-medium text-gray-900 dark:text-white">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">Size:</span>
+                        <span id="selected-size" class="font-medium text-gray-900 dark:text-white">-</span>
+                    </div>
+                </div>
+
+                <hr class="border-gray-200 dark:border-gray-700 mb-6">
+
+                <!-- Action Button -->
+                <button type="button" onclick="openCutterMap()"
+                    class="w-full px-4 py-4 bg-purple-600 text-white rounded-xl hover:bg-purple-700 font-medium transition-all flex items-center justify-center gap-3 shadow-lg hover:shadow-xl">
+                    <i data-lucide="file-scan" class="w-6 h-6"></i>
+                    <span class="text-lg">Open Cutter Map</span>
+                </button>
+
+                <p class="text-xs text-center text-gray-500 mt-3">
+                    Import PDF to extract BOM data for this design
+                </p>
+
+                <button type="button" onclick="clearSelection()"
+                    class="w-full mt-4 px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">
+                    Clear Selection
+                </button>
+            </div>
         </div>
-        <div class="flex gap-3">
-            <button type="button" onclick="closeCloneModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50">Cancel</button>
-            <button type="button" onclick="confirmClone()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Clone</button>
+
+        <!-- Help Card -->
+        <div class="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-6 border border-purple-200 dark:border-purple-800">
+            <h3 class="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-3 flex items-center">
+                <i data-lucide="info" class="w-4 h-4 mr-2"></i>
+                How it works
+            </h3>
+            <ol class="text-xs text-purple-700 dark:text-purple-400 space-y-2 list-decimal list-inside">
+                <li>Select a Design (L3/L4 MAT) from the table</li>
+                <li>Click "Open Cutter Map" to upload a PDF</li>
+                <li>Extract and edit BOM data from the PDF</li>
+                <li>The L5 MAT code is extracted from the PDF</li>
+                <li>Click "Create BOM" to save to the system</li>
+            </ol>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Quick Links</h3>
+            <ul class="text-sm space-y-2">
+                <li>
+                    <a href="{% url 'technology:design_list' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+                        <i data-lucide="layers" class="w-4 h-4 mr-2"></i>View All Designs
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'technology:design_create' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+                        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create New Design
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'cutter_map:index' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+                        <i data-lucide="file-scan" class="w-4 h-4 mr-2"></i>Cutter Map (Direct)
+                    </a>
+                </li>
+            </ul>
         </div>
     </div>
 </div>
 
-<!-- Error Modal -->
-<div id="error-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
-        <div class="flex items-center text-red-600 mb-4">
-            <i data-lucide="alert-circle" class="w-6 h-6 mr-2"></i>
-            <h3 class="text-lg font-semibold">Error</h3>
-        </div>
-        <p id="error-message" class="text-gray-700 dark:text-gray-300 mb-4"></p>
-        <button onclick="closeErrorModal()" class="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200">Close</button>
-    </div>
-</div>
-{% endblock %}
-
-{% block extra_js %}
 <script>
-    let cloneSourceId = null;
-    const filters = { level: ['3', '4'], mat: '', hdbs: '', size: [], status: ['DRAFT', 'ACTIVE'] };
+    // Store selected design info
+    let selectedDesign = null;
 
-    // Size data from server
-    const availableSizes = [
-        {% for size in sizes %}
-        { id: "{{ size.pk }}", decimal: {{ size.size_decimal }}, display: "{{ size.size_display }}" }{% if not forloop.last %},{% endif %}
-        {% endfor %}
-    ];
-
-    // Toggle design mode
-    function toggleDesignMode(mode) {
-        document.getElementById('existing-design-section').classList.toggle('hidden', mode !== 'existing');
-        document.getElementById('new-design-section').classList.toggle('hidden', mode !== 'new');
-        document.getElementById('summary-mode').textContent = mode === 'existing' ? 'Existing Design' : 'New Design';
-        checkFormCompletion();
-        updateSummary();
-    }
-
-    // Toggle filter dropdown
-    function toggleFilter(e, column) {
-        e.stopPropagation();
-        const dropdown = document.getElementById(`filter-${column}-dropdown`);
-        const btn = e.currentTarget;
-
-        document.querySelectorAll('.filter-dropdown').forEach(d => {
-            if (d.id !== `filter-${column}-dropdown`) d.classList.remove('active');
+    // Select a design from the table
+    function selectDesign(row) {
+        // Remove selection from all rows
+        document.querySelectorAll('.design-row').forEach(r => {
+            r.classList.remove('selected');
+            r.querySelector('.design-check').innerHTML = '';
         });
 
-        dropdown.classList.toggle('active');
+        // Add selection to clicked row
+        row.classList.add('selected');
+        row.querySelector('.design-check').innerHTML = '<i data-lucide="check" class="w-4 h-4 text-purple-600"></i>';
 
-        if (dropdown.classList.contains('active')) {
-            // Position the dropdown below the button
-            const rect = btn.getBoundingClientRect();
-            dropdown.style.top = (rect.bottom + 4) + 'px';
-            dropdown.style.left = Math.max(8, rect.left) + 'px';
-        }
+        // Store design info
+        selectedDesign = {
+            id: row.dataset.designId,
+            level: row.dataset.level.toUpperCase(),
+            mat: row.querySelector('td:nth-child(3)').textContent.trim(),
+            hdbs: row.querySelector('td:nth-child(4)').textContent.trim(),
+            size: row.querySelector('td:nth-child(5)').textContent.trim()
+        };
+
+        // Update sidebar
+        document.getElementById('no-selection').classList.add('hidden');
+        document.getElementById('design-selected').classList.remove('hidden');
+        document.getElementById('selected-level').textContent = selectedDesign.level;
+        document.getElementById('selected-mat').textContent = selectedDesign.mat;
+        document.getElementById('selected-hdbs').textContent = selectedDesign.hdbs;
+        document.getElementById('selected-size').textContent = selectedDesign.size || '-';
+
+        // Re-render lucide icons
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
-    // Close dropdowns on click outside
-    document.addEventListener('click', () => {
-        document.querySelectorAll('.filter-dropdown').forEach(d => d.classList.remove('active'));
-    });
-
-    // Sort column
-    function sortColumn(column, direction) {
-        const tbody = document.getElementById('design-table-body');
-        const rows = Array.from(tbody.querySelectorAll('.design-row'));
-
-        rows.sort((a, b) => {
-            let aVal = a.dataset[column] || '';
-            let bVal = b.dataset[column] || '';
-            if (column === 'size') {
-                aVal = parseFloat(aVal) || 0;
-                bVal = parseFloat(bVal) || 0;
-            }
-            if (direction === 'asc') return aVal > bVal ? 1 : -1;
-            return aVal < bVal ? 1 : -1;
+    // Clear selection
+    function clearSelection() {
+        document.querySelectorAll('.design-row').forEach(r => {
+            r.classList.remove('selected');
+            r.querySelector('.design-check').innerHTML = '';
         });
 
-        rows.forEach(row => {
-            const children = tbody.querySelectorAll(`.bom-child-${row.dataset.designId}`);
-            tbody.appendChild(row);
-            children.forEach(child => tbody.appendChild(child));
-        });
+        selectedDesign = null;
 
-        document.querySelectorAll('.filter-dropdown').forEach(d => d.classList.remove('active'));
+        document.getElementById('no-selection').classList.remove('hidden');
+        document.getElementById('design-selected').classList.add('hidden');
     }
 
-    // Filter by text
-    function filterByText(column, value) {
-        filters[column] = value.toLowerCase();
-        applyFilters();
-    }
-
-    // Generic checkbox filter handler
-    function handleCheckboxFilter(clickedCheckbox, filterClass, filterKey, allValues) {
-        const allCheckbox = document.querySelector(`.${filterClass}[value=""]`);
-        const itemCheckboxes = document.querySelectorAll(`.${filterClass}:not([value=""])`);
-
-        if (clickedCheckbox.value === '') {
-            // "All" was clicked
-            if (clickedCheckbox.checked) {
-                // Check all items
-                itemCheckboxes.forEach(cb => cb.checked = true);
-                filters[filterKey] = [...allValues];
-            } else {
-                // Uncheck all items
-                itemCheckboxes.forEach(cb => cb.checked = false);
-                filters[filterKey] = [];
-            }
-        } else {
-            // Individual item was clicked
-            if (!clickedCheckbox.checked) {
-                // Unchecked an item - uncheck "All"
-                allCheckbox.checked = false;
-            }
-
-            // Check if all individual items are now checked
-            const allItemsChecked = Array.from(itemCheckboxes).every(cb => cb.checked);
-            allCheckbox.checked = allItemsChecked;
-
-            // Update filter values
-            filters[filterKey] = Array.from(itemCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
-        }
-
-        // Update filtered state visual indicator
-        const isFiltered = filters[filterKey].length > 0 && filters[filterKey].length < allValues.length;
-        document.querySelector(`[data-column="${filterKey}"]`)?.classList.toggle('filtered', isFiltered);
-
-        applyFilters();
-    }
-
-    // Level filter
-    function applyLevelFilter(checkbox) {
-        handleCheckboxFilter(checkbox, 'level-filter', 'level', ['3', '4']);
-    }
-
-    // Status filter
-    function applyStatusFilter(checkbox) {
-        handleCheckboxFilter(checkbox, 'status-filter', 'status', ['DRAFT', 'ACTIVE']);
-    }
-
-    // Apply all filters
-    function applyFilters() {
+    // Filter designs by search text
+    function filterDesigns(searchText) {
+        const search = searchText.toLowerCase().trim();
         const rows = document.querySelectorAll('.design-row');
         let visibleCount = 0;
 
         rows.forEach(row => {
-            let visible = true;
+            const mat = row.dataset.mat || '';
+            const hdbs = row.dataset.hdbs || '';
+            const size = row.dataset.size || '';
+            const level = row.dataset.level || '';
 
-            if (filters.mat && !row.dataset.mat.includes(filters.mat)) visible = false;
-            if (filters.hdbs && !row.dataset.hdbs.includes(filters.hdbs)) visible = false;
+            const matches = !search ||
+                mat.includes(search) ||
+                hdbs.includes(search) ||
+                size.includes(search) ||
+                level.includes(search);
 
-            // Size filter
-            if (filters.size.length > 0 && row.dataset.size && !filters.size.includes(row.dataset.size)) visible = false;
-            if (filters.size.length === 0 && row.dataset.size) visible = false;
-
-            // Level filter
-            if (filters.level.length > 0 && row.dataset.level && !filters.level.includes(row.dataset.level)) visible = false;
-            if (filters.level.length === 0) visible = false;
-
-            // Status filter
-            if (filters.status.length > 0 && row.dataset.status && !filters.status.includes(row.dataset.status)) visible = false;
-            if (filters.status.length === 0) visible = false;
-
-            row.style.display = visible ? '' : 'none';
-            if (visible) visibleCount++;
-
-            // Hide child rows too
-            document.querySelectorAll(`.bom-child-${row.dataset.designId}`).forEach(child => {
-                child.classList.add('hidden');
-            });
+            row.style.display = matches ? '' : 'none';
+            if (matches) visibleCount++;
         });
 
-        document.getElementById('design-count').textContent = `${visibleCount} designs`;
+        document.getElementById('design-count').textContent = `Showing ${visibleCount} designs`;
     }
 
-    // Populate size filter options
-    function populateSizeFilter() {
-        const container = document.getElementById('size-filter-options');
-        if (!container) return;
-
-        let html = '<label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">' +
-                   '<input type="checkbox" class="size-filter mr-2" value="" checked onchange="applySizeFilter(this)"> (All)</label>';
-
-        availableSizes.forEach(size => {
-            html += `<label class="flex items-center px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                       <input type="checkbox" class="size-filter mr-2" value="${size.id}" checked onchange="applySizeFilter(this)"> ${size.display}
-                     </label>`;
-        });
-
-        container.innerHTML = html;
-
-        // Initialize filters.size with all size values
-        filters.size = availableSizes.map(s => String(s.id));
-    }
-
-    // Size filter
-    function applySizeFilter(clickedCheckbox) {
-        const allCheckbox = document.querySelector('.size-filter[value=""]');
-        const sizeCheckboxes = document.querySelectorAll('.size-filter:not([value=""])');
-        const allSizeValues = availableSizes.map(s => String(s.id));
-
-        if (clickedCheckbox.value === '') {
-            // "All" was clicked
-            if (clickedCheckbox.checked) {
-                // Check all items
-                sizeCheckboxes.forEach(cb => cb.checked = true);
-                filters.size = [...allSizeValues];
-            } else {
-                // Uncheck all items
-                sizeCheckboxes.forEach(cb => cb.checked = false);
-                filters.size = [];
-            }
-        } else {
-            // Individual item was clicked
-            if (!clickedCheckbox.checked) {
-                // Unchecked an item - uncheck "All"
-                allCheckbox.checked = false;
-            }
-
-            // Check if all individual items are now checked
-            const allItemsChecked = Array.from(sizeCheckboxes).every(cb => cb.checked);
-            allCheckbox.checked = allItemsChecked;
-
-            // Update filter values
-            filters.size = Array.from(sizeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
-        }
-
-        // Update filtered state visual indicator
-        const isFiltered = filters.size.length > 0 && filters.size.length < allSizeValues.length;
-        document.querySelector('[data-column="size"]')?.classList.toggle('filtered', isFiltered);
-
-        applyFilters();
-    }
-
-    // Clear all filters
-    function clearAllFilters() {
-        filters.mat = '';
-        filters.hdbs = '';
-        filters.size = availableSizes.map(s => String(s.id));
-        filters.level = ['3', '4'];
-        filters.status = ['DRAFT', 'ACTIVE'];
-        document.getElementById('filter-mat-search').value = '';
-        document.getElementById('filter-hdbs-search').value = '';
-        document.querySelectorAll('.size-filter, .level-filter, .status-filter').forEach(cb => cb.checked = true);
-        document.querySelectorAll('.th-filter').forEach(th => th.classList.remove('filtered'));
-        applyFilters();
-    }
-
-    // Toggle BOM child rows
-    function toggleBomRows(e, designId) {
-        e.stopPropagation();
-        const btn = e.currentTarget;
-        const rows = document.querySelectorAll(`.bom-child-${designId}`);
-        const isExpanded = btn.classList.contains('expanded');
-
-        btn.classList.toggle('expanded');
-        rows.forEach(row => row.classList.toggle('hidden', isExpanded));
-    }
-
-    // Store selected design info globally
-    let selectedDesignInfo = null;
-
-    // Select design
-    function selectDesign(row) {
-        document.querySelectorAll('.design-row').forEach(r => r.classList.remove('bg-blue-100', 'dark:bg-blue-900/40'));
-        row.classList.add('bg-blue-100', 'dark:bg-blue-900/40');
-        row.querySelector('.design-radio').checked = true;
-
-        const level = row.querySelector('td:nth-child(2)').textContent.trim();
-        const mat = row.querySelector('td:nth-child(3)').textContent.trim();
-        const hdbs = row.querySelector('td:nth-child(4)').textContent.trim();
-        const size = row.querySelector('td:nth-child(5)').textContent.trim();
-        const designId = row.dataset.designId;
-
-        // Store selected design info
-        selectedDesignInfo = {
-            id: designId,
-            level: level,
-            mat: mat,
-            hdbs: hdbs,
-            size: size
-        };
-
-        document.getElementById('selected-design-text').textContent = `${level} | ${mat} | ${hdbs} | ${size}`;
-        document.getElementById('selected-design-info').classList.remove('hidden');
-
-        // Show Step 2: Creation Method
-        document.getElementById('step2-creation-method').classList.remove('hidden');
-
-        // Update progress indicators
-        updateProgressIndicators(1);
-
-        checkFormCompletion();
-        updateSummary();
-    }
-
-    // Clear design selection
-    function clearDesignSelection() {
-        document.querySelectorAll('.design-row').forEach(r => r.classList.remove('bg-blue-100', 'dark:bg-blue-900/40'));
-        document.querySelectorAll('.design-radio').forEach(r => r.checked = false);
-        document.getElementById('selected-design-info').classList.add('hidden');
-        selectedDesignInfo = null;
-
-        // Hide Step 2 and Step 3
-        document.getElementById('step2-creation-method').classList.add('hidden');
-        document.getElementById('step3-bom-info').classList.add('hidden');
-
-        // Reset progress
-        updateProgressIndicators(0);
-
-        checkFormCompletion();
-        updateSummary();
-    }
-
-    // Update progress indicators
-    function updateProgressIndicators(currentStep) {
-        const steps = [
-            { progress: 'progress-step1', indicator: 'step1-indicator', status: 'step1-status' },
-            { progress: 'progress-step2', indicator: 'step2-indicator', status: 'step2-status' },
-            { progress: 'progress-step3', indicator: 'step3-indicator', status: 'step3-status' }
-        ];
-
-        steps.forEach((step, index) => {
-            const progressEl = document.getElementById(step.progress);
-            const indicatorEl = document.getElementById(step.indicator);
-
-            if (index < currentStep) {
-                // Completed step
-                progressEl.classList.remove('opacity-50');
-                indicatorEl.classList.remove('bg-gray-300', 'dark:bg-gray-600', 'text-gray-600', 'dark:text-gray-400');
-                indicatorEl.classList.add('bg-green-600', 'text-white');
-                indicatorEl.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>';
-            } else if (index === currentStep) {
-                // Current step
-                progressEl.classList.remove('opacity-50');
-                indicatorEl.classList.remove('bg-gray-300', 'dark:bg-gray-600', 'text-gray-600', 'dark:text-gray-400', 'bg-green-600');
-                if (index === 0) indicatorEl.classList.add('bg-purple-600', 'text-white');
-                else if (index === 1) indicatorEl.classList.add('bg-blue-600', 'text-white');
-                else indicatorEl.classList.add('bg-green-600', 'text-white');
-                indicatorEl.textContent = String(index + 1);
-            } else {
-                // Future step
-                progressEl.classList.add('opacity-50');
-                indicatorEl.classList.remove('bg-purple-600', 'bg-blue-600', 'bg-green-600', 'text-white');
-                indicatorEl.classList.add('bg-gray-300', 'dark:bg-gray-600', 'text-gray-600', 'dark:text-gray-400');
-                indicatorEl.textContent = String(index + 1);
-            }
-        });
-
-        // Update right sidebar
-        if (currentStep >= 1) {
-            document.getElementById('quick-actions').classList.remove('hidden');
-            document.getElementById('select-design-prompt').classList.add('hidden');
-        } else {
-            document.getElementById('quick-actions').classList.add('hidden');
-            document.getElementById('select-design-prompt').classList.remove('hidden');
-        }
-
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    // Go to Cutter Map app with design info
-    function goToCutterMap() {
-        if (!selectedDesignInfo && document.querySelector('input[name="design_mode"]:checked').value === 'new') {
-            // If creating new design, we need to save it first
-            alert('Please select an existing design or save the new design first before importing from PDF.');
-            return;
-        }
-
-        if (!selectedDesignInfo) {
+    // Open Cutter Map with selected design
+    function openCutterMap() {
+        if (!selectedDesign) {
             alert('Please select a design first.');
             return;
         }
 
-        // Redirect to Cutter Map with design info as query params
+        // Build URL with design context
         const params = new URLSearchParams({
-            design_id: selectedDesignInfo.id,
-            design_mat: selectedDesignInfo.mat,
-            design_hdbs: selectedDesignInfo.hdbs,
-            design_size: selectedDesignInfo.size,
+            design_id: selectedDesign.id,
+            design_mat: selectedDesign.mat,
+            design_hdbs: selectedDesign.hdbs,
+            design_size: selectedDesign.size,
             from: 'bom_create'
         });
 
         window.location.href = `/cutter-map/?${params.toString()}`;
     }
 
-    // Show manual creation form (Step 3)
-    function showManualCreation() {
-        document.getElementById('step3-bom-info').classList.remove('hidden');
-        updateProgressIndicators(2);
-        document.getElementById('summary-mode').textContent = 'Manual Creation';
-
-        // Scroll to the form
-        document.getElementById('step3-bom-info').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    // Hide manual creation form
-    function hideManualCreation() {
-        document.getElementById('step3-bom-info').classList.add('hidden');
-        updateProgressIndicators(1);
-        document.getElementById('summary-mode').textContent = 'Select Method';
-    }
-
-    // Clone BOM
-    function cloneBom(e, bomId, bomCode) {
-        e.stopPropagation();
-        cloneSourceId = bomId;
-        document.getElementById('clone-source-code').textContent = bomCode;
-        document.getElementById('clone-new-code').value = '';
-        document.getElementById('clone-modal').classList.remove('hidden');
-    }
-
-    function closeCloneModal() {
-        document.getElementById('clone-modal').classList.add('hidden');
-        cloneSourceId = null;
-    }
-
-    async function confirmClone() {
-        const newCode = document.getElementById('clone-new-code').value.trim();
-        if (!newCode) {
-            alert('Please enter a new BOM code');
-            return;
-        }
-
-        try {
-            const response = await fetch(`/technology/boms/${cloneSourceId}/clone/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify({ new_code: newCode })
-            });
-            const data = await response.json();
-            if (data.success) {
-                window.location.href = data.redirect_url;
-            } else {
-                showError(data.error || 'Failed to clone BOM');
-            }
-        } catch (error) {
-            showError('Network error');
-        }
-        closeCloneModal();
-    }
-
-    // Update summary
-    function updateSummary() {
-        const designMode = document.querySelector('input[name="design_mode"]:checked').value;
-        let designText = '--';
-        let hdbsText = '--';
-        let sizeText = '--';
-
-        if (designMode === 'existing') {
-            const checkedRadio = document.querySelector('.design-radio:checked');
-            if (checkedRadio) {
-                const row = checkedRadio.closest('.design-row');
-                designText = row.querySelector('td:nth-child(3)').textContent.trim();
-                hdbsText = row.querySelector('td:nth-child(4)').textContent.trim();
-                sizeText = row.querySelector('td:nth-child(5)').textContent.trim();
-            }
-        } else {
-            const matNo = document.getElementById('id_design_mat_no').value;
-            const hdbs = document.getElementById('id_design_hdbs_type').value;
-            const sizeSelect = document.getElementById('id_design_size');
-            const sizeOption = sizeSelect.options[sizeSelect.selectedIndex];
-
-            if (matNo) designText = `${matNo} (New)`;
-            if (hdbs) hdbsText = hdbs;
-            if (sizeOption && sizeOption.value) sizeText = sizeOption.text;
-        }
-
-        document.getElementById('summary-design').textContent = designText;
-        document.getElementById('summary-hdbs').textContent = hdbsText;
-        document.getElementById('summary-size').textContent = sizeText;
-
-        // Update mode based on current state
-        if (!selectedDesignInfo && designMode === 'existing') {
-            document.getElementById('summary-mode').textContent = 'Select Design';
-        } else if (document.getElementById('step3-bom-info').classList.contains('hidden')) {
-            document.getElementById('summary-mode').textContent = 'Choose Method';
-        } else {
-            document.getElementById('summary-mode').textContent = 'Manual Creation';
-        }
-    }
-
-    // Check form completion - now focuses on design selection and BOM code for manual creation
-    function checkFormCompletion() {
-        const designMode = document.querySelector('input[name="design_mode"]:checked').value;
-        let hasDesign = false;
-
-        if (designMode === 'existing') {
-            hasDesign = document.querySelector('.design-radio:checked') !== null;
-        } else {
-            const matNo = document.getElementById('id_design_mat_no').value.trim();
-            const hdbs = document.getElementById('id_design_hdbs_type').value.trim();
-            const size = document.getElementById('id_design_size').value;
-            hasDesign = matNo && hdbs && size;
-        }
-
-        // Show/hide Step 2 based on design selection
-        if (hasDesign) {
-            document.getElementById('step2-creation-method').classList.remove('hidden');
-            if (designMode === 'new') {
-                // For new design, we need to store the info
-                selectedDesignInfo = {
-                    id: null, // Will be created
-                    mat: document.getElementById('id_design_mat_no').value.trim(),
-                    hdbs: document.getElementById('id_design_hdbs_type').value.trim(),
-                    size: document.getElementById('id_design_size').options[document.getElementById('id_design_size').selectedIndex].text,
-                    level: 'L' + document.getElementById('id_design_order_level').value
-                };
-                updateProgressIndicators(1);
-            }
-        } else {
-            document.getElementById('step2-creation-method').classList.add('hidden');
-            document.getElementById('step3-bom-info').classList.add('hidden');
-            updateProgressIndicators(0);
-        }
-    }
-
-    // Error handling
-    function showError(message) {
-        document.getElementById('error-message').textContent = message;
-        document.getElementById('error-modal').classList.remove('hidden');
-    }
-
-    function closeErrorModal() {
-        document.getElementById('error-modal').classList.add('hidden');
-    }
-
-    // Form submission
-    document.getElementById('bom-create-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const btn = document.getElementById('create-bom-btn');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 mr-2 animate-spin"></i>Creating...';
-        btn.disabled = true;
-
-        try {
-            const response = await fetch(this.action || window.location.href, {
-                method: 'POST',
-                body: new FormData(this),
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            const data = await response.json();
-            if (data.success) {
-                window.location.href = data.redirect_url;
-            } else {
-                showError(data.error || 'An error occurred');
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-            }
-        } catch (error) {
-            showError('Network error. Please try again.');
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        }
-    });
-
-    // Open HDBS Type create page
-    function openHdbsCreate() {
-        window.open('{% url "technology:hdbs_type_create" %}?from=bom', '_blank');
-    }
-
-    // Open SMI Type create page
-    function openSmiCreate() {
-        window.open('{% url "technology:smi_type_create_standalone" %}?from=bom', '_blank');
-    }
-
-    // Event listeners
-    document.getElementById('id_bom_code').addEventListener('input', updateSummary);
-    document.getElementById('id_smi_type').addEventListener('input', updateSummary);
-
-    // =========================================================================
-    // SMI TYPE VALIDATION
-    // =========================================================================
-    let typesCache = null;
-
-    function fetchTypesCache() {
-        if (typesCache) return Promise.resolve(typesCache);
-        return fetch('{% url "technology:api_hdbs_types" %}?show_inactive=1')
-            .then(r => r.json())
-            .then(data => {
-                typesCache = data;
-                return data;
-            });
-    }
-
-    function debounce(fn, delay) {
-        let timer = null;
-        return function() {
-            clearTimeout(timer);
-            timer = setTimeout(() => fn.apply(this, arguments), delay);
-        };
-    }
-
-    function validateSmiType() {
-        const smiInput = document.getElementById('id_smi_type');
-        const value = smiInput ? smiInput.value.trim() : '';
-        if (!value) return;
-
-        fetchTypesCache().then(data => {
-            let exists = false;
-            for (const h of data.hdbs_types) {
-                if (h.smi_types.some(s => s.smi_name.toLowerCase() === value.toLowerCase())) {
-                    exists = true;
-                    break;
-                }
-            }
-            if (!exists) {
-                showSmiNotFoundDialog(value, smiInput);
-            }
-        });
-    }
-
-    function getDesignModeContext() {
-        const designMode = document.querySelector('input[name="design_mode"]:checked').value;
-
-        if (designMode === 'existing') {
-            // Check if a design is selected
-            const checkedRadio = document.querySelector('.design-radio:checked');
-            if (checkedRadio) {
-                const row = checkedRadio.closest('.design-row');
-                const hdbs = row.querySelector('td:nth-child(4)').textContent.trim();
-                const mat = row.querySelector('td:nth-child(3)').textContent.trim();
-                return {
-                    mode: 'existing',
-                    hasSelection: true,
-                    hdbsType: hdbs !== '--' ? hdbs : null,
-                    designMat: mat
-                };
-            }
-            return { mode: 'existing', hasSelection: false };
-        } else {
-            // New design mode - check if HDBS Type is entered
-            const hdbsInput = document.getElementById('id_design_hdbs_type');
-            const hdbsValue = hdbsInput ? hdbsInput.value.trim() : '';
-            return {
-                mode: 'new',
-                hasHdbsType: !!hdbsValue,
-                hdbsType: hdbsValue || null
-            };
-        }
-    }
-
-    function showSmiNotFoundDialog(value, inputElement) {
-        const context = getDesignModeContext();
-        let messageHtml = '';
-        let showCreateButton = false;
-
-        if (context.mode === 'existing') {
-            if (!context.hasSelection) {
-                messageHtml = `
-                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        The SMI type "<strong>${value}</strong>" is not registered in the system.
-                    </p>
-                    <p class="mt-2 text-sm text-amber-600 dark:text-amber-400">
-                        <i data-lucide="alert-circle" class="w-4 h-4 inline mr-1"></i>
-                        <strong>Select a Design first</strong> from the table above to identify which HDBS Type this SMI should belong to.
-                    </p>
-                `;
-            } else if (!context.hdbsType) {
-                messageHtml = `
-                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        The SMI type "<strong>${value}</strong>" is not registered in the system.
-                    </p>
-                    <p class="mt-2 text-sm text-amber-600 dark:text-amber-400">
-                        <i data-lucide="alert-circle" class="w-4 h-4 inline mr-1"></i>
-                        The selected design (<strong>${context.designMat}</strong>) doesn't have an HDBS Type set. Please select a different design or create a new one.
-                    </p>
-                `;
-            } else {
-                messageHtml = `
-                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        The SMI type "<strong>${value}</strong>" is not registered in the system.
-                    </p>
-                    <p class="mt-2 text-sm text-blue-600 dark:text-blue-400">
-                        <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
-                        Based on your selected design, this SMI will be associated with HDBS Type: <strong>${context.hdbsType}</strong>
-                    </p>
-                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        Would you like to create it as a new SMI type?
-                    </p>
-                `;
-                showCreateButton = true;
-            }
-        } else {
-            // New design mode
-            if (!context.hasHdbsType) {
-                messageHtml = `
-                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        The SMI type "<strong>${value}</strong>" is not registered in the system.
-                    </p>
-                    <p class="mt-2 text-sm text-amber-600 dark:text-amber-400">
-                        <i data-lucide="alert-circle" class="w-4 h-4 inline mr-1"></i>
-                        <strong>Enter the HDBS Type first</strong> in the "Create New Design" section below. SMI Types must be associated with an HDBS Type.
-                    </p>
-                `;
-            } else {
-                messageHtml = `
-                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        The SMI type "<strong>${value}</strong>" is not registered in the system.
-                    </p>
-                    <p class="mt-2 text-sm text-blue-600 dark:text-blue-400">
-                        <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
-                        Based on your new design, this SMI will be associated with HDBS Type: <strong>${context.hdbsType}</strong>
-                    </p>
-                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        Would you like to create it as a new SMI type?
-                    </p>
-                `;
-                showCreateButton = true;
-            }
-        }
-
-        // Create modal dialog
-        const dialog = document.createElement('div');
-        dialog.className = 'fixed inset-0 z-[100] flex items-center justify-center';
-        dialog.id = 'smi-validation-dialog';
-        dialog.innerHTML = `
-            <div class="fixed inset-0 bg-black/50" id="smi-validation-backdrop"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
-                <div class="flex items-start gap-4">
-                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
-                        <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 dark:text-yellow-400"></i>
-                    </div>
-                    <div class="flex-1">
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">SMI Type Not Found</h3>
-                        ${messageHtml}
-                    </div>
-                </div>
-                <div class="mt-6 flex gap-3 justify-end">
-                    ${showCreateButton ? `
-                    <button type="button" id="smi-validation-cancel" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
-                        Cancel
-                    </button>
-                    <button type="button" id="smi-validation-create" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                        <i data-lucide="plus" class="w-4 h-4"></i>
-                        Create New SMI Type
-                    </button>
-                    ` : `
-                    <button type="button" id="smi-validation-ok" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-                        OK, I Understand
-                    </button>
-                    `}
-                </div>
-            </div>
-        `;
-        document.body.appendChild(dialog);
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-
-        const backdrop = dialog.querySelector('#smi-validation-backdrop');
-
-        function closeDialog() {
-            dialog.remove();
-        }
-
-        backdrop.addEventListener('click', closeDialog);
-
-        if (showCreateButton) {
-            dialog.querySelector('#smi-validation-cancel').addEventListener('click', closeDialog);
-            dialog.querySelector('#smi-validation-create').addEventListener('click', function() {
-                closeDialog();
-                // Open SMI create page in new tab with pre-filled data
-                let url = '{% url "technology:smi_type_create_standalone" %}?from=bom';
-                // Pass the SMI name they typed
-                url += '&smi_name=' + encodeURIComponent(value);
-                // Pass HDBS type from context
-                if (context.hdbsType) {
-                    url += '&hdbs_name=' + encodeURIComponent(context.hdbsType);
-                }
-                // Pass size from selected design if available
-                if (context.mode === 'existing' && context.hasSelection) {
-                    const checkedRadio = document.querySelector('.design-radio:checked');
-                    if (checkedRadio) {
-                        const row = checkedRadio.closest('.design-row');
-                        const sizeId = row.dataset.size;
-                        if (sizeId) {
-                            url += '&size_id=' + encodeURIComponent(sizeId);
-                        }
-                    }
-                } else if (context.mode === 'new') {
-                    const sizeSelect = document.getElementById('id_design_size');
-                    if (sizeSelect && sizeSelect.value) {
-                        url += '&size_id=' + encodeURIComponent(sizeSelect.value);
-                    }
-                }
-                window.open(url, '_blank');
-            });
-        } else {
-            dialog.querySelector('#smi-validation-ok').addEventListener('click', function() {
-                closeDialog();
-                // Clear the field since they can't create yet
-                inputElement.value = '';
-                updateSummary();
-            });
-        }
-    }
-
-    // Add blur validation to SMI Type input
-    const smiTypeInput = document.getElementById('id_smi_type');
-    if (smiTypeInput) {
-        smiTypeInput.addEventListener('blur', debounce(validateSmiType, 500));
-    }
-
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        populateSizeFilter();
-        updateSummary();
-        checkFormCompletion();
         if (typeof lucide !== 'undefined') lucide.createIcons();
     });
 </script>
