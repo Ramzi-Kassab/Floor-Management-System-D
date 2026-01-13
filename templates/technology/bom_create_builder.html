@@ -48,7 +48,7 @@
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Create BOM</h1>
-        <p class="text-gray-600 dark:text-gray-400">Create a new Bill of Materials (Level 5 MAT)</p>
+        <p class="text-gray-600 dark:text-gray-400">Step 1: Select a Design (L3/L4 MAT), then import from PDF or create manually</p>
     </div>
     <div class="mt-4 md:mt-0">
         <a href="{% url 'technology:bom_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
@@ -63,53 +63,18 @@
     {% csrf_token %}
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Left Column: BOM & Design Info -->
+        <!-- Left Column: Design Selection First, then BOM Info -->
         <div class="lg:col-span-2 space-y-6">
-            <!-- BOM Info Card -->
+            <!-- STEP 1: Design Selection Card (Required First) -->
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                    <i data-lucide="file-text" class="w-5 h-5 mr-2 text-blue-600"></i>
-                    BOM Information
-                </h2>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <!-- BOM Code (L5 MAT) -->
-                    <div>
-                        <label for="id_bom_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            BOM Code (L5 MAT) <span class="text-red-500">*</span>
-                        </label>
-                        <input type="text" name="bom_code" id="id_bom_code" required
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            placeholder="Enter Level 5 MAT No." oninput="checkFormCompletion()">
-                    </div>
-
-                    <!-- SMI Type -->
-                    <div>
-                        <label for="id_smi_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            SMI Type
-                        </label>
-                        <input type="text" name="smi_type" id="id_smi_type"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            placeholder="Client-facing type name">
-                    </div>
-
-                    <!-- Revision -->
-                    <div>
-                        <label for="id_bom_revision" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Revision
-                        </label>
-                        <input type="text" name="bom_revision" id="id_bom_revision" value="A"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    </div>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-purple-600 text-white text-sm font-bold mr-3">1</span>
+                        <i data-lucide="layers" class="w-5 h-5 mr-2 text-purple-600"></i>
+                        Select Design (L3/L4 MAT) <span class="text-red-500 ml-1">*</span>
+                    </h2>
+                    <span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">Required First</span>
                 </div>
-            </div>
-
-            <!-- Design Selection Card -->
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                    <i data-lucide="layers" class="w-5 h-5 mr-2 text-purple-600"></i>
-                    Design (L3/L4 MAT)
-                </h2>
 
                 <!-- Design Mode Toggle -->
                 <div class="mb-4">
@@ -449,62 +414,215 @@
                     </div>
                 </div>
             </div>
+
+            <!-- STEP 2: Choose Creation Method (shown after design is selected) -->
+            <div id="step2-creation-method" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold mr-3">2</span>
+                        <i data-lucide="git-branch" class="w-5 h-5 mr-2 text-blue-600"></i>
+                        Choose Creation Method
+                    </h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Option A: Import from PDF via Cutter Map -->
+                    <div class="relative border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-xl p-6 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all cursor-pointer group"
+                         onclick="goToCutterMap()">
+                        <div class="absolute top-3 right-3">
+                            <span class="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-full">
+                                Recommended
+                            </span>
+                        </div>
+                        <div class="flex flex-col items-center text-center">
+                            <div class="w-16 h-16 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                <i data-lucide="file-scan" class="w-8 h-8 text-purple-600 dark:text-purple-400"></i>
+                            </div>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Import from PDF</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                Upload a Halliburton BOM PDF and extract cutter layout data automatically
+                            </p>
+                            <button type="button" id="cutter-map-btn"
+                                class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors">
+                                <i data-lucide="upload" class="w-4 h-4 mr-2"></i>
+                                Open Cutter Map
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Option B: Create Manually -->
+                    <div class="relative border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer group"
+                         onclick="showManualCreation()">
+                        <div class="flex flex-col items-center text-center">
+                            <div class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                <i data-lucide="edit-3" class="w-8 h-8 text-gray-600 dark:text-gray-400"></i>
+                            </div>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Create Manually</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                Enter the L5 MAT code and BOM details manually
+                            </p>
+                            <button type="button" id="manual-create-btn"
+                                class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors">
+                                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                                Create Manually
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 3: BOM Information (shown when manual creation is selected) -->
+            <div id="step3-bom-info" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-600 text-white text-sm font-bold mr-3">3</span>
+                        <i data-lucide="file-text" class="w-5 h-5 mr-2 text-green-600"></i>
+                        BOM Information (L5 MAT)
+                    </h2>
+                    <button type="button" onclick="hideManualCreation()" class="text-gray-400 hover:text-gray-600">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- BOM Code (L5 MAT) -->
+                    <div>
+                        <label for="id_bom_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            BOM Code (L5 MAT) <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="bom_code" id="id_bom_code"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            placeholder="Enter Level 5 MAT No." oninput="checkFormCompletion()">
+                    </div>
+
+                    <!-- SMI Type -->
+                    <div>
+                        <label for="id_smi_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            SMI Type
+                        </label>
+                        <input type="text" name="smi_type" id="id_smi_type"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            placeholder="Client-facing type name">
+                    </div>
+
+                    <!-- Revision -->
+                    <div>
+                        <label for="id_bom_revision" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Revision
+                        </label>
+                        <input type="text" name="bom_revision" id="id_bom_revision" value="A"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                </div>
+
+                <div class="mt-4 flex justify-end">
+                    <button type="submit" id="create-bom-btn"
+                        class="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors">
+                        <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
+                        Create BOM & Open Builder
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <!-- Right Column: Summary & Actions -->
+        <!-- Right Column: Progress & Summary -->
         <div class="space-y-6">
-            <!-- Summary Card -->
+            <!-- Progress Steps Card -->
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 sticky top-4">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Summary</h2>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Progress</h2>
 
-                <dl class="space-y-3 text-sm">
-                    <div class="flex justify-between">
-                        <dt class="text-gray-500">BOM Code:</dt>
-                        <dd class="text-gray-900 dark:text-white font-mono" id="summary-bom-code">--</dd>
+                <!-- Step Progress Indicator -->
+                <div class="space-y-4 mb-6">
+                    <!-- Step 1: Design Selection -->
+                    <div class="flex items-start" id="progress-step1">
+                        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center text-sm font-bold" id="step1-indicator">
+                            1
+                        </div>
+                        <div class="ml-3 flex-1">
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">Select Design</p>
+                            <p class="text-xs text-gray-500" id="step1-status">Required - choose L3/L4 MAT</p>
+                        </div>
                     </div>
-                    <div class="flex justify-between">
-                        <dt class="text-gray-500">SMI Type:</dt>
-                        <dd class="text-gray-900 dark:text-white" id="summary-smi-type">--</dd>
+
+                    <!-- Step 2: Method -->
+                    <div class="flex items-start opacity-50" id="progress-step2">
+                        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400 flex items-center justify-center text-sm font-bold" id="step2-indicator">
+                            2
+                        </div>
+                        <div class="ml-3 flex-1">
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Choose Method</p>
+                            <p class="text-xs text-gray-400" id="step2-status">PDF import or manual</p>
+                        </div>
                     </div>
+
+                    <!-- Step 3: BOM Details -->
+                    <div class="flex items-start opacity-50" id="progress-step3">
+                        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400 flex items-center justify-center text-sm font-bold" id="step3-indicator">
+                            3
+                        </div>
+                        <div class="ml-3 flex-1">
+                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">BOM Details</p>
+                            <p class="text-xs text-gray-400" id="step3-status">Enter L5 MAT code</p>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-4 border-gray-200 dark:border-gray-700">
+
+                <!-- Summary -->
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Selected Design</h3>
+                <dl class="space-y-2 text-sm">
                     <div class="flex justify-between">
                         <dt class="text-gray-500">Design:</dt>
-                        <dd class="text-gray-900 dark:text-white" id="summary-design">--</dd>
+                        <dd class="text-gray-900 dark:text-white font-mono" id="summary-design">--</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-gray-500">HDBS Type:</dt>
+                        <dd class="text-gray-900 dark:text-white" id="summary-hdbs">--</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-gray-500">Size:</dt>
+                        <dd class="text-gray-900 dark:text-white" id="summary-size">--</dd>
                     </div>
                     <div class="flex justify-between">
                         <dt class="text-gray-500">Mode:</dt>
-                        <dd class="text-gray-900 dark:text-white" id="summary-mode">Existing Design</dd>
+                        <dd class="text-gray-900 dark:text-white" id="summary-mode">Select Design</dd>
                     </div>
                 </dl>
 
                 <hr class="my-4 border-gray-200 dark:border-gray-700">
 
-                <!-- Action Buttons -->
-                <div class="space-y-3">
-                    <button type="submit" id="create-bom-btn"
-                        class="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center">
-                        <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
-                        Create BOM & Open Builder
+                <!-- Quick Actions - shown after design selected -->
+                <div id="quick-actions" class="space-y-3 hidden">
+                    <button type="button" onclick="goToCutterMap()"
+                        class="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors flex items-center justify-center">
+                        <i data-lucide="file-scan" class="w-5 h-5 mr-2"></i>
+                        Import from PDF (Cutter Map)
                     </button>
 
-                    <button type="button" id="pdf-builder-btn" disabled
-                        class="w-full px-4 py-3 bg-gray-100 text-gray-400 rounded-lg font-medium transition-colors flex items-center justify-center cursor-not-allowed"
-                        onclick="openPdfBuilder()">
-                        <i data-lucide="file-text" class="w-5 h-5 mr-2"></i>
-                        Open PDF Builder
+                    <button type="button" onclick="showManualCreation()"
+                        class="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium transition-colors flex items-center justify-center">
+                        <i data-lucide="edit-3" class="w-5 h-5 mr-2"></i>
+                        Create Manually
                     </button>
                 </div>
 
-                <p class="text-xs text-gray-500 mt-3 text-center">
-                    Fill required fields to enable PDF Builder
-                </p>
+                <!-- Prompt to select design first -->
+                <div id="select-design-prompt" class="text-center py-4">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        <i data-lucide="arrow-up" class="w-4 h-4 inline mr-1"></i>
+                        Select a Design (L3/L4) first
+                    </p>
+                </div>
             </div>
 
             <!-- Quick Help -->
             <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6">
                 <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Quick Help</h3>
                 <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-2">
-                    <li><strong>L5 MAT</strong> = BOM Code (Level 5 - With cutters)</li>
-                    <li><strong>L3/L4 MAT</strong> = Design (No cutters)</li>
+                    <li><strong>L3/L4 MAT</strong> = Design (base drill bit, no cutters)</li>
+                    <li><strong>L5 MAT</strong> = BOM Code (design with cutters)</li>
+                    <li><strong>Cutter Map</strong> = PDF extraction tool</li>
                     <li><strong>HDBS Type</strong> = Internal naming</li>
                     <li><strong>SMI Type</strong> = Client-facing name</li>
                 </ul>
@@ -788,6 +906,9 @@
         rows.forEach(row => row.classList.toggle('hidden', isExpanded));
     }
 
+    // Store selected design info globally
+    let selectedDesignInfo = null;
+
     // Select design
     function selectDesign(row) {
         document.querySelectorAll('.design-row').forEach(r => r.classList.remove('bg-blue-100', 'dark:bg-blue-900/40'));
@@ -798,9 +919,25 @@
         const mat = row.querySelector('td:nth-child(3)').textContent.trim();
         const hdbs = row.querySelector('td:nth-child(4)').textContent.trim();
         const size = row.querySelector('td:nth-child(5)').textContent.trim();
+        const designId = row.dataset.designId;
+
+        // Store selected design info
+        selectedDesignInfo = {
+            id: designId,
+            level: level,
+            mat: mat,
+            hdbs: hdbs,
+            size: size
+        };
 
         document.getElementById('selected-design-text').textContent = `${level} | ${mat} | ${hdbs} | ${size}`;
         document.getElementById('selected-design-info').classList.remove('hidden');
+
+        // Show Step 2: Creation Method
+        document.getElementById('step2-creation-method').classList.remove('hidden');
+
+        // Update progress indicators
+        updateProgressIndicators(1);
 
         checkFormCompletion();
         updateSummary();
@@ -811,8 +948,106 @@
         document.querySelectorAll('.design-row').forEach(r => r.classList.remove('bg-blue-100', 'dark:bg-blue-900/40'));
         document.querySelectorAll('.design-radio').forEach(r => r.checked = false);
         document.getElementById('selected-design-info').classList.add('hidden');
+        selectedDesignInfo = null;
+
+        // Hide Step 2 and Step 3
+        document.getElementById('step2-creation-method').classList.add('hidden');
+        document.getElementById('step3-bom-info').classList.add('hidden');
+
+        // Reset progress
+        updateProgressIndicators(0);
+
         checkFormCompletion();
         updateSummary();
+    }
+
+    // Update progress indicators
+    function updateProgressIndicators(currentStep) {
+        const steps = [
+            { progress: 'progress-step1', indicator: 'step1-indicator', status: 'step1-status' },
+            { progress: 'progress-step2', indicator: 'step2-indicator', status: 'step2-status' },
+            { progress: 'progress-step3', indicator: 'step3-indicator', status: 'step3-status' }
+        ];
+
+        steps.forEach((step, index) => {
+            const progressEl = document.getElementById(step.progress);
+            const indicatorEl = document.getElementById(step.indicator);
+
+            if (index < currentStep) {
+                // Completed step
+                progressEl.classList.remove('opacity-50');
+                indicatorEl.classList.remove('bg-gray-300', 'dark:bg-gray-600', 'text-gray-600', 'dark:text-gray-400');
+                indicatorEl.classList.add('bg-green-600', 'text-white');
+                indicatorEl.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>';
+            } else if (index === currentStep) {
+                // Current step
+                progressEl.classList.remove('opacity-50');
+                indicatorEl.classList.remove('bg-gray-300', 'dark:bg-gray-600', 'text-gray-600', 'dark:text-gray-400', 'bg-green-600');
+                if (index === 0) indicatorEl.classList.add('bg-purple-600', 'text-white');
+                else if (index === 1) indicatorEl.classList.add('bg-blue-600', 'text-white');
+                else indicatorEl.classList.add('bg-green-600', 'text-white');
+                indicatorEl.textContent = String(index + 1);
+            } else {
+                // Future step
+                progressEl.classList.add('opacity-50');
+                indicatorEl.classList.remove('bg-purple-600', 'bg-blue-600', 'bg-green-600', 'text-white');
+                indicatorEl.classList.add('bg-gray-300', 'dark:bg-gray-600', 'text-gray-600', 'dark:text-gray-400');
+                indicatorEl.textContent = String(index + 1);
+            }
+        });
+
+        // Update right sidebar
+        if (currentStep >= 1) {
+            document.getElementById('quick-actions').classList.remove('hidden');
+            document.getElementById('select-design-prompt').classList.add('hidden');
+        } else {
+            document.getElementById('quick-actions').classList.add('hidden');
+            document.getElementById('select-design-prompt').classList.remove('hidden');
+        }
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    // Go to Cutter Map app with design info
+    function goToCutterMap() {
+        if (!selectedDesignInfo && document.querySelector('input[name="design_mode"]:checked').value === 'new') {
+            // If creating new design, we need to save it first
+            alert('Please select an existing design or save the new design first before importing from PDF.');
+            return;
+        }
+
+        if (!selectedDesignInfo) {
+            alert('Please select a design first.');
+            return;
+        }
+
+        // Redirect to Cutter Map with design info as query params
+        const params = new URLSearchParams({
+            design_id: selectedDesignInfo.id,
+            design_mat: selectedDesignInfo.mat,
+            design_hdbs: selectedDesignInfo.hdbs,
+            design_size: selectedDesignInfo.size,
+            from: 'bom_create'
+        });
+
+        window.location.href = `/cutter-map/?${params.toString()}`;
+    }
+
+    // Show manual creation form (Step 3)
+    function showManualCreation() {
+        document.getElementById('step3-bom-info').classList.remove('hidden');
+        updateProgressIndicators(2);
+        document.getElementById('summary-mode').textContent = 'Manual Creation';
+
+        // Scroll to the form
+        document.getElementById('step3-bom-info').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Hide manual creation form
+    function hideManualCreation() {
+        document.getElementById('step3-bom-info').classList.add('hidden');
+        updateProgressIndicators(1);
+        document.getElementById('summary-mode').textContent = 'Select Method';
     }
 
     // Clone BOM
@@ -859,31 +1094,46 @@
 
     // Update summary
     function updateSummary() {
-        const bomCode = document.getElementById('id_bom_code').value || '--';
-        const smiType = document.getElementById('id_smi_type').value || '--';
-        document.getElementById('summary-bom-code').textContent = bomCode;
-        document.getElementById('summary-smi-type').textContent = smiType;
-
         const designMode = document.querySelector('input[name="design_mode"]:checked').value;
         let designText = '--';
+        let hdbsText = '--';
+        let sizeText = '--';
 
         if (designMode === 'existing') {
             const checkedRadio = document.querySelector('.design-radio:checked');
             if (checkedRadio) {
                 const row = checkedRadio.closest('.design-row');
-                designText = `${row.querySelector('td:nth-child(3)').textContent.trim()} - ${row.querySelector('td:nth-child(4)').textContent.trim()}`;
+                designText = row.querySelector('td:nth-child(3)').textContent.trim();
+                hdbsText = row.querySelector('td:nth-child(4)').textContent.trim();
+                sizeText = row.querySelector('td:nth-child(5)').textContent.trim();
             }
         } else {
             const matNo = document.getElementById('id_design_mat_no').value;
             const hdbs = document.getElementById('id_design_hdbs_type').value;
-            if (matNo) designText = hdbs ? `${matNo} - ${hdbs} (New)` : `${matNo} (New)`;
+            const sizeSelect = document.getElementById('id_design_size');
+            const sizeOption = sizeSelect.options[sizeSelect.selectedIndex];
+
+            if (matNo) designText = `${matNo} (New)`;
+            if (hdbs) hdbsText = hdbs;
+            if (sizeOption && sizeOption.value) sizeText = sizeOption.text;
         }
+
         document.getElementById('summary-design').textContent = designText;
+        document.getElementById('summary-hdbs').textContent = hdbsText;
+        document.getElementById('summary-size').textContent = sizeText;
+
+        // Update mode based on current state
+        if (!selectedDesignInfo && designMode === 'existing') {
+            document.getElementById('summary-mode').textContent = 'Select Design';
+        } else if (document.getElementById('step3-bom-info').classList.contains('hidden')) {
+            document.getElementById('summary-mode').textContent = 'Choose Method';
+        } else {
+            document.getElementById('summary-mode').textContent = 'Manual Creation';
+        }
     }
 
-    // Check form completion for PDF Builder
+    // Check form completion - now focuses on design selection and BOM code for manual creation
     function checkFormCompletion() {
-        const bomCode = document.getElementById('id_bom_code').value.trim();
         const designMode = document.querySelector('input[name="design_mode"]:checked').value;
         let hasDesign = false;
 
@@ -896,21 +1146,25 @@
             hasDesign = matNo && hdbs && size;
         }
 
-        const btn = document.getElementById('pdf-builder-btn');
-        if (bomCode && hasDesign) {
-            btn.disabled = false;
-            btn.classList.remove('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
-            btn.classList.add('bg-purple-600', 'text-white', 'hover:bg-purple-700');
+        // Show/hide Step 2 based on design selection
+        if (hasDesign) {
+            document.getElementById('step2-creation-method').classList.remove('hidden');
+            if (designMode === 'new') {
+                // For new design, we need to store the info
+                selectedDesignInfo = {
+                    id: null, // Will be created
+                    mat: document.getElementById('id_design_mat_no').value.trim(),
+                    hdbs: document.getElementById('id_design_hdbs_type').value.trim(),
+                    size: document.getElementById('id_design_size').options[document.getElementById('id_design_size').selectedIndex].text,
+                    level: 'L' + document.getElementById('id_design_order_level').value
+                };
+                updateProgressIndicators(1);
+            }
         } else {
-            btn.disabled = true;
-            btn.classList.add('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
-            btn.classList.remove('bg-purple-600', 'text-white', 'hover:bg-purple-700');
+            document.getElementById('step2-creation-method').classList.add('hidden');
+            document.getElementById('step3-bom-info').classList.add('hidden');
+            updateProgressIndicators(0);
         }
-    }
-
-    function openPdfBuilder() {
-        // Save form and redirect to PDF builder
-        document.getElementById('bom-create-form').submit();
     }
 
     // Error handling

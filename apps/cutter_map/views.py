@@ -29,9 +29,21 @@ def index(request):
 
     form = CutterMapUploadForm()
 
+    # Check if coming from BOM create page with design info
+    design_context = None
+    if request.GET.get('from') == 'bom_create':
+        design_context = {
+            'design_id': request.GET.get('design_id'),
+            'design_mat': request.GET.get('design_mat', ''),
+            'design_hdbs': request.GET.get('design_hdbs', ''),
+            'design_size': request.GET.get('design_size', ''),
+            'from_bom_create': True
+        }
+
     return render(request, 'cutter_map/index.html', {
         'documents': documents,
-        'form': form
+        'form': form,
+        'design_context': design_context
     })
 
 
@@ -505,6 +517,10 @@ def api_sync_to_erp(request):
     - L5 BOM with BOMLines
     - DesignPocketConfig entries (grouped by size + substrate_shape)
     - DesignPocket entries from blade CL data
+
+    Accepts either:
+    - design_id: Direct link to a pre-selected Design (from BOM create workflow)
+    - parent_design_mat: MAT number to look up or create a Design
     """
     from apps.technology.models import (
         Design, BOM, BOMLine, PocketSize, PocketShape,
@@ -518,11 +534,13 @@ def api_sync_to_erp(request):
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
 
     document_id = payload.get('document_id')
+    design_id = payload.get('design_id')  # Direct design ID from BOM create workflow
     parent_design_mat = payload.get('parent_design_mat', '').strip()
     data = payload.get('data', {})
 
-    if not parent_design_mat:
-        return JsonResponse({'success': False, 'error': 'Parent Design MAT is required'}, status=400)
+    # Require either design_id or parent_design_mat
+    if not design_id and not parent_design_mat:
+        return JsonResponse({'success': False, 'error': 'Either design_id or Parent Design MAT is required'}, status=400)
 
     if not data:
         return JsonResponse({'success': False, 'error': 'No data provided'}, status=400)
@@ -533,19 +551,30 @@ def api_sync_to_erp(request):
         blades = data.get('blades', [])
 
         # 1. Find or create parent Design (L3/L4)
-        parent_design = Design.objects.filter(mat_no=parent_design_mat).first()
+        parent_design = None
 
-        if not parent_design:
-            # Create new Design as L3 (base design)
-            parent_design = Design.objects.create(
-                mat_no=parent_design_mat,
-                hdbs_type=f"DRAFT-{parent_design_mat}",
-                category=Design.Category.FC,
-                order_level=Design.OrderLevel.LEVEL_3,
-                status=Design.Status.DRAFT,
-                no_of_blades=len(blades) if blades else None,
-                created_by=request.user
-            )
+        # First try design_id (from BOM create workflow)
+        if design_id:
+            try:
+                parent_design = Design.objects.get(pk=design_id)
+            except Design.DoesNotExist:
+                return JsonResponse({'success': False, 'error': f'Design with ID {design_id} not found'}, status=400)
+
+        # Fallback to parent_design_mat lookup/creation
+        if not parent_design and parent_design_mat:
+            parent_design = Design.objects.filter(mat_no=parent_design_mat).first()
+
+            if not parent_design:
+                # Create new Design as L3 (base design)
+                parent_design = Design.objects.create(
+                    mat_no=parent_design_mat,
+                    hdbs_type=f"DRAFT-{parent_design_mat}",
+                    category=Design.Category.FC,
+                    order_level=Design.OrderLevel.LEVEL_3,
+                    status=Design.Status.DRAFT,
+                    no_of_blades=len(blades) if blades else None,
+                    created_by=request.user
+                )
 
         # Update blade count if we have data
         if blades and not parent_design.no_of_blades:

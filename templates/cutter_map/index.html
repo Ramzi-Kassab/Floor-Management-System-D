@@ -968,7 +968,33 @@
     <div class="app-header">
         <h1>HALLIBURTON PDF Generator</h1>
     </div>
-    
+
+    {% if design_context %}
+    <!-- Design Context Banner - Shown when coming from BOM Create -->
+    <div style="background: linear-gradient(90deg, #1e3a5f, #2d5a87); color: white; padding: 12px 20px; margin-bottom: 0;">
+        <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold;">
+                    IMPORTING FOR DESIGN
+                </span>
+                <div style="display: flex; gap: 20px; font-size: 13px;">
+                    <span><strong>MAT:</strong> {{ design_context.design_mat }}</span>
+                    <span><strong>HDBS:</strong> {{ design_context.design_hdbs }}</span>
+                    <span><strong>Size:</strong> {{ design_context.design_size }}</span>
+                </div>
+            </div>
+            <a href="{% url 'technology:bom_create' %}"
+               style="background: rgba(255,255,255,0.2); color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 11px;">
+                ← Back to BOM Create
+            </a>
+        </div>
+    </div>
+    <input type="hidden" id="designId" value="{{ design_context.design_id }}">
+    <input type="hidden" id="designMat" value="{{ design_context.design_mat }}">
+    <input type="hidden" id="designHdbs" value="{{ design_context.design_hdbs }}">
+    <input type="hidden" id="designSize" value="{{ design_context.design_size }}">
+    {% endif %}
+
     <div class="container">
         <!-- Upload -->
         <div class="upload-section" id="uploadSection">
@@ -1167,6 +1193,9 @@
             </div>
 
             <div class="action-bar">
+                {% if design_context %}
+                <button class="btn" style="background: #1e3a5f;" onclick="createBOMFromPDF()">📋 Create BOM for {{ design_context.design_mat }}</button>
+                {% endif %}
                 <button class="btn btn-green" onclick="generatePDF()">📄 Generate PDF</button>
                 <button class="btn btn-gray" onclick="exportJSON()">💾 Export JSON</button>
                 <button class="btn btn-gray" onclick="resetApp()">🔄 New Upload</button>
@@ -7088,7 +7117,67 @@
             document.getElementById('uploadSection').classList.remove('hidden');
             document.getElementById('fileInput').value = '';
         }
-        
+
+        // Create BOM from PDF data (when coming from BOM create workflow)
+        function createBOMFromPDF() {
+            const formData = collectFormData();
+            if (!formData) {
+                showMsg('No data to create BOM. Please upload a PDF first.', 'error');
+                return;
+            }
+
+            // Get design context from hidden inputs
+            const designId = document.getElementById('designId')?.value;
+            const designMat = document.getElementById('designMat')?.value;
+
+            if (!designId && !designMat) {
+                showMsg('No design context. Please go back to BOM Create and select a design.', 'error');
+                return;
+            }
+
+            // Build payload for sync-to-erp API
+            const payload = {
+                design_id: designId || null,
+                parent_design_mat: designMat || '',
+                document_id: currentData.document_id || null,
+                data: {
+                    header: formData.header,
+                    summary: formData.summary,
+                    blades: formData.blades
+                },
+                create_missing_items: false  // Can be made configurable
+            };
+
+            showMsg('Creating BOM...', 'success');
+
+            fetch('/cutter-map/api/sync-to-erp/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    showMsg('BOM created successfully!', 'success');
+                    // Redirect to BOM builder if we have a BOM ID
+                    if (result.bom_id) {
+                        setTimeout(() => {
+                            window.location.href = `/technology/boms/${result.bom_id}/builder/`;
+                        }, 1500);
+                    }
+                } else {
+                    showMsg('Error creating BOM: ' + (result.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(err => {
+                console.error('BOM creation error:', err);
+                showMsg('Error creating BOM: ' + err.message, 'error');
+            });
+        }
+
         function showMsg(msg, type) {
             const el = document.getElementById('resultMessage');
             el.textContent = msg;
