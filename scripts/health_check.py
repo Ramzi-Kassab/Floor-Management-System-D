@@ -161,7 +161,8 @@ def git_pull():
     code, branch, err = run_command("git rev-parse --abbrev-ref HEAD")
     branch = branch.strip()
 
-    # Check for uncommitted changes (excluding db.sqlite3 which is for local testing)
+    # Check for uncommitted changes (excluding db.sqlite3 which is local test data)
+    # IMPORTANT: Never discard db.sqlite3 - it contains user's test data!
     code, status, err = run_command("git status --porcelain")
     if status.strip():
         # Filter out db.sqlite3 changes (these are expected from testing)
@@ -175,11 +176,10 @@ def git_pull():
             if ask_yes_no("Stash changes before pulling?", 'n'):
                 run_command("git stash")
                 print(f"  {GREEN}✓{RESET} Changes stashed")
-        else:
-            # Only db.sqlite3 changed - just discard it for clean pull
-            run_command("git checkout -- db.sqlite3 2>/dev/null")
+        # If only db.sqlite3 changed, just continue - don't touch it!
 
     # Pull with merge strategy (handles divergent branches automatically)
+    # Using -X theirs to auto-resolve conflicts by preferring remote changes for code files
     print(f"  Pulling from origin/{branch}...")
     code = run_interactive(f"git pull --no-rebase origin {branch}")
 
