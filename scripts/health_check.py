@@ -698,6 +698,33 @@ def clear_saved_decisions():
     save_state(state)
     print(f"  {GREEN}✓ All saved decisions cleared{RESET}")
 
+
+def print_claude_md_reminder():
+    """Print a big colorful reminder about CLAUDE.md updates."""
+    MAGENTA = '\033[95m'
+    BG_YELLOW = '\033[43m'
+    BG_BLUE = '\033[44m'
+    BLACK = '\033[30m'
+
+    print()
+    print(f"  {BG_BLUE}{BOLD}{'='*56}{RESET}")
+    print(f"  {BG_BLUE}{BOLD}{'':^56}{RESET}")
+    print(f"  {BG_BLUE}{BOLD}{'   REMINDER: UPDATE CLAUDE.md BEFORE ENDING SESSION!   ':^56}{RESET}")
+    print(f"  {BG_BLUE}{BOLD}{'':^56}{RESET}")
+    print(f"  {BG_BLUE}{BOLD}{'='*56}{RESET}")
+    print()
+    print(f"  {MAGENTA}{BOLD}If you completed a feature or made significant changes:{RESET}")
+    print(f"  {CYAN}  Tell Claude: \"update context file\" or \"wrap up\"{RESET}")
+    print()
+    print(f"  {YELLOW}{BOLD}This helps future sessions understand:{RESET}")
+    print(f"  {GREEN}    - What was built / changed{RESET}")
+    print(f"  {GREEN}    - Current state of the project{RESET}")
+    print(f"  {GREEN}    - Known issues / TODOs{RESET}")
+    print()
+    print(f"  {CYAN}  File: CLAUDE.md (auto-read by Claude at session start){RESET}")
+    print()
+
+
 def main():
     # Handle command line args
     if '--reset-decisions' in sys.argv:
@@ -772,6 +799,9 @@ def main():
     if state.get('last_backup'):
         print(f"  Last backup: {state['last_backup'][:19].replace('T', ' ')}")
     print(f"\n  {CYAN}Options: ./hc --reset-decisions | ./hc --show-decisions{RESET}")
+
+    # Big reminder about CLAUDE.md
+    print_claude_md_reminder()
 
     # Offer to run server
     offer_run_server()
