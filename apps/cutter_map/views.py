@@ -584,7 +584,13 @@ def api_sync_to_erp(request):
             )
 
         # 3. Create BOM Lines and build index→item mapping
+        # Option to create missing items (from payload)
+        create_missing_items = payload.get('create_missing_items', False)
+
         bom_lines_created = 0
+        items_matched = 0
+        items_created = 0
+        items_unmatched = []
         index_to_item_info = {}  # Maps BOM index to (size, substrate_shape, color)
 
         for item in summary:
@@ -592,38 +598,32 @@ def api_sync_to_erp(request):
             cutter_size = item.get('size', '')
             hdbs_code = item.get('mat_number', '')
             color_code = item.get('fill_color', '#4A4A4A')
+            cutter_chamfer = item.get('chamfer', '')
+            cutter_type = item.get('type', '')
 
-            BOMLine.objects.create(
-                bom=bom,
-                line_number=bom_index,
-                order_number=bom_index,
-                quantity=item.get('count', 1),
-                cutter_size=cutter_size,
-                cutter_chamfer=item.get('chamfer', ''),
-                cutter_type=item.get('type', ''),
-                hdbs_code=hdbs_code,
-                family_number=item.get('family_number', ''),
-                color_code=color_code,
-            )
-            bom_lines_created += 1
-
-            # Lookup substrate_shape from InventoryItem attributes
+            # Try to find matching inventory item
+            inv_item = None
             substrate_shape = 'DEFAULT'
 
             if hdbs_code:
-                # Try to find item by hdbs_code attribute or mat_number field
+                # Try exact match on mat_number field
                 inv_item = InventoryItem.objects.filter(mat_number=hdbs_code).first()
 
                 if not inv_item:
-                    # Try attribute lookup
+                    # Try match on code field
+                    inv_item = InventoryItem.objects.filter(code=hdbs_code).first()
+
+                if not inv_item:
+                    # Try attribute lookup (hdbs_code, hdbs, mat_number attributes)
                     attr_match = ItemAttributeValue.objects.filter(
-                        attribute__attribute__code__in=['hdbs_code', 'hdbs', 'mat_number'],
+                        attribute__attribute__code__in=['hdbs_code', 'hdbs', 'mat_number', 'hdbs_mat'],
                         text_value=hdbs_code
                     ).select_related('item').first()
                     if attr_match:
                         inv_item = attr_match.item
 
                 if inv_item:
+                    items_matched += 1
                     # Get substrate_shape attribute
                     shape_attr = ItemAttributeValue.objects.filter(
                         item=inv_item,
@@ -631,6 +631,41 @@ def api_sync_to_erp(request):
                     ).first()
                     if shape_attr and shape_attr.text_value:
                         substrate_shape = shape_attr.text_value
+                elif create_missing_items:
+                    # Create new inventory item for unmatched HDBS code
+                    display_name = f"{cutter_size} {cutter_type}".strip() or hdbs_code
+                    inv_item = InventoryItem.objects.create(
+                        code=hdbs_code,
+                        name=display_name,
+                        mat_number=hdbs_code,
+                        item_type=InventoryItem.ItemType.COMPONENT,
+                        unit='EA',
+                        description=f"Auto-created from PDF import. Size: {cutter_size}, Type: {cutter_type}, Chamfer: {cutter_chamfer}"
+                    )
+                    items_created += 1
+                else:
+                    # Track unmatched items for reporting
+                    items_unmatched.append({
+                        'hdbs_code': hdbs_code,
+                        'size': cutter_size,
+                        'type': cutter_type
+                    })
+
+            # Create BOM Line with inventory_item link if matched/created
+            BOMLine.objects.create(
+                bom=bom,
+                line_number=bom_index,
+                order_number=bom_index,
+                quantity=item.get('count', 1),
+                cutter_size=cutter_size,
+                cutter_chamfer=cutter_chamfer,
+                cutter_type=cutter_type,
+                hdbs_code=hdbs_code,
+                family_number=item.get('family_number', ''),
+                color_code=color_code,
+                inventory_item=inv_item,  # Link to inventory (may be None if unmatched)
+            )
+            bom_lines_created += 1
 
             index_to_item_info[bom_index] = {
                 'size': cutter_size,
@@ -777,7 +812,10 @@ def api_sync_to_erp(request):
                         'bom_code': bom.code,
                         'bom_lines_created': bom_lines_created,
                         'pocket_configs_created': pocket_configs_created,
-                        'pockets_created': pockets_created
+                        'pockets_created': pockets_created,
+                        'items_matched': items_matched,
+                        'items_created': items_created,
+                        'items_unmatched': len(items_unmatched)
                     }
                 )
 
@@ -789,7 +827,14 @@ def api_sync_to_erp(request):
             'bom_code': bom.code,
             'bom_lines_created': bom_lines_created,
             'pocket_configs_created': pocket_configs_created,
-            'pockets_created': pockets_created
+            'pockets_created': pockets_created,
+            # Inventory matching statistics
+            'inventory_stats': {
+                'items_matched': items_matched,
+                'items_created': items_created,
+                'items_unmatched': len(items_unmatched),
+                'unmatched_items': items_unmatched if items_unmatched else None
+            }
         })
 
     except Exception as e:
