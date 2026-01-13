@@ -7120,15 +7120,23 @@
 
         // Create BOM from PDF data (when coming from BOM create workflow)
         function createBOMFromPDF() {
+            console.log('createBOMFromPDF called');
+
             const formData = collectFormData();
+            console.log('formData:', formData);
+
             if (!formData) {
                 showMsg('No data to create BOM. Please upload a PDF first.', 'error');
                 return;
             }
 
             // Get design context from hidden inputs
-            const designId = document.getElementById('designId')?.value;
-            const designMat = document.getElementById('designMat')?.value;
+            const designIdEl = document.getElementById('designId');
+            const designMatEl = document.getElementById('designMat');
+            const designId = designIdEl ? designIdEl.value : null;
+            const designMat = designMatEl ? designMatEl.value : '';
+
+            console.log('designId:', designId, 'designMat:', designMat);
 
             if (!designId && !designMat) {
                 showMsg('No design context. Please go back to BOM Create and select a design.', 'error');
@@ -7148,6 +7156,8 @@
                 create_missing_items: false  // Can be made configurable
             };
 
+            console.log('Sending payload to /cutter-map/api/sync-to-erp/', JSON.stringify(payload, null, 2));
+
             showMsg('Creating BOM...', 'success');
 
             fetch('/cutter-map/api/sync-to-erp/', {
@@ -7158,10 +7168,19 @@
                 },
                 body: JSON.stringify(payload)
             })
-            .then(r => r.json())
+            .then(r => {
+                console.log('Response status:', r.status);
+                if (!r.ok) {
+                    return r.text().then(text => {
+                        throw new Error(`HTTP ${r.status}: ${text}`);
+                    });
+                }
+                return r.json();
+            })
             .then(result => {
+                console.log('API result:', result);
                 if (result.success) {
-                    showMsg('BOM created successfully!', 'success');
+                    showMsg('BOM created successfully! Redirecting to BOM builder...', 'success');
                     // Redirect to BOM builder if we have a BOM ID
                     if (result.bom_id) {
                         setTimeout(() => {
