@@ -921,3 +921,121 @@ def api_sync_to_erp(request):
             'technical_error': error_msg,  # Include for debugging
             'can_retry': True  # Tell frontend user can try again
         }, status=500)
+
+
+@login_required
+@require_POST
+def api_create_cutters(request):
+    """
+    API: Create inventory items for unmatched cutters from PDF import.
+
+    Expects JSON body with:
+    {
+        "items": [
+            {
+                "hdbs_code": "DGR1307A",
+                "size": "13.07",
+                "type": "ROUND",
+                "name": "13mm Round Premium",  // optional
+                "grade": "PREMIUM",  // optional
+                "thickness": 8.0,  // optional
+                "chamfer_type": "SINGLE"  // optional
+            },
+            ...
+        ]
+    }
+    """
+    from apps.inventory.models import InventoryItem, ItemCutterSpec
+
+    try:
+        data = json.loads(request.body)
+        items_data = data.get('items', [])
+
+        if not items_data:
+            return JsonResponse({
+                'success': False,
+                'error': 'No items provided'
+            }, status=400)
+
+        created_items = []
+        errors = []
+
+        for item_data in items_data:
+            hdbs_code = item_data.get('hdbs_code', '').strip()
+            if not hdbs_code:
+                errors.append("Missing HDBS code for an item")
+                continue
+
+            # Check if already exists
+            if InventoryItem.objects.filter(code=hdbs_code).exists():
+                errors.append(f"{hdbs_code} already exists in inventory")
+                continue
+
+            # Extract fields
+            cutter_size = item_data.get('size', '')
+            cutter_type = item_data.get('type', '')
+            name = item_data.get('name') or f"{cutter_size} {cutter_type}".strip() or hdbs_code
+            grade = item_data.get('grade', 'STANDARD')
+            thickness = item_data.get('thickness')
+            chamfer_type = item_data.get('chamfer_type', 'NONE')
+
+            try:
+                # Create InventoryItem
+                inv_item = InventoryItem.objects.create(
+                    code=hdbs_code,
+                    name=name,
+                    mat_number=hdbs_code,
+                    item_type=InventoryItem.ItemType.COMPONENT,
+                    unit='EA',
+                    description=f"PDC Cutter - Size: {cutter_size}mm, Type: {cutter_type}"
+                )
+
+                # Create ItemCutterSpec if we have size
+                if cutter_size:
+                    try:
+                        size_decimal = float(cutter_size)
+                        spec_data = {
+                            'item': inv_item,
+                            'cutter_size': size_decimal,
+                            'grade': grade if grade in ['PREMIUM', 'STANDARD', 'ECONOMY'] else 'STANDARD',
+                            'chamfer_type': chamfer_type if chamfer_type in ['NONE', 'SINGLE', 'DOUBLE', 'MULTI'] else 'NONE',
+                        }
+                        if thickness:
+                            try:
+                                spec_data['thickness'] = float(thickness)
+                            except (ValueError, TypeError):
+                                pass
+
+                        ItemCutterSpec.objects.create(**spec_data)
+                    except (ValueError, TypeError):
+                        # Size couldn't be converted, skip spec creation
+                        pass
+
+                created_items.append({
+                    'id': inv_item.id,
+                    'code': inv_item.code,
+                    'name': inv_item.name
+                })
+
+            except Exception as e:
+                errors.append(f"Failed to create {hdbs_code}: {str(e)}")
+
+        return JsonResponse({
+            'success': True,
+            'created': created_items,
+            'created_count': len(created_items),
+            'errors': errors if errors else None
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON in request body'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

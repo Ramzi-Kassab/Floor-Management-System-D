@@ -46,4 +46,5 @@ urlpatterns = [
     # API Endpoints
     path('api/lookup-design/', views.api_lookup_design, name='api_lookup_design'),
     path('api/sync-to-erp/', views.api_sync_to_erp, name='api_sync_to_erp'),
+    path('api/create-cutters/', views.api_create_cutters, name='api_create_cutters'),
 ]
