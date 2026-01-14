@@ -1,9 +1,9 @@
 {
-  "snapshot_at": "2026-01-12T04:32:37.100923",
-  "run_count": 30,
-  "designs": 1,
-  "boms": 1,
-  "inventory_items": 4,
+  "snapshot_at": "2026-01-14T06:42:32.560874",
+  "run_count": 60,
+  "designs": 14,
+  "boms": 3,
+  "inventory_items": 20,
   "categories": 42,
-  "attributes": 351
+  "attributes": 354
 }
