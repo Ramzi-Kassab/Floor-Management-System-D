@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required, permission_required
 from django.http import JsonResponse, FileResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 from django.core.files.base import ContentFile
 
 from .models import CutterMapDocument, CutterMapHistory
