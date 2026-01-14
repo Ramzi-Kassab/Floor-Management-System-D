@@ -980,8 +980,8 @@
                 Create BOM from Design
             </a>
             {% endif %}
-            <a href="{% url 'technology:bom_list' %}" style="color: white; text-decoration: none; font-size: 12px; padding: 6px 12px; background: rgba(255,255,255,0.15); border-radius: 4px;">
-                View All BOMs
+            <a href="{% url 'technology:bom_list' %}?from=cutter_map" style="color: white; text-decoration: none; font-size: 12px; padding: 6px 12px; background: rgba(76,175,80,0.9); border-radius: 4px; font-weight: 500;">
+                📋 BOM List
             </a>
         </div>
     </div>
@@ -995,6 +995,11 @@
                     IMPORTING FOR DESIGN
                 </span>
                 <div style="display: flex; gap: 20px; font-size: 13px;">
+                    {% if design_context.design_level %}
+                    <span style="background: {% if design_context.design_level == 'L3' %}#2196f3{% else %}#4caf50{% endif %}; padding: 2px 8px; border-radius: 3px; font-weight: bold;">
+                        {{ design_context.design_level }}
+                    </span>
+                    {% endif %}
                     <span><strong>MAT:</strong> {{ design_context.design_mat }}</span>
                     <span><strong>HDBS:</strong> {{ design_context.design_hdbs }}</span>
                     <span><strong>Size:</strong> {{ design_context.design_size }}</span>
@@ -1010,6 +1015,7 @@
     <input type="hidden" id="designMat" value="{{ design_context.design_mat }}">
     <input type="hidden" id="designHdbs" value="{{ design_context.design_hdbs }}">
     <input type="hidden" id="designSize" value="{{ design_context.design_size }}">
+    <input type="hidden" id="designLevel" value="{{ design_context.design_level }}">
     {% else %}
     <!-- Standalone Mode - Hidden inputs for context -->
     <input type="hidden" id="designId" value="">
@@ -7266,13 +7272,46 @@
                         }, 1500);
                     }
                 } else {
-                    showMsg('Error creating BOM: ' + (result.error || 'Unknown error'), 'error');
+                    // Show error with options
+                    showErrorWithOptions(result.error || 'Unknown error', result.can_retry);
                 }
             })
             .catch(err => {
                 console.error('BOM creation error:', err);
-                showMsg('Error creating BOM: ' + err.message, 'error');
+                // Try to parse error response
+                if (err.message && err.message.includes('{')) {
+                    try {
+                        const errorData = JSON.parse(err.message.substring(err.message.indexOf('{')));
+                        showErrorWithOptions(errorData.error || err.message, errorData.can_retry);
+                        return;
+                    } catch (e) {}
+                }
+                showErrorWithOptions(err.message, true);
             });
+        }
+
+        function showErrorWithOptions(errorMsg, canRetry) {
+            // Create error dialog
+            const dialog = document.createElement('div');
+            dialog.className = 'mat-dialog';
+            dialog.id = 'errorDialog';
+            dialog.innerHTML = `
+                <div class="mat-dialog-box" style="max-width: 500px;">
+                    <div class="mat-dialog-title" style="color: #721c24; background: #f8d7da; padding: 10px; margin: -15px -15px 15px -15px; border-radius: 4px 4px 0 0;">
+                        ⚠️ Error Creating BOM
+                    </div>
+                    <p style="font-size:13px; color:#333; margin-bottom:15px; line-height:1.5;">
+                        ${errorMsg}
+                    </p>
+                    <div class="mat-dialog-buttons" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn btn-gray" onclick="document.getElementById('errorDialog').remove()">Close</button>
+                        ${canRetry ? '<button class="btn" style="background:#1e3a5f;" onclick="document.getElementById(\'errorDialog\').remove(); switchTab(\'blades\');">Edit Blade Data</button>' : ''}
+                        <button class="btn btn-gray" onclick="document.getElementById('errorDialog').remove(); resetApp();">Upload New File</button>
+                        <button class="btn btn-gray" onclick="document.getElementById('errorDialog').remove(); openDesignLinkModal();">Select Different Design</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dialog);
         }
 
         function showMsg(msg, type) {

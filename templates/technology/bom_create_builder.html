@@ -331,6 +331,7 @@
             design_mat: selectedDesign.mat,
             design_hdbs: selectedDesign.hdbs,
             design_size: selectedDesign.size,
+            design_level: selectedDesign.level,  // Include L3/L4 level
             from: 'bom_create'
         });
 
@@ -354,14 +355,79 @@
                 // Select it after a brief delay for visibility
                 setTimeout(() => {
                     selectDesign(row);
-                    // Show a helpful message
-                    const matNo = row.querySelector('td:nth-child(3)').textContent.trim();
-                    alert(`Design ${matNo} created and selected! Click "Open Cutter Map" to import PDF data.`);
+                    // Show options dialog instead of alert
+                    showNewDesignDialog(row);
                 }, 500);
             }
             // Clean up URL
             window.history.replaceState({}, document.title, window.location.pathname);
         }
     });
+
+    // Show dialog with options after design creation
+    function showNewDesignDialog(row) {
+        const matNo = row.querySelector('td:nth-child(3)').textContent.trim();
+        const level = selectedDesign.level;
+        const hdbs = selectedDesign.hdbs;
+        const size = selectedDesign.size;
+
+        const dialog = document.createElement('div');
+        dialog.className = 'fixed inset-0 z-50 flex items-center justify-center';
+        dialog.innerHTML = `
+            <div class="fixed inset-0 bg-black/50" onclick="this.parentElement.remove()"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6 z-10">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Design Created!</h3>
+                        <p class="text-sm text-gray-500">
+                            <span class="inline-block px-2 py-0.5 text-xs font-bold rounded ${level === 'L3' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}">${level}</span>
+                            ${matNo}
+                        </p>
+                    </div>
+                </div>
+
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-6">
+                    What would you like to do next?
+                </p>
+
+                <div class="space-y-3">
+                    <button onclick="goToCutterMapWithDesign(); this.closest('.fixed').remove();"
+                            class="w-full flex items-center gap-3 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <div class="text-left">
+                            <div class="font-medium">Open Cutter Map</div>
+                            <div class="text-xs text-purple-200">Import PDF and create BOM</div>
+                        </div>
+                    </button>
+
+                    <button onclick="this.closest('.fixed').remove();"
+                            class="w-full flex items-center gap-3 px-4 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                        </svg>
+                        <div class="text-left">
+                            <div class="font-medium">Stay Here</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Continue selecting designs</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+    }
+
+    // Navigate to Cutter Map with selected design
+    function goToCutterMapWithDesign() {
+        if (selectedDesign) {
+            openCutterMap();
+        }
+    }
 </script>
 {% endblock %}

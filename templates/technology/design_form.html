@@ -1920,25 +1920,43 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(r => r.json())
             .then(result => {
                 if (result.success) {
-                    // Fill the form fields
+                    const newHdbsName = result.hdbs_type.hdbs_name;
+                    console.log('HDBS Type created:', newHdbsName);
+
+                    // Fill the form fields - use multiple methods to ensure it sticks
                     if (hdbsInput) {
-                        hdbsInput.value = result.hdbs_type.hdbs_name;
+                        hdbsInput.value = newHdbsName;
+                        hdbsInput.setAttribute('value', newHdbsName);
+                        // Force browser to recognize the change
+                        hdbsInput.focus();
+
                         // Highlight the field briefly to show it was updated
                         hdbsInput.style.transition = 'background-color 0.3s';
                         hdbsInput.style.backgroundColor = '#d4edda';
                         setTimeout(() => {
                             hdbsInput.style.backgroundColor = '';
-                        }, 2000);
-                        hdbsInput.dispatchEvent(new Event('input'));
+                            // Double-check value after modal close
+                            if (hdbsInput.value !== newHdbsName) {
+                                console.warn('HDBS value was cleared! Restoring...');
+                                hdbsInput.value = newHdbsName;
+                            }
+                        }, 500);
+                        hdbsInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        hdbsInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+                        // Store in sessionStorage as backup
+                        sessionStorage.setItem('lastCreatedHdbs', newHdbsName);
                     }
                     if (result.smi_type && smiInput) {
                         smiInput.value = result.smi_type.smi_name;
+                        smiInput.setAttribute('value', result.smi_type.smi_name);
                         // Highlight SMI field too
                         smiInput.style.transition = 'background-color 0.3s';
                         smiInput.style.backgroundColor = '#d4edda';
                         setTimeout(() => {
                             smiInput.style.backgroundColor = '';
                         }, 2000);
+                        smiInput.dispatchEvent(new Event('input', { bubbles: true }));
                     }
                     // Clear and close
                     document.getElementById('new-hdbs-name').value = '';
@@ -1952,9 +1970,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Show success message
                     const msgDiv = document.createElement('div');
                     msgDiv.className = 'fixed top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded z-50';
-                    msgDiv.innerHTML = `<strong>Created!</strong> HDBS Type "${result.hdbs_type.hdbs_name}" is now selected.`;
+                    msgDiv.innerHTML = `<strong>Created!</strong> HDBS Type "${newHdbsName}" is now in the field.`;
                     document.body.appendChild(msgDiv);
                     setTimeout(() => msgDiv.remove(), 3000);
+
+                    // Final verification after a delay
+                    setTimeout(() => {
+                        if (hdbsInput && hdbsInput.value !== newHdbsName) {
+                            console.warn('HDBS value lost after delay! Restoring from sessionStorage...');
+                            hdbsInput.value = sessionStorage.getItem('lastCreatedHdbs') || newHdbsName;
+                        }
+                    }, 1000);
                 } else {
                     errorDiv.classList.remove('hidden');
                     errorDiv.querySelector('p').textContent = result.error || 'Failed to create HDBS type';

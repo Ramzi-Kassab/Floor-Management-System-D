@@ -31,12 +31,13 @@ def index(request):
 
     # Check if coming from BOM create page with design info
     design_context = None
-    if request.GET.get('from') == 'bom_create':
+    if request.GET.get('from') in ['bom_create', 'design_create']:
         design_context = {
             'design_id': request.GET.get('design_id'),
             'design_mat': request.GET.get('design_mat', ''),
             'design_hdbs': request.GET.get('design_hdbs', ''),
             'design_size': request.GET.get('design_size', ''),
+            'design_level': request.GET.get('design_level', ''),  # L3 or L4
             'from_bom_create': True
         }
 
@@ -763,6 +764,8 @@ def api_sync_to_erp(request):
 
         # 5. Create DesignPocket entries from blade CL data
         pockets_created = 0
+        pockets_skipped = 0
+        seen_positions = set()  # Track (blade_num, row_num, position_in_row) to avoid duplicates
 
         for blade in blades:
             blade_num = blade.get('blade_id', 1)
@@ -790,6 +793,13 @@ def api_sync_to_erp(request):
                         position_in_row += 1
                         position_in_blade += 1
 
+                        # Check for duplicate position
+                        pos_key_tuple = (blade_num, row_num, position_in_row)
+                        if pos_key_tuple in seen_positions:
+                            pockets_skipped += 1
+                            continue
+                        seen_positions.add(pos_key_tuple)
+
                         # Find config for this group
                         config = index_to_config.get(group)
                         if not config:
@@ -812,16 +822,27 @@ def api_sync_to_erp(request):
                         elif 'GAGE' in pos_name or 'GAUGE' in pos_name:
                             blade_location = DesignPocket.BladeLocation.GAGE
 
-                        DesignPocket.objects.create(
+                        # Use get_or_create to handle any remaining duplicates
+                        pocket, created = DesignPocket.objects.get_or_create(
                             design=parent_design,
                             blade_number=blade_num,
                             row_number=row_num,
                             position_in_row=position_in_row,
-                            position_in_blade=position_in_blade,
-                            blade_location=blade_location,
-                            pocket_config=config
+                            defaults={
+                                'position_in_blade': position_in_blade,
+                                'blade_location': blade_location,
+                                'pocket_config': config
+                            }
                         )
-                        pockets_created += 1
+                        if created:
+                            pockets_created += 1
+                        else:
+                            # Update existing pocket
+                            pocket.position_in_blade = position_in_blade
+                            pocket.blade_location = blade_location
+                            pocket.pocket_config = config
+                            pocket.save()
+                            pockets_skipped += 1
 
         # 6. Update CutterMapDocument if provided
         if document_id:
@@ -870,4 +891,33 @@ def api_sync_to_erp(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+        # Provide user-friendly error messages
+        error_msg = str(e)
+        user_friendly_msg = error_msg
+
+        if 'UNIQUE constraint failed: design_pockets' in error_msg:
+            user_friendly_msg = (
+                "Duplicate pocket positions detected in the PDF data. "
+                "This can happen when the PDF has overlapping cutter entries. "
+                "Please check the blade data in 'Deep Edit' tab and ensure "
+                "there are no duplicate positions, then try again."
+            )
+        elif 'UNIQUE constraint' in error_msg:
+            user_friendly_msg = (
+                "A duplicate record was detected. This design may already have "
+                "BOM data imported. You can either: (1) Choose a different design, "
+                "or (2) Edit the existing BOM from the BOM list."
+            )
+        elif 'IntegrityError' in error_msg or 'foreign key' in error_msg.lower():
+            user_friendly_msg = (
+                "Data integrity error. Some required reference data may be missing. "
+                "Please ensure all cutter types in the BOM exist in the inventory."
+            )
+
+        return JsonResponse({
+            'success': False,
+            'error': user_friendly_msg,
+            'technical_error': error_msg,  # Include for debugging
+            'can_retry': True  # Tell frontend user can try again
+        }, status=500)
