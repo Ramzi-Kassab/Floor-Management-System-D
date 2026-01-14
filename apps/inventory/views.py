@@ -831,6 +831,33 @@ class ItemCloneView(LoginRequiredMixin, View):
         return redirect('inventory:item_create')
 
 
+class ItemDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete an inventory item."""
+
+    model = InventoryItem
+    template_name = "inventory/item_confirm_delete.html"
+    success_url = reverse_lazy("inventory:item_list")
+
+    def form_valid(self, form):
+        # Delete related specs first (cutter_spec, bit_spec)
+        if hasattr(self.object, 'cutter_spec'):
+            self.object.cutter_spec.delete()
+        if hasattr(self.object, 'bit_spec'):
+            self.object.bit_spec.delete()
+
+        messages.success(self.request, f"Item '{self.object.code}' deleted successfully.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete Item - {self.object.code}"
+        # Check for related data that would be affected
+        context["related_bom_lines"] = self.object.bom_lines.count() if hasattr(self.object, 'bom_lines') else 0
+        context["related_stock"] = self.object.stock_records.count() if hasattr(self.object, 'stock_records') else 0
+        context["related_variants"] = self.object.variants.count() if hasattr(self.object, 'variants') else 0
+        return context
+
+
 # =============================================================================
 # Transaction Views
 # =============================================================================
