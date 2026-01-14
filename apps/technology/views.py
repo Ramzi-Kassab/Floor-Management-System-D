@@ -257,7 +257,21 @@ class DesignDeleteView(LoginRequiredMixin, DeleteView):
         return context
 
     def form_valid(self, form):
-        design_name = self.object.hdbs_type
+        design = self.object
+        design_name = design.hdbs_type
+
+        # Delete in correct order due to protected foreign keys:
+        # 1. DesignPocket references DesignPocketConfig via PROTECT
+        # 2. DesignPocketConfig references Design via CASCADE
+        # So we must delete pockets first, then pocket_configs, then the design
+
+        # Delete pockets first (they have protected FK to pocket_configs)
+        design.pockets.all().delete()
+
+        # Delete pocket configs
+        design.pocket_configs.all().delete()
+
+        # Now delete the design (this will cascade delete BOMs, etc.)
         messages.success(self.request, f"Design {design_name} deleted successfully.")
         return super().form_valid(form)
 
