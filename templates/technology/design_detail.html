@@ -28,6 +28,9 @@
         <a href="{% url 'technology:design_update' design.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
             <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
         </a>
+        <a href="{% url 'technology:design_delete' design.pk %}" class="inline-flex items-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Delete
+        </a>
     </div>
 </div>
 {% endblock %}

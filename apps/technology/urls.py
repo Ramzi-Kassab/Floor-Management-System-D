@@ -10,6 +10,7 @@ urlpatterns = [
     path("designs/create/", views.DesignCreateView.as_view(), name="design_create"),
     path("designs/<int:pk>/", views.DesignDetailView.as_view(), name="design_detail"),
     path("designs/<int:pk>/edit/", views.DesignUpdateView.as_view(), name="design_update"),
+    path("designs/<int:pk>/delete/", views.DesignDeleteView.as_view(), name="design_delete"),
     path("designs/<int:design_pk>/cutters/add/", views.CutterLayoutCreateView.as_view(), name="cutter_create"),
     path("designs/<int:design_pk>/cutters/<int:layout_pk>/delete/", views.CutterLayoutDeleteView.as_view(), name="cutter_delete"),
     path("designs/<int:pk>/pockets/", views.DesignPocketsView.as_view(), name="design_pockets"),

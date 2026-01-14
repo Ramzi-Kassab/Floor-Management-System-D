@@ -240,6 +240,28 @@ class DesignUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
+class DesignDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete a design."""
+
+    model = Design
+    template_name = "technology/design_confirm_delete.html"
+    success_url = reverse_lazy("technology:design_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Delete Design {self.object.hdbs_type}"
+        # Check for related objects that would be deleted
+        context["bom_count"] = self.object.boms.count()
+        context["pocket_config_count"] = self.object.pocket_configs.count()
+        context["pocket_count"] = self.object.pockets.count()
+        return context
+
+    def form_valid(self, form):
+        design_name = self.object.hdbs_type
+        messages.success(self.request, f"Design {design_name} deleted successfully.")
+        return super().form_valid(form)
+
+
 class DesignPocketsView(LoginRequiredMixin, DetailView):
     """Pockets Layout and Features configuration view."""
 
