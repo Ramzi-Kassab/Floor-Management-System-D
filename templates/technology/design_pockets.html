@@ -26,6 +26,9 @@
         </div>
     </div>
     <div class="mt-4 md:mt-0 flex gap-2">
+        <button onclick="confirmResetPockets()" class="inline-flex items-center px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50">
+            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Reset All
+        </button>
         <a href="{% url 'technology:design_update' design.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
             <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit Design
         </a>
@@ -34,6 +37,37 @@
 {% endblock %}
 
 {% block content %}
+{% if has_unmatched_cutters %}
+<!-- Warning: Unmatched Cutters -->
+<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-6">
+    <div class="flex items-start gap-3">
+        <div class="flex-shrink-0">
+            <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 dark:text-amber-400"></i>
+        </div>
+        <div class="flex-1">
+            <h3 class="font-semibold text-amber-800 dark:text-amber-200">{{ unmatched_cutters|length }} Unmatched Cutter{{ unmatched_cutters|length|pluralize }}</h3>
+            <p class="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                The following cutters from the BOM are not linked to inventory items. Add them to inventory for complete tracking.
+            </p>
+            <div class="mt-3 flex flex-wrap gap-2">
+                {% for cutter in unmatched_cutters %}
+                <span class="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 rounded text-xs">
+                    <span class="font-mono text-amber-800 dark:text-amber-200">{{ cutter.hdbs_code }}</span>
+                    <span class="text-amber-600 dark:text-amber-400">({{ cutter.size }})</span>
+                </span>
+                {% endfor %}
+            </div>
+            <div class="mt-3">
+                <a href="{% url 'inventory:item_list' %}?action=create" class="inline-flex items-center gap-1 text-sm font-medium text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    Add Cutters to Inventory
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div x-data="pocketsLayout()" class="space-y-6">
     <!-- Tab Navigation -->
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
@@ -2295,6 +2329,34 @@ function reorderConfig(configId, direction) {
 
     document.body.appendChild(form);
     form.submit();
+}
+
+// Reset all pockets data
+function confirmResetPockets() {
+    if (!confirm('Are you sure you want to reset ALL pocket data?\n\nThis will delete:\n- All pocket configurations (cutter sizes/shapes)\n- All pocket positions in the grid\n\nThis action cannot be undone.')) {
+        return;
+    }
+
+    fetch('{% url "technology:design_pockets_reset" design.pk %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Reset error:', error);
+        alert('Failed to reset pocket data. Please try again.');
+    });
 }
 </script>
 {% endblock %}

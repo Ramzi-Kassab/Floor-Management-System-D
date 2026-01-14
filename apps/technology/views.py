@@ -338,6 +338,22 @@ class DesignPocketsView(LoginRequiredMixin, DetailView):
             else:
                 config.display_color = config.color_code
 
+        # Check for unmatched cutters in related BOMs
+        from .models import BOM, BOMLine
+        unmatched_cutters = []
+        boms = BOM.objects.filter(parent_design=self.object)
+        for bom in boms:
+            unmatched_lines = BOMLine.objects.filter(bom=bom, inventory_item__isnull=True)
+            for line in unmatched_lines:
+                unmatched_cutters.append({
+                    'hdbs_code': line.hdbs_code,
+                    'size': line.cutter_size,
+                    'type': line.cutter_type,
+                    'bom_code': bom.code
+                })
+        context["unmatched_cutters"] = unmatched_cutters
+        context["has_unmatched_cutters"] = len(unmatched_cutters) > 0
+
         return context
 
 
@@ -721,6 +737,36 @@ class DesignPocketsEngagementSaveView(LoginRequiredMixin, View):
             'success': True,
             'engagementData': engagement_data
         })
+
+
+class DesignPocketsResetView(LoginRequiredMixin, View):
+    """Reset all pocket data for a design (pockets and pocket configs)."""
+
+    def post(self, request, pk):
+        from .models import DesignPocket, DesignPocketConfig
+
+        design = get_object_or_404(Design, pk=pk)
+
+        try:
+            # Delete in correct order (pockets reference pocket_configs via protected FK)
+            pockets_deleted = DesignPocket.objects.filter(design=design).count()
+            DesignPocket.objects.filter(design=design).delete()
+
+            configs_deleted = DesignPocketConfig.objects.filter(design=design).count()
+            DesignPocketConfig.objects.filter(design=design).delete()
+
+            return JsonResponse({
+                'success': True,
+                'message': f'Reset complete. Deleted {pockets_deleted} pockets and {configs_deleted} configurations.',
+                'pockets_deleted': pockets_deleted,
+                'configs_deleted': configs_deleted
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=400)
 
 
 class PocketsLayoutListView(LoginRequiredMixin, ListView):

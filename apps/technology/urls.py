@@ -22,6 +22,7 @@ urlpatterns = [
     path("designs/<int:pk>/pockets/grid/", views.DesignPocketsGridSaveView.as_view(), name="design_pockets_grid"),
     path("designs/<int:pk>/pockets/locations/", views.DesignPocketsLocationSaveView.as_view(), name="design_pockets_locations"),
     path("designs/<int:pk>/pockets/engagements/", views.DesignPocketsEngagementSaveView.as_view(), name="design_pockets_engagements"),
+    path("designs/<int:pk>/pockets/reset/", views.DesignPocketsResetView.as_view(), name="design_pockets_reset"),
     # Pockets Layout (general list)
     path("pockets-layout/", views.PocketsLayoutListView.as_view(), name="pockets_layout_list"),
     # BOMs
