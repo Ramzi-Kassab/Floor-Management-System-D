@@ -341,7 +341,7 @@ class DesignPocketsView(LoginRequiredMixin, DetailView):
         # Check for unmatched cutters in related BOMs
         from .models import BOM, BOMLine
         unmatched_cutters = []
-        boms = BOM.objects.filter(parent_design=self.object)
+        boms = BOM.objects.filter(design=self.object)
         for bom in boms:
             unmatched_lines = BOMLine.objects.filter(bom=bom, inventory_item__isnull=True)
             for line in unmatched_lines:
