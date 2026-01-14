@@ -1,5 +1,5 @@
 {
-  "exported_at": "2026-01-14T06:23:46.465366",
+  "exported_at": "2026-01-14T05:15:30.641883",
   "designs": [
     {
       "mat_no": "669955",
@@ -212,7 +212,7 @@
       "series": "GT",
       "body_material": "S",
       "no_of_blades": 6,
-      "total_pockets_count": 52,
+      "total_pockets_count": 29,
       "pocket_rows_count": 2,
       "pocket_layout_number": "6",
       "cutter_size": 5,
@@ -761,7 +761,7 @@
       "lines": [
         {
           "line_number": 1,
-          "inventory_item_code": null,
+          "inventory_item_code": "1288783",
           "quantity": 17,
           "unit": "EA",
           "order_number": 1,
@@ -770,42 +770,6 @@
           "cutter_chamfer": "18C-60",
           "cutter_type": "CT179",
           "hdbs_code": "1288783",
-          "family_number": "",
-          "unit_cost": "0.0000",
-          "position": "",
-          "is_optional": false,
-          "is_phantom": false,
-          "notes": ""
-        },
-        {
-          "line_number": 2,
-          "inventory_item_code": null,
-          "quantity": 15,
-          "unit": "EA",
-          "order_number": 2,
-          "color_code": "#d0d0d0",
-          "cutter_size": "13MM",
-          "cutter_chamfer": "NA",
-          "cutter_type": "CT221NL",
-          "hdbs_code": "1078377",
-          "family_number": "",
-          "unit_cost": "0.0000",
-          "position": "",
-          "is_optional": false,
-          "is_phantom": false,
-          "notes": ""
-        },
-        {
-          "line_number": 3,
-          "inventory_item_code": null,
-          "quantity": 8,
-          "unit": "EA",
-          "order_number": 3,
-          "color_code": "#b8b8b8",
-          "cutter_size": "1613",
-          "cutter_chamfer": "U60",
-          "cutter_type": "CT418",
-          "hdbs_code": "1208601",
           "family_number": "",
           "unit_cost": "0.0000",
           "position": "",
@@ -833,7 +797,7 @@
         },
         {
           "line_number": 5,
-          "inventory_item_code": null,
+          "inventory_item_code": "1146737",
           "quantity": 6,
           "unit": "EA",
           "order_number": 5,
