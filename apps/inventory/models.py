@@ -1104,6 +1104,14 @@ class InventoryItem(models.Model):
     requires_expiry_tracking = models.BooleanField(default=False, help_text="Track expiry dates (is_expiry_tracked)")
     has_variants = models.BooleanField(default=False, help_text="Item has condition/source variants")
 
+    # Blocking controls
+    is_blocked = models.BooleanField(default=False, help_text="Master block - prevents all transactions")
+    blocked_for_issue = models.BooleanField(default=False, help_text="Block from stock issues/sales")
+    blocked_for_receipt = models.BooleanField(default=False, help_text="Block from receiving/purchase")
+    blocked_for_production = models.BooleanField(default=False, help_text="Block from BOM/manufacturing")
+    blocked_for_counting = models.BooleanField(default=False, help_text="Block from inventory counts")
+    block_reason = models.CharField(max_length=255, blank=True, help_text="Reason for blocking")
+
     # Shelf life (CORE - for expiry tracking)
     shelf_life_days = models.IntegerField(null=True, blank=True, help_text="Shelf life in days")
 

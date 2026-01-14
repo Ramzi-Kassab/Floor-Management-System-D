@@ -832,13 +832,88 @@ class ItemCloneView(LoginRequiredMixin, View):
 
 
 class ItemDeleteView(LoginRequiredMixin, DeleteView):
-    """Delete an inventory item."""
+    """Delete an inventory item - only if not in use."""
 
     model = InventoryItem
     template_name = "inventory/item_confirm_delete.html"
     success_url = reverse_lazy("inventory:item_list")
 
+    def get_usage_info(self):
+        """Check all places where this item is used."""
+        item = self.object
+        usage = {}
+
+        # Check BOM lines (technology app)
+        try:
+            from apps.technology.models import BOMLine
+            bom_count = BOMLine.objects.filter(inventory_item=item).count()
+            if bom_count > 0:
+                usage['bom_lines'] = bom_count
+        except:
+            pass
+
+        # Check stock records
+        if hasattr(item, 'stock_records'):
+            stock_count = item.stock_records.count()
+            if stock_count > 0:
+                usage['stock_records'] = stock_count
+
+        # Check transactions
+        if hasattr(item, 'transactions'):
+            trans_count = item.transactions.count()
+            if trans_count > 0:
+                usage['transactions'] = trans_count
+
+        # Check variants
+        if hasattr(item, 'variants'):
+            variant_count = item.variants.count()
+            if variant_count > 0:
+                usage['variants'] = variant_count
+
+        # Check reservations
+        if hasattr(item, 'reservations'):
+            res_count = item.reservations.filter(status='ACTIVE').count()
+            if res_count > 0:
+                usage['reservations'] = res_count
+
+        # Check stock balance (ledger)
+        try:
+            from .models import StockBalance
+            balance = StockBalance.objects.filter(item=item).aggregate(
+                total=models.Sum('quantity')
+            )['total'] or 0
+            if balance > 0:
+                usage['stock_balance'] = float(balance)
+        except:
+            pass
+
+        return usage
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        usage = self.get_usage_info()
+
+        # If item is in use, show error and redirect
+        if usage:
+            messages.error(
+                request,
+                f"Cannot delete '{self.object.code}' - item is in use. "
+                f"Consider blocking instead."
+            )
+            return redirect('inventory:item_detail', pk=self.object.pk)
+
+        return super().get(request, *args, **kwargs)
+
     def form_valid(self, form):
+        # Double-check usage before deletion
+        usage = self.get_usage_info()
+        if usage:
+            messages.error(
+                self.request,
+                f"Cannot delete '{self.object.code}' - item is in use."
+            )
+            return redirect('inventory:item_detail', pk=self.object.pk)
+
         # Delete related specs first (cutter_spec, bit_spec)
         if hasattr(self.object, 'cutter_spec'):
             self.object.cutter_spec.delete()
@@ -851,10 +926,8 @@ class ItemDeleteView(LoginRequiredMixin, DeleteView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Delete Item - {self.object.code}"
-        # Check for related data that would be affected
-        context["related_bom_lines"] = self.object.bom_lines.count() if hasattr(self.object, 'bom_lines') else 0
-        context["related_stock"] = self.object.stock_records.count() if hasattr(self.object, 'stock_records') else 0
-        context["related_variants"] = self.object.variants.count() if hasattr(self.object, 'variants') else 0
+        context["usage"] = self.get_usage_info()
+        context["can_delete"] = len(context["usage"]) == 0
         return context
 
 

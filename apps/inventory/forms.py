@@ -156,6 +156,13 @@ class InventoryItemForm(forms.ModelForm):
             "is_serialized",
             "is_lot_controlled",
             "image",
+            # Blocking Controls
+            "is_blocked",
+            "blocked_for_issue",
+            "blocked_for_receipt",
+            "blocked_for_production",
+            "blocked_for_counting",
+            "block_reason",
         ]
         widgets = {
             "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Auto-generated"}),
@@ -193,6 +200,13 @@ class InventoryItemForm(forms.ModelForm):
             "is_serialized": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "is_lot_controlled": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
             "image": forms.FileInput(attrs={"class": TAILWIND_INPUT, "accept": "image/*"}),
+            # Blocking Controls
+            "is_blocked": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "blocked_for_issue": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "blocked_for_receipt": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "blocked_for_production": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "blocked_for_counting": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "block_reason": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Reason for blocking..."}),
         }
 
     def __init__(self, *args, **kwargs):
