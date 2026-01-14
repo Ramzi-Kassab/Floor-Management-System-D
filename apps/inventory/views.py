@@ -606,6 +606,11 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         return response
 
     def get_success_url(self):
+        # Check for return URL in session (from cutter wizard)
+        return_url = self.request.session.pop('item_create_return_url', None)
+        if return_url:
+            # Append item ID to return URL
+            return f"{return_url}{self.object.pk}"
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.object.pk})
 
     def get_context_data(self, **kwargs):
@@ -622,13 +627,21 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
             Q(unit_type__in=['QUANTITY', 'PACKAGING']) | Q(is_packaging=True)
         ).order_by('name')
 
-        # Check for clone data in session
+        # Check for clone data in session (used by clone and cutter wizard)
         clone_data = self.request.session.pop('item_clone_data', None)
         if clone_data:
             context["clone_data"] = json.dumps(clone_data)
             context["existing_attribute_values"] = json.dumps(clone_data.get('attribute_values', {}))
-            context["page_title"] = "Clone Item"
-            context["form_title"] = "Clone Inventory Item"
+            # Check if this is from cutter wizard
+            if clone_data.get('from_cutter_wizard'):
+                context["page_title"] = "Add Cutter to Inventory"
+                context["form_title"] = f"Adding Cutter {clone_data.get('wizard_current', 1)} of {clone_data.get('wizard_total', 1)}"
+                context["from_cutter_wizard"] = True
+                context["wizard_progress"] = clone_data.get('wizard_current', 1)
+                context["wizard_total"] = clone_data.get('wizard_total', 1)
+            else:
+                context["page_title"] = "Clone Item"
+                context["form_title"] = "Clone Inventory Item"
         else:
             context["clone_data"] = "{}"
             context["existing_attribute_values"] = "{}"

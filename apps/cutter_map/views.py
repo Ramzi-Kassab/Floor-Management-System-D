@@ -1045,13 +1045,12 @@ def api_create_cutters(request):
 def add_cutter_wizard(request):
     """
     Wizard for adding unmatched cutters to inventory one by one.
-    Uses session to store the list of cutters to add.
+    Redirects to the full inventory item create form with pre-filled data.
     """
-    from apps.inventory.models import InventoryItem, ItemCutterSpec, InventoryCategory
+    from apps.inventory.models import InventoryItem, InventoryCategory
 
-    # Get cutters from session or initialize from GET params
+    # Initialize wizard from GET params
     if request.method == 'GET' and 'init' in request.GET:
-        # Initialize from JSON in GET param
         try:
             cutters_json = request.GET.get('cutters', '[]')
             cutters = json.loads(cutters_json)
@@ -1061,134 +1060,99 @@ def add_cutter_wizard(request):
             request.session['cutter_wizard_bom_id'] = request.GET.get('bom_id')
         except json.JSONDecodeError:
             cutters = []
+        # Redirect to self without init to start the wizard
+        return redirect('cutter_map:add_cutter_wizard')
 
     cutters = request.session.get('unmatched_cutters', [])
     added = request.session.get('cutters_added', [])
     design_id = request.session.get('cutter_wizard_design_id')
     bom_id = request.session.get('cutter_wizard_bom_id')
 
-    # Find next cutter to add
-    current_cutter = None
-    current_index = len(added)
-    if current_index < len(cutters):
-        current_cutter = cutters[current_index]
-
-    # Get PDC Cutters category for the form
-    cutter_category = InventoryCategory.objects.filter(
-        code__icontains='CUTTER'
-    ).first() or InventoryCategory.objects.filter(
-        name__icontains='PDC Cutter'
-    ).first()
-
-    if request.method == 'POST':
-        # Process form submission
-        hdbs_code = request.POST.get('code', '').strip()
-        name = request.POST.get('name', '').strip()
-        cutter_size = request.POST.get('cutter_size', '').strip()
-        grade = request.POST.get('grade', 'STANDARD')
-        chamfer_type = request.POST.get('chamfer_type', 'NONE')
-        thickness = request.POST.get('thickness', '').strip()
-
-        errors = []
-
-        # Validation
-        if not hdbs_code:
-            errors.append("Code is required")
-        elif InventoryItem.objects.filter(code=hdbs_code).exists():
-            errors.append(f"Item with code '{hdbs_code}' already exists")
-
-        if not name:
-            errors.append("Name is required")
-
-        if not cutter_size:
-            errors.append("Cutter size is required")
-        else:
-            try:
-                float(cutter_size)
-            except ValueError:
-                errors.append("Cutter size must be a valid number")
-
-        if errors:
-            return render(request, 'cutter_map/add_cutter_wizard.html', {
-                'current_cutter': current_cutter,
-                'current_index': current_index,
-                'total_cutters': len(cutters),
-                'added_cutters': added,
-                'errors': errors,
-                'form_data': request.POST,
-                'cutter_category': cutter_category,
-                'design_id': design_id,
-                'bom_id': bom_id,
-            })
-
-        # Create inventory item
+    # Check if item was just created (returning from inventory form)
+    if request.GET.get('item_created'):
+        item_id = request.GET.get('item_created')
         try:
-            item = InventoryItem.objects.create(
-                code=hdbs_code,
-                name=name,
-                mat_number=hdbs_code,
-                item_type=InventoryItem.ItemType.COMPONENT,
-                unit='EA',
-                category=cutter_category,
-                description=f"PDC Cutter - {cutter_size}mm"
-            )
-
-            # Create cutter spec
-            spec_data = {
-                'item': item,
-                'cutter_size': float(cutter_size),
-                'grade': grade if grade in ['PREMIUM', 'STANDARD', 'ECONOMY'] else 'STANDARD',
-                'chamfer_type': chamfer_type if chamfer_type in ['NONE', 'SINGLE', 'DOUBLE', 'MULTI'] else 'NONE',
-            }
-            if thickness:
-                try:
-                    spec_data['thickness'] = float(thickness)
-                except ValueError:
-                    pass
-
-            ItemCutterSpec.objects.create(**spec_data)
-
-            # Track added item
+            item = InventoryItem.objects.get(pk=item_id)
             added.append({
-                'code': hdbs_code,
-                'name': name,
+                'code': item.code,
+                'name': item.name,
                 'id': item.id
             })
             request.session['cutters_added'] = added
+        except InventoryItem.DoesNotExist:
+            pass
 
-            # Check if we're done
-            if len(added) >= len(cutters):
-                # All done - redirect to success
-                return redirect(f'/cutter-map/add-cutter-wizard/?done=1')
+    # Check if user wants to skip current cutter
+    if request.GET.get('skip'):
+        # Move the current cutter to end of list or mark as skipped
+        if cutters and len(added) < len(cutters):
+            skipped = cutters.pop(len(added))
+            cutters.append(skipped)  # Move to end
+            request.session['unmatched_cutters'] = cutters
 
-            # Move to next cutter
-            current_index = len(added)
-            current_cutter = cutters[current_index] if current_index < len(cutters) else None
-
-        except Exception as e:
-            errors.append(f"Failed to create item: {str(e)}")
-            return render(request, 'cutter_map/add_cutter_wizard.html', {
-                'current_cutter': current_cutter,
-                'current_index': current_index,
-                'total_cutters': len(cutters),
-                'added_cutters': added,
-                'errors': errors,
-                'form_data': request.POST,
-                'cutter_category': cutter_category,
-                'design_id': design_id,
-                'bom_id': bom_id,
-            })
+    current_index = len(added)
+    total_cutters = len(cutters)
 
     # Check if done
-    is_done = request.GET.get('done') == '1' or len(added) >= len(cutters) and len(cutters) > 0
+    is_done = request.GET.get('done') == '1' or (current_index >= total_cutters and total_cutters > 0)
 
+    if is_done:
+        # Show completion page
+        return render(request, 'cutter_map/add_cutter_wizard.html', {
+            'is_done': True,
+            'added_cutters': added,
+            'total_cutters': total_cutters,
+            'design_id': design_id,
+            'bom_id': bom_id,
+        })
+
+    # Get current cutter to add
+    if current_index < total_cutters:
+        current_cutter = cutters[current_index]
+    else:
+        # No more cutters - show done page
+        return redirect('/cutter-map/add-cutter-wizard/?done=1')
+
+    # Check if user clicked "Add to Inventory" button
+    if request.GET.get('start_add') or request.method == 'POST':
+        # Get PDC Cutters category
+        cutter_category = InventoryCategory.objects.filter(
+            code__icontains='CUTTER'
+        ).first() or InventoryCategory.objects.filter(
+            name__icontains='PDC Cutter'
+        ).first() or InventoryCategory.objects.filter(
+            name__icontains='Cutter'
+        ).first()
+
+        # Prepare pre-fill data for inventory form
+        clone_data = {
+            'category_id': cutter_category.id if cutter_category else None,
+            'code': current_cutter.get('hdbs_code', ''),
+            'name': f"{current_cutter.get('size', '')} {current_cutter.get('type', '')}".strip(),
+            'mat_number': current_cutter.get('hdbs_code', ''),
+            'item_type': 'COMPONENT',
+            'description': f"PDC Cutter from BOM import - Size: {current_cutter.get('size')}, Type: {current_cutter.get('type')}",
+            'is_active': True,
+            # Wizard tracking info
+            'from_cutter_wizard': True,
+            'wizard_current': current_index + 1,
+            'wizard_total': total_cutters,
+        }
+
+        # Store in session for inventory form
+        request.session['item_clone_data'] = clone_data
+        request.session['item_create_return_url'] = f'/cutter-map/add-cutter-wizard/?item_created='
+
+        # Redirect to inventory create form
+        return redirect('inventory:item_create')
+
+    # Show wizard page with current cutter info
     return render(request, 'cutter_map/add_cutter_wizard.html', {
         'current_cutter': current_cutter,
         'current_index': current_index,
-        'total_cutters': len(cutters),
+        'total_cutters': total_cutters,
         'added_cutters': added,
-        'is_done': is_done,
-        'cutter_category': cutter_category,
+        'is_done': False,
         'design_id': design_id,
         'bom_id': bom_id,
     })
