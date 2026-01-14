@@ -186,6 +186,8 @@ class DesignCreateView(LoginRequiredMixin, CreateView):
         context["page_title"] = "Create Design"
         context["submit_text"] = "Create Design"
         context["next_layout_number"] = self.get_next_layout_number()
+        # Pass 'from' parameter to template for back link customization
+        context["from_page"] = self.request.GET.get("from", "")
         return context
 
     def get_initial(self):
@@ -193,6 +195,20 @@ class DesignCreateView(LoginRequiredMixin, CreateView):
         # Pre-fill with next layout number
         initial['pocket_layout_number'] = self.get_next_layout_number()
         return initial
+
+    def get_success_url(self):
+        """Return to the page that initiated the design creation."""
+        from_page = self.request.POST.get("from_page") or self.request.GET.get("from", "")
+
+        if from_page == "bom_create":
+            # Return to BOM create with the new design pre-selected
+            return reverse_lazy("technology:bom_create") + f"?new_design={self.object.pk}"
+        elif from_page == "cutter_map":
+            # Return to cutter map with the new design
+            return f"/cutter-map/?design_id={self.object.pk}&design_mat={self.object.mat_no}&design_hdbs={self.object.hdbs_type}&design_size={self.object.size}&from=design_create"
+
+        # Default: go to design detail
+        return reverse_lazy("technology:design_detail", kwargs={"pk": self.object.pk})
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user

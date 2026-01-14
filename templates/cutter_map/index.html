@@ -965,8 +965,25 @@
     </style>
 </head>
 <body>
-    <div class="app-header">
-        <h1>HALLIBURTON PDF Generator</h1>
+    <div class="app-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <a href="/" title="Back to Home" style="color: white; text-decoration: none; display: flex; align-items: center; padding: 6px 10px; background: rgba(255,255,255,0.15); border-radius: 4px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+            </a>
+            <h1>HALLIBURTON PDF Generator</h1>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            {% if not design_context %}
+            <a href="{% url 'technology:bom_create' %}" style="color: white; text-decoration: none; font-size: 12px; padding: 6px 12px; background: rgba(255,255,255,0.15); border-radius: 4px;">
+                Create BOM from Design
+            </a>
+            {% endif %}
+            <a href="{% url 'technology:bom_list' %}" style="color: white; text-decoration: none; font-size: 12px; padding: 6px 12px; background: rgba(255,255,255,0.15); border-radius: 4px;">
+                View All BOMs
+            </a>
+        </div>
     </div>
 
     {% if design_context %}
@@ -993,6 +1010,13 @@
     <input type="hidden" id="designMat" value="{{ design_context.design_mat }}">
     <input type="hidden" id="designHdbs" value="{{ design_context.design_hdbs }}">
     <input type="hidden" id="designSize" value="{{ design_context.design_size }}">
+    {% else %}
+    <!-- Standalone Mode - Hidden inputs for context -->
+    <input type="hidden" id="designId" value="">
+    <input type="hidden" id="designMat" value="">
+    <input type="hidden" id="designHdbs" value="">
+    <input type="hidden" id="designSize" value="">
+    <input type="hidden" id="standaloneMode" value="true">
     {% endif %}
 
     <div class="container">
@@ -1195,6 +1219,9 @@
             <div class="action-bar">
                 {% if design_context %}
                 <button class="btn" style="background: #1e3a5f;" onclick="createBOMFromPDF()">📋 Create BOM for {{ design_context.design_mat }}</button>
+                {% else %}
+                <!-- Standalone Mode: Show option to link to design -->
+                <button class="btn" style="background: #1e3a5f;" onclick="openDesignLinkModal()">📋 Create BOM (Link to Design)</button>
                 {% endif %}
                 <button class="btn btn-green" onclick="generatePDF()">📄 Generate PDF</button>
                 <button class="btn btn-gray" onclick="exportJSON()">💾 Export JSON</button>
@@ -1397,6 +1424,57 @@
                     <button class="btn btn-gray" onclick="closeMatTableDialog()">Cancel</button>
                     <button class="btn btn-green" id="matTableApplyBtn" onclick="applyMatTableSelection()" disabled>✓ Apply Selected</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Design Link Modal (Standalone Mode) -->
+    <div class="mat-dialog hidden" id="designLinkModal">
+        <div class="mat-dialog-box" style="max-width: 700px; max-height: 80vh;">
+            <div class="mat-dialog-title" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>📋 Link to Design & Create BOM</span>
+                <button onclick="closeDesignLinkModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">&times;</button>
+            </div>
+            <p style="font-size:12px; color:#666; margin-bottom:15px;">
+                Select a Design (L3/L4) to link this PDF data and create a BOM:
+            </p>
+
+            <!-- Search Box -->
+            <input type="text" id="designLinkSearch" placeholder="Search by MAT, HDBS Type..."
+                   style="width:100%; padding:8px 12px; border:1px solid #ccc; border-radius:4px; margin-bottom:10px; font-size:12px;"
+                   oninput="filterDesignLinkTable(this.value)">
+
+            <!-- Design Table -->
+            <div style="max-height:300px; overflow-y:auto; border:1px solid #ddd; border-radius:4px;">
+                <table style="width:100%; font-size:11px;">
+                    <thead style="background:#f5f5f5; position:sticky; top:0;">
+                        <tr>
+                            <th style="padding:8px; text-align:left;">Level</th>
+                            <th style="padding:8px; text-align:left;">MAT No.</th>
+                            <th style="padding:8px; text-align:left;">HDBS Type</th>
+                            <th style="padding:8px; text-align:left;">Size</th>
+                            <th style="padding:8px; text-align:center;">Select</th>
+                        </tr>
+                    </thead>
+                    <tbody id="designLinkTableBody">
+                        <tr><td colspan="5" style="padding:20px; text-align:center; color:#999;">Loading designs...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Or create new design option -->
+            <div style="margin-top:15px; padding-top:15px; border-top:1px solid #eee;">
+                <p style="font-size:11px; color:#666; margin-bottom:10px;">
+                    Don't see the design you need?
+                </p>
+                <a href="{% url 'technology:design_create' %}?from=cutter_map"
+                   style="display:inline-block; padding:8px 15px; background:#28a745; color:white; text-decoration:none; border-radius:4px; font-size:12px;">
+                    + Create New Design
+                </a>
+            </div>
+
+            <div class="mat-dialog-buttons" style="margin-top:15px;">
+                <button class="btn btn-gray" onclick="closeDesignLinkModal()">Cancel</button>
             </div>
         </div>
     </div>
@@ -7205,6 +7283,100 @@
             // Longer timeout for errors (10s) vs success (4s)
             const timeout = type === 'error' ? 10000 : 4000;
             setTimeout(() => el.classList.add('hidden'), timeout);
+        }
+
+        // ========== DESIGN LINK MODAL (Standalone Mode) ==========
+        let designLinkData = [];
+
+        function openDesignLinkModal() {
+            // Check if we have PDF data first
+            if (!currentData) {
+                showMsg('Please upload a PDF first before linking to a design.', 'error');
+                return;
+            }
+
+            document.getElementById('designLinkModal').classList.remove('hidden');
+            loadDesignsForLinking();
+        }
+
+        function closeDesignLinkModal() {
+            document.getElementById('designLinkModal').classList.add('hidden');
+        }
+
+        function loadDesignsForLinking() {
+            const tbody = document.getElementById('designLinkTableBody');
+            tbody.innerHTML = '<tr><td colspan="5" style="padding:20px; text-align:center; color:#999;">Loading...</td></tr>';
+
+            fetch('/technology/api/designs/filter/')
+                .then(r => r.json())
+                .then(data => {
+                    designLinkData = data.designs || [];
+                    renderDesignLinkTable(designLinkData);
+                })
+                .catch(err => {
+                    console.error('Error loading designs:', err);
+                    tbody.innerHTML = '<tr><td colspan="5" style="padding:20px; text-align:center; color:#c00;">Error loading designs</td></tr>';
+                });
+        }
+
+        function renderDesignLinkTable(designs) {
+            const tbody = document.getElementById('designLinkTableBody');
+
+            if (!designs || designs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px; text-align:center; color:#999;">No designs found. Create one first.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = designs.map(d => `
+                <tr style="border-bottom:1px solid #eee;" data-mat="${(d.mat_no || '').toLowerCase()}" data-hdbs="${(d.hdbs_type || '').toLowerCase()}">
+                    <td style="padding:8px;">
+                        <span style="display:inline-block; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:bold;
+                            ${d.order_level === '3' ? 'background:#e3f2fd; color:#1565c0;' : 'background:#e8f5e9; color:#2e7d32;'}">
+                            L${d.order_level}
+                        </span>
+                    </td>
+                    <td style="padding:8px; font-family:monospace; font-weight:bold;">${d.mat_no}</td>
+                    <td style="padding:8px;">${d.hdbs_type || '-'}</td>
+                    <td style="padding:8px;">${d.size || '-'}</td>
+                    <td style="padding:8px; text-align:center;">
+                        <button onclick="selectDesignForBOM(${d.id}, '${d.mat_no}', '${d.hdbs_type || ''}', '${d.size || ''}')"
+                                style="background:#1e3a5f; color:white; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:11px;">
+                            Select
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterDesignLinkTable(searchText) {
+            const search = searchText.toLowerCase().trim();
+            const rows = document.querySelectorAll('#designLinkTableBody tr[data-mat]');
+
+            rows.forEach(row => {
+                const mat = row.dataset.mat || '';
+                const hdbs = row.dataset.hdbs || '';
+                const matches = !search || mat.includes(search) || hdbs.includes(search);
+                row.style.display = matches ? '' : 'none';
+            });
+        }
+
+        function selectDesignForBOM(designId, designMat, designHdbs, designSize) {
+            // Set the design context in hidden inputs
+            document.getElementById('designId').value = designId;
+            document.getElementById('designMat').value = designMat;
+            document.getElementById('designHdbs').value = designHdbs;
+            document.getElementById('designSize').value = designSize;
+
+            // Close modal
+            closeDesignLinkModal();
+
+            // Show confirmation and create BOM
+            showMsg(`Linking to design ${designMat}. Creating BOM...`, 'success');
+
+            // Call the existing createBOMFromPDF function
+            setTimeout(() => {
+                createBOMFromPDF();
+            }, 500);
         }
     </script>
 </body>
