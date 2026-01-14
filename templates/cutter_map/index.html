@@ -7441,12 +7441,12 @@
                         </a>
 
                         ${hasUnmatched ? `
-                        <button onclick="addUnmatchedCutters(${JSON.stringify(unmatchedItems).replace(/"/g, '&quot;')}); document.getElementById('bomSuccessDialog').remove();"
+                        <button onclick="addUnmatchedCutters(${JSON.stringify(unmatchedItems).replace(/"/g, '&quot;')}, '${result.design_id}', '${result.bom_id}');"
                                 style="display: flex; align-items: center; gap: 10px; padding: 12px 15px; background: #ffc107; color: #333; border: none; border-radius: 6px; cursor: pointer; text-align: left;">
                             <span style="font-size: 18px;">➕</span>
                             <div>
                                 <div style="font-weight: 500;">Add Missing Cutters to Inventory</div>
-                                <div style="font-size: 11px;">Create inventory items for unmatched codes</div>
+                                <div style="font-size: 11px;">Step-by-step wizard to create items</div>
                             </div>
                         </button>
                         ` : ''}
@@ -7461,13 +7461,18 @@
             document.body.appendChild(dialog);
         }
 
-        function addUnmatchedCutters(items) {
-            // Store items for the add modal
-            window.unmatchedCuttersToAdd = items;
-            openAddCutterModal();
+        function addUnmatchedCutters(items, designId, bomId) {
+            // Redirect to wizard page with cutter data
+            const params = new URLSearchParams();
+            params.set('init', '1');
+            params.set('cutters', JSON.stringify(items));
+            if (designId) params.set('design_id', designId);
+            if (bomId) params.set('bom_id', bomId);
+
+            window.location.href = '/cutter-map/add-cutter-wizard/?' + params.toString();
         }
 
-        // ========== ADD CUTTER TO INVENTORY MODAL ==========
+        // ========== ADD CUTTER TO INVENTORY MODAL (Legacy - now uses wizard) ==========
         function openAddCutterModal() {
             const items = window.unmatchedCuttersToAdd || [];
             if (!items.length) {
