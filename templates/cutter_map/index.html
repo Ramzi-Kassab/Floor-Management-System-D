@@ -7313,6 +7313,8 @@
             const stats = result.inventory_stats || {};
             const hasUnmatched = stats.items_unmatched > 0;
             const unmatchedItems = stats.unmatched_items || [];
+            const pocketsCreated = result.pockets_created || 0;
+            const hasMissingPockets = result.pocket_configs_created > 0 && pocketsCreated === 0;
 
             const dialog = document.createElement('div');
             dialog.className = 'mat-dialog';
@@ -7343,8 +7345,28 @@
                                 <span style="color: #666;">Pocket Configs:</span>
                                 <strong style="display: block;">${result.pocket_configs_created} groups</strong>
                             </div>
+                            <div>
+                                <span style="color: #666;">Pockets Created:</span>
+                                <strong style="display: block; ${pocketsCreated > 0 ? 'color: #155724' : 'color: #856404'}">${pocketsCreated} positions</strong>
+                            </div>
                         </div>
                     </div>
+
+                    ${hasMissingPockets ? `
+                    <!-- Missing Pockets Warning -->
+                    <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 15px; margin-bottom: 15px;">
+                        <div style="display: flex; align-items: flex-start; gap: 10px;">
+                            <span style="font-size: 18px;">⚠️</span>
+                            <div>
+                                <strong style="color: #856404;">Pocket Layout Data Missing</strong>
+                                <p style="font-size: 12px; color: #856404; margin: 5px 0 0 0;">
+                                    The <strong>Blade Data tab</strong> (second tab) was empty or incomplete.
+                                    To see cutters in the Pocket Layout, fill in the blade grid before creating the BOM.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
 
                     <!-- Inventory Status -->
                     <div style="background: ${hasUnmatched ? '#fff3cd' : '#d4edda'}; border-radius: 8px; padding: 12px 15px; margin-bottom: 15px;">
