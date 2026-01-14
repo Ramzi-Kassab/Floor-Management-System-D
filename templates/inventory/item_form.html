@@ -133,15 +133,39 @@
 
                                 <!-- SELECT/DROPDOWN: Show when has options (regardless of type) -->
                                 <template x-if="hasOptions(attr)">
-                                    <select :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
-                                        :required="attr.is_required"
-                                        @change="onAttributeChange(attr)"
-                                        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                        <option value="">-</option>
-                                        <template x-for="opt in getOptions(attr)" :key="opt.value">
-                                            <option :value="opt.value" x-text="opt.label"></option>
+                                    <div class="relative">
+                                        <div class="flex gap-1">
+                                            <select :name="'attr_' + attr.id" x-model="attributeValues[attr.code]"
+                                                :required="attr.is_required"
+                                                @change="onAttributeChange(attr)"
+                                                :class="{'ring-2 ring-amber-400': hasUnmatchedValue(attr)}"
+                                                class="flex-1 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                                <option value="">-</option>
+                                                <template x-for="opt in getOptions(attr)" :key="opt.value">
+                                                    <option :value="opt.value" x-text="opt.label"></option>
+                                                </template>
+                                                <!-- Show unmatched value as option if it exists -->
+                                                <template x-if="hasUnmatchedValue(attr)">
+                                                    <option :value="getUnmatchedValue(attr)" x-text="getUnmatchedValue(attr) + ' (new)'" selected class="text-amber-600"></option>
+                                                </template>
+                                            </select>
+                                            <!-- Quick add button -->
+                                            <button type="button" @click="openQuickAddOption(attr)"
+                                                class="px-2 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded border border-gray-300 dark:border-gray-600"
+                                                title="Add new option">
+                                                <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <!-- Warning for unmatched value -->
+                                        <template x-if="hasUnmatchedValue(attr)">
+                                            <p class="text-xs text-amber-600 mt-0.5">
+                                                <span class="font-medium" x-text="'\"' + getUnmatchedValue(attr) + '\"'"></span> not in options.
+                                                <button type="button" @click="addOptionToAttribute(attr, getUnmatchedValue(attr))" class="text-blue-600 hover:underline">Add it</button>
+                                            </p>
                                         </template>
-                                    </select>
+                                    </div>
                                 </template>
 
                                 <!-- TEXT: No options -->
@@ -906,6 +930,94 @@ function itemForm() {
         hasOptions(attr) {
             const opts = this.getOptions(attr);
             return opts && opts.length > 0;
+        },
+
+        // Check if the current value for an attribute is not in its options
+        hasUnmatchedValue(attr) {
+            const currentVal = this.attributeValues[attr.code];
+            if (!currentVal) return false;
+
+            const opts = this.getOptions(attr);
+            if (!opts || opts.length === 0) return false;
+
+            // Check if currentVal matches any option value
+            const matched = opts.some(opt => opt.value === currentVal || opt.label === currentVal);
+            return !matched;
+        },
+
+        // Get the current unmatched value
+        getUnmatchedValue(attr) {
+            const currentVal = this.attributeValues[attr.code];
+            return currentVal || '';
+        },
+
+        // Add a new option to an attribute dynamically
+        addOptionToAttribute(attr, newValue) {
+            if (!newValue) return;
+
+            // Find the attribute in our list and add the option
+            const attrIndex = this.attributes.findIndex(a => a.id === attr.id);
+            if (attrIndex === -1) return;
+
+            // Get current options array
+            let opts = this.attributes[attrIndex].options || [];
+            if (typeof opts === 'string') {
+                try {
+                    opts = JSON.parse(opts);
+                } catch(e) {
+                    opts = opts.split(',').map(s => s.trim());
+                }
+            }
+            if (!Array.isArray(opts)) {
+                opts = [opts];
+            }
+
+            // Add new option if not already present
+            if (!opts.includes(newValue)) {
+                opts.push(newValue);
+                this.attributes[attrIndex].options = opts;
+            }
+
+            // Set the value
+            this.attributeValues[attr.code] = newValue;
+
+            // Trigger name regeneration
+            if (!this.nameManuallySet && attr.is_used_in_name) {
+                this.$nextTick(() => this.generateName());
+            }
+
+            // Save to server in background
+            this.saveAttributeOption(attr.id, newValue);
+        },
+
+        // Save new attribute option to server
+        async saveAttributeOption(categoryAttributeId, newOption) {
+            try {
+                const response = await fetch('/inventory/api/category-attribute/add-option/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        category_attribute_id: categoryAttributeId,
+                        option: newOption
+                    })
+                });
+                if (response.ok) {
+                    console.log('Option saved to server');
+                }
+            } catch(e) {
+                console.error('Failed to save option:', e);
+            }
+        },
+
+        // Open quick add modal for attribute options
+        openQuickAddOption(attr) {
+            const newValue = prompt(`Add new option for "${attr.name}":`);
+            if (newValue && newValue.trim()) {
+                this.addOptionToAttribute(attr, newValue.trim());
+            }
         },
 
         validateNumber(event, attr) {

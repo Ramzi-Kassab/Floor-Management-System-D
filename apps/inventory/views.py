@@ -2495,6 +2495,56 @@ class CategoryGenerateCodeAPIView(LoginRequiredMixin, View):
         return self.get(request, category_pk)
 
 
+class AddAttributeOptionAPIView(LoginRequiredMixin, View):
+    """API to add a new option to a category attribute's options list."""
+
+    def post(self, request):
+        import json
+        try:
+            data = json.loads(request.body)
+            category_attribute_id = data.get('category_attribute_id')
+            new_option = data.get('option', '').strip()
+
+            if not category_attribute_id or not new_option:
+                return JsonResponse({'error': 'Missing category_attribute_id or option'}, status=400)
+
+            # Get the CategoryAttribute
+            cat_attr = get_object_or_404(CategoryAttribute, pk=category_attribute_id)
+
+            # Get current options
+            opts = cat_attr.options or []
+            if isinstance(opts, str):
+                try:
+                    opts = json.loads(opts)
+                except json.JSONDecodeError:
+                    opts = [o.strip() for o in opts.split(',') if o.strip()]
+
+            if not isinstance(opts, list):
+                opts = [opts] if opts else []
+
+            # Add the new option if not present
+            if new_option not in opts:
+                opts.append(new_option)
+                cat_attr.options = opts
+                cat_attr.save()
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Option "{new_option}" added to {cat_attr.attribute.name if cat_attr.attribute else "attribute"}',
+                    'options': opts
+                })
+            else:
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Option already exists',
+                    'options': opts
+                })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+
 class ItemSearchAPIView(LoginRequiredMixin, View):
     """API to search for inventory items."""
 

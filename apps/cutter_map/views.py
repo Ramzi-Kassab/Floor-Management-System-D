@@ -1047,6 +1047,7 @@ def add_cutter_wizard(request):
     Wizard for adding unmatched cutters to inventory one by one.
     Redirects to the full inventory item create form with pre-filled data.
     """
+    import re
     from apps.inventory.models import InventoryItem, InventoryCategory
 
     # Initialize wizard from GET params
@@ -1115,28 +1116,141 @@ def add_cutter_wizard(request):
 
     # Check if user clicked "Add to Inventory" button
     if request.GET.get('start_add') or request.method == 'POST':
-        # Get PDC Cutters category
+        # Get PDC Cutters category (prefer subcategory)
         cutter_category = InventoryCategory.objects.filter(
-            code__icontains='CUTTER'
+            name='PDC Cutters'
+        ).first() or InventoryCategory.objects.filter(
+            code__icontains='PDC'
         ).first() or InventoryCategory.objects.filter(
             name__icontains='PDC Cutter'
         ).first() or InventoryCategory.objects.filter(
             name__icontains='Cutter'
         ).first()
 
+        # Parse cutter data to extract attribute values
+        hdbs_code = current_cutter.get('hdbs_code', '') or current_cutter.get('type', '')
+        raw_size = current_cutter.get('size', '')
+        raw_type = current_cutter.get('type', '')
+        chamfer = current_cutter.get('chamfer', '')
+
+        # Parse size string (e.g., "1613" → diameter=16, length=13)
+        diameter = None
+        length = None
+        cutter_size = None
+        length_class = None
+
+        if raw_size:
+            # Try to parse 4-digit format (DDLL where DD=diameter, LL=length)
+            size_str = str(raw_size).replace('.', '').replace(' ', '')
+            if len(size_str) == 4 and size_str.isdigit():
+                diameter = int(size_str[:2])
+                length = int(size_str[2:])
+                cutter_size = str(diameter)  # For dropdown (e.g., "16")
+                # Determine length class based on length value
+                if length <= 8:
+                    length_class = 'Short'
+                elif length <= 13:
+                    length_class = 'Standard'
+                elif length <= 16:
+                    length_class = 'Long'
+                else:
+                    length_class = 'Extra Long'
+            elif len(size_str) == 3 and size_str.isdigit():
+                # Format like "913" → 9mm diameter, 13mm length
+                diameter = int(size_str[0])
+                length = int(size_str[1:])
+                cutter_size = str(diameter)
+            else:
+                # Try to extract just the diameter
+                match = re.match(r'^(\d+)', size_str)
+                if match:
+                    cutter_size = match.group(1)
+                    try:
+                        diameter = int(cutter_size)
+                    except ValueError:
+                        pass
+
+        # Parse type/hdbs_code to extract cutter_type prefix (e.g., "CT179" → "CT")
+        cutter_type = None
+        if hdbs_code:
+            # Extract letter prefix before digits
+            match = re.match(r'^([A-Za-z]+)', hdbs_code)
+            if match:
+                prefix = match.group(1).upper()
+                # Map common prefixes to cutter types
+                type_map = {
+                    'CT': 'CT',  # Carbide Tungsten
+                    'WC': 'WC',  # Tungsten Carbide
+                    'PDC': 'PDC',
+                    'TSP': 'TSP',
+                    'IMP': 'IMP',
+                    'NAT': 'NAT',
+                    'DGR': 'PDC',  # Diamond Grade Round
+                }
+                cutter_type = type_map.get(prefix, prefix[:3] if len(prefix) >= 2 else None)
+
+        # Build attribute values dict for pre-filling the form
+        attribute_values = {}
+        if hdbs_code:
+            attribute_values['hdbs_code'] = hdbs_code
+        if cutter_size:
+            attribute_values['cutter_size'] = cutter_size
+        if diameter:
+            attribute_values['diameter'] = str(diameter)
+        if length:
+            attribute_values['length'] = str(length)
+        if length_class:
+            attribute_values['length_class'] = length_class
+        if cutter_type:
+            attribute_values['cutter_type'] = cutter_type
+        if chamfer:
+            attribute_values['chamfer'] = chamfer
+
+        # Build description
+        desc_parts = ['PDC Cutter from BOM import']
+        if diameter:
+            desc_parts.append(f'Diameter: {diameter}mm')
+        if length:
+            desc_parts.append(f'Length: {length}mm')
+        if cutter_type:
+            desc_parts.append(f'Type: {cutter_type}')
+        if chamfer:
+            desc_parts.append(f'Chamfer: {chamfer}')
+        description = ' - '.join(desc_parts)
+
+        # Build item name
+        name_parts = []
+        if cutter_size:
+            name_parts.append(cutter_size)
+        if hdbs_code and hdbs_code != cutter_size:
+            name_parts.append(hdbs_code)
+        item_name = ' '.join(name_parts) if name_parts else hdbs_code or raw_size
+
         # Prepare pre-fill data for inventory form
         clone_data = {
             'category_id': cutter_category.id if cutter_category else None,
-            'code': current_cutter.get('hdbs_code', ''),
-            'name': f"{current_cutter.get('size', '')} {current_cutter.get('type', '')}".strip(),
-            'mat_number': current_cutter.get('hdbs_code', ''),
+            'code': hdbs_code,
+            'name': item_name,
+            'mat_number': hdbs_code,
             'item_type': 'COMPONENT',
-            'description': f"PDC Cutter from BOM import - Size: {current_cutter.get('size')}, Type: {current_cutter.get('type')}",
+            'description': description,
             'is_active': True,
+            # Pre-fill attribute values
+            'attribute_values': attribute_values,
             # Wizard tracking info
             'from_cutter_wizard': True,
             'wizard_current': current_index + 1,
             'wizard_total': total_cutters,
+            # Store parsed data for display
+            'parsed_data': {
+                'diameter': diameter,
+                'length': length,
+                'cutter_size': cutter_size,
+                'length_class': length_class,
+                'cutter_type': cutter_type,
+                'hdbs_code': hdbs_code,
+                'chamfer': chamfer,
+            }
         }
 
         # Store in session for inventory form

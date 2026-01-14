@@ -94,6 +94,7 @@ urlpatterns = [
     # API Endpoints
     path("api/category/<int:category_pk>/attributes/", views.CategoryAttributesAPIView.as_view(), name="api_category_attributes"),
     path("api/category/<int:category_pk>/generate-code/", views.CategoryGenerateCodeAPIView.as_view(), name="api_category_generate_code"),
+    path("api/category-attribute/add-option/", views.AddAttributeOptionAPIView.as_view(), name="api_add_attribute_option"),
     path("api/items/search/", views.ItemSearchAPIView.as_view(), name="api_items_search"),
     path("api/item-relationships/", views.ItemRelationshipAPIView.as_view(), name="api_item_relationships"),
     path("api/item-relationships/<int:pk>/", views.ItemRelationshipAPIView.as_view(), name="api_item_relationship_detail"),
