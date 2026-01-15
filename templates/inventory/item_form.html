@@ -691,6 +691,16 @@ function itemForm() {
                     if (data.defaults.reorder_qty !== null && this.reorderQty === 0) {
                         this.reorderQty = data.defaults.reorder_qty;
                     }
+                    // Apply packaging defaults (only if not already set)
+                    if (data.defaults.purchase_uom_id && !this.purchaseUom) {
+                        this.purchaseUom = String(data.defaults.purchase_uom_id);
+                    }
+                    if (data.defaults.release_uom_id && !this.releaseUom) {
+                        this.releaseUom = String(data.defaults.release_uom_id);
+                    }
+                    if (data.defaults.conversion_factor && this.conversionFactor === 1) {
+                        this.conversionFactor = data.defaults.conversion_factor;
+                    }
                 }
 
                 this.attributeValues = {};

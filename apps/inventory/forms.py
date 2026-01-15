@@ -76,6 +76,7 @@ class InventoryCategoryForm(forms.ModelForm):
         fields = [
             "code", "name", "parent", "item_type", "code_prefix", "name_template", "name_template_config",
             "default_currency", "default_min_stock", "default_reorder_qty",  # Item defaults
+            "default_purchase_uom", "default_release_uom", "default_conversion_factor",  # Packaging defaults
             "description", "is_active"
         ]
         widgets = {
@@ -88,6 +89,9 @@ class InventoryCategoryForm(forms.ModelForm):
             "default_currency": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "default_min_stock": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "e.g., 10"}),
             "default_reorder_qty": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "e.g., 50"}),
+            "default_purchase_uom": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "default_release_uom": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "default_conversion_factor": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001", "min": "0.0001", "placeholder": "1"}),
             "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
             "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
         }

@@ -2485,6 +2485,10 @@ class CategoryAttributesAPIView(LoginRequiredMixin, View):
                 "currency": category.default_currency,
                 "min_stock": float(category.default_min_stock) if category.default_min_stock else None,
                 "reorder_qty": float(category.default_reorder_qty) if category.default_reorder_qty else None,
+                # Packaging defaults
+                "purchase_uom_id": category.default_purchase_uom_id,
+                "release_uom_id": category.default_release_uom_id,
+                "conversion_factor": float(category.default_conversion_factor) if category.default_conversion_factor else 1,
             }
         })
 

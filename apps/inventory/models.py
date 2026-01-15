@@ -712,6 +712,30 @@ class InventoryCategory(models.Model):
         help_text="Default reorder quantity for items in this category"
     )
 
+    # Packaging defaults
+    default_purchase_uom = models.ForeignKey(
+        "UnitOfMeasure",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="category_purchase_defaults",
+        help_text="Default 'Buy As' unit for items in this category"
+    )
+    default_release_uom = models.ForeignKey(
+        "UnitOfMeasure",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="category_release_defaults",
+        help_text="Default 'Issue As' unit for items in this category"
+    )
+    default_conversion_factor = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        default=1,
+        help_text="Default qty per package (Buy→Issue conversion)"
+    )
+
     class Meta:
         db_table = "inventory_categories"
         ordering = ["code"]

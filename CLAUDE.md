@@ -90,9 +90,10 @@ InventoryItem
 
 ### Category Defaults Feature
 - **New Fields on InventoryCategory**: `default_currency`, `default_min_stock`, `default_reorder_qty`
+- **Packaging Defaults**: `default_purchase_uom`, `default_release_uom`, `default_conversion_factor`
 - **Auto-fill on Item Creation**: When creating new items, defaults from category are applied
-- **Category Form Update**: New "Item Defaults" section to configure defaults
-- **API Enhancement**: `CategoryAttributesAPIView` now returns `defaults` object
+- **Category Form Update**: New "Item Defaults" section with stock and packaging defaults
+- **API Enhancement**: `CategoryAttributesAPIView` now returns `defaults` object including packaging
 
 ## Previous Changes (Jan 14, 2026)
 
