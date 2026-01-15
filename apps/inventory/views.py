@@ -2271,18 +2271,19 @@ class BulkVariantCreateView(LoginRequiredMixin, TemplateView):
                     account = request.POST.get(f"account_{case_id}", "").strip()
 
                 # Calculate cost based on variant case
-                standard_cost = item.standard_cost or 0
+                from decimal import Decimal
+                standard_cost = item.standard_cost or Decimal("0")
                 if variant_case.condition == "USED":
                     if variant_case.reclaim_category == "RETROFIT":
-                        standard_cost = standard_cost * 0.9
+                        standard_cost = standard_cost * Decimal("0.9")
                     elif variant_case.reclaim_category == "E_AND_O":
-                        standard_cost = standard_cost * 0.5
+                        standard_cost = standard_cost * Decimal("0.5")
                     elif variant_case.reclaim_category == "GROUND":
-                        standard_cost = standard_cost * 0.6
+                        standard_cost = standard_cost * Decimal("0.6")
                     else:
-                        standard_cost = standard_cost * 0.7
+                        standard_cost = standard_cost * Decimal("0.7")
                 if variant_case.ownership == "CLIENT":
-                    standard_cost = 0
+                    standard_cost = Decimal("0")
 
                 # Generate code
                 code_parts = [item.code, variant_case.code]
