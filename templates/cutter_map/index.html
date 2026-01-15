@@ -1738,6 +1738,8 @@
             return `${month}/${day}/${year} ${hours}:${minutes}:${seconds} ${ampm}`;
         }
 
+        // Normalize size codes - keeps full size (e.g., "1613" stays "1613", not truncated to "16")
+        // This ensures 1613 ≠ 1608 comparison works correctly
         function normalizeSize(size) {
             if (!size) return '';
             let s = String(size).trim();
@@ -1745,16 +1747,29 @@
             // Remove MM/mm suffix first (handles "1613MM", "16MM", "16mm")
             s = s.replace(/mm$/i, '');
 
-            // If 4 digits (like 1613, 1313), take first 2
+            // Return full size as-is (no truncation)
+            // 4-digit sizes like "1613" stay "1613"
+            // 2-digit sizes like "16" stay "16"
+            return s;
+        }
+
+        // Get diameter from size (first 2 digits of 4-digit size, or full 2-digit size)
+        function getDiameter(size) {
+            if (!size) return '';
+            let s = String(size).trim().replace(/mm$/i, '');
             if (/^\d{4}$/.test(s)) {
                 return s.substring(0, 2);
             }
-            // If 1-2 digits, return as-is
             if (/^\d{1,2}$/.test(s)) {
                 return s;
             }
-            // Fallback: return cleaned value
             return s;
+        }
+
+        // Check if two sizes are compatible for replacement
+        // Same diameter is sufficient, exact size match not required for replace mode
+        function sizesCompatible(size1, size2) {
+            return getDiameter(size1) === getDiameter(size2);
         }
 
         // Blade fill order: B1, then last to second (B5, B4, B3, B2 for 5 blades)
@@ -2201,8 +2216,14 @@
                         const addRightTitle = cutterClipboard ? `Paste ${cutterClipboard.type} (G${cutterClipboard.group}) to right` : 'Add new cutter to right';
                         const addBtnClass = cutterClipboard ? ' has-clipboard' : '';
 
-                        // Check if cutter can be replaced (same size as selected BOM)
-                        const canReplace = bomMode === 'replace' && selectedBomForAdd && normalizeSize(c.size || '') === normalizeSize(selectedBomForAdd.item.size);
+                        // Check if cutter can be replaced (exact same size as selected BOM)
+                        // Get size from BOM item if cutter is assigned to a group
+                        let cutterSizeForReplace = c.size || c.originalSize || '';
+                        if (c.group && currentData.summary) {
+                            const cutterBom = currentData.summary.find(b => b.index === c.group);
+                            if (cutterBom) cutterSizeForReplace = cutterBom.size;
+                        }
+                        const canReplace = bomMode === 'replace' && selectedBomForAdd && normalizeSize(cutterSizeForReplace) === normalizeSize(selectedBomForAdd.item.size);
                         const replaceClass = canReplace ? ' replaceable' : '';
 
                         // Placeholder cutters always open edit modal on click
@@ -3316,9 +3337,9 @@
                 showMessage(`Added ${selectedItem.type} after position ${cellIdx + 1}`, 'success');
 
             } else if (bomMode === 'replace') {
-                // Replace mode: only if same size (same logic as Edit Layout)
+                // Replace mode: only if exact same size (e.g., 1613 can only replace 1613, not 1608)
                 if (cutterSize && cutterSize !== selectedSize) {
-                    showMessage(`Size mismatch! This pocket is ${cutterSize}mm, but selected item is ${selectedSize}mm`, 'warning');
+                    showMessage(`Size mismatch! Pocket size: ${cutterSize}, Selected: ${selectedSize}. Must be exact match.`, 'warning');
                     return;
                 }
 
@@ -4958,21 +4979,44 @@
         function buildMatOptionsForSize(size, currentMat) {
             let html = '';
 
-            // Normalize size for comparison (e.g., "1613" -> "16", "13" -> "13")
-            const normalizedBomSize = normalizeSize(size);
+            // Get diameter for filtering (first 2 digits of size code)
+            const diameter = getDiameter(size);
+            const fullSize = normalizeSize(size);
 
-            // Filter by normalized size
-            const matchingMats = normalizedBomSize ?
-                TEST_CUTTER_MATS.filter(m => normalizeSize(m.size) === normalizedBomSize) :
+            // Group by exact size, but show all same-diameter cutters
+            const sameDiameterMats = diameter ?
+                TEST_CUTTER_MATS.filter(m => getDiameter(m.size) === diameter) :
                 TEST_CUTTER_MATS;
 
-            if (matchingMats.length > 0) {
-                html += `<optgroup label="Size ${normalizedBomSize}mm (${matchingMats.length} options)">`;
-                matchingMats.forEach(m => {
+            // First: exact size matches (priority)
+            const exactMatches = sameDiameterMats.filter(m => normalizeSize(m.size) === fullSize);
+            if (exactMatches.length > 0) {
+                html += `<optgroup label="Exact Size ${fullSize} (${exactMatches.length})">`;
+                exactMatches.forEach(m => {
                     const selected = m.mat === currentMat ? 'selected' : '';
                     html += `<option value='${JSON.stringify(m)}' ${selected}>${m.type} - ${m.mat} (${m.chamfer})</option>`;
                 });
                 html += `</optgroup>`;
+            }
+
+            // Second: other sizes with same diameter
+            const otherSizes = sameDiameterMats.filter(m => normalizeSize(m.size) !== fullSize);
+            if (otherSizes.length > 0) {
+                // Group by size
+                const sizeGroups = {};
+                otherSizes.forEach(m => {
+                    const s = normalizeSize(m.size);
+                    if (!sizeGroups[s]) sizeGroups[s] = [];
+                    sizeGroups[s].push(m);
+                });
+                Object.keys(sizeGroups).sort().forEach(s => {
+                    html += `<optgroup label="Size ${s} - ${diameter}mm dia (${sizeGroups[s].length})">`;
+                    sizeGroups[s].forEach(m => {
+                        const selected = m.mat === currentMat ? 'selected' : '';
+                        html += `<option value='${JSON.stringify(m)}' ${selected}>${m.type} - ${m.mat} (${m.chamfer})</option>`;
+                    });
+                    html += `</optgroup>`;
+                });
             }
 
             // Add option for manual entry
@@ -4982,15 +5026,15 @@
         }
 
         function buildSameSizeCutterOptions(bomIdx) {
-            // Build checkbox options for all OTHER BOM items with the same normalized size
-            // User can select which cutters to REPLACE with the current item
+            // Build checkbox options for all OTHER BOM items with the EXACT same size
+            // e.g., only 1613 items shown for 1613 (not 1608, even though both are 16mm diameter)
             const bomItem = currentData.summary[bomIdx];
             if (!bomItem) return '';
 
             const targetSize = normalizeSize(bomItem.size);
             if (!targetSize) return '';
 
-            // Find all OTHER BOM items with the same normalized size (exclude current)
+            // Find all OTHER BOM items with the exact same size (exclude current)
             const sameSizeItems = [];
             currentData.summary.forEach((item, idx) => {
                 if (normalizeSize(item.size) === targetSize && idx !== bomIdx) {
@@ -4999,12 +5043,12 @@
             });
 
             if (sameSizeItems.length === 0) {
-                return ''; // No other items with same size to replace
+                return ''; // No other items with same exact size to replace
             }
 
             let html = `<div class="fill-options-group" style="background:#f3e5f5;border-radius:4px;padding:5px;max-height:150px;overflow-y:auto;">
                 <div class="fill-options-group-label" style="color:#7b1fa2;">
-                    Replace Cutters with #${bomItem.index} (${targetSize}mm - ${sameSizeItems.length} available):
+                    Replace Cutters with #${bomItem.index} (Size ${targetSize} - ${sameSizeItems.length} available):
                 </div>
                 <div style="font-size:9px;color:#666;margin-bottom:5px;">Select cutters whose locations will be replaced by this item</div>`;
 
@@ -5227,7 +5271,7 @@
             const selectedSize = normalizeSize(selectedBom.size);
 
             if (cutterSize && cutterSize !== selectedSize) {
-                alert(`Size mismatch! This pocket is ${cutterSize}mm, but selected item is ${selectedSize}mm`);
+                alert(`Size mismatch! Pocket size: ${cutterSize}, Selected: ${selectedSize}. Must be exact match.`);
                 return;
             }
 

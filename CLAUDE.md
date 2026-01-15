@@ -78,6 +78,8 @@ InventoryItem
 - **Type/Chamfer Sync**: When changing cutter group in edit modal, type/chamfer auto-sync from BOM item
 - **Shape Auto-population**: Extracted PDF group_shapes automatically populate cutter_shapes on load
 - **BOM Count Updates**: Correctly updates when cutter group changes during edit
+- **Full Size Comparison**: Size mismatch now compares full 4-digit size codes (1313 ≠ 1308), not just diameter
+- **MAT Dropdown Grouping**: Shows exact size matches first, then other same-diameter options grouped by size
 
 ### UX Improvements
 - Increased text sizes: cutter type 7px (was 5px), chamfer 6px (was 4px)
