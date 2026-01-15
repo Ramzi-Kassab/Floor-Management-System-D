@@ -1904,6 +1904,45 @@ class VariantStock(models.Model):
         self.quantity_available = float(self.quantity_on_hand) - float(self.quantity_reserved)
         super().save(*args, **kwargs)
 
+    def recalculate_from_ledger(self):
+        """
+        Recalculate variant stock from StockLedger entries.
+        Called to sync cached values with the source of truth (ledger).
+        """
+        from django.db.models import Sum
+        ledger_total = StockLedger.objects.filter(
+            variant=self.variant,
+            location=self.location
+        ).aggregate(total=Sum('qty_delta'))['total'] or 0
+
+        self.quantity_on_hand = ledger_total
+        self.quantity_available = float(self.quantity_on_hand) - float(self.quantity_reserved)
+        self.save(update_fields=['quantity_on_hand', 'quantity_available'])
+        return self.quantity_on_hand
+
+    @classmethod
+    def update_from_ledger_entry(cls, ledger_entry):
+        """
+        Update or create VariantStock record from a ledger entry.
+        Called when posting transactions with variant tracking.
+        """
+        if not ledger_entry.variant:
+            return None
+
+        stock, created = cls.objects.get_or_create(
+            variant=ledger_entry.variant,
+            location=ledger_entry.location,
+            defaults={
+                'quantity_on_hand': 0,
+                'quantity_reserved': 0,
+                'quantity_available': 0,
+            }
+        )
+        stock.recalculate_from_ledger()
+        stock.last_movement_date = ledger_entry.entry_date
+        stock.save(update_fields=['last_movement_date'])
+        return stock
+
 
 class InventoryTransaction(models.Model):
     """
@@ -2543,6 +2582,13 @@ class StockLedger(models.Model):
         related_name="ledger_entries",
         help_text="The inventory item affected"
     )
+    # Variant tracking (optional - for variant-level stock)
+    variant = models.ForeignKey(
+        "ItemVariant", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="ledger_entries",
+        help_text="Item variant (if tracking at variant level, e.g., NEW vs USED cutters)"
+    )
     qty_delta = models.DecimalField(
         max_digits=15, decimal_places=3,
         help_text="Signed quantity change (+ve = increase, -ve = decrease)"
@@ -3178,6 +3224,12 @@ class GRNLine(models.Model):
         InventoryItem, on_delete=models.PROTECT,
         related_name="grn_lines"
     )
+    variant = models.ForeignKey(
+        "ItemVariant", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="grn_lines",
+        help_text="Item variant (for variant-level stock tracking)"
+    )
     qty_expected = models.DecimalField(
         max_digits=15, decimal_places=3, default=0,
         help_text="Expected quantity from PO"
@@ -3553,6 +3605,12 @@ class StockIssueLine(models.Model):
         InventoryItem, on_delete=models.PROTECT,
         related_name="issue_lines"
     )
+    variant = models.ForeignKey(
+        "ItemVariant", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="issue_lines",
+        help_text="Item variant (for variant-level stock tracking)"
+    )
     qty_requested = models.DecimalField(
         max_digits=15, decimal_places=3,
         help_text="Quantity requested"
@@ -3749,6 +3807,12 @@ class StockTransferLine(models.Model):
         InventoryItem, on_delete=models.PROTECT,
         related_name="transfer_lines"
     )
+    variant = models.ForeignKey(
+        "ItemVariant", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="transfer_lines",
+        help_text="Item variant (for variant-level stock tracking)"
+    )
     qty_requested = models.DecimalField(
         max_digits=15, decimal_places=3
     )
@@ -3930,6 +3994,12 @@ class StockAdjustmentLine(models.Model):
     item = models.ForeignKey(
         InventoryItem, on_delete=models.PROTECT,
         related_name="adjustment_lines"
+    )
+    variant = models.ForeignKey(
+        "ItemVariant", on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="adjustment_lines",
+        help_text="Item variant (for variant-level stock tracking)"
     )
     qty_system = models.DecimalField(
         max_digits=15, decimal_places=3,

@@ -95,6 +95,13 @@ InventoryItem
 - **Category Form Update**: New "Item Defaults" section with stock and packaging defaults
 - **API Enhancement**: `CategoryAttributesAPIView` now returns `defaults` object including packaging
 
+### Variant Stock Integration (Foundation)
+- **StockLedger Enhancement**: Added `variant` FK to track variant-level stock movements
+- **Document Lines**: Added `variant` FK to GRNLine, StockIssueLine, StockTransferLine, StockAdjustmentLine
+- **VariantStock Methods**: Added `recalculate_from_ledger()` and `update_from_ledger_entry()` class method
+- **Architecture**: Variants now share the immutable ledger system with base items
+- **Note**: Views need to be updated to use variant FK when posting transactions
+
 ## Previous Changes (Jan 14, 2026)
 
 ### Cutter Wizard & Inventory Integration
