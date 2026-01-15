@@ -1310,3 +1310,161 @@ class OwnershipTypeForm(forms.ModelForm):
             "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
             "is_active": forms.CheckboxInput(attrs={"class": "rounded border-gray-300"}),
         }
+
+
+# =============================================================================
+# PRICING FORMS
+# =============================================================================
+
+
+class PriceListForm(forms.ModelForm):
+    """Form for Price List (LSTK, Cost Plus, Matrix)."""
+
+    class Meta:
+        from .models import PriceList
+        model = PriceList
+        fields = [
+            "code",
+            "name",
+            "description",
+            "price_list_type",
+            "customer",
+            "effective_from",
+            "effective_to",
+            "currency",
+            "markup_percent",
+            "priority",
+            "status",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "LSTK-2024"}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "LSTK Contract 2024"}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+            "price_list_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "customer": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "effective_from": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "effective_to": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
+            "currency": forms.Select(attrs={"class": TAILWIND_SELECT}, choices=[("USD", "USD"), ("SAR", "SAR")]),
+            "markup_percent": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "placeholder": "30"}),
+            "priority": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": "1"}),
+            "status": forms.Select(attrs={"class": TAILWIND_SELECT}),
+        }
+
+
+class PriceTierForm(forms.ModelForm):
+    """Form for Price Tier (size-based pricing)."""
+
+    class Meta:
+        from .models import PriceTier
+        model = PriceTier
+        fields = [
+            "name",
+            "size_from",
+            "size_to",
+            "unit_price",
+            "min_qty",
+            "display_order",
+            "is_active",
+        ]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "8-10mm Tier"}),
+            "size_from": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": "1", "placeholder": "8"}),
+            "size_to": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "min": "1", "placeholder": "10"}),
+            "unit_price": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "placeholder": "272.00"}),
+            "min_qty": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "1"}),
+            "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+        }
+
+
+class PriceMatrixRuleForm(forms.ModelForm):
+    """Form for Price Matrix Rule (size × quality)."""
+
+    class Meta:
+        from .models import PriceMatrixRule
+        model = PriceMatrixRule
+        fields = [
+            "size_code",
+            "quality_level",
+            "unit_price",
+            "is_active",
+        ]
+        widgets = {
+            "size_code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "16"}),
+            "quality_level": forms.Select(attrs={"class": TAILWIND_SELECT}, choices=[
+                ("NEW", "NEW"),
+                ("USED", "USED"),
+                ("REFURB", "REFURBISHED"),
+                ("PREMIUM", "PREMIUM"),
+            ]),
+            "unit_price": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "placeholder": "500.00"}),
+            "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+        }
+
+
+class LandingCostTypeForm(forms.ModelForm):
+    """Form for Landing Cost Type."""
+
+    class Meta:
+        from .models import LandingCostType
+        model = LandingCostType
+        fields = [
+            "code",
+            "name",
+            "description",
+            "default_allocation",
+            "display_order",
+            "is_active",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "SHIPPING"}),
+            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Sea Freight"}),
+            "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+            "default_allocation": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "display_order": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
+            "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+        }
+
+
+class LandingCostRecordForm(forms.ModelForm):
+    """Form for Landing Cost Record (per GRN)."""
+
+    class Meta:
+        from .models import LandingCostRecord
+        model = LandingCostRecord
+        fields = [
+            "cost_type",
+            "amount",
+            "currency",
+            "reference",
+            "allocation_method",
+            "notes",
+        ]
+        widgets = {
+            "cost_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "amount": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "placeholder": "1000.00"}),
+            "currency": forms.Select(attrs={"class": TAILWIND_SELECT}, choices=[("USD", "USD"), ("SAR", "SAR")]),
+            "reference": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "INV-2024-001"}),
+            "allocation_method": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+        }
+
+
+# Formsets for inline editing
+from .models import PriceList, PriceTier, PriceMatrixRule
+
+PriceTierFormSet = inlineformset_factory(
+    PriceList,
+    PriceTier,
+    form=PriceTierForm,
+    extra=3,
+    can_delete=True,
+)
+
+PriceMatrixRuleFormSet = inlineformset_factory(
+    PriceList,
+    PriceMatrixRule,
+    form=PriceMatrixRuleForm,
+    extra=5,
+    can_delete=True,
+)

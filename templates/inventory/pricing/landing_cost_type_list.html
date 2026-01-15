@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Define cost types for landed cost calculation</p>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'inventory:pricelist_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Price Lists
+        </a>
+        <a href="{% url 'inventory:landing_cost_type_create' %}" class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="plus" class="w-4 h-4 mr-1"></i>New Cost Type
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if cost_types %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">Code</th>
+                    <th class="px-6 py-3 font-medium">Name</th>
+                    <th class="px-6 py-3 font-medium">Description</th>
+                    <th class="px-6 py-3 font-medium">Default Allocation</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for ct in cost_types %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">{{ ct.code }}</td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white">{{ ct.name }}</td>
+                    <td class="px-6 py-4 text-gray-500 text-sm">{{ ct.description|truncatewords:10 }}</td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                            {{ ct.get_default_allocation_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if ct.is_active %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{% url 'inventory:landing_cost_type_update' ct.pk %}" class="text-gray-500 hover:text-blue-600 p-1">
+                            <i data-lucide="edit" class="w-4 h-4"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="ship" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No Landing Cost Types</h3>
+        <p class="text-gray-500 mb-4">Create cost types like Shipping, Customs, Handling.</p>
+        <a href="{% url 'inventory:landing_cost_type_create' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Create Cost Type
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

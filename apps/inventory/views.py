@@ -60,6 +60,21 @@ from .models import (
     AdjustmentReason,
     OwnershipType,
     ReceiptTolerance,
+    # Pricing
+    PriceList,
+    PriceTier,
+    PriceMatrixRule,
+    LandingCostType,
+    LandingCostRecord,
+    LandingCostAllocation,
+    ItemPrice,
+)
+from .forms import (
+    PriceListForm,
+    PriceTierFormSet,
+    PriceMatrixRuleFormSet,
+    LandingCostTypeForm,
+    LandingCostRecordForm,
 )
 
 
@@ -5935,3 +5950,276 @@ class SyncStockFromBalancesView(LoginRequiredMixin, View):
             messages.success(request, f"Successfully synced {synced} stock records from balances to item inventory.")
 
         return redirect('inventory:balance_list')
+
+
+# =============================================================================
+# PRICING VIEWS
+# =============================================================================
+
+
+class PriceListListView(LoginRequiredMixin, ListView):
+    """List all Price Lists."""
+
+    model = PriceList
+    template_name = "inventory/pricing/pricelist_list.html"
+    context_object_name = "price_lists"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return PriceList.objects.select_related("customer", "created_by").order_by("priority", "code")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Price Lists"
+        context["type_choices"] = PriceList.PriceListType.choices
+        context["status_choices"] = PriceList.Status.choices
+        return context
+
+
+class PriceListCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Price List with tiers or matrix rules."""
+
+    model = PriceList
+    form_class = PriceListForm
+    template_name = "inventory/pricing/pricelist_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Price List"
+        context["form_title"] = "Create Price List"
+        if self.request.POST:
+            context["tiers_formset"] = PriceTierFormSet(self.request.POST, instance=self.object, prefix="tiers")
+            context["matrix_formset"] = PriceMatrixRuleFormSet(self.request.POST, instance=self.object, prefix="matrix")
+        else:
+            context["tiers_formset"] = PriceTierFormSet(instance=self.object, prefix="tiers")
+            context["matrix_formset"] = PriceMatrixRuleFormSet(instance=self.object, prefix="matrix")
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        tiers_formset = context["tiers_formset"]
+        matrix_formset = context["matrix_formset"]
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        # Save appropriate formset based on price list type
+        if form.instance.price_list_type == PriceList.PriceListType.LSTK:
+            if tiers_formset.is_valid():
+                tiers_formset.instance = self.object
+                tiers_formset.save()
+        elif form.instance.price_list_type == PriceList.PriceListType.MATRIX:
+            if matrix_formset.is_valid():
+                matrix_formset.instance = self.object
+                matrix_formset.save()
+
+        messages.success(self.request, f"Price List '{self.object.code}' created successfully.")
+        return redirect(self.get_success_url())
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:pricelist_detail", kwargs={"pk": self.object.pk})
+
+
+class PriceListDetailView(LoginRequiredMixin, DetailView):
+    """View Price List details with tiers/matrix rules."""
+
+    model = PriceList
+    template_name = "inventory/pricing/pricelist_detail.html"
+    context_object_name = "pricelist"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Price List: {self.object.code}"
+        context["tiers"] = self.object.tiers.all().order_by("display_order", "size_from")
+        context["matrix_rules"] = self.object.matrix_rules.all().order_by("size_code", "quality_level")
+        return context
+
+
+class PriceListUpdateView(LoginRequiredMixin, UpdateView):
+    """Update an existing Price List."""
+
+    model = PriceList
+    form_class = PriceListForm
+    template_name = "inventory/pricing/pricelist_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit: {self.object.code}"
+        context["form_title"] = f"Edit Price List: {self.object.code}"
+        if self.request.POST:
+            context["tiers_formset"] = PriceTierFormSet(self.request.POST, instance=self.object, prefix="tiers")
+            context["matrix_formset"] = PriceMatrixRuleFormSet(self.request.POST, instance=self.object, prefix="matrix")
+        else:
+            context["tiers_formset"] = PriceTierFormSet(instance=self.object, prefix="tiers")
+            context["matrix_formset"] = PriceMatrixRuleFormSet(instance=self.object, prefix="matrix")
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        tiers_formset = context["tiers_formset"]
+        matrix_formset = context["matrix_formset"]
+
+        self.object = form.save()
+
+        # Save appropriate formset based on price list type
+        if form.instance.price_list_type == PriceList.PriceListType.LSTK:
+            if tiers_formset.is_valid():
+                tiers_formset.save()
+        elif form.instance.price_list_type == PriceList.PriceListType.MATRIX:
+            if matrix_formset.is_valid():
+                matrix_formset.save()
+
+        messages.success(self.request, f"Price List '{self.object.code}' updated successfully.")
+        return redirect(self.get_success_url())
+
+    def get_success_url(self):
+        return reverse_lazy("inventory:pricelist_detail", kwargs={"pk": self.object.pk})
+
+
+class LandingCostTypeListView(LoginRequiredMixin, ListView):
+    """List all Landing Cost Types."""
+
+    model = LandingCostType
+    template_name = "inventory/pricing/landing_cost_type_list.html"
+    context_object_name = "cost_types"
+
+    def get_queryset(self):
+        return LandingCostType.objects.order_by("display_order", "code")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Landing Cost Types"
+        return context
+
+
+class LandingCostTypeCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Landing Cost Type."""
+
+    model = LandingCostType
+    form_class = LandingCostTypeForm
+    template_name = "inventory/pricing/landing_cost_type_form.html"
+    success_url = reverse_lazy("inventory:landing_cost_type_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "New Landing Cost Type"
+        context["form_title"] = "Create Landing Cost Type"
+        return context
+
+
+class LandingCostTypeUpdateView(LoginRequiredMixin, UpdateView):
+    """Update a Landing Cost Type."""
+
+    model = LandingCostType
+    form_class = LandingCostTypeForm
+    template_name = "inventory/pricing/landing_cost_type_form.html"
+    success_url = reverse_lazy("inventory:landing_cost_type_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = f"Edit: {self.object.code}"
+        context["form_title"] = f"Edit Landing Cost Type: {self.object.code}"
+        return context
+
+
+class GRNLandingCostView(LoginRequiredMixin, View):
+    """Add landing costs to a GRN."""
+
+    def get(self, request, pk):
+        grn = get_object_or_404(GoodsReceiptNote, pk=pk)
+        form = LandingCostRecordForm()
+        existing_costs = grn.landing_costs.select_related("cost_type")
+
+        return render(request, "inventory/pricing/grn_landing_costs.html", {
+            "grn": grn,
+            "form": form,
+            "existing_costs": existing_costs,
+            "page_title": f"Landing Costs: {grn.grn_number}",
+        })
+
+    def post(self, request, pk):
+        grn = get_object_or_404(GoodsReceiptNote, pk=pk)
+        form = LandingCostRecordForm(request.POST)
+
+        if form.is_valid():
+            cost = form.save(commit=False)
+            cost.grn = grn
+            cost.created_by = request.user
+            cost.save()
+            messages.success(request, f"Landing cost added: {cost.cost_type.name} = {cost.amount}")
+        else:
+            messages.error(request, "Invalid form data")
+
+        return redirect("inventory:grn_landing_costs", pk=pk)
+
+
+class LandingCostAllocateView(LoginRequiredMixin, View):
+    """Allocate a landing cost across GRN lines."""
+
+    def post(self, request, pk):
+        cost = get_object_or_404(LandingCostRecord, pk=pk)
+
+        if cost.is_allocated:
+            messages.warning(request, "This cost has already been allocated.")
+        elif cost.allocate():
+            messages.success(request, f"Cost allocated successfully across {cost.allocations.count()} lines.")
+        else:
+            messages.error(request, "Could not allocate cost. Ensure GRN is posted.")
+
+        return redirect("inventory:grn_landing_costs", pk=cost.grn.pk)
+
+
+class PriceCalculatorAPIView(LoginRequiredMixin, View):
+    """API to calculate price for an item using available price lists."""
+
+    def get(self, request):
+        from django.http import JsonResponse
+
+        item_id = request.GET.get("item_id")
+        variant_id = request.GET.get("variant_id")
+        price_list_id = request.GET.get("price_list_id")
+
+        if not item_id:
+            return JsonResponse({"error": "item_id required"}, status=400)
+
+        item = get_object_or_404(InventoryItem, pk=item_id)
+        variant = None
+        if variant_id:
+            variant = get_object_or_404(ItemVariant, pk=variant_id)
+
+        results = []
+
+        if price_list_id:
+            # Calculate for specific price list
+            price_list = get_object_or_404(PriceList, pk=price_list_id)
+            unit_price, source = price_list.get_price(item, variant)
+            results.append({
+                "price_list_id": price_list.id,
+                "price_list_code": price_list.code,
+                "price_list_name": price_list.name,
+                "unit_price": float(unit_price),
+                "currency": price_list.currency,
+                "source": source,
+                "is_active": price_list.is_active_now(),
+            })
+        else:
+            # Calculate for all active price lists
+            for price_list in PriceList.objects.filter(status=PriceList.Status.ACTIVE):
+                unit_price, source = price_list.get_price(item, variant)
+                results.append({
+                    "price_list_id": price_list.id,
+                    "price_list_code": price_list.code,
+                    "price_list_name": price_list.name,
+                    "unit_price": float(unit_price),
+                    "currency": price_list.currency,
+                    "source": source,
+                    "is_active": price_list.is_active_now(),
+                })
+
+        return JsonResponse({
+            "item_id": item.id,
+            "item_code": item.code,
+            "variant_id": variant.id if variant else None,
+            "variant_code": variant.code if variant else None,
+            "prices": results,
+        })

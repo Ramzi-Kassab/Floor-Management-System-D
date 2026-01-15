@@ -252,4 +252,25 @@ urlpatterns = [
     # ADMIN UTILITIES
     # =========================================================================
     path("admin/sync-stock/", views.SyncStockFromBalancesView.as_view(), name="sync_stock"),
+
+    # =========================================================================
+    # PRICING
+    # =========================================================================
+    # Price Lists
+    path("pricing/", views.PriceListListView.as_view(), name="pricelist_list"),
+    path("pricing/create/", views.PriceListCreateView.as_view(), name="pricelist_create"),
+    path("pricing/<int:pk>/", views.PriceListDetailView.as_view(), name="pricelist_detail"),
+    path("pricing/<int:pk>/edit/", views.PriceListUpdateView.as_view(), name="pricelist_update"),
+
+    # Landing Cost Types
+    path("pricing/landing-cost-types/", views.LandingCostTypeListView.as_view(), name="landing_cost_type_list"),
+    path("pricing/landing-cost-types/create/", views.LandingCostTypeCreateView.as_view(), name="landing_cost_type_create"),
+    path("pricing/landing-cost-types/<int:pk>/edit/", views.LandingCostTypeUpdateView.as_view(), name="landing_cost_type_update"),
+
+    # GRN Landing Costs
+    path("grn/<int:pk>/landing-costs/", views.GRNLandingCostView.as_view(), name="grn_landing_costs"),
+    path("landing-costs/<int:pk>/allocate/", views.LandingCostAllocateView.as_view(), name="landing_cost_allocate"),
+
+    # Pricing API
+    path("api/pricing/calculate/", views.PriceCalculatorAPIView.as_view(), name="api_price_calculate"),
 ]
