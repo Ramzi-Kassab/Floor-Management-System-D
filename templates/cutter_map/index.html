@@ -439,11 +439,15 @@
         }
 
         .cutter-type {
-            font-size: 5px;
-            color: #333;
-            height: 9px;
-            line-height: 9px;
+            font-size: 7px;
+            color: #444;
+            font-weight: 500;
+            height: 10px;
+            line-height: 10px;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 30px;
         }
 
         .cutter-circle {
@@ -481,11 +485,14 @@
         .cutter-circle.group-20 { background: #787878; color: white; }
 
         .cutter-chamfer {
-            font-size: 4px;
-            color: #333;
-            height: 8px;
-            line-height: 8px;
+            font-size: 6px;
+            color: #666;
+            height: 9px;
+            line-height: 9px;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 30px;
         }
 
         /* Cutter shape image (extracted from PDF) */
@@ -765,11 +772,11 @@
         /* ========== ENHANCED BLADE EDITOR STYLES ========== */
         /* Foldable Sections */
         .cl-section { margin-bottom: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; }
-        .cl-section-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: linear-gradient(135deg, #555, #666); color: white; cursor: pointer; user-select: none; }
-        .cl-section-header:hover { background: linear-gradient(135deg, #666, #777); }
-        .cl-section-header h4 { margin: 0; font-size: 12px; font-weight: 600; }
-        .cl-section-header-simple { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: linear-gradient(135deg, #555, #666); color: white; }
-        .cl-section-header-simple h4 { margin: 0; font-size: 12px; font-weight: 600; }
+        .cl-section-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: linear-gradient(135deg, #4a4a4a, #5a5a5a); color: white; cursor: pointer; user-select: none; border-radius: 4px 4px 0 0; }
+        .cl-section-header:hover { background: linear-gradient(135deg, #5a5a5a, #6a6a6a); }
+        .cl-section-header h4 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.3px; }
+        .cl-section-header-simple { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: linear-gradient(135deg, #4a4a4a, #5a5a5a); color: white; border-radius: 4px 4px 0 0; }
+        .cl-section-header-simple h4 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.3px; }
         .cl-section-toggle { font-size: 10px; transition: transform 0.2s; }
         .cl-section.folded .cl-section-toggle { transform: rotate(-90deg); }
         .cl-section-content { padding: 10px 12px; }
@@ -778,19 +785,19 @@
         /* BOM Toolbar */
         .bom-toolbar { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; padding: 8px; background: #f0f0f0; border-radius: 4px; flex-wrap: wrap; }
         .bom-mode-buttons { display: flex; gap: 5px; }
-        .bom-mode-btn { padding: 5px 10px; border: 1px solid #999; border-radius: 4px; background: white; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; }
-        .bom-mode-btn:hover { background: #e8e8e8; }
-        .bom-mode-btn.active { background: #28a745; color: white; border-color: #28a745; }
-        .bom-mode-btn.active.replace { background: #17a2b8; border-color: #17a2b8; }
-        .bom-mode-btn .mode-icon { font-weight: bold; }
+        .bom-mode-btn { padding: 6px 12px; border: 1px solid #bbb; border-radius: 5px; background: white; cursor: pointer; font-size: 11px; font-weight: 500; display: flex; align-items: center; gap: 5px; transition: all 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .bom-mode-btn:hover { background: #f0f0f0; border-color: #999; transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .bom-mode-btn.active { background: #28a745; color: white; border-color: #28a745; box-shadow: 0 2px 4px rgba(40,167,69,0.3); }
+        .bom-mode-btn.active.replace { background: #17a2b8; border-color: #17a2b8; box-shadow: 0 2px 4px rgba(23,162,184,0.3); }
+        .bom-mode-btn .mode-icon { font-weight: bold; font-size: 12px; }
         .bom-selected-info { font-size: 11px; color: #333; display: flex; align-items: center; gap: 8px; }
 
-        /* BOM Merged Table */
-        .bom-merged-table { width: 100%; border-collapse: collapse; font-size: 10px; }
-        .bom-merged-table th { background: #444; color: white; padding: 5px 6px; text-align: center; font-weight: 600; }
-        .bom-merged-table td { padding: 4px 6px; text-align: center; border-bottom: 1px solid #e0e0e0; }
-        .bom-merged-table tr:nth-child(even) { background: #f5f5f5; }
-        .bom-merged-table tr:hover { background: #e8f5e9; }
+        /* BOM Merged Table - improved readability */
+        .bom-merged-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .bom-merged-table th { background: #3d3d3d; color: white; padding: 6px 8px; text-align: center; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .bom-merged-table td { padding: 6px 8px; text-align: center; border-bottom: 1px solid #e0e0e0; }
+        .bom-merged-table tr:nth-child(even) { background: #f8f8f8; }
+        .bom-merged-table tr:hover { background: #e3f2fd; }
         .bom-merged-table tr.bom-selected { background: #c8e6c9 !important; }
         .bom-merged-table tr.bom-dragging { opacity: 0.4; }
         .bom-merged-table tr.bom-drag-over { border-top: 3px solid #2196f3; }
@@ -813,17 +820,18 @@
         .editor-toolbar .current-cutter { display: flex; align-items: center; gap: 8px; background: #fff; padding: 5px 12px; border-radius: 4px; border: 1px solid #ccc; }
         .editor-toolbar .current-cutter-preview { width: 20px; height: 20px; border-radius: 50%; background: #e8e8e8; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; }
 
-        /* Cutter with actions */
-        .cutter-wrapper { position: relative; display: inline-flex; flex-direction: column; align-items: center; }
-        .cutter-actions { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); display: none; background: #333; border-radius: 4px; padding: 3px; gap: 2px; z-index: 10; white-space: nowrap; }
+        /* Cutter with actions - improved hover area */
+        .cutter-wrapper { position: relative; display: inline-flex; flex-direction: column; align-items: center; padding: 2px; margin: 0 1px; border-radius: 4px; transition: background 0.15s; }
+        .cutter-wrapper:hover { background: rgba(0,0,0,0.05); }
+        .cutter-actions { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); display: none; background: #333; border-radius: 5px; padding: 4px 3px; gap: 3px; z-index: 10; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
         .cutter-wrapper:hover .cutter-actions { display: flex; }
-        .cutter-action-btn { width: 18px; height: 18px; border: none; border-radius: 3px; cursor: pointer; font-size: 10px; display: flex; align-items: center; justify-content: center; color: white; position: relative; }
+        .cutter-action-btn { width: 20px; height: 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center; color: white; position: relative; transition: all 0.15s; }
         .cutter-action-btn.add-left { background: #28a745; }
         .cutter-action-btn.add-right { background: #28a745; }
         .cutter-action-btn.clone { background: #17a2b8; }
         .cutter-action-btn.delete { background: #dc3545; }
         .cutter-action-btn.edit { background: #ffc107; color: #333; }
-        .cutter-action-btn:hover { opacity: 0.85; transform: scale(1.1); }
+        .cutter-action-btn:hover { transform: scale(1.15); box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
         /* Clone button glow when clipboard has content */
         .cutter-action-btn.clone.has-clipboard { animation: clipboardGlow 1s ease-in-out infinite; }
         /* Add buttons glow when clipboard has content (paste mode) */
@@ -1168,25 +1176,11 @@
                         </div>
                     </div>
                     <div class="cl-section-content" id="bomContent">
-                        <!-- BOM Toolbar -->
-                        <div class="bom-toolbar" id="bomToolbar">
-                            <div class="bom-mode-buttons">
-                                <button class="bom-mode-btn" id="bomAddModeBtn" onclick="toggleBomAddMode()" title="Select a BOM item, then click in CL to add cutters of that type">
-                                    <span class="mode-icon">+</span> Add Mode
-                                </button>
-                                <button class="bom-mode-btn" id="bomReplaceModeBtn" onclick="toggleBomReplaceMode()" title="Select a BOM item, then click cutters with same size to replace">
-                                    <span class="mode-icon">↔</span> Replace Mode
-                                </button>
-                            </div>
-                            <div class="bom-selected-info" id="bomSelectedInfo" style="display:none;">
-                                Selected: <strong id="bomSelectedType">-</strong> (Size: <span id="bomSelectedSize">-</span>)
-                                <button class="btn btn-sm" style="background:#dc3545; padding:2px 8px;" onclick="clearBomSelection()">Clear</button>
-                            </div>
-                            <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
-                                <button class="bom-mode-btn active" id="showDeletedToggle" onclick="toggleDeletedRows()" title="Show/hide original reference items">
-                                    <span class="mode-icon">📋</span> Original Refs (<span id="deletedCount">0</span>)
-                                </button>
-                            </div>
+                        <!-- BOM Toolbar (Original Refs toggle only) -->
+                        <div class="bom-toolbar" id="bomToolbar" style="justify-content: flex-end;">
+                            <button class="bom-mode-btn active" id="showDeletedToggle" onclick="toggleDeletedRows()" title="Show/hide original reference items">
+                                <span class="mode-icon">📋</span> Original Refs (<span id="deletedCount">0</span>)
+                            </button>
                         </div>
                         <div id="bomMergedTable"></div>
                     </div>
@@ -1194,8 +1188,21 @@
 
                 <!-- Blades Section -->
                 <div class="cl-section" id="bladesSection">
-                    <div class="cl-section-header-simple">
+                    <div class="cl-section-header-simple" style="justify-content: space-between;">
                         <h4>Cutter Layout</h4>
+                        <!-- Add/Replace Mode Buttons moved here -->
+                        <div class="bom-mode-buttons" style="display:flex; gap:5px; align-items:center;">
+                            <button class="bom-mode-btn" id="bomAddModeBtn" onclick="toggleBomAddMode()" title="Select a BOM item, then click in CL to add cutters of that type">
+                                <span class="mode-icon">+</span> Add
+                            </button>
+                            <button class="bom-mode-btn" id="bomReplaceModeBtn" onclick="toggleBomReplaceMode()" title="Select a BOM item, then click cutters with same size to replace">
+                                <span class="mode-icon">↔</span> Replace
+                            </button>
+                            <div class="bom-selected-info" id="bomSelectedInfo" style="display:none; margin-left:8px; font-size:10px; color:#fff;">
+                                <span id="bomSelectedType">-</span> (<span id="bomSelectedSize">-</span>)
+                                <button class="btn btn-sm" style="background:#dc3545; padding:1px 6px; font-size:9px; margin-left:4px;" onclick="clearBomSelection()">✕</button>
+                            </div>
+                        </div>
                     </div>
                     <p style="margin-bottom:10px; font-size:10px; color:#666;">
                         <strong>Tips:</strong> Hover cutter for actions: <b>←+</b> add left, <b>⧉</b> copy/paste, <b>✎</b> edit, <b>✕</b> delete, <b>+→</b> add right.
@@ -1908,6 +1915,9 @@
                             });
                         }
 
+                        console.log('Step 3.6: Auto-populating cutter_shapes from extracted group_shapes');
+                        populateCutterShapesFromExtracted();
+
                         console.log('Step 4: Cloning to originalData (AFTER normalization)');
                         originalData = JSON.parse(JSON.stringify(currentData));
 
@@ -1979,12 +1989,52 @@
             });
         }
 
+        // Auto-populate cutter_shapes from extracted group_shapes (side view shapes from PDF)
+        function populateCutterShapesFromExtracted() {
+            if (!currentData) return;
+
+            // Initialize cutter_shapes if not present
+            if (!currentData.cutter_shapes) {
+                currentData.cutter_shapes = {};
+            }
+
+            // Check if we have extracted group_shapes from PDF
+            const groupShapes = currentData.images?.group_shapes || [];
+            if (groupShapes.length === 0) {
+                console.log('No group_shapes to populate');
+                return;
+            }
+
+            console.log('Populating cutter_shapes from', groupShapes.length, 'extracted group_shapes');
+
+            // Map each shape to its group indices based on group_text
+            groupShapes.forEach(shape => {
+                if (!shape.data || !shape.group_text) return;
+
+                // group_text can be comma-separated (e.g., "1,3,4") or single (e.g., "2")
+                const groupNumbers = shape.group_text.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+
+                groupNumbers.forEach(groupIndex => {
+                    // Only set if not already present (don't overwrite user uploads)
+                    if (!currentData.cutter_shapes[groupIndex]) {
+                        currentData.cutter_shapes[groupIndex] = {
+                            data: shape.data,
+                            width: shape.width,
+                            height: shape.height,
+                            source: 'extracted' // Mark as extracted (not user-uploaded)
+                        };
+                        console.log('Set cutter_shapes[' + groupIndex + '] from extracted shape');
+                    }
+                });
+            });
+        }
+
         function hasRowData(rowData) {
             // Check if a row has any cells
             if (!rowData) return false;
             return Object.values(rowData).some(cells => cells && cells.length > 0);
         }
-        
+
         function loadData() {
             const d = currentData;
             document.getElementById('snNumber').value = d.header.sn_number || '0';
@@ -2356,7 +2406,7 @@
             updateModalShapePreview(groupNum);
         }
 
-        // Handle group number change - update shape preview
+        // Handle group number change - update shape preview AND sync type/chamfer from BOM
         function onModalGroupChange() {
             // Clear any uploaded shape since group changed
             document.getElementById('modalShapeUpload').value = '';
@@ -2364,6 +2414,15 @@
             // Show shape for new group
             const groupNum = parseInt(document.getElementById('modalGroup').value) || 1;
             updateModalShapePreview(groupNum);
+
+            // Sync type and chamfer from BOM item with this index
+            if (currentData && currentData.summary) {
+                const bomItem = currentData.summary.find(b => b.index === groupNum);
+                if (bomItem) {
+                    document.getElementById('modalCutterType').value = bomItem.type || '';
+                    document.getElementById('modalChamfer').value = bomItem.chamfer || '';
+                }
+            }
         }
 
         // Legacy saveCutter - redirects to enhanced version
@@ -3059,17 +3118,24 @@
             });
         }
 
-        // Re-index BOM to start from 1
+        // Re-index BOM to fill gaps and start from 1
         function reindexBom() {
             if (!currentData.summary || currentData.summary.length === 0) return;
 
-            const firstIndex = currentData.summary[0].index;
-            if (firstIndex === 1) {
-                showMessage('BOM already starts from index 1', 'info');
+            // Check if re-indexing is needed: gaps in sequence OR not starting from 1
+            const indices = currentData.summary.map(item => item.index);
+            const hasGaps = indices.some((idx, i) => idx !== i + 1);
+
+            if (!hasGaps) {
+                showMessage('BOM indices are already sequential (1, 2, 3...)', 'info');
                 return;
             }
 
-            if (!confirm(`Re-index BOM from ${firstIndex} to start from 1?\n\nThis will update all CL references and shapes.`)) return;
+            // Build descriptive message
+            const currentIndices = indices.join(', ');
+            const targetIndices = indices.map((_, i) => i + 1).join(', ');
+
+            if (!confirm(`Re-index BOM to fill gaps?\n\nCurrent: ${currentIndices}\nNew: ${targetIndices}\n\nThis will update all CL references and shapes.`)) return;
 
             saveToHistory();
 
@@ -3137,7 +3203,7 @@
             }
 
             refreshEditor();
-            showMessage('BOM re-indexed to start from 1', 'success');
+            showMessage('BOM re-indexed: gaps filled, now sequential (1, 2, 3...)', 'success');
         }
 
         // Toggle Add Mode
@@ -4317,10 +4383,13 @@
             const groupNum = parseInt(document.getElementById('modalGroup').value) || 1;
             const shapeData = document.getElementById('modalShapeData').value;
 
+            // Get BOM item for this group to ensure type/chamfer consistency
+            const bomItem = currentData.summary ? currentData.summary.find(b => b.index === groupNum) : null;
+
             const cutterData = {
-                type: document.getElementById('modalCutterType').value,
+                type: bomItem ? bomItem.type : document.getElementById('modalCutterType').value,
                 group: groupNum,
-                chamfer: document.getElementById('modalChamfer').value,
+                chamfer: bomItem ? bomItem.chamfer : document.getElementById('modalChamfer').value,
                 _isNew: editMode !== 'edit'
             };
 
@@ -4335,6 +4404,12 @@
             if (!currentData.blades[bi][row]) currentData.blades[bi][row] = {};
             if (!currentData.blades[bi][row][pos]) currentData.blades[bi][row][pos] = [];
 
+            // Track old group for BOM count updates (only in edit mode)
+            let oldGroup = null;
+            if (editMode === 'edit' && currentData.blades[bi][row][pos][cellIdx]) {
+                oldGroup = currentData.blades[bi][row][pos][cellIdx].group;
+            }
+
             if (editMode === 'edit') {
                 currentData.blades[bi][row][pos][cellIdx] = cutterData;
             } else if (editMode === 'insert' && cellIdx >= 0) {
@@ -4343,6 +4418,24 @@
             } else {
                 // Add at end
                 currentData.blades[bi][row][pos].push(cutterData);
+            }
+
+            // Update BOM counts if group changed or new cutter added
+            if (currentData.summary) {
+                if (oldGroup !== null && oldGroup !== groupNum) {
+                    // Decrease old BOM count
+                    const oldBomItem = currentData.summary.find(b => b.index === oldGroup);
+                    if (oldBomItem && oldBomItem.count > 0) {
+                        oldBomItem.count--;
+                    }
+                    // Increase new BOM count
+                    if (bomItem) {
+                        bomItem.count = (parseInt(bomItem.count) || 0) + 1;
+                    }
+                } else if (editMode !== 'edit' && bomItem) {
+                    // New cutter added - increase count
+                    bomItem.count = (parseInt(bomItem.count) || 0) + 1;
+                }
             }
 
             closeCutterModal();
