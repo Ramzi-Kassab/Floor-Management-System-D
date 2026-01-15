@@ -325,143 +325,135 @@
             {% endif %}
         </div>
 
-        <!-- Bit Spec Section (conditional) -->
-        {% if is_bit_item %}
+        <!-- Bit Spec Section - Only show if specs exist -->
+        {% if is_bit_item and bit_spec %}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Bit Specifications</h2>
-                {% if not bit_spec %}
-                <a href="{% url 'inventory:item_bit_spec_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
-                    + Add Spec
-                </a>
-                {% else %}
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="disc" class="w-5 h-5 mr-2 text-orange-500"></i>
+                    Bit Specifications
+                </h2>
                 <a href="{% url 'inventory:item_bit_spec_update' item.pk %}" class="text-sm text-blue-600 hover:underline">
                     Edit
                 </a>
-                {% endif %}
             </div>
-            {% if bit_spec %}
             <div class="p-6">
-                <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                        <dt class="text-gray-500">Bit Type</dt>
-                        <dd class="text-gray-900 dark:text-white font-medium">{{ bit_spec.get_bit_type_display }}</dd>
+                <dl class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
+                    <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 col-span-2">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Bit Type</dt>
+                        <dd class="text-gray-900 dark:text-white font-semibold mt-1">{{ bit_spec.get_bit_type_display }}</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">IADC Code</dt>
-                        <dd class="text-gray-900 dark:text-white font-mono">{{ bit_spec.iadc_code|default:"--" }}</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">IADC Code</dt>
+                        <dd class="text-gray-900 dark:text-white font-mono font-medium mt-1">{{ bit_spec.iadc_code|default:"--" }}</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Bit Size</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.bit_size|default:"--" }}"</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Bit Size</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ bit_spec.bit_size|default:"--" }}"</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Connection</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.connection_type }} {{ bit_spec.connection_size|default:"" }}</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Connection</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ bit_spec.connection_type }} {{ bit_spec.connection_size|default:"" }}</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Blade Count</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.blade_count|default:"--" }}</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Blade Count</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ bit_spec.blade_count|default:"--" }}</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Cutter Count</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.cutter_count|default:"--" }}</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Cutter Count</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ bit_spec.cutter_count|default:"--" }}</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Nozzle Count</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.nozzle_count|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-gray-500">TFA Range</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.tfa_range_min|default:"--" }} - {{ bit_spec.tfa_range_max|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-gray-500">WOB Range</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.weight_on_bit_min|default:"--" }} - {{ bit_spec.weight_on_bit_max|default:"--" }} klb</dd>
-                    </div>
-                    <div>
-                        <dt class="text-gray-500">RPM Range</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.rpm_min|default:"--" }} - {{ bit_spec.rpm_max|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-gray-500">Formation</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.formation_hardness|default:"--" }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-gray-500">Application</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ bit_spec.application|default:"--" }}</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Nozzle Count</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ bit_spec.nozzle_count|default:"--" }}</dd>
                     </div>
                 </dl>
+                <!-- Operating Parameters -->
+                <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Operating Parameters</h3>
+                    <dl class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                            <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">TFA Range</dt>
+                            <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ bit_spec.tfa_range_min|default:"--" }} - {{ bit_spec.tfa_range_max|default:"--" }}</dd>
+                        </div>
+                        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                            <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">WOB Range</dt>
+                            <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ bit_spec.weight_on_bit_min|default:"--" }} - {{ bit_spec.weight_on_bit_max|default:"--" }} klb</dd>
+                        </div>
+                        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                            <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">RPM Range</dt>
+                            <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ bit_spec.rpm_min|default:"--" }} - {{ bit_spec.rpm_max|default:"--" }}</dd>
+                        </div>
+                        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                            <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Formation</dt>
+                            <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ bit_spec.formation_hardness|default:"--" }}</dd>
+                        </div>
+                    </dl>
+                </div>
+                {% if bit_spec.application %}
+                <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Application</dt>
+                    <dd class="text-gray-900 dark:text-white mt-1">{{ bit_spec.application }}</dd>
+                </div>
+                {% endif %}
             </div>
-            {% else %}
-            <div class="text-center py-6">
-                <p class="text-gray-500">No bit specifications configured</p>
-            </div>
-            {% endif %}
         </div>
         {% endif %}
 
-        <!-- Cutter Spec Section (conditional) -->
-        {% if is_cutter_item %}
+        <!-- Cutter Spec Section - Only show if specs exist (attributes handle most cases) -->
+        {% if is_cutter_item and cutter_spec %}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Cutter Specifications</h2>
-                {% if not cutter_spec %}
-                <a href="{% url 'inventory:item_cutter_spec_create' item.pk %}" class="text-sm text-blue-600 hover:underline">
-                    + Add Spec
-                </a>
-                {% else %}
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="circle-dot" class="w-5 h-5 mr-2 text-cyan-500"></i>
+                    Technical Specifications
+                </h2>
                 <a href="{% url 'inventory:item_cutter_spec_update' item.pk %}" class="text-sm text-blue-600 hover:underline">
                     Edit
                 </a>
-                {% endif %}
             </div>
-            {% if cutter_spec %}
             <div class="p-6">
                 <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                        <dt class="text-gray-500">Cutter Size</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.cutter_size|default:"--" }} mm</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Cutter Size</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ cutter_spec.cutter_size|default:"--" }} mm</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Thickness</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.thickness|default:"--" }} mm</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Thickness</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ cutter_spec.thickness|default:"--" }} mm</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Diamond Table</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.diamond_table_thickness|default:"--" }} mm</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Diamond Table</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ cutter_spec.diamond_table_thickness|default:"--" }} mm</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Grade</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.grade|default:"--" }}</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Grade</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ cutter_spec.grade|default:"--" }}</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Substrate</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.substrate_material|default:"--" }}</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Substrate</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ cutter_spec.substrate_material|default:"--" }}</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Chamfer</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.chamfer_type|default:"--" }} {{ cutter_spec.chamfer_angle|default:"" }}</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Chamfer</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ cutter_spec.chamfer_type|default:"--" }} {{ cutter_spec.chamfer_angle|default:"" }}</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Impact Resistance</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.impact_resistance|default:"--" }}</dd>
+                    {% if cutter_spec.impact_resistance or cutter_spec.abrasion_resistance or cutter_spec.thermal_stability_temp %}
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Impact Resistance</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ cutter_spec.impact_resistance|default:"--" }}</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Abrasion Resistance</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.abrasion_resistance|default:"--" }}</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Abrasion Resistance</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ cutter_spec.abrasion_resistance|default:"--" }}</dd>
                     </div>
-                    <div>
-                        <dt class="text-gray-500">Thermal Stability</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ cutter_spec.thermal_stability_temp|default:"--" }} C</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <dt class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Thermal Stability</dt>
+                        <dd class="text-gray-900 dark:text-white font-medium mt-1">{{ cutter_spec.thermal_stability_temp|default:"--" }}°C</dd>
                     </div>
+                    {% endif %}
                 </dl>
             </div>
-            {% else %}
-            <div class="text-center py-6">
-                <p class="text-gray-500">No cutter specifications configured</p>
-            </div>
-            {% endif %}
         </div>
         {% endif %}
 

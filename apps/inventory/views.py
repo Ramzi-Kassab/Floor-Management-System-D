@@ -454,9 +454,12 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
             context["cutter_spec"] = None
 
         # Check if item category suggests it's a bit or cutter for showing spec forms
+        # Cutter check takes priority - if "cutter" is in name, it's NOT a bit
         category_name = item.category.name.lower() if item.category else ""
-        context["is_bit_item"] = "bit" in category_name or "pdc" in category_name or "tci" in category_name
-        context["is_cutter_item"] = "cutter" in category_name or "pdc" in category_name
+        is_cutter = "cutter" in category_name
+        is_bit = ("bit" in category_name or "pdc" in category_name or "tci" in category_name) and not is_cutter
+        context["is_bit_item"] = is_bit
+        context["is_cutter_item"] = is_cutter
 
         # Category Attributes and Values
         if item.category:
