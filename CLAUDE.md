@@ -70,7 +70,34 @@ InventoryItem
 └── attribute_values (ItemAttributeValue - cutter specs)
 ```
 
-## Recent Changes (Jan 15, 2026)
+## Recent Changes (Jan 16, 2026)
+
+### Pricing System
+- **PriceList Model**: Supports 3 types - LSTK (fixed tiers), COST_PLUS (markup %), MATRIX (size × quality)
+- **PriceTier**: Size-based pricing (e.g., 8-10mm = $272, 12-13mm = $360, 16mm = $497)
+- **PriceMatrixRule**: Size × Quality matrix pricing (e.g., 16mm × NEW = $500)
+- **LandingCostType**: Cost types like SHIPPING, CUSTOMS, HANDLING with allocation methods
+- **LandingCostRecord**: Actual costs per GRN with `allocate()` method
+- **LandingCostAllocation**: Distributed costs per GRN line (per-unit amount)
+- **ItemPrice**: Cached/calculated prices with landed cost component
+- **New URLs**: `/inventory/pricing/`, `/inventory/pricing/landing-cost-types/`
+- **Sidebar**: New "Pricing" section under Logistics with Price Lists and Landing Cost Types
+
+### Variant Stock Dashboard
+- **New View**: `VariantStockListView` at `/inventory/variant-stock/`
+- **Filtering**: By category, item, variant case
+- **Display**: Stock breakdown by variant (NEW, USED, etc.) with totals
+- **Sidebar**: Added under Logistics > Items & Stock
+
+### Item Detail Page Improvements
+- **Fixed**: `is_bit_item`/`is_cutter_item` logic overlap - PDC Cutters no longer show Bit Specifications
+- **Cleaned Up**: Bit/Cutter Specifications sections only show when data exists (not empty prompts)
+- **Styling**: Improved spec cards with colored backgrounds, icons, and grouped Operating Parameters
+
+### Bug Fixes
+- **Decimal Fix**: Variant bulk create now uses `Decimal()` instead of `float` for cost calculations
+
+## Previous Changes (Jan 15, 2026)
 
 ### Cutter Map Improvements
 - **Re-index Fix**: Now fills gaps even when starting from 1 (e.g., 1,3,5 → 1,2,3)
