@@ -2506,6 +2506,30 @@ class CategoryGenerateCodeAPIView(LoginRequiredMixin, View):
         return self.get(request, category_pk)
 
 
+class ItemVariantsAPIView(LoginRequiredMixin, View):
+    """API to get active variants for an item (for dynamic dropdowns)."""
+
+    def get(self, request, item_pk):
+        item = get_object_or_404(InventoryItem, pk=item_pk)
+        variants = item.variants.filter(is_active=True).select_related('variant_case')
+
+        data = [{
+            "id": v.id,
+            "code": v.code,
+            "name": v.variant_case.name if v.variant_case else v.code,
+            "condition": v.variant_case.condition if v.variant_case else "",
+            "ownership": v.variant_case.ownership if v.variant_case else "",
+            "standard_cost": float(v.standard_cost) if v.standard_cost else None,
+        } for v in variants]
+
+        return JsonResponse({
+            "item_id": item.id,
+            "item_code": item.code,
+            "has_variants": item.has_variants,
+            "variants": data
+        })
+
+
 class AddAttributeOptionAPIView(LoginRequiredMixin, View):
     """API to add a new option to a category attribute's options list."""
 
@@ -3631,10 +3655,11 @@ class GRNPostView(LoginRequiredMixin, View):
                             continue
 
                         # Create StockLedger entry
-                        StockLedger.objects.create(
+                        ledger_entry = StockLedger.objects.create(
                             transaction_type=StockLedger.TransactionType.RECEIPT,
                             transaction_date=grn.receipt_date,
                             item=line.item,
+                            variant=line.variant,  # Variant tracking
                             qty_delta=qty_to_post,
                             uom=line.uom,
                             location=location,
@@ -3650,6 +3675,11 @@ class GRNPostView(LoginRequiredMixin, View):
                             notes=f"Receipt from GRN {grn.grn_number}",
                             created_by=request.user,
                         )
+
+                        # Update VariantStock if variant specified
+                        if line.variant:
+                            from .models import VariantStock
+                            VariantStock.update_from_ledger_entry(ledger_entry)
 
                         # Update StockBalance
                         self._update_stock_balance(
@@ -3868,11 +3898,12 @@ class StockIssuePostView(LoginRequiredMixin, View):
 
         try:
             for line in issue.lines.filter(is_posted=False):
-                StockLedger.objects.create(
+                ledger_entry = StockLedger.objects.create(
                     transaction_type="ISSUE",
                     transaction_date=issue.issue_date,
                     item=line.item,
-                    location=line.from_location,
+                    variant=line.variant,  # Variant tracking
+                    location=line.location,
                     lot=line.lot,
                     qty_delta=-line.qty_issued,  # Negative for issue
                     unit_cost=line.unit_cost,
@@ -3881,6 +3912,12 @@ class StockIssuePostView(LoginRequiredMixin, View):
                     reference_id=str(issue.pk),
                     created_by=request.user,
                 )
+
+                # Update VariantStock if variant specified
+                if line.variant:
+                    from .models import VariantStock
+                    VariantStock.update_from_ledger_entry(ledger_entry)
+
                 line.is_posted = True
                 line.posted_at = timezone.now()
                 line.save()
@@ -3981,10 +4018,11 @@ class StockTransferPostView(LoginRequiredMixin, View):
         try:
             for line in transfer.lines.filter(is_posted=False):
                 # Create OUT entry (from location)
-                StockLedger.objects.create(
+                ledger_out = StockLedger.objects.create(
                     transaction_type="TRANSFER_OUT",
                     transaction_date=transfer.transfer_date,
                     item=line.item,
+                    variant=line.variant,  # Variant tracking
                     location=line.from_location,
                     lot=line.lot,
                     qty_delta=-line.qty_transferred,
@@ -3993,10 +4031,11 @@ class StockTransferPostView(LoginRequiredMixin, View):
                     created_by=request.user,
                 )
                 # Create IN entry (to location)
-                StockLedger.objects.create(
+                ledger_in = StockLedger.objects.create(
                     transaction_type="TRANSFER_IN",
                     transaction_date=transfer.transfer_date,
                     item=line.item,
+                    variant=line.variant,  # Variant tracking
                     location=line.to_location,
                     lot=line.lot,
                     qty_delta=line.qty_transferred,
@@ -4004,6 +4043,13 @@ class StockTransferPostView(LoginRequiredMixin, View):
                     reference_id=str(transfer.pk),
                     created_by=request.user,
                 )
+
+                # Update VariantStock for both locations if variant specified
+                if line.variant:
+                    from .models import VariantStock
+                    VariantStock.update_from_ledger_entry(ledger_out)
+                    VariantStock.update_from_ledger_entry(ledger_in)
+
                 line.is_posted = True
                 line.posted_at = timezone.now()
                 line.save()
@@ -4104,10 +4150,11 @@ class StockAdjustmentDocPostView(LoginRequiredMixin, View):
         try:
             for line in adjustment.lines.filter(is_posted=False):
                 # qty_adjustment = qty_actual - qty_system
-                StockLedger.objects.create(
+                ledger_entry = StockLedger.objects.create(
                     transaction_type="ADJUSTMENT",
                     transaction_date=adjustment.adjustment_date,
                     item=line.item,
+                    variant=line.variant,  # Variant tracking
                     location=line.location,
                     lot=line.lot,
                     qty_delta=line.qty_adjustment,
@@ -4117,6 +4164,12 @@ class StockAdjustmentDocPostView(LoginRequiredMixin, View):
                     reference_id=str(adjustment.pk),
                     created_by=request.user,
                 )
+
+                # Update VariantStock if variant specified
+                if line.variant:
+                    from .models import VariantStock
+                    VariantStock.update_from_ledger_entry(ledger_entry)
+
                 line.is_posted = True
                 line.posted_at = timezone.now()
                 line.save()

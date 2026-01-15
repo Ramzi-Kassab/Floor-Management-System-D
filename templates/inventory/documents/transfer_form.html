@@ -21,25 +21,82 @@
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Transfer Lines</h2>
     {{ lines_formset.management_form }}
-    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead class="bg-gray-50 dark:bg-gray-700"><tr>
-            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">From Location</th>
-            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">To Location</th>
-            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Qty Requested</th>
-            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Qty Transferred</th>
-            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Delete</th>
-        </tr></thead>
-        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-        {% for line_form in lines_formset %}
-        <tr><td class="px-3 py-2">{{ line_form.item }}</td><td class="px-3 py-2">{{ line_form.from_location }}</td><td class="px-3 py-2">{{ line_form.to_location }}</td><td class="px-3 py-2">{{ line_form.qty_requested }}</td><td class="px-3 py-2">{{ line_form.qty_transferred }}</td><td class="px-3 py-2 text-center">{{ line_form.DELETE }}{{ line_form.id }}</td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700"><tr>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Item</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Variant</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Lot</th>
+                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Qty Requested</th>
+                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Qty Shipped</th>
+                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Qty Received</th>
+                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Delete</th>
+            </tr></thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700" x-data="variantLoader()">
+            {% for line_form in lines_formset %}
+            <tr class="transfer-line-row">
+                <td class="px-3 py-2">{{ line_form.item }}</td>
+                <td class="px-3 py-2">{{ line_form.variant }}</td>
+                <td class="px-3 py-2">{{ line_form.lot }}</td>
+                <td class="px-3 py-2">{{ line_form.qty_requested }}</td>
+                <td class="px-3 py-2">{{ line_form.qty_shipped }}</td>
+                <td class="px-3 py-2">{{ line_form.qty_received }}</td>
+                <td class="px-3 py-2 text-center">{{ line_form.DELETE }}{{ line_form.id }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 <div class="flex justify-end gap-3">
     <a href="{% url 'inventory:transfer_list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">Cancel</a>
     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"><i data-lucide="save" class="w-4 h-4 inline mr-1"></i>Save</button>
 </div>
 </form>
+
+<script>
+function variantLoader() {
+    return {
+        async loadVariants(event, itemSelect) {
+            const itemId = itemSelect.value;
+            const row = itemSelect.closest('tr');
+            const variantSelect = row.querySelector('select[name$="-variant"]');
+
+            if (!variantSelect) return;
+
+            // Clear existing options
+            variantSelect.innerHTML = '<option value="">-- Select Variant --</option>';
+
+            if (!itemId) return;
+
+            try {
+                const response = await fetch(`/inventory/api/items/${itemId}/variants/`);
+                const data = await response.json();
+
+                if (data.variants && data.variants.length > 0) {
+                    // Show variant column indicator
+                    variantSelect.classList.add('border-blue-400');
+
+                    data.variants.forEach(v => {
+                        const option = document.createElement('option');
+                        option.value = v.id;
+                        option.textContent = `${v.name} (${v.condition})`;
+                        option.dataset.cost = v.standard_cost || '';
+                        variantSelect.appendChild(option);
+                    });
+
+                    // If only one variant, auto-select it
+                    if (data.variants.length === 1) {
+                        variantSelect.value = data.variants[0].id;
+                    }
+                } else {
+                    variantSelect.classList.remove('border-blue-400');
+                }
+            } catch (error) {
+                console.error('Error loading variants:', error);
+            }
+        }
+    };
+}
+</script>
 {% endblock %}

@@ -610,12 +610,13 @@ class GoodsReceiptNoteForm(forms.ModelForm):
 
 
 class GRNLineForm(forms.ModelForm):
-    """Form for GRN line items."""
+    """Form for GRN line items with variant support."""
 
     class Meta:
         model = GRNLine
         fields = [
             "item",
+            "variant",
             "lot",
             "location",
             "qty_expected",
@@ -626,7 +627,8 @@ class GRNLineForm(forms.ModelForm):
             "notes",
         ]
         widgets = {
-            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT, "@change": "loadVariants($event, $el)"}),
+            "variant": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "qty_expected": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
@@ -636,6 +638,15 @@ class GRNLineForm(forms.ModelForm):
             "quality_status": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Variant is optional - initially empty, loaded dynamically based on item
+        self.fields['variant'].required = False
+        self.fields['variant'].queryset = ItemVariant.objects.none()
+        # If editing existing line with item, populate variants for that item
+        if self.instance and self.instance.pk and self.instance.item:
+            self.fields['variant'].queryset = self.instance.item.variants.filter(is_active=True)
 
 
 # GRN Line Formset
@@ -672,12 +683,13 @@ class StockIssueForm(forms.ModelForm):
 
 
 class StockIssueLineForm(forms.ModelForm):
-    """Form for Stock Issue line items."""
+    """Form for Stock Issue line items with variant support."""
 
     class Meta:
         model = StockIssueLine
         fields = [
             "item",
+            "variant",
             "lot",
             "location",
             "qty_requested",
@@ -686,7 +698,8 @@ class StockIssueLineForm(forms.ModelForm):
             "notes",
         ]
         widgets = {
-            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT, "@change": "loadVariants($event, $el)"}),
+            "variant": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "qty_requested": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
@@ -694,6 +707,15 @@ class StockIssueLineForm(forms.ModelForm):
             "unit_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
             "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Variant is optional - initially empty, loaded dynamically based on item
+        self.fields['variant'].required = False
+        self.fields['variant'].queryset = ItemVariant.objects.none()
+        # If editing existing line with item, populate variants for that item
+        if self.instance and self.instance.pk and self.instance.item:
+            self.fields['variant'].queryset = self.instance.item.variants.filter(is_active=True)
 
 
 StockIssueLineFormSet = inlineformset_factory(
@@ -727,12 +749,13 @@ class StockTransferForm(forms.ModelForm):
 
 
 class StockTransferLineForm(forms.ModelForm):
-    """Form for Stock Transfer line items."""
+    """Form for Stock Transfer line items with variant support."""
 
     class Meta:
         model = StockTransferLine
         fields = [
             "item",
+            "variant",
             "lot",
             "qty_requested",
             "qty_shipped",
@@ -740,13 +763,23 @@ class StockTransferLineForm(forms.ModelForm):
             "notes",
         ]
         widgets = {
-            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT, "@change": "loadVariants($event, $el)"}),
+            "variant": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "qty_requested": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "qty_shipped": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "qty_received": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
             "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Variant is optional - initially empty, loaded dynamically based on item
+        self.fields['variant'].required = False
+        self.fields['variant'].queryset = ItemVariant.objects.none()
+        # If editing existing line with item, populate variants for that item
+        if self.instance and self.instance.pk and self.instance.item:
+            self.fields['variant'].queryset = self.instance.item.variants.filter(is_active=True)
 
 
 StockTransferLineFormSet = inlineformset_factory(
@@ -780,12 +813,13 @@ class StockAdjustmentDocForm(forms.ModelForm):
 
 
 class StockAdjustmentLineForm(forms.ModelForm):
-    """Form for Stock Adjustment line items."""
+    """Form for Stock Adjustment line items with variant support."""
 
     class Meta:
         model = StockAdjustmentLine
         fields = [
             "item",
+            "variant",
             "lot",
             "qty_system",
             "qty_counted",
@@ -794,7 +828,8 @@ class StockAdjustmentLineForm(forms.ModelForm):
             "notes",
         ]
         widgets = {
-            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "item": forms.Select(attrs={"class": TAILWIND_SELECT, "@change": "loadVariants($event, $el)"}),
+            "variant": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "lot": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "qty_system": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "readonly": "readonly"}),
             "qty_counted": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
@@ -802,6 +837,15 @@ class StockAdjustmentLineForm(forms.ModelForm):
             "unit_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
             "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Variant is optional - initially empty, loaded dynamically based on item
+        self.fields['variant'].required = False
+        self.fields['variant'].queryset = ItemVariant.objects.none()
+        # If editing existing line with item, populate variants for that item
+        if self.instance and self.instance.pk and self.instance.item:
+            self.fields['variant'].queryset = self.instance.item.variants.filter(is_active=True)
 
 
 StockAdjustmentLineFormSet = inlineformset_factory(

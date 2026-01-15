@@ -67,6 +67,7 @@
                 <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Item</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Variant</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Location</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Lot</th>
                         <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Qty Expected</th>
@@ -77,10 +78,11 @@
                         <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Delete</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700" x-data="variantLoader()">
                     {% for line_form in lines_formset %}
-                    <tr>
+                    <tr class="grn-line-row">
                         <td class="px-3 py-2">{{ line_form.item }}</td>
+                        <td class="px-3 py-2">{{ line_form.variant }}</td>
                         <td class="px-3 py-2">{{ line_form.location }}</td>
                         <td class="px-3 py-2">{{ line_form.lot }}</td>
                         <td class="px-3 py-2">{{ line_form.qty_expected }}</td>
@@ -104,4 +106,62 @@
         </button>
     </div>
 </form>
+
+<script>
+function variantLoader() {
+    return {
+        async loadVariants(event, itemSelect) {
+            const itemId = itemSelect.value;
+            const row = itemSelect.closest('tr');
+            const variantSelect = row.querySelector('select[name$="-variant"]');
+
+            if (!variantSelect) return;
+
+            // Clear existing options
+            variantSelect.innerHTML = '<option value="">-- Select Variant --</option>';
+
+            if (!itemId) return;
+
+            try {
+                const response = await fetch(`/inventory/api/items/${itemId}/variants/`);
+                const data = await response.json();
+
+                if (data.variants && data.variants.length > 0) {
+                    // Show variant column indicator
+                    variantSelect.classList.add('border-blue-400');
+
+                    data.variants.forEach(v => {
+                        const option = document.createElement('option');
+                        option.value = v.id;
+                        option.textContent = `${v.name} (${v.condition})`;
+                        option.dataset.cost = v.standard_cost || '';
+                        variantSelect.appendChild(option);
+                    });
+
+                    // If only one variant, auto-select it
+                    if (data.variants.length === 1) {
+                        variantSelect.value = data.variants[0].id;
+                    }
+                } else {
+                    variantSelect.classList.remove('border-blue-400');
+                }
+            } catch (error) {
+                console.error('Error loading variants:', error);
+            }
+        }
+    };
+}
+
+// Initialize variant loading for existing rows on page load
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.grn-line-row').forEach(row => {
+        const itemSelect = row.querySelector('select[name$="-item"]');
+        if (itemSelect && itemSelect.value) {
+            // Trigger variant load for pre-populated items
+            const event = new Event('change');
+            // Don't auto-load to preserve existing variant selection
+        }
+    });
+});
+</script>
 {% endblock %}
