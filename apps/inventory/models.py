@@ -686,6 +686,32 @@ class InventoryCategory(models.Model):
         '''
     )
 
+    # Default values for items in this category (auto-fill on item creation)
+    class Currency(models.TextChoices):
+        SAR = "SAR", "SAR (Saudi Riyal)"
+        USD = "USD", "USD (US Dollar)"
+
+    default_currency = models.CharField(
+        max_length=3,
+        choices=Currency.choices,
+        default=Currency.SAR,
+        help_text="Default currency for items in this category"
+    )
+    default_min_stock = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="Default minimum stock level for items in this category"
+    )
+    default_reorder_qty = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="Default reorder quantity for items in this category"
+    )
+
     class Meta:
         db_table = "inventory_categories"
         ordering = ["code"]

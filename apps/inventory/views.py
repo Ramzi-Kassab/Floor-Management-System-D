@@ -2478,7 +2478,14 @@ class CategoryAttributesAPIView(LoginRequiredMixin, View):
         return JsonResponse({
             "attributes": data,
             "name_template": category.name_template or "",
-            "name_template_config": category.name_template_config or None
+            "name_template_config": category.name_template_config or None,
+            # Category defaults for item creation
+            "defaults": {
+                "item_type": category.item_type,
+                "currency": category.default_currency,
+                "min_stock": float(category.default_min_stock) if category.default_min_stock else None,
+                "reorder_qty": float(category.default_reorder_qty) if category.default_reorder_qty else None,
+            }
         })
 
 

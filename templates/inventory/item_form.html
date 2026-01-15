@@ -495,8 +495,13 @@
 function itemForm() {
     // Clone data passed from server (if cloning an item)
     const cloneData = {{ clone_data|safe|default:"{}" }};
+    // Flags for form mode
+    const isEditing = {{ object.pk|yesno:"true,false,false" }};
+    const isCloned = Object.keys(cloneData).length > 0;
 
     return {
+        isEditing: isEditing,
+        isCloned: isCloned,
         selectedCategory: '{{ form.category.value|default:"" }}',
         itemType: '{{ form.item_type.value|default:"COMPONENT" }}',
         itemTypeLabel: '',
@@ -671,6 +676,22 @@ function itemForm() {
                 this.attributes = data.attributes || [];
                 this.nameTemplate = data.name_template || '';
                 this.nameTemplateConfig = data.name_template_config || null;
+
+                // Apply category defaults for new items (not cloned or editing)
+                if (data.defaults && !this.isEditing && !this.isCloned) {
+                    // Apply currency default
+                    if (data.defaults.currency) {
+                        this.currency = data.defaults.currency;
+                    }
+                    // Apply min_stock default (only if not already set)
+                    if (data.defaults.min_stock !== null && this.minStock === 0) {
+                        this.minStock = data.defaults.min_stock;
+                    }
+                    // Apply reorder_qty default (only if not already set)
+                    if (data.defaults.reorder_qty !== null && this.reorderQty === 0) {
+                        this.reorderQty = data.defaults.reorder_qty;
+                    }
+                }
 
                 this.attributeValues = {};
                 this.attributes.forEach(attr => {

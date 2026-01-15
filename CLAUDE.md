@@ -88,6 +88,12 @@ InventoryItem
 - Improved BOM table readability (11px font, better contrast)
 - Section headers with rounded corners and better typography
 
+### Category Defaults Feature
+- **New Fields on InventoryCategory**: `default_currency`, `default_min_stock`, `default_reorder_qty`
+- **Auto-fill on Item Creation**: When creating new items, defaults from category are applied
+- **Category Form Update**: New "Item Defaults" section to configure defaults
+- **API Enhancement**: `CategoryAttributesAPIView` now returns `defaults` object
+
 ## Previous Changes (Jan 14, 2026)
 
 ### Cutter Wizard & Inventory Integration

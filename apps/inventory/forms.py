@@ -73,7 +73,11 @@ class InventoryCategoryForm(forms.ModelForm):
 
     class Meta:
         model = InventoryCategory
-        fields = ["code", "name", "parent", "item_type", "code_prefix", "name_template", "name_template_config", "description", "is_active"]
+        fields = [
+            "code", "name", "parent", "item_type", "code_prefix", "name_template", "name_template_config",
+            "default_currency", "default_min_stock", "default_reorder_qty",  # Item defaults
+            "description", "is_active"
+        ]
         widgets = {
             "code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "CAT-001"}),
             "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Category Name"}),
@@ -81,6 +85,9 @@ class InventoryCategoryForm(forms.ModelForm):
             "item_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
             "code_prefix": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "CUT, MAT, NOZ"}),
             "name_template": forms.HiddenInput(),  # Now managed by template builder
+            "default_currency": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "default_min_stock": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "e.g., 10"}),
+            "default_reorder_qty": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001", "min": "0", "placeholder": "e.g., 50"}),
             "description": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
             "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
         }
