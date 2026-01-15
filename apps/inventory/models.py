@@ -5335,3 +5335,532 @@ class CycleCountLine(models.Model):
                 self.count_status = self.CountStatus.VARIANCE
 
         super().save(*args, **kwargs)
+
+
+# =============================================================================
+# PRICING SYSTEM
+# =============================================================================
+
+
+class PriceList(models.Model):
+    """
+    A collection of pricing rules for a specific customer/contract.
+
+    Examples:
+    - LSTK Contract: Fixed prices by cutter size
+    - Halliburton Regional: Cost + 30%
+    - Aramco: Size × Quality matrix pricing
+    """
+
+    class PriceListType(models.TextChoices):
+        LSTK = "LSTK", "Lump Sum Turn Key (Fixed Tiers)"
+        COST_PLUS = "COST_PLUS", "Cost Plus Markup"
+        MATRIX = "MATRIX", "Matrix Pricing (Size × Quality)"
+        CUSTOM = "CUSTOM", "Custom Formula"
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        ACTIVE = "ACTIVE", "Active"
+        EXPIRED = "EXPIRED", "Expired"
+        SUSPENDED = "SUSPENDED", "Suspended"
+
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+
+    price_list_type = models.CharField(
+        max_length=20,
+        choices=PriceListType.choices,
+        default=PriceListType.LSTK
+    )
+
+    # Customer/Contract association
+    customer = models.ForeignKey(
+        Party, on_delete=models.PROTECT,
+        related_name="price_lists",
+        null=True, blank=True,
+        help_text="Customer this price list applies to"
+    )
+
+    # Validity period
+    effective_from = models.DateField()
+    effective_to = models.DateField(null=True, blank=True)
+
+    # Currency
+    currency = models.CharField(max_length=3, default="USD")
+
+    # Cost-plus settings (for COST_PLUS type)
+    markup_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        help_text="Markup percentage (e.g., 30 for 30%)"
+    )
+
+    # Priority for price selection (lower = higher priority)
+    priority = models.PositiveIntegerField(default=100)
+
+    # Status
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT
+    )
+
+    # Applies to categories (optional - blank means all)
+    categories = models.ManyToManyField(
+        InventoryCategory,
+        blank=True,
+        related_name="price_lists",
+        help_text="Categories this price list applies to (blank = all)"
+    )
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="price_lists_created"
+    )
+
+    class Meta:
+        db_table = "price_lists"
+        verbose_name = "Price List"
+        verbose_name_plural = "Price Lists"
+        ordering = ["priority", "code"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+    def is_active_now(self):
+        from django.utils import timezone
+        today = timezone.now().date()
+        if self.status != self.Status.ACTIVE:
+            return False
+        if today < self.effective_from:
+            return False
+        if self.effective_to and today > self.effective_to:
+            return False
+        return True
+
+    def get_price(self, item, variant=None, quantity=1):
+        """
+        Calculate price for an item using this price list.
+        Returns (unit_price, price_source) tuple.
+        """
+        from decimal import Decimal
+
+        if self.price_list_type == self.PriceListType.COST_PLUS:
+            # Cost + markup
+            base_cost = variant.standard_cost if variant else item.standard_cost
+            if base_cost:
+                markup = Decimal(str(self.markup_percent)) / 100
+                unit_price = base_cost * (1 + markup)
+                return (unit_price, f"Cost + {self.markup_percent}%")
+            return (Decimal('0'), "No cost defined")
+
+        elif self.price_list_type == self.PriceListType.LSTK:
+            # Look up tier pricing
+            item_size = self._get_item_size(item)
+            tier = self.tiers.filter(
+                size_from__lte=item_size,
+                size_to__gte=item_size,
+                is_active=True
+            ).first()
+            if tier:
+                return (tier.unit_price, f"LSTK Tier: {tier.name}")
+            return (Decimal('0'), "No matching tier")
+
+        elif self.price_list_type == self.PriceListType.MATRIX:
+            # Matrix lookup (size × quality)
+            size = str(self._get_item_size(item))
+            quality = self._get_item_quality(item, variant)
+            rule = self.matrix_rules.filter(
+                size_code=size,
+                quality_level=quality,
+                is_active=True
+            ).first()
+            if rule:
+                return (rule.unit_price, f"Matrix: {size}×{quality}")
+            return (Decimal('0'), "No matrix match")
+
+        return (Decimal('0'), "Unknown price type")
+
+    def _get_item_size(self, item):
+        """Extract size from item (e.g., from attributes or cutter spec)."""
+        # Try to get from cutter spec
+        if hasattr(item, 'cutter_spec') and item.cutter_spec:
+            return int(item.cutter_spec.cutter_size or 0)
+
+        # Try to get from attribute value
+        size_attr = item.attribute_values.filter(
+            category_attribute__attribute__code__in=['SIZE', 'DIAMETER', 'cutter_size']
+        ).first()
+        if size_attr and size_attr.value_text:
+            try:
+                # Handle sizes like "1613" (16mm diameter, 13mm length)
+                size_str = size_attr.value_text[:2] if len(size_attr.value_text) >= 2 else size_attr.value_text
+                return int(size_str)
+            except (ValueError, TypeError):
+                pass
+        return 0
+
+    def _get_item_quality(self, item, variant=None):
+        """Extract quality level from item or variant."""
+        if variant and variant.variant_case:
+            return variant.variant_case.condition  # NEW, USED, etc.
+        return "NEW"
+
+
+class PriceTier(models.Model):
+    """
+    Size-based pricing tier for LSTK contracts.
+
+    Example:
+    - 8-10mm: $272
+    - 12-13mm: $360
+    - 16mm: $497
+    """
+
+    price_list = models.ForeignKey(
+        PriceList, on_delete=models.CASCADE,
+        related_name="tiers"
+    )
+
+    name = models.CharField(max_length=100, help_text="e.g., 'Small Cutters', '8-10mm Tier'")
+
+    # Size range (in mm)
+    size_from = models.PositiveIntegerField(help_text="Minimum size (mm)")
+    size_to = models.PositiveIntegerField(help_text="Maximum size (mm)")
+
+    # Price
+    unit_price = models.DecimalField(max_digits=15, decimal_places=4)
+
+    # Optional quantity breaks
+    min_qty = models.DecimalField(max_digits=15, decimal_places=3, default=1)
+
+    display_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "price_tiers"
+        verbose_name = "Price Tier"
+        verbose_name_plural = "Price Tiers"
+        ordering = ["price_list", "display_order", "size_from"]
+
+    def __str__(self):
+        return f"{self.price_list.code}: {self.name} ({self.size_from}-{self.size_to}mm) = {self.unit_price}"
+
+
+class PriceMatrixRule(models.Model):
+    """
+    Matrix pricing rule for Aramco-style contracts.
+    Price = f(size, quality_level)
+
+    Example:
+    - 16mm NEW: $500
+    - 16mm USED: $350
+    - 13mm NEW: $380
+    - 13mm USED: $250
+    """
+
+    price_list = models.ForeignKey(
+        PriceList, on_delete=models.CASCADE,
+        related_name="matrix_rules"
+    )
+
+    # Size dimension
+    size_code = models.CharField(max_length=20, help_text="Size identifier (e.g., '16', '13', '10')")
+
+    # Quality dimension
+    quality_level = models.CharField(
+        max_length=20,
+        help_text="Quality level (e.g., 'NEW', 'USED', 'REFURB', 'PREMIUM')"
+    )
+
+    # Price
+    unit_price = models.DecimalField(max_digits=15, decimal_places=4)
+
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "price_matrix_rules"
+        verbose_name = "Price Matrix Rule"
+        verbose_name_plural = "Price Matrix Rules"
+        ordering = ["price_list", "size_code", "quality_level"]
+        unique_together = [["price_list", "size_code", "quality_level"]]
+
+    def __str__(self):
+        return f"{self.price_list.code}: {self.size_code}×{self.quality_level} = {self.unit_price}"
+
+
+class LandingCostType(models.Model):
+    """
+    Types of landing cost components.
+
+    Examples:
+    - SHIPPING: Sea freight, air freight
+    - CUSTOMS: Import duties, VAT
+    - HANDLING: Port handling, warehouse fees
+    - INSURANCE: Cargo insurance
+    """
+
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+
+    # Default allocation method
+    class AllocationMethod(models.TextChoices):
+        BY_VALUE = "VALUE", "Proportional to Value"
+        BY_QUANTITY = "QTY", "Proportional to Quantity"
+        BY_WEIGHT = "WEIGHT", "Proportional to Weight"
+        FIXED_PER_UNIT = "FIXED", "Fixed per Unit"
+
+    default_allocation = models.CharField(
+        max_length=10,
+        choices=AllocationMethod.choices,
+        default=AllocationMethod.BY_VALUE
+    )
+
+    is_active = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "landing_cost_types"
+        verbose_name = "Landing Cost Type"
+        verbose_name_plural = "Landing Cost Types"
+        ordering = ["display_order", "code"]
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class LandingCostRecord(models.Model):
+    """
+    Records landing costs associated with a GRN/Shipment.
+
+    Tracks costs like shipping, customs that need to be
+    distributed across received items to calculate true cost.
+    """
+
+    # Link to receipt
+    grn = models.ForeignKey(
+        'GoodsReceiptNote', on_delete=models.CASCADE,
+        related_name="landing_costs"
+    )
+
+    cost_type = models.ForeignKey(
+        LandingCostType, on_delete=models.PROTECT,
+        related_name="cost_records"
+    )
+
+    # Cost amount
+    amount = models.DecimalField(max_digits=15, decimal_places=4)
+    currency = models.CharField(max_length=3, default="USD")
+
+    # Reference (invoice number, etc.)
+    reference = models.CharField(max_length=100, blank=True)
+
+    # Allocation override
+    allocation_method = models.CharField(
+        max_length=10,
+        choices=LandingCostType.AllocationMethod.choices,
+        blank=True,
+        help_text="Override cost type default"
+    )
+
+    # Status
+    is_allocated = models.BooleanField(default=False)
+    allocated_at = models.DateTimeField(null=True, blank=True)
+
+    notes = models.TextField(blank=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="landing_costs_created"
+    )
+
+    class Meta:
+        db_table = "landing_cost_records"
+        verbose_name = "Landing Cost Record"
+        verbose_name_plural = "Landing Cost Records"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.grn.grn_number}: {self.cost_type.code} = {self.amount}"
+
+    def get_allocation_method(self):
+        """Get the effective allocation method."""
+        return self.allocation_method or self.cost_type.default_allocation
+
+    def allocate(self):
+        """
+        Allocate this cost across GRN lines.
+        Updates item standard costs with landed cost component.
+        """
+        from decimal import Decimal
+        from django.utils import timezone
+
+        if self.is_allocated:
+            return False
+
+        lines = self.grn.lines.filter(is_posted=True)
+        if not lines.exists():
+            return False
+
+        method = self.get_allocation_method()
+
+        # Calculate allocation base
+        if method == LandingCostType.AllocationMethod.BY_VALUE:
+            total_base = sum(
+                (line.qty_received * line.unit_cost) for line in lines
+            )
+        elif method == LandingCostType.AllocationMethod.BY_QUANTITY:
+            total_base = sum(line.qty_received for line in lines)
+        else:
+            total_base = lines.count()  # Fixed per line
+
+        if total_base == 0:
+            return False
+
+        # Allocate to each line
+        for line in lines:
+            if method == LandingCostType.AllocationMethod.BY_VALUE:
+                line_base = line.qty_received * line.unit_cost
+            elif method == LandingCostType.AllocationMethod.BY_QUANTITY:
+                line_base = line.qty_received
+            else:
+                line_base = Decimal('1')
+
+            # Calculate allocated amount for this line
+            allocated_amount = (line_base / total_base) * self.amount
+
+            # Create allocation record
+            LandingCostAllocation.objects.create(
+                landing_cost=self,
+                grn_line=line,
+                allocated_amount=allocated_amount,
+                per_unit_amount=allocated_amount / line.qty_received if line.qty_received else 0
+            )
+
+        self.is_allocated = True
+        self.allocated_at = timezone.now()
+        self.save(update_fields=['is_allocated', 'allocated_at'])
+
+        return True
+
+
+class LandingCostAllocation(models.Model):
+    """
+    Allocation of landing costs to specific GRN lines.
+
+    This shows how each landing cost was distributed across
+    received items, enabling true landed cost calculation.
+    """
+
+    landing_cost = models.ForeignKey(
+        LandingCostRecord, on_delete=models.CASCADE,
+        related_name="allocations"
+    )
+
+    grn_line = models.ForeignKey(
+        'GRNLine', on_delete=models.CASCADE,
+        related_name="landing_cost_allocations"
+    )
+
+    # Allocated amounts
+    allocated_amount = models.DecimalField(max_digits=15, decimal_places=4)
+    per_unit_amount = models.DecimalField(max_digits=15, decimal_places=6)
+
+    class Meta:
+        db_table = "landing_cost_allocations"
+        verbose_name = "Landing Cost Allocation"
+        verbose_name_plural = "Landing Cost Allocations"
+        unique_together = [["landing_cost", "grn_line"]]
+
+    def __str__(self):
+        return f"{self.landing_cost} → Line {self.grn_line.line_number}: {self.allocated_amount}"
+
+
+class ItemPrice(models.Model):
+    """
+    Cached/calculated price for an item from a price list.
+
+    This can be recalculated periodically or on-demand.
+    Provides quick access to current prices without recalculating.
+    """
+
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.CASCADE,
+        related_name="prices"
+    )
+    variant = models.ForeignKey(
+        ItemVariant, on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name="prices"
+    )
+    price_list = models.ForeignKey(
+        PriceList, on_delete=models.CASCADE,
+        related_name="item_prices"
+    )
+
+    # Calculated price
+    unit_price = models.DecimalField(max_digits=15, decimal_places=4)
+    currency = models.CharField(max_length=3, default="USD")
+
+    # Price source explanation
+    price_source = models.CharField(max_length=200, blank=True)
+
+    # Landing cost component (if applicable)
+    landed_cost_per_unit = models.DecimalField(
+        max_digits=15, decimal_places=4, default=0,
+        help_text="Additional per-unit cost from landing costs"
+    )
+
+    # Effective dates (inherited from price list unless overridden)
+    effective_from = models.DateField()
+    effective_to = models.DateField(null=True, blank=True)
+
+    # Calculation metadata
+    calculated_at = models.DateTimeField(auto_now=True)
+    is_manual_override = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "item_prices"
+        verbose_name = "Item Price"
+        verbose_name_plural = "Item Prices"
+        ordering = ["item", "price_list", "-effective_from"]
+        unique_together = [["item", "variant", "price_list", "effective_from"]]
+
+    def __str__(self):
+        variant_str = f" ({self.variant.code})" if self.variant else ""
+        return f"{self.item.code}{variant_str} @ {self.price_list.code}: {self.unit_price}"
+
+    @property
+    def total_price(self):
+        """Unit price including landed cost."""
+        return self.unit_price + self.landed_cost_per_unit
+
+    @classmethod
+    def calculate_for_item(cls, item, price_list, variant=None):
+        """
+        Calculate and cache price for an item from a price list.
+        """
+        unit_price, price_source = price_list.get_price(item, variant)
+
+        # Get or create price record
+        price, created = cls.objects.update_or_create(
+            item=item,
+            variant=variant,
+            price_list=price_list,
+            effective_from=price_list.effective_from,
+            defaults={
+                'unit_price': unit_price,
+                'currency': price_list.currency,
+                'price_source': price_source,
+                'effective_to': price_list.effective_to,
+                'is_manual_override': False,
+            }
+        )
+
+        return price
