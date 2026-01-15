@@ -52,6 +52,7 @@ from .models import (
     ItemVariant,
     UnitOfMeasure,
     VariantCase,
+    VariantStock,
     # Reference Data
     Party,
     ConditionType,
@@ -1181,6 +1182,65 @@ class StockAdjustView(LoginRequiredMixin, View):
             messages.error(request, "Invalid adjustment data.")
 
         return redirect("inventory:item_detail", pk=stock.item.pk)
+
+
+# =============================================================================
+# Variant Stock Views
+# =============================================================================
+
+
+class VariantStockListView(LoginRequiredMixin, ListView):
+    """Dashboard showing stock levels by item variant (NEW, USED, etc.)."""
+
+    model = VariantStock
+    template_name = "inventory/variant_stock_list.html"
+    context_object_name = "variant_stocks"
+    paginate_by = 50
+
+    def get_queryset(self):
+        from .models import VariantStock
+        qs = VariantStock.objects.select_related(
+            "variant", "variant__item", "variant__variant_case", "location", "location__warehouse"
+        ).filter(quantity_on_hand__gt=0)
+
+        # Filter by warehouse
+        warehouse = self.request.GET.get("warehouse")
+        if warehouse:
+            qs = qs.filter(location__warehouse_id=warehouse)
+
+        # Filter by item
+        item = self.request.GET.get("item")
+        if item:
+            qs = qs.filter(variant__item_id=item)
+
+        # Filter by variant case (condition: NEW, USED, etc.)
+        condition = self.request.GET.get("condition")
+        if condition:
+            qs = qs.filter(variant__variant_case__condition=condition)
+
+        return qs.order_by("variant__item__code", "variant__code", "location__code")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Variant Stock Levels"
+        from apps.sales.models import Warehouse
+        from .models import InventoryItem, VariantCase
+
+        context["warehouses"] = Warehouse.objects.filter(is_active=True)
+        context["current_warehouse"] = self.request.GET.get("warehouse", "")
+        context["items"] = InventoryItem.objects.filter(has_variants=True, is_active=True).order_by("code")
+        context["current_item"] = self.request.GET.get("item", "")
+        context["variant_cases"] = VariantCase.objects.filter(is_active=True).order_by("condition")
+        context["current_condition"] = self.request.GET.get("condition", "")
+
+        # Summary stats
+        from django.db.models import Sum, Count
+        qs = self.get_queryset()
+        context["total_variants"] = qs.values("variant").distinct().count()
+        context["total_qty"] = qs.aggregate(total=Sum("quantity_on_hand"))["total"] or 0
+        context["total_locations"] = qs.values("location").distinct().count()
+
+        return context
 
 
 # =============================================================================

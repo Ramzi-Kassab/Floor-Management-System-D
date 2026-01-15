@@ -73,6 +73,8 @@ urlpatterns = [
     # Stock
     path("stock/", views.StockListView.as_view(), name="stock_list"),
     path("stock/<int:pk>/adjust/", views.StockAdjustView.as_view(), name="stock_adjust"),
+    # Variant Stock (stock by item variant - NEW, USED, etc.)
+    path("variant-stock/", views.VariantStockListView.as_view(), name="variant_stock_list"),
     # Item Planning (per-warehouse)
     path("items/<int:item_pk>/planning/create/", views.ItemPlanningCreateView.as_view(), name="item_planning_create"),
     path("items/<int:item_pk>/planning/<int:pk>/edit/", views.ItemPlanningUpdateView.as_view(), name="item_planning_update"),

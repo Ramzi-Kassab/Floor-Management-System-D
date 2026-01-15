@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Stock levels by item variant (NEW, USED, REFURB, etc.)</p>
+    </div>
+    <a href="{% url 'inventory:stock_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+        <i data-lucide="layers" class="w-4 h-4 mr-1"></i>Item Stock View
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Stats -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+        <div class="flex items-center">
+            <div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <i data-lucide="git-branch" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+            </div>
+            <div class="ml-3">
+                <p class="text-xl font-bold text-gray-900 dark:text-white">{{ total_variants }}</p>
+                <p class="text-sm text-gray-500">Active Variants</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+        <div class="flex items-center">
+            <div class="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <i data-lucide="package" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
+            </div>
+            <div class="ml-3">
+                <p class="text-xl font-bold text-gray-900 dark:text-white">{{ total_qty|floatformat:0 }}</p>
+                <p class="text-sm text-gray-500">Total Quantity</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+        <div class="flex items-center">
+            <div class="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                <i data-lucide="map-pin" class="w-5 h-5 text-purple-600 dark:text-purple-400"></i>
+            </div>
+            <div class="ml-3">
+                <p class="text-xl font-bold text-gray-900 dark:text-white">{{ total_locations }}</p>
+                <p class="text-sm text-gray-500">Locations</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="w-full md:w-48">
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Warehouse</label>
+            <select name="warehouse" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                <option value="">All Warehouses</option>
+                {% for wh in warehouses %}
+                <option value="{{ wh.pk }}" {% if current_warehouse == wh.pk|stringformat:"s" %}selected{% endif %}>{{ wh.code }} - {{ wh.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-full md:w-64">
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Item</label>
+            <select name="item" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                <option value="">All Items with Variants</option>
+                {% for item in items %}
+                <option value="{{ item.pk }}" {% if current_item == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.code }} - {{ item.name|truncatewords:4 }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-full md:w-40">
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Condition</label>
+            <select name="condition" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                <option value="">All Conditions</option>
+                {% for vc in variant_cases %}
+                <option value="{{ vc.condition }}" {% if current_condition == vc.condition %}selected{% endif %}>{{ vc.name }} ({{ vc.condition }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>Filter
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Stock Table -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if variant_stocks %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">Item</th>
+                    <th class="px-6 py-3 font-medium">Variant</th>
+                    <th class="px-6 py-3 font-medium">Condition</th>
+                    <th class="px-6 py-3 font-medium">Location</th>
+                    <th class="px-6 py-3 font-medium text-right">On Hand</th>
+                    <th class="px-6 py-3 font-medium text-right">Reserved</th>
+                    <th class="px-6 py-3 font-medium text-right">Available</th>
+                    <th class="px-6 py-3 font-medium">Last Movement</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for stock in variant_stocks %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4">
+                        <a href="{% url 'inventory:item_detail' stock.variant.item.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                            {{ stock.variant.item.code }}
+                        </a>
+                        <span class="text-gray-500 ml-2 text-xs">{{ stock.variant.item.name|truncatewords:3 }}</span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                            {{ stock.variant.code }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if stock.variant.variant_case %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                {% if stock.variant.variant_case.condition == 'NEW' %}
+                                    bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                                {% elif stock.variant.variant_case.condition == 'USED' %}
+                                    bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+                                {% elif stock.variant.variant_case.condition == 'REFURB' %}
+                                    bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400
+                                {% else %}
+                                    bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+                                {% endif %}">
+                                {{ stock.variant.variant_case.condition }}
+                            </span>
+                        {% else %}
+                            <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400 font-mono text-xs">
+                        {{ stock.location.warehouse.code }}/{{ stock.location.code }}
+                    </td>
+                    <td class="px-6 py-4 text-right font-mono text-gray-900 dark:text-white">
+                        {{ stock.quantity_on_hand|floatformat:0 }}
+                    </td>
+                    <td class="px-6 py-4 text-right font-mono text-gray-500">
+                        {{ stock.quantity_reserved|floatformat:0 }}
+                    </td>
+                    <td class="px-6 py-4 text-right font-mono font-medium
+                        {% if stock.quantity_available < 0 %}text-red-600{% else %}text-gray-900 dark:text-white{% endif %}">
+                        {{ stock.quantity_available|floatformat:0 }}
+                    </td>
+                    <td class="px-6 py-4 text-gray-500 text-xs">
+                        {{ stock.last_movement_date|date:"M d, Y"|default:"-" }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <div class="text-sm text-gray-500">
+            Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} records
+        </div>
+        <div class="flex gap-2">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% if current_warehouse %}&warehouse={{ current_warehouse }}{% endif %}{% if current_item %}&item={{ current_item }}{% endif %}{% if current_condition %}&condition={{ current_condition }}{% endif %}"
+               class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 text-sm">
+                Previous
+            </a>
+            {% endif %}
+            <span class="px-3 py-1 text-sm text-gray-600 dark:text-gray-400">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if current_warehouse %}&warehouse={{ current_warehouse }}{% endif %}{% if current_item %}&item={{ current_item }}{% endif %}{% if current_condition %}&condition={{ current_condition }}{% endif %}"
+               class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 text-sm">
+                Next
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="git-branch" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No variant stock records</h3>
+        <p class="text-gray-500 mb-4">Variant stock will appear here after receiving inventory with variant tracking.</p>
+        <div class="flex justify-center gap-3">
+            <a href="{% url 'inventory:grn_create' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Create GRN
+            </a>
+            <a href="{% url 'inventory:item_variant_list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+                <i data-lucide="settings" class="w-4 h-4 inline mr-1"></i>Manage Variants
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
