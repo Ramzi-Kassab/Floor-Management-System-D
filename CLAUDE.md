@@ -94,6 +94,26 @@ InventoryItem
 - **Cleaned Up**: Bit/Cutter Specifications sections only show when data exists (not empty prompts)
 - **Styling**: Improved spec cards with colored backgrounds, icons, and grouped Operating Parameters
 
+### Cutter Inventory Management
+- **Cutter Dashboard**: New view at `/inventory/cutters/` showing PDC cutter inventory
+  - Stock breakdown by variant (NEW-PUR, NEW-EO, GRD-EO, USED-RCL, CLI-RCL)
+  - Consumption tracking (2M, 3M, 6M periods)
+  - BOM requirements from active BOMs
+  - On-order quantities from open POs
+  - Forecast calculation: Total Stock - BOM Req + On Order
+  - Safety stock warnings (red highlight when forecast < safety)
+- **Cutter Orders**: New view at `/inventory/cutters/orders/` showing PO lines for PDC cutters
+  - Summary cards: Total Ordered, Received, Pending
+  - Filters by status and cutter item
+  - Links to PO details
+- **Sidebar**: New "PDC Cutters" section under Logistics with Cutter Inventory and Cutter Orders
+- **Variant Case Updates**: Corrected codes for better clarity
+  - NEW-ENO → NEW-EO (New E&O)
+  - USED-GRD → GRD-EO (E&O Ground)
+  - USED-STD → USED-RCL (Used Reclaimed)
+  - CLI-USED → CLI-RCL (Client Reclaimed)
+- **Template Filter**: Added `get_item` filter for dictionary access in templates
+
 ### Bug Fixes
 - **Decimal Fix**: Variant bulk create now uses `Decimal()` instead of `float` for cost calculations
 
