@@ -1218,7 +1218,7 @@ class VariantStockListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         from .models import VariantStock
         qs = VariantStock.objects.select_related(
-            "variant", "variant__item", "variant__variant_case", "location", "location__warehouse"
+            "variant", "variant__base_item", "variant__variant_case", "location", "location__warehouse"
         ).filter(quantity_on_hand__gt=0)
 
         # Filter by warehouse
@@ -1229,14 +1229,14 @@ class VariantStockListView(LoginRequiredMixin, ListView):
         # Filter by item
         item = self.request.GET.get("item")
         if item:
-            qs = qs.filter(variant__item_id=item)
+            qs = qs.filter(variant__base_item_id=item)
 
         # Filter by variant case (condition: NEW, USED, etc.)
         condition = self.request.GET.get("condition")
         if condition:
             qs = qs.filter(variant__variant_case__condition=condition)
 
-        return qs.order_by("variant__item__code", "variant__code", "location__code")
+        return qs.order_by("variant__base_item__code", "variant__code", "location__code")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
