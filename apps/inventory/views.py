@@ -1262,6 +1262,223 @@ class VariantStockListView(LoginRequiredMixin, ListView):
 
 
 # =============================================================================
+# Cutter Inventory Dashboard (PDC Cutters specific)
+# =============================================================================
+
+
+class CutterInventoryListView(LoginRequiredMixin, ListView):
+    """
+    Dashboard showing PDC Cutter inventory with:
+    - Stock by variant (NEW-PUR, NEW-EO, GRD-EO, USED-RCL, CLI-RCL)
+    - Consumption trends (2/3/6 months from StockLedger)
+    - BOM requirements (cutters needed for drill bits in warehouse)
+    - On Order (from open POs)
+    - Forecast calculation
+    """
+
+    model = InventoryItem
+    template_name = "inventory/cutter_inventory_list.html"
+    context_object_name = "cutters"
+    paginate_by = 50
+
+    def get_queryset(self):
+        """Get PDC Cutter items only (category code CT-PDC)"""
+        from django.db.models import Prefetch
+        from .models import ItemVariant, VariantStock
+
+        qs = InventoryItem.objects.filter(
+            category__code="CT-PDC",
+            is_active=True
+        ).select_related("category", "primary_supplier").prefetch_related(
+            Prefetch(
+                "variants",
+                queryset=ItemVariant.objects.filter(is_active=True).select_related("variant_case")
+            )
+        ).order_by("code")
+
+        # Filter by search
+        search = self.request.GET.get("search", "").strip()
+        if search:
+            qs = qs.filter(Q(code__icontains=search) | Q(name__icontains=search))
+
+        # Filter by supplier
+        supplier = self.request.GET.get("supplier")
+        if supplier:
+            qs = qs.filter(primary_supplier_id=supplier)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        from datetime import timedelta
+        from django.db.models import Sum, F, Value, DecimalField
+        from django.db.models.functions import Coalesce
+        from decimal import Decimal
+
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Cutter Inventory Dashboard"
+
+        # Get date ranges for consumption
+        today = timezone.now().date()
+        two_months_ago = today - timedelta(days=60)
+        three_months_ago = today - timedelta(days=90)
+        six_months_ago = today - timedelta(days=180)
+
+        # Variant case codes we care about
+        variant_codes = ["NEW-PUR", "NEW-EO", "GRD-EO", "USED-RCL", "CLI-RCL"]
+
+        # Build cutter data with stock, consumption, requirements
+        cutter_data = []
+        for cutter in context["cutters"]:
+            row = {
+                "item": cutter,
+                "variants": {},
+                "total_stock": Decimal("0"),
+                "consumption_2m": Decimal("0"),
+                "consumption_3m": Decimal("0"),
+                "consumption_6m": Decimal("0"),
+                "bom_requirement": Decimal("0"),
+                "on_order": Decimal("0"),
+                "forecast": Decimal("0"),
+                "safety_stock": cutter.min_stock or Decimal("0"),
+            }
+
+            # Get stock by variant
+            for variant in cutter.variants.all():
+                if variant.variant_case and variant.variant_case.code in variant_codes:
+                    # Get total stock for this variant across all locations
+                    variant_stock = VariantStock.objects.filter(
+                        variant=variant
+                    ).aggregate(total=Coalesce(Sum("quantity_on_hand"), Value(0), output_field=DecimalField()))["total"]
+                    row["variants"][variant.variant_case.code] = variant_stock
+                    row["total_stock"] += variant_stock
+
+            # Get consumption from StockLedger (ISSUE, CONSUMPTION transactions)
+            from .models import StockLedger
+            consumption_qs = StockLedger.objects.filter(
+                item=cutter,
+                transaction_type__in=["ISSUE", "CONSUMPTION"],
+            )
+
+            row["consumption_2m"] = abs(consumption_qs.filter(
+                transaction_date__gte=two_months_ago
+            ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
+
+            row["consumption_3m"] = abs(consumption_qs.filter(
+                transaction_date__gte=three_months_ago
+            ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
+
+            row["consumption_6m"] = abs(consumption_qs.filter(
+                transaction_date__gte=six_months_ago
+            ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
+
+            # Get BOM requirements (cutters needed for drill bits)
+            from apps.technology.models import BOMLine
+            row["bom_requirement"] = BOMLine.objects.filter(
+                inventory_item=cutter
+            ).aggregate(total=Coalesce(Sum("quantity"), Value(0), output_field=DecimalField()))["total"]
+
+            # Get on order quantity (open PO lines)
+            from apps.supplychain.models import PurchaseOrderLine
+            on_order = PurchaseOrderLine.objects.filter(
+                inventory_item=cutter,
+                purchase_order__status__in=["APPROVED", "SENT", "PARTIAL"],
+                is_cancelled=False
+            ).aggregate(
+                total=Coalesce(Sum(F("quantity_ordered") - F("quantity_received")), Value(0), output_field=DecimalField())
+            )["total"]
+            row["on_order"] = max(on_order, Decimal("0"))
+
+            # Calculate forecast
+            row["forecast"] = row["total_stock"] - row["bom_requirement"] + row["on_order"]
+
+            # Check if below safety stock
+            row["below_safety"] = row["forecast"] < row["safety_stock"]
+
+            cutter_data.append(row)
+
+        context["cutter_data"] = cutter_data
+        context["variant_codes"] = variant_codes
+
+        # Summary stats
+        context["total_cutters"] = len(cutter_data)
+        context["total_stock"] = sum(r["total_stock"] for r in cutter_data)
+        context["total_on_order"] = sum(r["on_order"] for r in cutter_data)
+        context["below_safety_count"] = sum(1 for r in cutter_data if r["below_safety"])
+
+        # Filters
+        from apps.supplychain.models import Supplier
+        context["suppliers"] = Supplier.objects.filter(is_active=True).order_by("name")
+        context["current_supplier"] = self.request.GET.get("supplier", "")
+        context["current_search"] = self.request.GET.get("search", "")
+
+        return context
+
+
+class CutterOrderListView(LoginRequiredMixin, ListView):
+    """
+    View showing PO lines for PDC Cutters (NEW-PUR variant).
+    Displays: PO#, Date, Cutter details, Ordered, Received, Balance
+    """
+
+    template_name = "inventory/cutter_order_list.html"
+    context_object_name = "orders"
+    paginate_by = 50
+
+    def get_queryset(self):
+        from apps.supplychain.models import PurchaseOrderLine
+
+        qs = PurchaseOrderLine.objects.filter(
+            inventory_item__category__code="CT-PDC",
+            is_cancelled=False
+        ).select_related(
+            "purchase_order", "inventory_item"
+        ).order_by("-purchase_order__order_date", "line_number")
+
+        # Filter by status
+        status = self.request.GET.get("status")
+        if status == "open":
+            qs = qs.filter(
+                purchase_order__status__in=["APPROVED", "SENT", "PARTIAL"]
+            ).exclude(quantity_ordered__lte=F("quantity_received"))
+        elif status == "received":
+            qs = qs.filter(quantity_ordered__lte=F("quantity_received"))
+
+        # Filter by item
+        item = self.request.GET.get("item")
+        if item:
+            qs = qs.filter(inventory_item_id=item)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        from django.db.models import Sum, F
+        from django.db.models.functions import Coalesce
+        from decimal import Decimal
+
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Cutter Purchase Orders"
+
+        # Summary
+        all_orders = self.get_queryset()
+        context["total_ordered"] = all_orders.aggregate(
+            total=Coalesce(Sum("quantity_ordered"), Decimal("0"))
+        )["total"]
+        context["total_received"] = all_orders.aggregate(
+            total=Coalesce(Sum("quantity_received"), Decimal("0"))
+        )["total"]
+        context["total_pending"] = context["total_ordered"] - context["total_received"]
+
+        # Filters
+        context["cutter_items"] = InventoryItem.objects.filter(
+            category__code="CT-PDC", is_active=True
+        ).order_by("code")
+        context["current_status"] = self.request.GET.get("status", "")
+        context["current_item"] = self.request.GET.get("item", "")
+
+        return context
+
+
+# =============================================================================
 # Attribute Views (Simple global list - just names)
 # =============================================================================
 

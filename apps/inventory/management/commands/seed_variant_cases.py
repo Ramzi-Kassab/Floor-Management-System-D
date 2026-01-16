@@ -1,6 +1,13 @@
 """
 Seed Variant Cases - Master data for item variants.
-Creates the standard ~10 variant cases used across all items.
+Creates the standard variant cases used across all items.
+
+Key Variant Cases for PDC Cutters:
+- NEW-PUR: New Purchased (from suppliers)
+- NEW-EO: E&O (Excess & Obsolete, new condition but discounted)
+- GRD-EO: E&O Ground (ground cutters moved to E&O stock)
+- USED-RCL: Used Reclaimed (standard reclaim)
+- CLI-RCL: Client Reclaimed (client-provided used cutters)
 """
 from django.core.management.base import BaseCommand
 
@@ -47,7 +54,7 @@ class Command(BaseCommand):
                 "display_order": 3,
             },
             {
-                "code": "NEW-ENO",
+                "code": "NEW-EO",
                 "name": "E&O (Excess & Obsolete)",
                 "condition": "NEW",
                 "acquisition": "RECLAIMED",
@@ -56,20 +63,21 @@ class Command(BaseCommand):
                 "description": "Excess or obsolete inventory, new condition but discounted",
                 "display_order": 4,
             },
-            # USED Items - ARDT Owned
+            # E&O Ground - Ground cutters that go into E&O stock
             {
-                "code": "USED-GRD",
-                "name": "Ground (Surface Damage)",
+                "code": "GRD-EO",
+                "name": "E&O Ground",
                 "condition": "USED",
                 "acquisition": "RECLAIMED",
                 "reclaim_category": "GROUND",
                 "ownership": "ARDT",
-                "description": "Reclaimed with surface grinding, partial life remaining",
+                "description": "Ground cutters (surface damage) moved to E&O stock",
                 "display_order": 5,
             },
+            # USED Items - ARDT Owned
             {
-                "code": "USED-STD",
-                "name": "Standard Reclaim",
+                "code": "USED-RCL",
+                "name": "Used Reclaimed",
                 "condition": "USED",
                 "acquisition": "RECLAIMED",
                 "reclaim_category": "STANDARD",
@@ -89,8 +97,8 @@ class Command(BaseCommand):
                 "display_order": 7,
             },
             {
-                "code": "CLI-USED",
-                "name": "Client Used",
+                "code": "CLI-RCL",
+                "name": "Client Reclaimed",
                 "condition": "USED",
                 "acquisition": "CLIENT_PROVIDED",
                 "reclaim_category": "",
@@ -99,6 +107,9 @@ class Command(BaseCommand):
                 "display_order": 8,
             },
         ]
+
+        # Track old codes to clean up
+        old_codes = ["NEW-ENO", "USED-GRD", "USED-STD", "CLI-USED"]
 
         created_count = 0
         for case_data in cases:
@@ -121,4 +132,9 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(f"  Updated: {case.code} - {case.name}")
 
-        self.stdout.write(self.style.SUCCESS(f"\nTotal variant cases: {VariantCase.objects.count()} (new: {created_count})"))
+        # Deactivate old codes if they exist
+        deactivated = VariantCase.objects.filter(code__in=old_codes).update(is_active=False)
+        if deactivated:
+            self.stdout.write(f"  Deactivated {deactivated} old variant case(s)")
+
+        self.stdout.write(self.style.SUCCESS(f"\nTotal active variant cases: {VariantCase.objects.filter(is_active=True).count()} (new: {created_count})"))

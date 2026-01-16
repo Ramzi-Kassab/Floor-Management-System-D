@@ -69,3 +69,16 @@ def format_range(attr):
     max_str = fmt(attr.max_value)
 
     return f"[{min_str}-{max_str}]"
+
+
+@register.filter
+def get_item(dictionary, key):
+    """
+    Get an item from a dictionary by key.
+    Returns None if dictionary is None or key doesn't exist.
+
+    Usage: {{ my_dict|get_item:"key_name" }}
+    """
+    if dictionary is None:
+        return None
+    return dictionary.get(key, None)
