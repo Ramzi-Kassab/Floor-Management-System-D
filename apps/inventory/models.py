@@ -1220,6 +1220,9 @@ class InventoryItem(models.Model):
         help_text="When floor stock drops below this, trigger replenishment"
     )
 
+    # Notes/Remarks
+    notes = models.TextField(blank=True, help_text="General notes or remarks about this item")
+
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

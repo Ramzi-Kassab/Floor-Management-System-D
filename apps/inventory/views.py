@@ -1268,23 +1268,26 @@ class VariantStockListView(LoginRequiredMixin, ListView):
 
 class CutterInventoryListView(LoginRequiredMixin, ListView):
     """
-    Dashboard showing PDC Cutter inventory with:
-    - Stock by variant (NEW-PUR, NEW-EO, GRD-EO, USED-RCL, CLI-RCL)
-    - Consumption trends (2/3/6 months from StockLedger)
-    - BOM requirements (cutters needed for drill bits in warehouse)
-    - On Order (from open POs)
-    - Forecast calculation
+    Dashboard showing PDC Cutter inventory matching Excel format:
+    - Cutter attributes: Shape, Size, Type (HDBS), Chamfer, Family, Category
+    - Stock by variant: NEW-EO, GRD-EO, USED-RCL, CLI-RCL
+    - New Stock (NEW-PUR only)
+    - Total New (NEW-PUR + NEW-EO + NEW-RET)
+    - Consumption trends (6/3/2 months)
+    - Safety Stock (calculated from 2M consumption)
+    - BOM requirements, On Order, Forecast
+    - Remarks (editable)
     """
 
     model = InventoryItem
     template_name = "inventory/cutter_inventory_list.html"
     context_object_name = "cutters"
-    paginate_by = 50
+    paginate_by = 100
 
     def get_queryset(self):
         """Get PDC Cutter items only (category code CT-PDC)"""
         from django.db.models import Prefetch
-        from .models import ItemVariant, VariantStock
+        from .models import ItemVariant, VariantStock, ItemAttributeValue
 
         qs = InventoryItem.objects.filter(
             category__code="CT-PDC",
@@ -1293,6 +1296,10 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
             Prefetch(
                 "variants",
                 queryset=ItemVariant.objects.filter(is_active=True).select_related("variant_case")
+            ),
+            Prefetch(
+                "attribute_values",
+                queryset=ItemAttributeValue.objects.select_related("attribute")
             )
         ).order_by("code")
 
@@ -1307,6 +1314,48 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
             qs = qs.filter(primary_supplier_id=supplier)
 
         return qs
+
+    def _get_attribute_value(self, cutter, attr_codes):
+        """Get attribute value by checking multiple possible attribute codes."""
+        if not hasattr(cutter, '_attr_cache'):
+            cutter._attr_cache = {}
+            for av in cutter.attribute_values.all():
+                code = av.attribute.code.lower() if av.attribute else ""
+                cutter._attr_cache[code] = av.display_value
+
+        for code in attr_codes:
+            if code.lower() in cutter._attr_cache:
+                return cutter._attr_cache[code.lower()]
+        return ""
+
+    def _calculate_safety_stock(self, consumption_2m):
+        """
+        Calculate safety stock based on 2-month consumption using Excel formula:
+        - If consumption <= 1: 0
+        - Otherwise: consumption + buffer, rounded up to nearest 5
+        Buffer: >=300 → +10, >=200 → +5, >=100 → +5, >=5 → +2, else → +1
+        """
+        import math
+        from decimal import Decimal
+
+        c = int(consumption_2m) if consumption_2m else 0
+        if c <= 1:
+            return Decimal("0")
+
+        if c >= 300:
+            buffer = 10
+        elif c >= 200:
+            buffer = 5
+        elif c >= 100:
+            buffer = 5
+        elif c >= 5:
+            buffer = 2
+        else:
+            buffer = 1
+
+        # Round up to nearest 5
+        result = math.ceil((c + buffer) / 5) * 5
+        return Decimal(str(result))
 
     def get_context_data(self, **kwargs):
         from datetime import timedelta
@@ -1323,15 +1372,40 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         three_months_ago = today - timedelta(days=90)
         six_months_ago = today - timedelta(days=180)
 
-        # Variant case codes we care about
-        variant_codes = ["NEW-PUR", "NEW-EO", "GRD-EO", "USED-RCL", "CLI-RCL"]
+        # Variant case codes - includes NEW-RET (Retrofit as New)
+        variant_codes = ["NEW-PUR", "NEW-RET", "NEW-EO", "GRD-EO", "USED-RCL", "CLI-RCL"]
+        # Codes that count towards "Total New"
+        new_variant_codes = ["NEW-PUR", "NEW-EO", "NEW-RET"]
+
+        # Attribute code mappings (check multiple possible codes)
+        attr_mappings = {
+            "shape": ["cutter_shape", "shape", "cutter_type_shape"],
+            "size": ["cutter_size", "size", "diameter"],
+            "type": ["hdbs_code", "type", "cutter_type", "hdbs"],
+            "chamfer": ["chamfer", "chamfer_angle", "cutter_chamfer"],
+            "family": ["family", "cutter_family", "product_family"],
+            "category": ["category", "cutter_category", "size_category"],
+        }
 
         # Build cutter data with stock, consumption, requirements
         cutter_data = []
+        row_num = 0
         for cutter in context["cutters"]:
+            row_num += 1
+
+            # Get attribute values
             row = {
+                "row_num": row_num,
                 "item": cutter,
+                "shape": self._get_attribute_value(cutter, attr_mappings["shape"]),
+                "size": self._get_attribute_value(cutter, attr_mappings["size"]),
+                "type": self._get_attribute_value(cutter, attr_mappings["type"]),
+                "chamfer": self._get_attribute_value(cutter, attr_mappings["chamfer"]),
+                "family": self._get_attribute_value(cutter, attr_mappings["family"]),
+                "category": self._get_attribute_value(cutter, attr_mappings["category"]),
                 "variants": {},
+                "new_stock": Decimal("0"),  # NEW-PUR only
+                "total_new": Decimal("0"),  # NEW-PUR + NEW-EO + NEW-RET
                 "total_stock": Decimal("0"),
                 "consumption_2m": Decimal("0"),
                 "consumption_3m": Decimal("0"),
@@ -1339,7 +1413,8 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                 "bom_requirement": Decimal("0"),
                 "on_order": Decimal("0"),
                 "forecast": Decimal("0"),
-                "safety_stock": cutter.min_stock or Decimal("0"),
+                "safety_stock": Decimal("0"),
+                "remarks": cutter.notes or "",  # Use notes field for remarks
             }
 
             # Get stock by variant
@@ -1352,6 +1427,12 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                     row["variants"][variant.variant_case.code] = variant_stock
                     row["total_stock"] += variant_stock
 
+                    # Track new stock and total new separately
+                    if variant.variant_case.code == "NEW-PUR":
+                        row["new_stock"] = variant_stock
+                    if variant.variant_case.code in new_variant_codes:
+                        row["total_new"] += variant_stock
+
             # Get consumption from StockLedger (ISSUE, CONSUMPTION transactions)
             from .models import StockLedger
             consumption_qs = StockLedger.objects.filter(
@@ -1359,17 +1440,20 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                 transaction_type__in=["ISSUE", "CONSUMPTION"],
             )
 
-            row["consumption_2m"] = abs(consumption_qs.filter(
-                transaction_date__gte=two_months_ago
+            row["consumption_6m"] = abs(consumption_qs.filter(
+                transaction_date__gte=six_months_ago
             ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
 
             row["consumption_3m"] = abs(consumption_qs.filter(
                 transaction_date__gte=three_months_ago
             ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
 
-            row["consumption_6m"] = abs(consumption_qs.filter(
-                transaction_date__gte=six_months_ago
+            row["consumption_2m"] = abs(consumption_qs.filter(
+                transaction_date__gte=two_months_ago
             ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
+
+            # Calculate safety stock from 2-month consumption
+            row["safety_stock"] = self._calculate_safety_stock(row["consumption_2m"])
 
             # Get BOM requirements (cutters needed for drill bits)
             from apps.technology.models import BOMLine
@@ -1388,8 +1472,8 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
             )["total"]
             row["on_order"] = max(on_order, Decimal("0"))
 
-            # Calculate forecast
-            row["forecast"] = row["total_stock"] - row["bom_requirement"] + row["on_order"]
+            # Calculate forecast: Total New + On Order - BOM Requirement
+            row["forecast"] = row["total_new"] + row["on_order"] - row["bom_requirement"]
 
             # Check if below safety stock
             row["below_safety"] = row["forecast"] < row["safety_stock"]
@@ -1402,6 +1486,7 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         # Summary stats
         context["total_cutters"] = len(cutter_data)
         context["total_stock"] = sum(r["total_stock"] for r in cutter_data)
+        context["total_new_stock"] = sum(r["total_new"] for r in cutter_data)
         context["total_on_order"] = sum(r["on_order"] for r in cutter_data)
         context["below_safety_count"] = sum(1 for r in cutter_data if r["below_safety"])
 
