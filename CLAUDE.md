@@ -95,13 +95,18 @@ InventoryItem
 - **Styling**: Improved spec cards with colored backgrounds, icons, and grouped Operating Parameters
 
 ### Cutter Inventory Management
-- **Cutter Dashboard**: New view at `/inventory/cutters/` showing PDC cutter inventory
-  - Stock breakdown by variant (NEW-PUR, NEW-EO, GRD-EO, USED-RCL, CLI-RCL)
-  - Consumption tracking (2M, 3M, 6M periods)
-  - BOM requirements from active BOMs
-  - On-order quantities from open POs
-  - Forecast calculation: Total Stock - BOM Req + On Order
-  - Safety stock warnings (red highlight when forecast < safety)
+- **Cutter Dashboard**: New view at `/inventory/cutters/` matching Excel format
+  - **Attribute Columns**: Shape, Size, Type (HDBS), Chamfer, Family, Category
+  - **Stock by Variant**: NEW-EO, GRD-EO, USED-RCL, CLI-RCL columns
+  - **New Stock**: NEW-PUR only
+  - **Total New**: NEW-PUR + NEW-EO + NEW-RET (Retrofit as New)
+  - **Consumption**: 6M, 3M, 2M columns (yellow background)
+  - **Safety Stock**: Calculated from 2M consumption using Excel formula:
+    - Buffer: >=300 → +10, >=200 → +5, >=100 → +5, >=5 → +2, else → +1
+    - Rounded up to nearest 5
+  - **Forecast**: Total New + On Order - BOM Requirement
+  - **Remarks**: Notes field (editable)
+  - Red row highlight when forecast < safety stock
 - **Cutter Orders**: New view at `/inventory/cutters/orders/` showing PO lines for PDC cutters
   - Summary cards: Total Ordered, Received, Pending
   - Filters by status and cutter item
@@ -112,6 +117,7 @@ InventoryItem
   - USED-GRD → GRD-EO (E&O Ground)
   - USED-STD → USED-RCL (Used Reclaimed)
   - CLI-USED → CLI-RCL (Client Reclaimed)
+- **Model Changes**: Added `notes` field to InventoryItem for remarks column
 - **Template Filter**: Added `get_item` filter for dictionary access in templates
 
 ### Bug Fixes
