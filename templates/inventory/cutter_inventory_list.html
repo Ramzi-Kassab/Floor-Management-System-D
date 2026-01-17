@@ -5,20 +5,69 @@
 
 {% block extra_css %}
 <style>
-    /* Ensure main content area doesn't extend under sidebar */
-    main {
-        overflow-x: hidden !important;
-        max-width: 100% !important;
+    /* Normal mode - standard page flow */
+    .cutter-page-container {
+        max-width: 100%;
     }
-    main > div {
-        overflow-x: hidden !important;
-        max-width: 100% !important;
+
+    /* Freeze mode - fixed layout with independent table scroll */
+    .cutter-page-container.freeze-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 120px);
+        overflow: hidden;
     }
-    /* Freeze panes sticky positioning - contained within table scroll area */
-    .freeze-sticky-col {
+    .freeze-mode .cutter-header-section {
+        flex-shrink: 0;
+    }
+    .freeze-mode .cutter-table-section {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .freeze-mode .cutter-table-wrapper {
+        flex: 1;
+        overflow: auto;
+        min-height: 0;
+    }
+
+    /* Sticky header inside scrollable table (always active in freeze mode) */
+    .freeze-mode .cutter-table-wrapper thead {
         position: sticky;
+        top: 0;
         z-index: 10;
-        background: inherit;
+    }
+
+    /* Sticky columns when freeze is active */
+    .freeze-col-1 {
+        position: sticky;
+        left: 0;
+        z-index: 20;
+    }
+    .freeze-col-2 {
+        position: sticky;
+        left: 40px;
+        z-index: 20;
+        box-shadow: 4px 0 6px -4px rgba(0,0,0,0.3);
+    }
+    .freeze-col-1-body {
+        position: sticky;
+        left: 0;
+        z-index: 5;
+    }
+    .freeze-col-2-body {
+        position: sticky;
+        left: 40px;
+        z-index: 5;
+        box-shadow: 4px 0 6px -4px rgba(0,0,0,0.3);
+    }
+
+    /* Normal mode table - standard overflow */
+    .cutter-page-container:not(.freeze-mode) .cutter-table-wrapper {
+        overflow-x: auto;
+        max-height: none;
     }
 </style>
 {% endblock %}
@@ -41,11 +90,13 @@
 {% endblock %}
 
 {% block content %}
-<div class="w-full max-w-full overflow-hidden" x-data="cutterInventory()" x-init="init()">
+<div class="cutter-page-container" :class="{ 'freeze-mode': freezePanes }" x-data="cutterInventory()" x-init="init()">
 
-<!-- Summary Cards (collapsible when freeze panes active) -->
-<div id="summarySection" x-show="!freezePanes" x-transition>
-    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+<!-- HEADER SECTION - Always visible -->
+<div class="cutter-header-section">
+    <!-- Summary Cards (collapsible when freeze panes active) -->
+    <div id="summarySection" x-show="!freezePanes" x-transition>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
             <div class="flex items-center justify-between">
                 <div>
@@ -105,7 +156,7 @@
 </div>
 
 <!-- Filters & Controls -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6" id="filterSection" :class="{ 'sticky top-0 z-40': freezePanes }">
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-4" id="filterSection">
     <form method="get" class="flex flex-wrap gap-4 items-end">
         <div class="flex-1 min-w-[200px]">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
@@ -176,20 +227,23 @@
         </div>
     </form>
 </div>
+</div>
+<!-- END HEADER SECTION -->
 
-<!-- Inventory Table with Freeze Panes -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden w-full max-w-full">
-    <div class="overflow-x-auto overflow-y-auto" :class="{ 'max-h-[calc(100vh-180px)]': freezePanes }">
-        <table class="w-full text-xs border-collapse" id="cutterTable">
-            <thead :class="{ 'sticky top-0 z-20': freezePanes }">
-                <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
-                    <!-- # - Row Number (always visible, sticky when freeze) -->
-                    <th class="px-2 py-2 text-left font-medium w-10 min-w-[40px]"
-                        :class="freezePanes ? 'sticky left-0 z-20 bg-gray-100 dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-700/50'">#</th>
-                    <!-- MN - HDBS Code (sticky when freeze) -->
-                    <th class="px-2 py-2 text-left font-medium min-w-[70px]"
-                        :class="freezePanes ? 'sticky left-[40px] z-20 bg-gray-100 dark:bg-gray-700 shadow-[4px_0_6px_-4px_rgba(0,0,0,0.3)]' : 'bg-gray-50 dark:bg-gray-700/50'"
-                        x-show="columns.attr_hdbs_code" data-column="mn" data-type="text">
+<!-- TABLE SECTION - Independent scrolling -->
+<div class="cutter-table-section">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col">
+        <div class="cutter-table-wrapper">
+            <table class="w-full text-xs border-collapse" id="cutterTable">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr class="text-gray-500 dark:text-gray-400">
+                        <!-- # - Row Number (always visible, sticky when freeze) -->
+                        <th class="px-2 py-2 text-left font-medium w-10 min-w-[40px] bg-gray-100 dark:bg-gray-700"
+                            :class="freezePanes ? 'freeze-col-1' : ''">#</th>
+                        <!-- MN - HDBS Code (sticky when freeze) -->
+                        <th class="px-2 py-2 text-left font-medium min-w-[70px] bg-gray-100 dark:bg-gray-700"
+                            :class="freezePanes ? 'freeze-col-2' : ''"
+                            x-show="columns.attr_hdbs_code" data-column="mn" data-type="text">
                         <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'mn')">
                             <span>MN</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
@@ -311,11 +365,11 @@
                 {% for row in cutter_data %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.below_safety %}bg-red-50 dark:bg-red-900/10{% endif %}">
                     <!-- Row # -->
-                    <td class="px-2 py-2 text-gray-400 text-center"
-                        :class="freezePanes ? 'sticky left-0 z-10 bg-white dark:bg-gray-800 {% if row.below_safety %}!bg-red-50 dark:!bg-red-900/30{% endif %}' : ''">{{ row.row_num }}</td>
+                    <td class="px-2 py-2 text-gray-400 text-center {% if row.below_safety %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
+                        :class="freezePanes ? 'freeze-col-1-body' : ''">{{ row.row_num }}</td>
                     <!-- MN (HDBS Code) -->
-                    <td class="px-2 py-2 font-mono text-xs font-medium text-gray-900 dark:text-white"
-                        :class="freezePanes ? 'sticky left-[40px] z-10 bg-white dark:bg-gray-800 shadow-[4px_0_6px_-4px_rgba(0,0,0,0.3)] {% if row.below_safety %}!bg-red-50 dark:!bg-red-900/30{% endif %}' : ''"
+                    <td class="px-2 py-2 font-mono text-xs font-medium text-gray-900 dark:text-white {% if row.below_safety %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
+                        :class="freezePanes ? 'freeze-col-2-body' : ''"
                         x-show="columns.attr_hdbs_code" data-value="{{ row.attributes|get_item:'hdbs_code'|default:'' }}">
                         {{ row.attributes|get_item:'hdbs_code'|default:"-" }}
                     </td>
@@ -397,8 +451,10 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 </div>
+<!-- END TABLE SECTION -->
 
 <!-- Legend (hidden when freeze panes active) -->
 <div class="mt-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4" x-show="!freezePanes" x-transition>
