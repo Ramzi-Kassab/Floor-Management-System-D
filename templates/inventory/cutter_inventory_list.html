@@ -85,6 +85,34 @@
         z-index: 5;
         box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2);
     }
+
+    /* Full page mode - maximizes table view */
+    .full-page-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 80px);
+    }
+    .full-page-mode .cutter-header-section {
+        flex-shrink: 0;
+    }
+    .full-page-mode .cutter-table-section {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .full-page-mode .cutter-table-wrapper {
+        height: 100%;
+    }
+    /* Hide page header in full page mode */
+    .full-page-mode ~ #pageHeader,
+    body:has(.full-page-mode) #pageHeader {
+        display: none !important;
+    }
+    /* Compact filter section in full page mode */
+    .full-page-mode #filterSection {
+        padding: 0.5rem 1rem;
+        margin-bottom: 0.5rem;
+    }
 </style>
 {% endblock %}
 
@@ -106,12 +134,12 @@
 {% endblock %}
 
 {% block content %}
-<div class="cutter-page-container" :class="{ 'freeze-mode': freezePanes }" x-data="cutterInventory()" x-init="init()">
+<div class="cutter-page-container" :class="{ 'freeze-mode': freezePanes, 'full-page-mode': fullPageView }" x-data="cutterInventory()" x-init="init()">
 
 <!-- HEADER SECTION - Always visible -->
 <div class="cutter-header-section">
-    <!-- Summary Cards (collapsible when freeze panes active) -->
-    <div id="summarySection" x-show="!freezePanes" x-transition>
+    <!-- Summary Cards (collapsible in full page view) -->
+    <div id="summarySection" x-show="!fullPageView" x-transition>
         <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
             <div class="flex items-center justify-between">
@@ -191,6 +219,14 @@
                     class="px-4 py-2 rounded-lg hover:opacity-90 flex items-center gap-2">
                 <i data-lucide="lock" class="w-4 h-4"></i>
                 <span x-text="freezePanes ? 'Unfreeze' : 'Freeze Panes'"></span>
+            </button>
+
+            <!-- Full Page View Toggle -->
+            <button type="button" @click="toggleFullPageView()"
+                    :class="fullPageView ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                    class="px-4 py-2 rounded-lg hover:opacity-90 flex items-center gap-2">
+                <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                <span x-text="fullPageView ? 'Exit Full' : 'Full Page'"></span>
             </button>
 
             <!-- Column Toggle Button -->
@@ -472,8 +508,8 @@
 </div>
 <!-- END TABLE SECTION -->
 
-<!-- Legend (hidden when freeze panes active) -->
-<div class="mt-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4" x-show="!freezePanes" x-transition>
+<!-- Legend (hidden in full page view) -->
+<div class="mt-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4" x-show="!fullPageView" x-transition>
     <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Column Legend</h3>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-gray-500 dark:text-gray-400">
         <div class="flex items-center gap-2">
@@ -501,7 +537,7 @@
 
 {% if page_obj.has_other_pages %}
 <!-- Pagination -->
-<div class="mt-6 flex items-center justify-between" x-show="!freezePanes" x-transition>
+<div class="mt-6 flex items-center justify-between" x-show="!fullPageView" x-transition>
     <p class="text-sm text-gray-500">
         Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} cutters
     </p>
@@ -626,6 +662,7 @@
         return {
             columns: { ...defaultColumns },
             freezePanes: false,
+            fullPageView: false,
             showColumnMenu: false,
 
             init() {
@@ -640,6 +677,13 @@
                         if (prefs.freezePanes !== undefined) {
                             this.freezePanes = prefs.freezePanes;
                         }
+                        if (prefs.fullPageView !== undefined) {
+                            this.fullPageView = prefs.fullPageView;
+                            if (this.fullPageView) {
+                                this.applySidebarState(true);
+                                this.applyPageHeaderState(true);
+                            }
+                        }
                     } catch (e) {
                         console.error('Failed to load preferences:', e);
                     }
@@ -649,7 +693,8 @@
             savePreferences() {
                 const prefs = {
                     columns: this.columns,
-                    freezePanes: this.freezePanes
+                    freezePanes: this.freezePanes,
+                    fullPageView: this.fullPageView
                 };
                 localStorage.setItem('cutterInventoryPrefs', JSON.stringify(prefs));
             },
@@ -657,6 +702,32 @@
             toggleFreezePanes() {
                 this.freezePanes = !this.freezePanes;
                 this.savePreferences();
+            },
+
+            toggleFullPageView() {
+                this.fullPageView = !this.fullPageView;
+                this.applySidebarState(this.fullPageView);
+                this.applyPageHeaderState(this.fullPageView);
+                this.savePreferences();
+            },
+
+            applySidebarState(collapse) {
+                // Access the parent Alpine component for sidebar
+                const mainEl = document.querySelector('[x-data]');
+                if (mainEl && mainEl._x_dataStack) {
+                    const rootData = mainEl._x_dataStack[0];
+                    if (rootData && rootData.sidebarOpen !== undefined) {
+                        rootData.sidebarOpen = !collapse;
+                    }
+                }
+            },
+
+            applyPageHeaderState(hide) {
+                // Hide/show the page header
+                const pageHeader = document.getElementById('pageHeader');
+                if (pageHeader) {
+                    pageHeader.style.display = hide ? 'none' : '';
+                }
             },
 
             resetToDefaults() {
@@ -923,7 +994,13 @@
         }
     });
 
-    window.addEventListener('scroll', () => closeColumnMenu(), true);
+    // Close menu on scroll, but not when scrolling inside the menu itself
+    window.addEventListener('scroll', (e) => {
+        const menu = document.getElementById('columnMenu');
+        if (!menu.contains(e.target)) {
+            closeColumnMenu();
+        }
+    }, true);
     window.addEventListener('resize', () => closeColumnMenu());
 
     const observer = new MutationObserver(() => {
