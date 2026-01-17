@@ -70,7 +70,45 @@ InventoryItem
 └── attribute_values (ItemAttributeValue - cutter specs)
 ```
 
-## Recent Changes (Jan 16, 2026)
+## Recent Changes (Jan 17, 2026)
+
+### Cutter Inventory Column Updates
+- **Renamed Column**: "Client Stk" → "LSTK Rcl" (specifically for Client Reclaim with Halliburton + LSTK account)
+- **Column Reorder**: Retrofit moved from Stock Variants (green) to Stock Totals (blue) section
+- **New Column Order**: ENO New, ENO Grd, ARDT Rcl, LSTK Rcl | Retrofit, New Stock, Total New
+- **Updated Export**: CSV export matches new column structure
+
+### Cross-Table Item Number Uniqueness
+- **InventoryItem.code** and **ItemVariant.code** now validated for global uniqueness
+- Validation runs in both `clean()` method (forms) and `save()` method (direct calls)
+- Prevents creating an item with a code that exists as a variant code, and vice versa
+- Prepares system for importing real cutter data with unique ERP item numbers
+
+### QR Code Print Labels for Variants
+- **New View**: `VariantPrintLabelView` at `/inventory/items/{item_pk}/variants/{pk}/print-label/`
+- **Multiple Copies**: Supports 1-50 copies per print job
+- **Label Sizes**: Small (1.5"×1"), Medium (2"×1"), Large (3"×1.5")
+- **Variant Detail Page**: Split into "Quick Print" (window.print) and "Print Labels" (dedicated view)
+- **Print CSS**: Added print-specific styles to variant detail page
+
+### Management Commands for Cutter Data
+- **clear_test_cutters**: Remove test PDC cutter data (items, variants, attributes, stock)
+  ```bash
+  python manage.py clear_test_cutters           # Preview mode
+  python manage.py clear_test_cutters --confirm # Actually delete
+  python manage.py clear_test_cutters --keep-count 5 --confirm
+  ```
+- **import_cutters_excel**: Import real cutter data from Excel
+  ```bash
+  python manage.py import_cutters_excel           # Preview mode
+  python manage.py import_cutters_excel --confirm # Actually import
+  python manage.py import_cutters_excel --skip-existing --confirm
+  ```
+  - Reads from `docs/Cutters ERP Item Numbers2.xlsx`
+  - Creates base items with attributes (Type, Size, Chamfer, Family, Shape)
+  - Creates variants with unique ERP item numbers per variant case
+
+## Previous Changes (Jan 16, 2026)
 
 ### Pricing System
 - **PriceList Model**: Supports 3 types - LSTK (fixed tiers), COST_PLUS (markup %), MATRIX (size × quality)
