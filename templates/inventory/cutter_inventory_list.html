@@ -22,12 +22,12 @@
 
 {% block content %}
 <div x-data="{
+    attrColumns: {
+        {% for attr in category_attributes %}
+        '{{ attr.code }}': true{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    },
     columns: {
-        shape: true,
-        size: true,
-        type: true,
-        chamfer: true,
-        family: true,
         eno_new: true,
         eno_grd: true,
         ardt_rcl: true,
@@ -38,7 +38,6 @@
         cons_3m: true,
         cons_2m: true,
         safety: true,
-        category: true,
         bom_req: true,
         on_order: true,
         forecast: true,
@@ -114,15 +113,6 @@
             <input type="text" name="search" value="{{ current_search }}" placeholder="Code or name..."
                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
         </div>
-        <div class="min-w-[200px]">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Supplier</label>
-            <select name="supplier" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                <option value="">All Suppliers</option>
-                {% for supplier in suppliers %}
-                <option value="{{ supplier.pk }}" {% if current_supplier == supplier.pk|stringformat:"s" %}selected{% endif %}>{{ supplier.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
         <div class="flex gap-2">
             <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                 <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Filter
@@ -136,28 +126,28 @@
                 <!-- Column Menu Dropdown -->
                 <div x-show="showColumnMenu" @click.away="showColumnMenu = false"
                      class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 p-3 max-h-96 overflow-y-auto">
-                    <p class="text-xs font-medium text-gray-500 mb-2">Show/Hide Columns</p>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.shape"> Shape</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.size"> Size</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.type"> Type</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.chamfer"> Chamfer</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.family"> Family</label>
+                    <p class="text-xs font-medium text-gray-500 mb-2">Attributes</p>
+                    {% for attr in category_attributes %}
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="attrColumns['{{ attr.code }}']"> {{ attr.name }}</label>
+                    {% endfor %}
                     <hr class="my-2">
+                    <p class="text-xs font-medium text-gray-500 mb-2">Stock Variants</p>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_new"> ENO New</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_grd"> ENO Grd</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.ardt_rcl"> ARDT Rcl</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.lstk_rcl"> LSTK Rcl</label>
                     <hr class="my-2">
+                    <p class="text-xs font-medium text-gray-500 mb-2">Stock Totals</p>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.new_stock"> New Stock</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.total_new"> Total New</label>
                     <hr class="my-2">
+                    <p class="text-xs font-medium text-gray-500 mb-2">Consumption</p>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_6m"> 6M Consumption</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_3m"> 3M Consumption</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_2m"> 2M Consumption</label>
                     <hr class="my-2">
+                    <p class="text-xs font-medium text-gray-500 mb-2">Planning</p>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.safety"> Safety Stock</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.category"> Category</label>
-                    <hr class="my-2">
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.bom_req"> BOM Req</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.on_order"> On Order</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.forecast"> Forecast</label>
@@ -175,14 +165,11 @@
             <thead>
                 <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
                     <th class="px-2 py-2 text-left font-medium w-8">#</th>
-                    <th class="px-2 py-2 text-left font-medium" title="HDBS Code">MN</th>
                     <th class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600">Product Name</th>
-                    <!-- Attributes -->
-                    <th x-show="columns.shape" class="px-2 py-2 text-left font-medium">Shape</th>
-                    <th x-show="columns.size" class="px-2 py-2 text-left font-medium">Size</th>
-                    <th x-show="columns.type" class="px-2 py-2 text-left font-medium">Type</th>
-                    <th x-show="columns.chamfer" class="px-2 py-2 text-left font-medium">Chamfer</th>
-                    <th x-show="columns.family" class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600">Family</th>
+                    <!-- Dynamic Attributes -->
+                    {% for attr in category_attributes %}
+                    <th x-show="attrColumns['{{ attr.code }}']" class="px-2 py-2 text-left font-medium{% if forloop.last %} border-r border-gray-200 dark:border-gray-600{% endif %}">{{ attr.name }}</th>
+                    {% endfor %}
                     <!-- Stock Variants (green background) -->
                     <th x-show="columns.eno_new" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20" title="E&O New">ENO New</th>
                     <th x-show="columns.eno_grd" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20" title="E&O Ground">ENO Grd</th>
@@ -197,8 +184,6 @@
                     <th x-show="columns.cons_2m" class="px-2 py-2 text-right font-medium bg-yellow-100 dark:bg-yellow-900/30 border-r border-gray-200 dark:border-gray-600">2M</th>
                     <!-- Safety (red background) -->
                     <th x-show="columns.safety" class="px-2 py-2 text-right font-medium bg-red-50 dark:bg-red-900/20 border-r border-gray-200 dark:border-gray-600">Safety</th>
-                    <!-- Category -->
-                    <th x-show="columns.category" class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600">Category</th>
                     <!-- Planning (green background) -->
                     <th x-show="columns.bom_req" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20" title="BOM Requirement">BOM Req</th>
                     <th x-show="columns.on_order" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20">On Order</th>
@@ -212,22 +197,18 @@
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.below_safety %}bg-red-50 dark:bg-red-900/10{% endif %}">
                     <!-- Row # -->
                     <td class="px-2 py-2 text-gray-400 text-center">{{ row.row_num }}</td>
-                    <!-- MN (HDBS Code) -->
-                    <td class="px-2 py-2">
-                        <a href="{% url 'inventory:item_detail' row.item.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-blue-600">
-                            {{ row.hdbs_code|default:row.item.code }}
+                    <!-- Product Name (with link) -->
+                    <td class="px-2 py-2 border-r border-gray-100 dark:border-gray-700">
+                        <a href="{% url 'inventory:item_detail' row.item.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-blue-600 text-[10px] max-w-[180px] truncate block" title="{{ row.product_name }}">
+                            {{ row.product_name|truncatechars:35 }}
                         </a>
                     </td>
-                    <!-- Product Name -->
-                    <td class="px-2 py-2 border-r border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-[10px] max-w-[180px] truncate" title="{{ row.product_name }}">
-                        {{ row.product_name|truncatechars:30 }}
+                    <!-- Dynamic Attributes -->
+                    {% for attr in category_attributes %}
+                    <td x-show="attrColumns['{{ attr.code }}']" class="px-2 py-2 text-gray-700 dark:text-gray-300{% if forloop.last %} border-r border-gray-100 dark:border-gray-700{% endif %}">
+                        {{ row.attributes|get_item:attr.code|default:"-"|truncatechars:20 }}
                     </td>
-                    <!-- Attributes -->
-                    <td x-show="columns.shape" class="px-2 py-2 text-gray-700 dark:text-gray-300">{{ row.shape|default:"-" }}</td>
-                    <td x-show="columns.size" class="px-2 py-2 text-gray-700 dark:text-gray-300 font-mono">{{ row.size|default:"-" }}</td>
-                    <td x-show="columns.type" class="px-2 py-2 text-gray-700 dark:text-gray-300 font-medium">{{ row.cutter_type|default:"-" }}</td>
-                    <td x-show="columns.chamfer" class="px-2 py-2 text-gray-700 dark:text-gray-300">{{ row.chamfer|default:"-" }}</td>
-                    <td x-show="columns.family" class="px-2 py-2 text-gray-600 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 text-[10px]">{{ row.family|default:"-"|truncatechars:15 }}</td>
+                    {% endfor %}
                     <!-- Stock Variants -->
                     <td x-show="columns.eno_new" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'NEW-EO' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}">
                         {{ row.variants|get_item:"NEW-EO"|floatformat:0|default:"-" }}
@@ -261,10 +242,6 @@
                     <!-- Safety Stock -->
                     <td x-show="columns.safety" class="px-2 py-2 text-right font-mono bg-red-50/50 dark:bg-red-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.below_safety %}text-red-700 dark:text-red-300 font-bold{% else %}text-gray-500{% endif %}">
                         {{ row.safety_stock|floatformat:0 }}
-                    </td>
-                    <!-- Category -->
-                    <td x-show="columns.category" class="px-2 py-2 text-gray-600 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 text-[10px]">
-                        {{ row.category|default:"-"|truncatechars:18 }}
                     </td>
                     <!-- Planning -->
                     <td x-show="columns.bom_req" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 text-purple-600 dark:text-purple-400">
@@ -320,6 +297,12 @@
         <strong>Forecast Formula:</strong> Total New + On Order - BOM Requirement |
         <strong>Safety Formula:</strong> 2M consumption + buffer (2-10), rounded up to nearest 5
     </div>
+    {% if category_attributes %}
+    <div class="mt-2 text-xs text-gray-400">
+        <strong>Dynamic Attributes ({{ category_attributes|length }}):</strong>
+        {% for attr in category_attributes %}{{ attr.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+    </div>
+    {% endif %}
 </div>
 
 {% if page_obj.has_other_pages %}
@@ -330,19 +313,19 @@
     </p>
     <nav class="flex gap-1">
         {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}&search={{ current_search }}&supplier={{ current_supplier }}"
+        <a href="?page={{ page_obj.previous_page_number }}&search={{ current_search }}"
            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">Prev</a>
         {% endif %}
         {% for num in page_obj.paginator.page_range %}
         {% if page_obj.number == num %}
         <span class="px-3 py-1 bg-blue-600 text-white rounded">{{ num }}</span>
         {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-        <a href="?page={{ num }}&search={{ current_search }}&supplier={{ current_supplier }}"
+        <a href="?page={{ num }}&search={{ current_search }}"
            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">{{ num }}</a>
         {% endif %}
         {% endfor %}
         {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&search={{ current_search }}&supplier={{ current_supplier }}"
+        <a href="?page={{ page_obj.next_page_number }}&search={{ current_search }}"
            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">Next</a>
         {% endif %}
     </nav>

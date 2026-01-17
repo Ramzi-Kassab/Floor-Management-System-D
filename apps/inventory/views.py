@@ -1269,7 +1269,7 @@ class VariantStockListView(LoginRequiredMixin, ListView):
 class CutterInventoryListView(LoginRequiredMixin, ListView):
     """
     Dashboard showing PDC Cutter inventory matching Excel format:
-    - Cutter attributes: Shape, Size, Type (HDBS), Chamfer, Family, Category
+    - Dynamic cutter attributes from CategoryAttribute (all attributes for PDC Cutters)
     - Stock by variant: NEW-EO, GRD-EO, USED-RCL, CLI-RCL
     - New Stock (NEW-PUR only)
     - Total New (NEW-PUR + NEW-EO + NEW-RET)
@@ -1284,6 +1284,47 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
     context_object_name = "cutters"
     paginate_by = 100
 
+    def _get_category_attributes(self):
+        """Get all attributes for PDC Cutters category (own + inherited from parent)."""
+        try:
+            category = InventoryCategory.objects.get(code="CT-PDC")
+        except InventoryCategory.DoesNotExist:
+            return []
+
+        all_attributes = []
+        seen_codes = set()
+
+        # Get own attributes first
+        for cat_attr in category.category_attributes.select_related("attribute", "unit").order_by("display_order"):
+            if cat_attr.attribute:
+                code = cat_attr.attribute.code
+                if code not in seen_codes:
+                    seen_codes.add(code)
+                    all_attributes.append({
+                        "code": code,
+                        "name": cat_attr.attribute.name,
+                        "display_order": cat_attr.display_order or 0,
+                    })
+
+        # Get inherited attributes from parent categories
+        parent = category.parent
+        while parent:
+            for cat_attr in parent.category_attributes.select_related("attribute", "unit").order_by("display_order"):
+                if cat_attr.attribute:
+                    code = cat_attr.attribute.code
+                    if code not in seen_codes:
+                        seen_codes.add(code)
+                        all_attributes.append({
+                            "code": code,
+                            "name": cat_attr.attribute.name,
+                            "display_order": cat_attr.display_order or 999,
+                        })
+            parent = parent.parent
+
+        # Sort by display order
+        all_attributes.sort(key=lambda x: x["display_order"])
+        return all_attributes
+
     def get_queryset(self):
         """Get PDC Cutter items only (category code CT-PDC)"""
         from django.db.models import Prefetch
@@ -1292,7 +1333,7 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         qs = InventoryItem.objects.filter(
             category__code="CT-PDC",
             is_active=True
-        ).select_related("category", "primary_supplier").prefetch_related(
+        ).select_related("category").prefetch_related(
             Prefetch(
                 "variants",
                 queryset=ItemVariant.objects.filter(is_active=True).select_related("variant_case")
@@ -1308,25 +1349,18 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         if search:
             qs = qs.filter(Q(code__icontains=search) | Q(name__icontains=search))
 
-        # Filter by supplier
-        supplier = self.request.GET.get("supplier")
-        if supplier:
-            qs = qs.filter(primary_supplier_id=supplier)
-
         return qs
 
-    def _get_attribute_value(self, cutter, attr_codes):
-        """Get attribute value by checking multiple possible attribute codes."""
+    def _get_attribute_value_by_code(self, cutter, attr_code):
+        """Get attribute value by attribute code."""
         if not hasattr(cutter, '_attr_cache'):
             cutter._attr_cache = {}
             for av in cutter.attribute_values.all():
-                code = av.attribute.code.lower() if av.attribute else ""
-                cutter._attr_cache[code] = av.display_value
+                if av.attribute:
+                    code = av.attribute.code.lower()
+                    cutter._attr_cache[code] = av.display_value
 
-        for code in attr_codes:
-            if code.lower() in cutter._attr_cache:
-                return cutter._attr_cache[code.lower()]
-        return ""
+        return cutter._attr_cache.get(attr_code.lower(), "")
 
     def _calculate_safety_stock(self, consumption_2m):
         """
@@ -1377,16 +1411,9 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         # Codes that count towards "Total New"
         new_variant_codes = ["NEW-PUR", "NEW-EO", "NEW-RET"]
 
-        # Attribute code mappings (check multiple possible codes)
-        attr_mappings = {
-            "hdbs_code": ["hdbs_code", "hdbs", "cutter_hdbs"],  # For MN column (CT97, CT200, etc.)
-            "shape": ["cutter_shape", "shape", "cutter_type_shape"],
-            "size": ["cutter_size", "size", "diameter"],
-            "cutter_type": ["cutter_type", "type", "cutter_type_name"],  # Actual cutter type (not HDBS)
-            "chamfer": ["chamfer", "chamfer_angle", "cutter_chamfer"],
-            "family": ["family", "cutter_family", "product_family"],
-            "category": ["category", "cutter_category", "size_category"],
-        }
+        # Get dynamic category attributes
+        category_attributes = self._get_category_attributes()
+        context["category_attributes"] = category_attributes
 
         # Build cutter data with stock, consumption, requirements
         cutter_data = []
@@ -1394,18 +1421,17 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         for cutter in context["cutters"]:
             row_num += 1
 
+            # Build dynamic attribute values dict
+            attr_values = {}
+            for attr in category_attributes:
+                attr_values[attr["code"]] = self._get_attribute_value_by_code(cutter, attr["code"])
+
             # Get attribute values
             row = {
                 "row_num": row_num,
                 "item": cutter,
-                "hdbs_code": self._get_attribute_value(cutter, attr_mappings["hdbs_code"]),  # For MN column
                 "product_name": cutter.name,  # Separate product name column
-                "shape": self._get_attribute_value(cutter, attr_mappings["shape"]),
-                "size": self._get_attribute_value(cutter, attr_mappings["size"]),
-                "cutter_type": self._get_attribute_value(cutter, attr_mappings["cutter_type"]),  # Cutter type
-                "chamfer": self._get_attribute_value(cutter, attr_mappings["chamfer"]),
-                "family": self._get_attribute_value(cutter, attr_mappings["family"]),
-                "category": self._get_attribute_value(cutter, attr_mappings["category"]),
+                "attributes": attr_values,  # Dynamic attributes dict
                 "variants": {},
                 "new_stock": Decimal("0"),  # NEW-PUR only
                 "total_new": Decimal("0"),  # NEW-PUR + NEW-EO + NEW-RET
@@ -1493,10 +1519,7 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         context["total_on_order"] = sum(r["on_order"] for r in cutter_data)
         context["below_safety_count"] = sum(1 for r in cutter_data if r["below_safety"])
 
-        # Filters
-        from apps.supplychain.models import Supplier
-        context["suppliers"] = Supplier.objects.filter(is_active=True).order_by("name")
-        context["current_supplier"] = self.request.GET.get("supplier", "")
+        # Filters - removed supplier filter (only Halliburton supplies PDC cutters)
         context["current_search"] = self.request.GET.get("search", "")
 
         return context
