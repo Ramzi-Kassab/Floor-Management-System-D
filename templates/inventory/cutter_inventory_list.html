@@ -164,6 +164,9 @@
         <p class="text-gray-600 dark:text-gray-400 mt-1">PDC Cutter inventory - matching Excel format</p>
     </div>
     <div class="mt-4 md:mt-0 flex gap-2">
+        <a href="{% url 'inventory:cutter_inventory_export' %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i data-lucide="download" class="w-4 h-4 mr-2"></i>Export
+        </a>
         <a href="{% url 'inventory:cutter_order_list' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="shopping-cart" class="w-4 h-4 mr-2"></i>View Orders
         </a>

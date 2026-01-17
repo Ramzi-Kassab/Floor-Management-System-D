@@ -436,7 +436,7 @@ class ItemListView(LoginRequiredMixin, ListView):
         from .models import ItemAttributeValue, ItemVariant
 
         qs = InventoryItem.objects.select_related(
-            "category", "primary_supplier", "stock_uom"
+            "category", "primary_supplier", "uom"
         ).prefetch_related(
             Prefetch(
                 "attribute_values",
@@ -3041,6 +3041,200 @@ class ItemImportTemplateView(LoginRequiredMixin, View):
         writer = csv.writer(response)
         writer.writerow(["code", "name", "description", "item_type", "unit"])
         writer.writerow(["ITEM-001", "Sample Item", "Description here", "COMPONENT", "EA"])
+
+        return response
+
+
+class CutterInventoryExportView(LoginRequiredMixin, View):
+    """Export cutter inventory to CSV with all stock and consumption data."""
+
+    def _get_attribute_value_by_code(self, cutter, attr_code):
+        """Get attribute value by attribute code."""
+        if not hasattr(cutter, '_attr_cache'):
+            cutter._attr_cache = {}
+            for av in cutter.attribute_values.all():
+                if av.attribute:
+                    code = av.attribute.code.lower()
+                    cutter._attr_cache[code] = av.display_value
+        return cutter._attr_cache.get(attr_code.lower(), "")
+
+    def _calculate_safety_stock(self, consumption_2m):
+        """Calculate safety stock based on 2-month consumption."""
+        import math
+        from decimal import Decimal
+        c = int(consumption_2m) if consumption_2m else 0
+        if c <= 1:
+            return Decimal("0")
+        if c >= 300:
+            buffer = 10
+        elif c >= 200:
+            buffer = 5
+        elif c >= 100:
+            buffer = 5
+        elif c >= 5:
+            buffer = 2
+        else:
+            buffer = 1
+        result = math.ceil((c + buffer) / 5) * 5
+        return Decimal(str(result))
+
+    def get(self, request):
+        from datetime import timedelta
+        from django.db.models import Prefetch, Sum
+        from decimal import Decimal
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="cutter_inventory.csv"'
+
+        # Get PDC Cutters category
+        try:
+            category = InventoryCategory.objects.get(code="CT-PDC")
+        except InventoryCategory.DoesNotExist:
+            writer = csv.writer(response)
+            writer.writerow(["Error: PDC Cutters category not found"])
+            return response
+
+        # Get all category attributes
+        all_attributes = []
+        seen_codes = set()
+        for cat_attr in category.category_attributes.select_related("attribute").order_by("display_order"):
+            if cat_attr.attribute:
+                code = cat_attr.attribute.code
+                if code not in seen_codes:
+                    seen_codes.add(code)
+                    all_attributes.append({"code": code, "name": cat_attr.attribute.name})
+        parent = category.parent
+        while parent:
+            for cat_attr in parent.category_attributes.select_related("attribute").order_by("display_order"):
+                if cat_attr.attribute:
+                    code = cat_attr.attribute.code
+                    if code not in seen_codes:
+                        seen_codes.add(code)
+                        all_attributes.append({"code": code, "name": cat_attr.attribute.name})
+            parent = parent.parent
+
+        # Get cutters with prefetched data
+        cutters = InventoryItem.objects.filter(
+            category__code="CT-PDC",
+            is_active=True
+        ).select_related("category").prefetch_related(
+            Prefetch(
+                "variants",
+                queryset=ItemVariant.objects.filter(is_active=True).select_related("variant_case")
+            ),
+            Prefetch(
+                "attribute_values",
+                queryset=ItemAttributeValue.objects.select_related("attribute")
+            )
+        ).order_by("code")
+
+        # Date ranges for consumption
+        today = timezone.now().date()
+        two_months_ago = today - timedelta(days=60)
+        three_months_ago = today - timedelta(days=90)
+        six_months_ago = today - timedelta(days=180)
+
+        # Variant codes
+        variant_codes = ["NEW-PUR", "NEW-RET", "NEW-EO", "GRD-EO", "USED-RCL", "CLI-RCL"]
+        new_variant_codes = ["NEW-PUR", "NEW-EO", "NEW-RET"]
+
+        writer = csv.writer(response)
+
+        # Build header row
+        header = ["#", "Code", "Product Name"]
+        for attr in all_attributes:
+            header.append(attr["name"])
+        header.extend(["NEW-EO", "GRD-EO", "USED-RCL", "CLI-RCL", "New Stock", "Total New",
+                      "6M Consumption", "3M Consumption", "2M Consumption",
+                      "Safety Stock", "BOM Req", "On Order", "Forecast", "Remarks"])
+        writer.writerow(header)
+
+        # Write data rows
+        row_num = 0
+        for cutter in cutters:
+            row_num += 1
+
+            # Get attribute values
+            attr_values = []
+            for attr in all_attributes:
+                attr_values.append(self._get_attribute_value_by_code(cutter, attr["code"]))
+
+            # Get stock by variant
+            variant_stock = {}
+            new_stock = Decimal("0")
+            total_new = Decimal("0")
+            for variant in cutter.variants.all():
+                if variant.variant_case:
+                    code = variant.variant_case.code
+                    from .models import VariantStock
+                    stock = VariantStock.objects.filter(variant=variant).aggregate(
+                        total=Sum("quantity_on_hand")
+                    )["total"] or Decimal("0")
+                    variant_stock[code] = stock
+                    if code == "NEW-PUR":
+                        new_stock = stock
+                    if code in new_variant_codes:
+                        total_new += stock
+
+            # Get consumption
+            from .models import StockLedger
+            consumption_6m = StockLedger.objects.filter(
+                item=cutter,
+                transaction_type="ISSUE",
+                transaction_date__gte=six_months_ago
+            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
+
+            consumption_3m = StockLedger.objects.filter(
+                item=cutter,
+                transaction_type="ISSUE",
+                transaction_date__gte=three_months_ago
+            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
+
+            consumption_2m = StockLedger.objects.filter(
+                item=cutter,
+                transaction_type="ISSUE",
+                transaction_date__gte=two_months_ago
+            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
+
+            # Calculate safety stock
+            safety_stock = self._calculate_safety_stock(abs(consumption_2m))
+
+            # Get BOM requirements (placeholder - would need BOM model integration)
+            bom_requirement = Decimal("0")
+
+            # Get on order quantity
+            from .models import PurchaseOrderLine
+            on_order = PurchaseOrderLine.objects.filter(
+                item=cutter,
+                purchase_order__status__in=["DRAFT", "SUBMITTED", "APPROVED"]
+            ).aggregate(
+                total=Sum("quantity") - Sum("received_quantity")
+            )["total"] or Decimal("0")
+            on_order = max(on_order, Decimal("0"))
+
+            # Calculate forecast
+            forecast = total_new + on_order - bom_requirement
+
+            # Build row
+            row = [row_num, cutter.code, cutter.name]
+            row.extend(attr_values)
+            row.extend([
+                variant_stock.get("NEW-EO", 0),
+                variant_stock.get("GRD-EO", 0),
+                variant_stock.get("USED-RCL", 0),
+                variant_stock.get("CLI-RCL", 0),
+                new_stock,
+                total_new,
+                abs(consumption_6m),
+                abs(consumption_3m),
+                abs(consumption_2m),
+                safety_stock,
+                bom_requirement,
+                on_order,
+                forecast,
+                cutter.notes or ""
+            ])
+            writer.writerow(row)
 
         return response
 
