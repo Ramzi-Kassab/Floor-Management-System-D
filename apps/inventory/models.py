@@ -1285,6 +1285,20 @@ class InventoryItem(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_items"
     )
 
+    def clean(self):
+        """Validate cross-table uniqueness of item code."""
+        from django.core.exceptions import ValidationError
+        super().clean()
+
+        # Check if this code exists in ItemVariant
+        if self.code:
+            existing_variant = ItemVariant.objects.filter(code=self.code).first()
+            if existing_variant:
+                raise ValidationError({
+                    'code': f"Code '{self.code}' already exists as a variant code for item '{existing_variant.base_item.code}'. "
+                            f"Item codes must be unique across both items and variants."
+                })
+
     class Meta:
         db_table = "inventory_items"
         ordering = ["code"]
@@ -1380,6 +1394,18 @@ class InventoryItem(models.Model):
         template = ' '.join(template.split())  # Clean extra spaces
 
         return template.strip() or self.name
+
+    def save(self, *args, **kwargs):
+        # Cross-table uniqueness check (runs even when save() called directly)
+        from django.core.exceptions import ValidationError
+        if self.code:
+            existing_variant = ItemVariant.objects.filter(code=self.code).first()
+            if existing_variant:
+                raise ValidationError(
+                    f"Code '{self.code}' already exists as a variant code for item '{existing_variant.base_item.code}'. "
+                    f"Item codes must be unique across both items and variants."
+                )
+        super().save(*args, **kwargs)
 
 
 class ItemRelationship(models.Model):
@@ -1758,6 +1784,20 @@ class ItemVariant(models.Model):
         """Total stock for this variant across all locations."""
         return self.stock_records.aggregate(total=models.Sum("quantity_on_hand"))["total"] or 0
 
+    def clean(self):
+        """Validate cross-table uniqueness of variant code."""
+        from django.core.exceptions import ValidationError
+        super().clean()
+
+        # Check if this code exists in InventoryItem
+        if self.code:
+            existing_item = InventoryItem.objects.filter(code=self.code).first()
+            if existing_item:
+                raise ValidationError({
+                    'code': f"Code '{self.code}' already exists as an item code for '{existing_item.name}'. "
+                            f"Variant codes must be unique across both items and variants."
+                })
+
     def save(self, *args, **kwargs):
         # Auto-generate code if not set
         if not self.code:
@@ -1765,6 +1805,15 @@ class ItemVariant(models.Model):
             if self.customer:
                 parts.append(self.customer.code[:6] if hasattr(self.customer, 'code') else "CLI")
             self.code = "-".join(parts)
+
+        # Cross-table uniqueness check (runs even when save() called directly)
+        from django.core.exceptions import ValidationError
+        existing_item = InventoryItem.objects.filter(code=self.code).first()
+        if existing_item:
+            raise ValidationError(
+                f"Code '{self.code}' already exists as an item code for '{existing_item.name}'. "
+                f"Variant codes must be unique across both items and variants."
+            )
 
         # Set has_variants on base item
         if not self.base_item.has_variants:
