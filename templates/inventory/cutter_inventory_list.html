@@ -64,51 +64,65 @@
     .freeze-col-1 {
         position: sticky;
         left: 0;
-        z-index: 15;
+        z-index: 16; /* Higher than col-2 to be on top */
         background: #f9fafb !important; /* gray-50 header background */
         min-width: 40px;
         width: 40px;
-        max-width: 40px;
+        box-sizing: border-box;
     }
     .freeze-col-2 {
         position: sticky;
-        left: 40px;
+        left: 39px; /* Overlap by 1px to eliminate gap */
         z-index: 15;
         background: #f9fafb !important; /* gray-50 header background */
         box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2);
+        border-left: 1px solid #f9fafb; /* Match background to cover any gap */
     }
     .dark .freeze-col-1,
     .dark .freeze-col-2 {
         background: #1f2937 !important; /* dark:bg-gray-800 */
     }
+    .dark .freeze-col-2 {
+        border-left-color: #1f2937;
+    }
     .freeze-col-1-body {
         position: sticky;
         left: 0;
-        z-index: 5;
+        z-index: 6; /* Higher than col-2 body */
         background: white !important;
         min-width: 40px;
         width: 40px;
-        max-width: 40px;
+        box-sizing: border-box;
     }
     .freeze-col-2-body {
         position: sticky;
-        left: 40px;
+        left: 39px; /* Overlap by 1px to eliminate gap */
         z-index: 5;
         background: white !important;
         box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2);
+        border-left: 1px solid white; /* Match background to cover any gap */
     }
     .dark .freeze-col-1-body,
     .dark .freeze-col-2-body {
-        background: #1f2937 !important; /* dark:bg-gray-800 */
+        background: #1f2937 !important;
+    }
+    .dark .freeze-col-2-body {
+        border-left-color: #1f2937;
     }
     /* Red row backgrounds for below safety stock */
     tr.below-safety .freeze-col-1-body,
     tr.below-safety .freeze-col-2-body {
         background: #fef2f2 !important; /* red-50 */
     }
+    tr.below-safety .freeze-col-2-body {
+        border-left-color: #fef2f2 !important;
+    }
     .dark tr.below-safety .freeze-col-1-body,
     .dark tr.below-safety .freeze-col-2-body {
         background: rgba(127, 29, 29, 0.3) !important; /* dark red */
+    }
+    .dark tr.below-safety .freeze-col-2-body {
+        border-left-color: rgba(127, 29, 29, 0.3) !important;
     }
 
     /* Full page mode - maximizes table view */
