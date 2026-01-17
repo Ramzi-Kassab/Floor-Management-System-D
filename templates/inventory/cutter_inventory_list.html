@@ -131,21 +131,28 @@
         white-space: normal;
     }
 
-    /* No-wrap mode (default) - columns auto-size, text truncates */
+    /* No-wrap mode (default) - columns auto-size to fit content exactly */
     .no-wrap-mode #cutterTable {
-        width: max-content;
-        min-width: 100%;
+        width: auto;
+        table-layout: auto;
     }
     .no-wrap-mode #cutterTable td,
     .no-wrap-mode #cutterTable th {
-        white-space: nowrap;
-        max-width: none;
+        white-space: nowrap !important;
+        max-width: none !important;
+        min-width: auto !important;
+        width: auto !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
     }
-    .no-wrap-mode #cutterTable .truncate {
-        overflow: visible;
-        text-overflow: clip;
-        white-space: nowrap;
-        max-width: none;
+    .no-wrap-mode #cutterTable .truncate,
+    .no-wrap-mode #cutterTable [class*="max-w-"],
+    .no-wrap-mode #cutterTable a {
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
+        max-width: none !important;
+        display: inline !important;
     }
 </style>
 {% endblock %}
@@ -333,10 +340,10 @@
                 <thead class="bg-gray-50 dark:bg-gray-700/50">
                     <tr class="text-gray-500 dark:text-gray-400">
                         <!-- # - Row Number (always visible, sticky when freeze) -->
-                        <th class="px-2 py-2 text-left font-medium w-10 min-w-[40px] bg-gray-100 dark:bg-gray-700"
+                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700"
                             :class="freezePanes ? 'freeze-col-1' : ''">#</th>
                         <!-- MN - HDBS Code (sticky when freeze) -->
-                        <th class="px-2 py-2 text-left font-medium min-w-[70px] bg-gray-100 dark:bg-gray-700"
+                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700"
                             :class="freezePanes ? 'freeze-col-2' : ''"
                             x-show="columns.attr_hdbs_code" data-column="mn" data-type="text">
                         <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'mn')">
@@ -345,7 +352,7 @@
                         </div>
                     </th>
                     <!-- Product Name -->
-                    <th class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600 min-w-[180px] relative" data-column="product_name" data-type="text">
+                    <th class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600 relative" data-column="product_name" data-type="text">
                         <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'product_name')">
                             <span>Product Name</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
@@ -470,15 +477,15 @@
                     </td>
                     <!-- Product Name (with link) -->
                     <td class="px-2 py-2 border-r border-gray-100 dark:border-gray-700" data-value="{{ row.product_name }}">
-                        <a href="{% url 'inventory:item_detail' row.item.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-blue-600 text-[10px] max-w-[180px] truncate block" title="{{ row.product_name }}">
-                            {{ row.product_name|truncatechars:35 }}
+                        <a href="{% url 'inventory:item_detail' row.item.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-blue-600 text-[10px]" title="{{ row.product_name }}">
+                            {{ row.product_name }}
                         </a>
                     </td>
                     <!-- Dynamic Attributes (excluding HDBS and Category which are handled separately) -->
                     {% for attr in category_attributes %}
                     {% if attr.code != 'hdbs_code' and attr.code != 'hdbs' and attr.code != 'cutter_hdbs' and attr.code != 'category' and attr.code != 'cutter_category' and attr.code != 'size_category' %}
                     <td x-show="columns.attr_{{ attr.code }}" class="px-2 py-2 text-gray-700 dark:text-gray-300" data-value="{{ row.attributes|get_item:attr.code|default:'' }}">
-                        {{ row.attributes|get_item:attr.code|default:"-"|truncatechars:20 }}
+                        {{ row.attributes|get_item:attr.code|default:"-" }}
                     </td>
                     {% endif %}
                     {% endfor %}
@@ -531,8 +538,8 @@
                         {{ row.forecast|floatformat:0 }}
                     </td>
                     <!-- Remarks -->
-                    <td x-show="columns.remarks" class="px-2 py-2 text-gray-500 dark:text-gray-400 text-[10px] max-w-[100px] truncate" title="{{ row.remarks }}">
-                        {{ row.remarks|default:"-"|truncatechars:20 }}
+                    <td x-show="columns.remarks" class="px-2 py-2 text-gray-500 dark:text-gray-400 text-[10px]" title="{{ row.remarks }}">
+                        {{ row.remarks|default:"-" }}
                     </td>
                 </tr>
                 {% empty %}
