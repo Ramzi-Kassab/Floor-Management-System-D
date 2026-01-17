@@ -5,17 +5,34 @@
 
 {% block extra_css %}
 <style>
-    /* Normal mode - standard page flow */
+    /* CRITICAL: Prevent main content from extending under sidebar */
+    main {
+        overflow-x: hidden !important;
+        min-width: 0 !important; /* Allow flex item to shrink */
+    }
+    main > div {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+    }
+
+    /* Page container - always bounded */
     .cutter-page-container {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    /* Header section - never scrolls horizontally */
+    .cutter-header-section {
+        width: 100%;
         max-width: 100%;
     }
 
-    /* Freeze mode - fixed layout with independent table scroll */
+    /* Freeze mode - fills viewport, table gets independent scroll */
     .cutter-page-container.freeze-mode {
         display: flex;
         flex-direction: column;
-        height: calc(100vh - 120px);
-        overflow: hidden;
+        height: calc(100vh - 140px);
     }
     .freeze-mode .cutter-header-section {
         flex-shrink: 0;
@@ -23,34 +40,39 @@
     .freeze-mode .cutter-table-section {
         flex: 1;
         min-height: 0;
-        display: flex;
-        flex-direction: column;
         overflow: hidden;
     }
+
+    /* Table wrapper - ONLY element with horizontal scroll */
+    .cutter-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+    }
     .freeze-mode .cutter-table-wrapper {
-        flex: 1;
-        overflow: auto;
-        min-height: 0;
+        height: 100%;
     }
 
-    /* Sticky header inside scrollable table (always active in freeze mode) */
+    /* Sticky table header (always on in freeze mode) */
     .freeze-mode .cutter-table-wrapper thead {
         position: sticky;
         top: 0;
         z-index: 10;
     }
 
-    /* Sticky columns when freeze is active */
+    /* Sticky columns - positioned relative to table scroll container */
     .freeze-col-1 {
         position: sticky;
         left: 0;
-        z-index: 20;
+        z-index: 15;
+        background: inherit;
     }
     .freeze-col-2 {
         position: sticky;
         left: 40px;
-        z-index: 20;
-        box-shadow: 4px 0 6px -4px rgba(0,0,0,0.3);
+        z-index: 15;
+        background: inherit;
+        box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2);
     }
     .freeze-col-1-body {
         position: sticky;
@@ -61,13 +83,7 @@
         position: sticky;
         left: 40px;
         z-index: 5;
-        box-shadow: 4px 0 6px -4px rgba(0,0,0,0.3);
-    }
-
-    /* Normal mode table - standard overflow */
-    .cutter-page-container:not(.freeze-mode) .cutter-table-wrapper {
-        overflow-x: auto;
-        max-height: none;
+        box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2);
     }
 </style>
 {% endblock %}
@@ -232,7 +248,7 @@
 
 <!-- TABLE SECTION - Independent scrolling -->
 <div class="cutter-table-section">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden h-full">
         <div class="cutter-table-wrapper">
             <table class="w-full text-xs border-collapse" id="cutterTable">
                 <thead class="bg-gray-50 dark:bg-gray-700/50">
