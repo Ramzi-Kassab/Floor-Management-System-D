@@ -2742,6 +2742,35 @@ class ItemVariantDeleteView(LoginRequiredMixin, DeleteView):
         return reverse_lazy("inventory:item_detail", kwargs={"pk": self.kwargs["item_pk"]})
 
 
+class VariantPrintLabelView(LoginRequiredMixin, DetailView):
+    """Print-friendly view for variant QR code labels."""
+
+    model = ItemVariant
+    template_name = "inventory/variant_print_label.html"
+    context_object_name = "variant"
+
+    def get_queryset(self):
+        return ItemVariant.objects.select_related("base_item", "variant_case", "customer")
+
+    def get_context_data(self, **kwargs):
+        from .utils import generate_inventory_item_qr
+        context = super().get_context_data(**kwargs)
+        item = get_object_or_404(InventoryItem, pk=self.kwargs["item_pk"])
+        context["item"] = item
+        context["page_title"] = f"Print Label: {self.object.code}"
+
+        # Build full URL for QR code
+        base_url = self.request.build_absolute_uri('/')[:-1]
+        context["variant_qr_code"] = generate_inventory_item_qr(self.object, base_url=base_url, is_variant=True)
+
+        # Get number of copies from query param (default 1)
+        copies = int(self.request.GET.get("copies", 1))
+        context["copies"] = min(copies, 50)  # Limit to 50 copies max
+        context["copy_range"] = range(context["copies"])
+
+        return context
+
+
 class BulkVariantCreateView(LoginRequiredMixin, TemplateView):
     """Create multiple variants at once for an item."""
 

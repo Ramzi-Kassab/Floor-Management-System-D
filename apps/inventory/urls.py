@@ -50,6 +50,7 @@ urlpatterns = [
     path("items/<int:item_pk>/variants/<int:pk>/", views.ItemVariantDetailView.as_view(), name="item_variant_detail"),
     path("items/<int:item_pk>/variants/<int:pk>/edit/", views.ItemVariantUpdateView.as_view(), name="item_variant_update"),
     path("items/<int:item_pk>/variants/<int:pk>/delete/", views.ItemVariantDeleteView.as_view(), name="item_variant_delete"),
+    path("items/<int:item_pk>/variants/<int:pk>/print-label/", views.VariantPrintLabelView.as_view(), name="variant_print_label"),
     path("item-variants/create/", views.StandaloneVariantCreateView.as_view(), name="standalone_variant_create"),
     path("item-variants/<int:pk>/edit/", views.StandaloneVariantUpdateView.as_view(), name="standalone_variant_update"),
     path("item-variants/<int:pk>/delete/", views.StandaloneVariantDeleteView.as_view(), name="standalone_variant_delete"),

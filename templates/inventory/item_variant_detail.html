@@ -2,6 +2,58 @@
 
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
+{% block extra_css %}
+<style>
+    @media print {
+        /* Hide non-essential elements when printing */
+        nav, .sidebar, header, .flex.gap-2, .breadcrumb, footer,
+        button:not(.print-label-btn), a[href], .no-print {
+            display: none !important;
+        }
+
+        /* Reset page layout for printing */
+        body {
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        main {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
+
+        /* Style the QR code label for printing */
+        .qr-label-print {
+            display: block !important;
+            width: 2in;
+            height: 1in;
+            padding: 0.1in;
+            text-align: center;
+            border: 1px dashed #ccc;
+            page-break-inside: avoid;
+        }
+
+        .qr-label-print img {
+            width: 0.7in !important;
+            height: 0.7in !important;
+        }
+
+        .qr-label-print .code {
+            font-family: monospace;
+            font-size: 8pt;
+            font-weight: bold;
+        }
+
+        .qr-label-print .name {
+            font-size: 6pt;
+            color: #666;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
     <div>
@@ -205,10 +257,16 @@
                 <p class="text-sm font-bold text-gray-900 dark:text-white font-mono">{{ variant.code }}</p>
                 <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">{{ variant.name|truncatewords:5 }}</p>
             </div>
-            <button onclick="window.print()" class="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                <i data-lucide="printer" class="w-4 h-4 mr-2"></i>
-                Print Label
-            </button>
+            <div class="flex gap-2">
+                <button onclick="window.print()" class="flex-1 inline-flex items-center justify-center px-3 py-2 text-sm font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200">
+                    <i data-lucide="printer" class="w-4 h-4 mr-1"></i>
+                    Quick Print
+                </button>
+                <a href="{% url 'inventory:variant_print_label' item.pk variant.pk %}" class="flex-1 inline-flex items-center justify-center px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <i data-lucide="settings-2" class="w-4 h-4 mr-1"></i>
+                    Print Labels
+                </a>
+            </div>
         </div>
 
         <!-- Stock Summary -->
