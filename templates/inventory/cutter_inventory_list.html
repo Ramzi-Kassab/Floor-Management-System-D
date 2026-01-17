@@ -21,6 +21,32 @@
 {% endblock %}
 
 {% block content %}
+<div x-data="{
+    columns: {
+        shape: true,
+        size: true,
+        type: true,
+        chamfer: true,
+        family: true,
+        eno_new: true,
+        eno_grd: true,
+        ardt_rcl: true,
+        lstk_rcl: true,
+        new_stock: true,
+        total_new: true,
+        cons_6m: true,
+        cons_3m: true,
+        cons_2m: true,
+        safety: true,
+        category: true,
+        bom_req: true,
+        on_order: true,
+        forecast: true,
+        remarks: true
+    },
+    showColumnMenu: false
+}">
+
 <!-- Summary Cards -->
 <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
@@ -80,7 +106,7 @@
     </div>
 </div>
 
-<!-- Filters -->
+<!-- Filters & Column Toggle -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
     <form method="get" class="flex flex-wrap gap-4 items-end">
         <div class="flex-1 min-w-[200px]">
@@ -97,11 +123,47 @@
                 {% endfor %}
             </select>
         </div>
-        <div>
+        <div class="flex gap-2">
             <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                 <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Filter
             </button>
-            <a href="{% url 'inventory:cutter_inventory_list' %}" class="px-4 py-2 text-gray-600 hover:text-gray-800 ml-2">Clear</a>
+            <a href="{% url 'inventory:cutter_inventory_list' %}" class="px-4 py-2 text-gray-600 hover:text-gray-800">Clear</a>
+            <!-- Column Toggle Button -->
+            <div class="relative">
+                <button type="button" @click="showColumnMenu = !showColumnMenu" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+                    <i data-lucide="columns" class="w-4 h-4 inline mr-1"></i>Columns
+                </button>
+                <!-- Column Menu Dropdown -->
+                <div x-show="showColumnMenu" @click.away="showColumnMenu = false"
+                     class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 p-3 max-h-96 overflow-y-auto">
+                    <p class="text-xs font-medium text-gray-500 mb-2">Show/Hide Columns</p>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.shape"> Shape</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.size"> Size</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.type"> Type</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.chamfer"> Chamfer</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.family"> Family</label>
+                    <hr class="my-2">
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_new"> ENO New</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_grd"> ENO Grd</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.ardt_rcl"> ARDT Rcl</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.lstk_rcl"> LSTK Rcl</label>
+                    <hr class="my-2">
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.new_stock"> New Stock</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.total_new"> Total New</label>
+                    <hr class="my-2">
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_6m"> 6M Consumption</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_3m"> 3M Consumption</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_2m"> 2M Consumption</label>
+                    <hr class="my-2">
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.safety"> Safety Stock</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.category"> Category</label>
+                    <hr class="my-2">
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.bom_req"> BOM Req</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.on_order"> On Order</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.forecast"> Forecast</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.remarks"> Remarks</label>
+                </div>
+            </div>
         </div>
     </form>
 </div>
@@ -111,50 +173,38 @@
     <div class="overflow-x-auto">
         <table class="w-full text-xs">
             <thead>
-                <!-- Header Row 1: Group Labels -->
-                <tr class="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px]">
-                    <th colspan="2" class="px-2 py-1 text-left border-r border-gray-300 dark:border-gray-600">Item Info</th>
-                    <th colspan="5" class="px-2 py-1 text-center border-r border-gray-300 dark:border-gray-600">Cutter Attributes</th>
-                    <th colspan="4" class="px-2 py-1 text-center bg-green-50 dark:bg-green-900/20 border-r border-gray-300 dark:border-gray-600">Stock by Variant</th>
-                    <th colspan="2" class="px-2 py-1 text-center bg-blue-50 dark:bg-blue-900/20 border-r border-gray-300 dark:border-gray-600">New Stock</th>
-                    <th colspan="3" class="px-2 py-1 text-center bg-yellow-50 dark:bg-yellow-900/20 border-r border-gray-300 dark:border-gray-600">Consumption</th>
-                    <th colspan="1" class="px-2 py-1 text-center bg-red-50 dark:bg-red-900/20 border-r border-gray-300 dark:border-gray-600">Safety</th>
-                    <th colspan="1" class="px-2 py-1 text-center border-r border-gray-300 dark:border-gray-600">Category</th>
-                    <th colspan="3" class="px-2 py-1 text-center bg-green-50 dark:bg-green-900/20 border-r border-gray-300 dark:border-gray-600">Planning</th>
-                    <th colspan="1" class="px-2 py-1 text-center">Notes</th>
-                </tr>
-                <!-- Header Row 2: Column Labels -->
                 <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
                     <th class="px-2 py-2 text-left font-medium w-8">#</th>
-                    <th class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600">MN / Product Name</th>
+                    <th class="px-2 py-2 text-left font-medium" title="HDBS Code">MN</th>
+                    <th class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600">Product Name</th>
                     <!-- Attributes -->
-                    <th class="px-2 py-2 text-left font-medium">Shape</th>
-                    <th class="px-2 py-2 text-left font-medium">Size</th>
-                    <th class="px-2 py-2 text-left font-medium">Type</th>
-                    <th class="px-2 py-2 text-left font-medium">Chamfer</th>
-                    <th class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600">Family</th>
+                    <th x-show="columns.shape" class="px-2 py-2 text-left font-medium">Shape</th>
+                    <th x-show="columns.size" class="px-2 py-2 text-left font-medium">Size</th>
+                    <th x-show="columns.type" class="px-2 py-2 text-left font-medium">Type</th>
+                    <th x-show="columns.chamfer" class="px-2 py-2 text-left font-medium">Chamfer</th>
+                    <th x-show="columns.family" class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600">Family</th>
                     <!-- Stock Variants (green background) -->
-                    <th class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20" title="E&O New">ENO New</th>
-                    <th class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20" title="E&O Ground">ENO Grd</th>
-                    <th class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20" title="ARDT Reclaim">ARDT Rcl</th>
-                    <th class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 border-r border-gray-200 dark:border-gray-600" title="Client Reclaim">CLI Rcl</th>
+                    <th x-show="columns.eno_new" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20" title="E&O New">ENO New</th>
+                    <th x-show="columns.eno_grd" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20" title="E&O Ground">ENO Grd</th>
+                    <th x-show="columns.ardt_rcl" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20" title="ARDT Reclaim">ARDT Rcl</th>
+                    <th x-show="columns.lstk_rcl" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 border-r border-gray-200 dark:border-gray-600" title="LSTK Reclaim">LSTK Rcl</th>
                     <!-- New Stock (blue background) -->
-                    <th class="px-2 py-2 text-right font-medium bg-blue-50 dark:bg-blue-900/20" title="NEW-PUR only">New Stock</th>
-                    <th class="px-2 py-2 text-right font-medium bg-blue-100 dark:bg-blue-900/30 border-r border-gray-200 dark:border-gray-600" title="NEW-PUR + NEW-EO + NEW-RET">Total New</th>
+                    <th x-show="columns.new_stock" class="px-2 py-2 text-right font-medium bg-blue-50 dark:bg-blue-900/20" title="NEW-PUR only">New Stock</th>
+                    <th x-show="columns.total_new" class="px-2 py-2 text-right font-medium bg-blue-100 dark:bg-blue-900/30 border-r border-gray-200 dark:border-gray-600" title="NEW-PUR + NEW-EO + NEW-RET">Total New</th>
                     <!-- Consumption (yellow background) -->
-                    <th class="px-2 py-2 text-right font-medium bg-yellow-50 dark:bg-yellow-900/20">6M</th>
-                    <th class="px-2 py-2 text-right font-medium bg-yellow-50 dark:bg-yellow-900/20">3M</th>
-                    <th class="px-2 py-2 text-right font-medium bg-yellow-100 dark:bg-yellow-900/30 border-r border-gray-200 dark:border-gray-600">2M</th>
+                    <th x-show="columns.cons_6m" class="px-2 py-2 text-right font-medium bg-yellow-50 dark:bg-yellow-900/20">6M</th>
+                    <th x-show="columns.cons_3m" class="px-2 py-2 text-right font-medium bg-yellow-50 dark:bg-yellow-900/20">3M</th>
+                    <th x-show="columns.cons_2m" class="px-2 py-2 text-right font-medium bg-yellow-100 dark:bg-yellow-900/30 border-r border-gray-200 dark:border-gray-600">2M</th>
                     <!-- Safety (red background) -->
-                    <th class="px-2 py-2 text-right font-medium bg-red-50 dark:bg-red-900/20 border-r border-gray-200 dark:border-gray-600">Safety</th>
+                    <th x-show="columns.safety" class="px-2 py-2 text-right font-medium bg-red-50 dark:bg-red-900/20 border-r border-gray-200 dark:border-gray-600">Safety</th>
                     <!-- Category -->
-                    <th class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600">Category</th>
+                    <th x-show="columns.category" class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600">Category</th>
                     <!-- Planning (green background) -->
-                    <th class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20" title="BOM Requirement">BOM Req</th>
-                    <th class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20">On Order</th>
-                    <th class="px-2 py-2 text-right font-medium bg-green-100 dark:bg-green-900/30 border-r border-gray-200 dark:border-gray-600" title="Total New + On Order - BOM Req">Forecast</th>
+                    <th x-show="columns.bom_req" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20" title="BOM Requirement">BOM Req</th>
+                    <th x-show="columns.on_order" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20">On Order</th>
+                    <th x-show="columns.forecast" class="px-2 py-2 text-right font-medium bg-green-100 dark:bg-green-900/30 border-r border-gray-200 dark:border-gray-600" title="Total New + On Order - BOM Req">Forecast</th>
                     <!-- Remarks -->
-                    <th class="px-2 py-2 text-left font-medium">Remarks</th>
+                    <th x-show="columns.remarks" class="px-2 py-2 text-left font-medium">Remarks</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -162,75 +212,78 @@
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.below_safety %}bg-red-50 dark:bg-red-900/10{% endif %}">
                     <!-- Row # -->
                     <td class="px-2 py-2 text-gray-400 text-center">{{ row.row_num }}</td>
-                    <!-- MN / Product Name -->
-                    <td class="px-2 py-2 border-r border-gray-100 dark:border-gray-700">
+                    <!-- MN (HDBS Code) -->
+                    <td class="px-2 py-2">
                         <a href="{% url 'inventory:item_detail' row.item.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-blue-600">
-                            {{ row.item.code }}
+                            {{ row.hdbs_code|default:row.item.code }}
                         </a>
-                        <p class="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[150px]" title="{{ row.item.name }}">{{ row.item.name }}</p>
+                    </td>
+                    <!-- Product Name -->
+                    <td class="px-2 py-2 border-r border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-[10px] max-w-[180px] truncate" title="{{ row.product_name }}">
+                        {{ row.product_name|truncatechars:30 }}
                     </td>
                     <!-- Attributes -->
-                    <td class="px-2 py-2 text-gray-700 dark:text-gray-300">{{ row.shape|default:"-" }}</td>
-                    <td class="px-2 py-2 text-gray-700 dark:text-gray-300 font-mono">{{ row.size|default:"-" }}</td>
-                    <td class="px-2 py-2 text-gray-700 dark:text-gray-300 font-medium">{{ row.type|default:"-" }}</td>
-                    <td class="px-2 py-2 text-gray-700 dark:text-gray-300">{{ row.chamfer|default:"-" }}</td>
-                    <td class="px-2 py-2 text-gray-600 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 text-[10px]">{{ row.family|default:"-"|truncatechars:15 }}</td>
+                    <td x-show="columns.shape" class="px-2 py-2 text-gray-700 dark:text-gray-300">{{ row.shape|default:"-" }}</td>
+                    <td x-show="columns.size" class="px-2 py-2 text-gray-700 dark:text-gray-300 font-mono">{{ row.size|default:"-" }}</td>
+                    <td x-show="columns.type" class="px-2 py-2 text-gray-700 dark:text-gray-300 font-medium">{{ row.cutter_type|default:"-" }}</td>
+                    <td x-show="columns.chamfer" class="px-2 py-2 text-gray-700 dark:text-gray-300">{{ row.chamfer|default:"-" }}</td>
+                    <td x-show="columns.family" class="px-2 py-2 text-gray-600 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 text-[10px]">{{ row.family|default:"-"|truncatechars:15 }}</td>
                     <!-- Stock Variants -->
-                    <td class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'NEW-EO' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}">
+                    <td x-show="columns.eno_new" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'NEW-EO' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}">
                         {{ row.variants|get_item:"NEW-EO"|floatformat:0|default:"-" }}
                     </td>
-                    <td class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'GRD-EO' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}">
+                    <td x-show="columns.eno_grd" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'GRD-EO' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}">
                         {{ row.variants|get_item:"GRD-EO"|floatformat:0|default:"-" }}
                     </td>
-                    <td class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'USED-RCL' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}">
+                    <td x-show="columns.ardt_rcl" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'USED-RCL' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}">
                         {{ row.variants|get_item:"USED-RCL"|floatformat:0|default:"-" }}
                     </td>
-                    <td class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.variants|get_item:'CLI-RCL' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}">
+                    <td x-show="columns.lstk_rcl" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.variants|get_item:'CLI-RCL' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}">
                         {{ row.variants|get_item:"CLI-RCL"|floatformat:0|default:"-" }}
                     </td>
                     <!-- New Stock -->
-                    <td class="px-2 py-2 text-right font-mono bg-blue-50/50 dark:bg-blue-900/10 {% if row.new_stock > 0 %}text-blue-700 dark:text-blue-300{% else %}text-gray-300{% endif %}">
+                    <td x-show="columns.new_stock" class="px-2 py-2 text-right font-mono bg-blue-50/50 dark:bg-blue-900/10 {% if row.new_stock > 0 %}text-blue-700 dark:text-blue-300{% else %}text-gray-300{% endif %}">
                         {{ row.new_stock|floatformat:0 }}
                     </td>
-                    <td class="px-2 py-2 text-right font-mono font-bold bg-blue-100/50 dark:bg-blue-900/20 border-r border-gray-100 dark:border-gray-700 {% if row.total_new > 0 %}text-blue-800 dark:text-blue-200{% else %}text-gray-400{% endif %}">
+                    <td x-show="columns.total_new" class="px-2 py-2 text-right font-mono font-bold bg-blue-100/50 dark:bg-blue-900/20 border-r border-gray-100 dark:border-gray-700 {% if row.total_new > 0 %}text-blue-800 dark:text-blue-200{% else %}text-gray-400{% endif %}">
                         {{ row.total_new|floatformat:0 }}
                     </td>
                     <!-- Consumption -->
-                    <td class="px-2 py-2 text-right font-mono bg-yellow-50/50 dark:bg-yellow-900/10 text-yellow-700 dark:text-yellow-300">
+                    <td x-show="columns.cons_6m" class="px-2 py-2 text-right font-mono bg-yellow-50/50 dark:bg-yellow-900/10 text-yellow-700 dark:text-yellow-300">
                         {{ row.consumption_6m|floatformat:0 }}
                     </td>
-                    <td class="px-2 py-2 text-right font-mono bg-yellow-50/50 dark:bg-yellow-900/10 text-yellow-700 dark:text-yellow-300">
+                    <td x-show="columns.cons_3m" class="px-2 py-2 text-right font-mono bg-yellow-50/50 dark:bg-yellow-900/10 text-yellow-700 dark:text-yellow-300">
                         {{ row.consumption_3m|floatformat:0 }}
                     </td>
-                    <td class="px-2 py-2 text-right font-mono font-bold bg-yellow-100/50 dark:bg-yellow-900/20 border-r border-gray-100 dark:border-gray-700 text-yellow-800 dark:text-yellow-200">
+                    <td x-show="columns.cons_2m" class="px-2 py-2 text-right font-mono font-bold bg-yellow-100/50 dark:bg-yellow-900/20 border-r border-gray-100 dark:border-gray-700 text-yellow-800 dark:text-yellow-200">
                         {{ row.consumption_2m|floatformat:0 }}
                     </td>
                     <!-- Safety Stock -->
-                    <td class="px-2 py-2 text-right font-mono bg-red-50/50 dark:bg-red-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.below_safety %}text-red-700 dark:text-red-300 font-bold{% else %}text-gray-500{% endif %}">
+                    <td x-show="columns.safety" class="px-2 py-2 text-right font-mono bg-red-50/50 dark:bg-red-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.below_safety %}text-red-700 dark:text-red-300 font-bold{% else %}text-gray-500{% endif %}">
                         {{ row.safety_stock|floatformat:0 }}
                     </td>
                     <!-- Category -->
-                    <td class="px-2 py-2 text-gray-600 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 text-[10px]">
+                    <td x-show="columns.category" class="px-2 py-2 text-gray-600 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 text-[10px]">
                         {{ row.category|default:"-"|truncatechars:18 }}
                     </td>
                     <!-- Planning -->
-                    <td class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 text-purple-600 dark:text-purple-400">
+                    <td x-show="columns.bom_req" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 text-purple-600 dark:text-purple-400">
                         {{ row.bom_requirement|floatformat:0 }}
                     </td>
-                    <td class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 text-blue-600 dark:text-blue-400">
+                    <td x-show="columns.on_order" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 text-blue-600 dark:text-blue-400">
                         {{ row.on_order|floatformat:0 }}
                     </td>
-                    <td class="px-2 py-2 text-right font-mono font-bold bg-green-100/50 dark:bg-green-900/20 border-r border-gray-100 dark:border-gray-700 {% if row.below_safety %}text-red-600 dark:text-red-400{% else %}text-green-600 dark:text-green-400{% endif %}">
+                    <td x-show="columns.forecast" class="px-2 py-2 text-right font-mono font-bold bg-green-100/50 dark:bg-green-900/20 border-r border-gray-100 dark:border-gray-700 {% if row.below_safety %}text-red-600 dark:text-red-400{% else %}text-green-600 dark:text-green-400{% endif %}">
                         {{ row.forecast|floatformat:0 }}
                     </td>
                     <!-- Remarks -->
-                    <td class="px-2 py-2 text-gray-500 dark:text-gray-400 text-[10px] max-w-[100px] truncate" title="{{ row.remarks }}">
+                    <td x-show="columns.remarks" class="px-2 py-2 text-gray-500 dark:text-gray-400 text-[10px] max-w-[100px] truncate" title="{{ row.remarks }}">
                         {{ row.remarks|default:"-"|truncatechars:20 }}
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="22" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="24" class="px-4 py-8 text-center text-gray-500">
                         <i data-lucide="circle-dot" class="w-12 h-12 mx-auto text-gray-300 mb-3"></i>
                         <p>No PDC Cutters found</p>
                         <p class="text-sm mt-1">Ensure items exist with category code "CT-PDC"</p>
@@ -295,4 +348,6 @@
     </nav>
 </div>
 {% endif %}
+
+</div>
 {% endblock %}

@@ -1379,9 +1379,10 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
 
         # Attribute code mappings (check multiple possible codes)
         attr_mappings = {
+            "hdbs_code": ["hdbs_code", "hdbs", "cutter_hdbs"],  # For MN column (CT97, CT200, etc.)
             "shape": ["cutter_shape", "shape", "cutter_type_shape"],
             "size": ["cutter_size", "size", "diameter"],
-            "type": ["hdbs_code", "type", "cutter_type", "hdbs"],
+            "cutter_type": ["cutter_type", "type", "cutter_type_name"],  # Actual cutter type (not HDBS)
             "chamfer": ["chamfer", "chamfer_angle", "cutter_chamfer"],
             "family": ["family", "cutter_family", "product_family"],
             "category": ["category", "cutter_category", "size_category"],
@@ -1397,9 +1398,11 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
             row = {
                 "row_num": row_num,
                 "item": cutter,
+                "hdbs_code": self._get_attribute_value(cutter, attr_mappings["hdbs_code"]),  # For MN column
+                "product_name": cutter.name,  # Separate product name column
                 "shape": self._get_attribute_value(cutter, attr_mappings["shape"]),
                 "size": self._get_attribute_value(cutter, attr_mappings["size"]),
-                "type": self._get_attribute_value(cutter, attr_mappings["type"]),
+                "cutter_type": self._get_attribute_value(cutter, attr_mappings["cutter_type"]),  # Cutter type
                 "chamfer": self._get_attribute_value(cutter, attr_mappings["chamfer"]),
                 "family": self._get_attribute_value(cutter, attr_mappings["family"]),
                 "category": self._get_attribute_value(cutter, attr_mappings["category"]),
