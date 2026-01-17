@@ -1785,7 +1785,7 @@ class ItemVariant(models.Model):
         return self.stock_records.aggregate(total=models.Sum("quantity_on_hand"))["total"] or 0
 
     def clean(self):
-        """Validate cross-table uniqueness of variant code."""
+        """Validate cross-table uniqueness of variant code and ERP item number."""
         from django.core.exceptions import ValidationError
         super().clean()
 
@@ -1798,6 +1798,26 @@ class ItemVariant(models.Model):
                             f"Variant codes must be unique across both items and variants."
                 })
 
+        # Check if ERP item number is unique across all variants (excluding self)
+        if self.erp_item_no:
+            existing_variant = ItemVariant.objects.filter(erp_item_no=self.erp_item_no)
+            if self.pk:
+                existing_variant = existing_variant.exclude(pk=self.pk)
+            existing_variant = existing_variant.first()
+            if existing_variant:
+                raise ValidationError({
+                    'erp_item_no': f"ERP Item No '{self.erp_item_no}' already exists on variant '{existing_variant.code}'. "
+                                   f"ERP Item numbers must be unique."
+                })
+
+            # Also check if ERP item number exists as an InventoryItem code
+            existing_item = InventoryItem.objects.filter(code=self.erp_item_no).first()
+            if existing_item:
+                raise ValidationError({
+                    'erp_item_no': f"ERP Item No '{self.erp_item_no}' already exists as an item code for '{existing_item.name}'. "
+                                   f"ERP Item numbers must be unique across items and variants."
+                })
+
     def save(self, *args, **kwargs):
         # Auto-generate code if not set
         if not self.code:
@@ -1806,7 +1826,7 @@ class ItemVariant(models.Model):
                 parts.append(self.customer.code[:6] if hasattr(self.customer, 'code') else "CLI")
             self.code = "-".join(parts)
 
-        # Cross-table uniqueness check (runs even when save() called directly)
+        # Cross-table uniqueness check for code (runs even when save() called directly)
         from django.core.exceptions import ValidationError
         existing_item = InventoryItem.objects.filter(code=self.code).first()
         if existing_item:
@@ -1814,6 +1834,26 @@ class ItemVariant(models.Model):
                 f"Code '{self.code}' already exists as an item code for '{existing_item.name}'. "
                 f"Variant codes must be unique across both items and variants."
             )
+
+        # ERP Item No uniqueness check
+        if self.erp_item_no:
+            existing_variant = ItemVariant.objects.filter(erp_item_no=self.erp_item_no)
+            if self.pk:
+                existing_variant = existing_variant.exclude(pk=self.pk)
+            existing_variant = existing_variant.first()
+            if existing_variant:
+                raise ValidationError(
+                    f"ERP Item No '{self.erp_item_no}' already exists on variant '{existing_variant.code}'. "
+                    f"ERP Item numbers must be unique."
+                )
+
+            # Also check if ERP item number exists as an InventoryItem code
+            existing_item = InventoryItem.objects.filter(code=self.erp_item_no).first()
+            if existing_item:
+                raise ValidationError(
+                    f"ERP Item No '{self.erp_item_no}' already exists as an item code for '{existing_item.name}'. "
+                    f"ERP Item numbers must be unique across items and variants."
+                )
 
         # Set has_variants on base item
         if not self.base_item.has_variants:
