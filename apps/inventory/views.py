@@ -1645,7 +1645,7 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                 "variants": {},
                 "new_stock": Decimal("0"),  # NEW-PUR only
                 "total_new": Decimal("0"),  # NEW-PUR + NEW-EO + NEW-RET + NEW-CLI
-                "client_stock": Decimal("0"),  # NEW-CLI + USED-CLI
+                "lstk_rcl": Decimal("0"),  # Client Reclaim with Halliburton + LSTK account
                 "total_stock": Decimal("0"),
                 "consumption_2m": Decimal("0"),
                 "consumption_3m": Decimal("0"),
@@ -1672,9 +1672,10 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                         row["new_stock"] = variant_stock
                     if variant.variant_case.code in new_variant_codes:
                         row["total_new"] += variant_stock
-                    # Track client stock (NEW-CLI + USED-CLI)
+                    # Track LSTK Reclaim (Client Reclaim with Halliburton + LSTK account)
                     if variant.variant_case.code in ["NEW-CLI", "USED-CLI"]:
-                        row["client_stock"] += variant_stock
+                        if variant.customer and "halliburton" in variant.customer.name.lower() and variant.account == "LSTK":
+                            row["lstk_rcl"] += variant_stock
 
             # Get consumption from StockLedger (ISSUE, CONSUMPTION transactions)
             from .models import StockLedger
@@ -3148,7 +3149,7 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
         header = ["#", "Code", "Product Name"]
         for attr in all_attributes:
             header.append(attr["name"])
-        header.extend(["NEW-EO", "USED-GRD", "USED-RCL", "NEW-CLI", "USED-CLI", "New Stock", "Total New",
+        header.extend(["ENO New", "ENO Grd", "ARDT Rcl", "LSTK Rcl", "Retrofit", "New Stock", "Total New",
                       "6M Consumption", "3M Consumption", "2M Consumption",
                       "Safety Stock", "BOM Req", "On Order", "Forecast", "Remarks"])
         writer.writerow(header)
@@ -3167,6 +3168,7 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
             variant_stock = {}
             new_stock = Decimal("0")
             total_new = Decimal("0")
+            lstk_rcl = Decimal("0")
             for variant in cutter.variants.all():
                 if variant.variant_case:
                     code = variant.variant_case.code
@@ -3179,6 +3181,10 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
                         new_stock = stock
                     if code in new_variant_codes:
                         total_new += stock
+                    # Track LSTK Reclaim (Client Reclaim with Halliburton + LSTK account)
+                    if code in ["NEW-CLI", "USED-CLI"]:
+                        if variant.customer and "halliburton" in variant.customer.name.lower() and variant.account == "LSTK":
+                            lstk_rcl += stock
 
             # Get consumption
             from .models import StockLedger
@@ -3226,8 +3232,8 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
                 variant_stock.get("NEW-EO", 0),
                 variant_stock.get("USED-GRD", 0),
                 variant_stock.get("USED-RCL", 0),
-                variant_stock.get("NEW-CLI", 0),
-                variant_stock.get("USED-CLI", 0),
+                lstk_rcl,
+                variant_stock.get("NEW-RET", 0),  # Retrofit
                 new_stock,
                 total_new,
                 abs(consumption_6m),

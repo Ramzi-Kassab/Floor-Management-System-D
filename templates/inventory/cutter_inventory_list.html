@@ -349,10 +349,10 @@
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_new" @change="savePreferences()"> ENO New</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_grd" @change="savePreferences()"> ENO Grd</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.ardt_rcl" @change="savePreferences()"> ARDT Rcl</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.retrofit" @change="savePreferences()"> Retrofit</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cli_stk" @change="savePreferences()"> Client Stock</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.lstk_rcl" @change="savePreferences()"> LSTK Rcl</label>
                     <hr class="my-2">
                     <p class="text-xs font-medium text-gray-500 mb-2">Stock Totals</p>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.retrofit" @change="savePreferences()"> Retrofit</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.new_stock" @change="savePreferences()"> New Stock</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.total_new" @change="savePreferences()"> Total New</label>
                     <hr class="my-2">
@@ -431,19 +431,19 @@
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                         </div>
                     </th>
-                    <th x-show="columns.retrofit" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="Retrofit (NEW-RET)" data-column="retrofit" data-type="number">
+                    <th x-show="columns.lstk_rcl" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 border-r border-gray-200 dark:border-gray-600 relative" title="LSTK Reclaim (Halliburton Client Stock)" data-column="lstk_rcl" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'lstk_rcl')">
+                            <span>LSTK Rcl</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- Stock Totals (blue background) -->
+                    <th x-show="columns.retrofit" class="px-2 py-2 text-right font-medium bg-blue-50 dark:bg-blue-900/20 relative" title="Retrofit (NEW-RET)" data-column="retrofit" data-type="number">
                         <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'retrofit')">
                             <span>Retrofit</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                         </div>
                     </th>
-                    <th x-show="columns.cli_stk" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 border-r border-gray-200 dark:border-gray-600 relative" title="Client Stock (NEW-CLI + USED-CLI)" data-column="cli_stk" data-type="number">
-                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'cli_stk')">
-                            <span>Client Stk</span>
-                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
-                        </div>
-                    </th>
-                    <!-- New Stock (blue background) -->
                     <th x-show="columns.new_stock" class="px-2 py-2 text-right font-medium bg-blue-50 dark:bg-blue-900/20 relative" title="NEW-PUR only" data-column="new_stock" data-type="number">
                         <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'new_stock')">
                             <span>New Stock</span>
@@ -550,13 +550,13 @@
                     <td x-show="columns.ardt_rcl" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'USED-RCL' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'USED-RCL'|default:0 }}">
                         {{ row.variants|get_item:"USED-RCL"|floatformat:0|default:"-" }}
                     </td>
-                    <td x-show="columns.retrofit" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'NEW-RET' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'NEW-RET'|default:0 }}">
+                    <td x-show="columns.lstk_rcl" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.lstk_rcl > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.lstk_rcl|default:0 }}">
+                        {{ row.lstk_rcl|floatformat:0|default:"-" }}
+                    </td>
+                    <!-- Stock Totals (Blue) -->
+                    <td x-show="columns.retrofit" class="px-2 py-2 text-right font-mono bg-blue-50/50 dark:bg-blue-900/10 {% if row.variants|get_item:'NEW-RET' > 0 %}text-blue-700 dark:text-blue-300{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'NEW-RET'|default:0 }}">
                         {{ row.variants|get_item:"NEW-RET"|floatformat:0|default:"-" }}
                     </td>
-                    <td x-show="columns.cli_stk" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.client_stock > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.client_stock|default:0 }}">
-                        {{ row.client_stock|floatformat:0|default:"-" }}
-                    </td>
-                    <!-- New Stock -->
                     <td x-show="columns.new_stock" class="px-2 py-2 text-right font-mono bg-blue-50/50 dark:bg-blue-900/10 {% if row.new_stock > 0 %}text-blue-700 dark:text-blue-300{% else %}text-gray-300{% endif %}" data-value="{{ row.new_stock }}">
                         {{ row.new_stock|floatformat:0 }}
                     </td>
@@ -748,9 +748,9 @@
         eno_new: true,
         eno_grd: true,
         ardt_rcl: true,
-        retrofit: true,
-        cli_stk: true,
+        lstk_rcl: true,
         // Stock totals
+        retrofit: true,
         new_stock: true,
         total_new: true,
         // Consumption
