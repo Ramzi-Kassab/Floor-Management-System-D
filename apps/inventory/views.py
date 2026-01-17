@@ -1450,9 +1450,9 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
     """
     Dashboard showing PDC Cutter inventory matching Excel format:
     - Dynamic cutter attributes from CategoryAttribute (all attributes for PDC Cutters)
-    - Stock by variant: NEW-EO, GRD-EO, USED-RCL, CLI-RCL
+    - Stock by variant: NEW-EO, USED-GRD, USED-RCL, NEW-CLI, USED-CLI
     - New Stock (NEW-PUR only)
-    - Total New (NEW-PUR + NEW-EO + NEW-RET)
+    - Total New (NEW-PUR + NEW-EO + NEW-RET + NEW-CLI)
     - Consumption trends (6/3/2 months)
     - Safety Stock (calculated from 2M consumption)
     - BOM requirements, On Order, Forecast
@@ -1616,10 +1616,10 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         three_months_ago = today - timedelta(days=90)
         six_months_ago = today - timedelta(days=180)
 
-        # Variant case codes - includes NEW-RET (Retrofit as New)
-        variant_codes = ["NEW-PUR", "NEW-RET", "NEW-EO", "GRD-EO", "USED-RCL", "CLI-RCL"]
+        # Variant case codes (updated Jan 2026)
+        variant_codes = ["NEW-PUR", "NEW-RET", "NEW-EO", "USED-GRD", "USED-RCL", "NEW-CLI", "USED-CLI"]
         # Codes that count towards "Total New"
-        new_variant_codes = ["NEW-PUR", "NEW-EO", "NEW-RET"]
+        new_variant_codes = ["NEW-PUR", "NEW-EO", "NEW-RET", "NEW-CLI"]
 
         # Get dynamic category attributes
         category_attributes = self._get_category_attributes()
@@ -3134,9 +3134,9 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
         three_months_ago = today - timedelta(days=90)
         six_months_ago = today - timedelta(days=180)
 
-        # Variant codes
-        variant_codes = ["NEW-PUR", "NEW-RET", "NEW-EO", "GRD-EO", "USED-RCL", "CLI-RCL"]
-        new_variant_codes = ["NEW-PUR", "NEW-EO", "NEW-RET"]
+        # Variant codes (updated Jan 2026)
+        variant_codes = ["NEW-PUR", "NEW-RET", "NEW-EO", "USED-GRD", "USED-RCL", "NEW-CLI", "USED-CLI"]
+        new_variant_codes = ["NEW-PUR", "NEW-EO", "NEW-RET", "NEW-CLI"]
 
         writer = csv.writer(response)
 
@@ -3144,7 +3144,7 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
         header = ["#", "Code", "Product Name"]
         for attr in all_attributes:
             header.append(attr["name"])
-        header.extend(["NEW-EO", "GRD-EO", "USED-RCL", "CLI-RCL", "New Stock", "Total New",
+        header.extend(["NEW-EO", "USED-GRD", "USED-RCL", "NEW-CLI", "USED-CLI", "New Stock", "Total New",
                       "6M Consumption", "3M Consumption", "2M Consumption",
                       "Safety Stock", "BOM Req", "On Order", "Forecast", "Remarks"])
         writer.writerow(header)
@@ -3220,9 +3220,10 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
             row.extend(attr_values)
             row.extend([
                 variant_stock.get("NEW-EO", 0),
-                variant_stock.get("GRD-EO", 0),
+                variant_stock.get("USED-GRD", 0),
                 variant_stock.get("USED-RCL", 0),
-                variant_stock.get("CLI-RCL", 0),
+                variant_stock.get("NEW-CLI", 0),
+                variant_stock.get("USED-CLI", 0),
                 new_stock,
                 total_new,
                 abs(consumption_6m),

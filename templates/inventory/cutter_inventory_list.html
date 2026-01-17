@@ -346,10 +346,11 @@
                     {% endfor %}
                     <hr class="my-2">
                     <p class="text-xs font-medium text-gray-500 mb-2">Stock Variants</p>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_new" @change="savePreferences()"> ENO New</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_grd" @change="savePreferences()"> ENO Grd</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.ardt_rcl" @change="savePreferences()"> ARDT Rcl</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.lstk_rcl" @change="savePreferences()"> LSTK Rcl</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.new_eo" @change="savePreferences()"> NEW-EO</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.used_grd" @change="savePreferences()"> USED-GRD</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.used_rcl" @change="savePreferences()"> USED-RCL</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.new_cli" @change="savePreferences()"> NEW-CLI</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.used_cli" @change="savePreferences()"> USED-CLI</label>
                     <hr class="my-2">
                     <p class="text-xs font-medium text-gray-500 mb-2">Stock Totals</p>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.new_stock" @change="savePreferences()"> New Stock</label>
@@ -412,27 +413,33 @@
                     {% endif %}
                     {% endfor %}
                     <!-- Stock Variants (green background) -->
-                    <th x-show="columns.eno_new" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="E&O New" data-column="eno_new" data-type="number">
-                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'eno_new')">
-                            <span>ENO New</span>
+                    <th x-show="columns.new_eo" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="E&O (Excess & Obsolete)" data-column="new_eo" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'new_eo')">
+                            <span>NEW-EO</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                         </div>
                     </th>
-                    <th x-show="columns.eno_grd" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="E&O Ground" data-column="eno_grd" data-type="number">
-                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'eno_grd')">
-                            <span>ENO Grd</span>
+                    <th x-show="columns.used_grd" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="Ground (Surface Damage)" data-column="used_grd" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'used_grd')">
+                            <span>USED-GRD</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                         </div>
                     </th>
-                    <th x-show="columns.ardt_rcl" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="ARDT Reclaim" data-column="ardt_rcl" data-type="number">
-                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'ardt_rcl')">
-                            <span>ARDT Rcl</span>
+                    <th x-show="columns.used_rcl" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="Standard Reclaim" data-column="used_rcl" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'used_rcl')">
+                            <span>USED-RCL</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                         </div>
                     </th>
-                    <th x-show="columns.lstk_rcl" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 border-r border-gray-200 dark:border-gray-600 relative" title="LSTK Reclaim" data-column="lstk_rcl" data-type="number">
-                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'lstk_rcl')">
-                            <span>LSTK Rcl</span>
+                    <th x-show="columns.new_cli" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="Client New" data-column="new_cli" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'new_cli')">
+                            <span>NEW-CLI</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.used_cli" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 border-r border-gray-200 dark:border-gray-600 relative" title="Client Reclaim" data-column="used_cli" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'used_cli')">
+                            <span>USED-CLI</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                         </div>
                     </th>
@@ -443,7 +450,7 @@
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                         </div>
                     </th>
-                    <th x-show="columns.total_new" class="px-2 py-2 text-right font-medium bg-blue-100 dark:bg-blue-900/30 border-r border-gray-200 dark:border-gray-600 relative" title="NEW-PUR + NEW-EO + NEW-RET" data-column="total_new" data-type="number">
+                    <th x-show="columns.total_new" class="px-2 py-2 text-right font-medium bg-blue-100 dark:bg-blue-900/30 border-r border-gray-200 dark:border-gray-600 relative" title="NEW-PUR + NEW-EO + NEW-RET + NEW-CLI" data-column="total_new" data-type="number">
                         <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'total_new')">
                             <span>Total New</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
@@ -534,17 +541,20 @@
                     {% endif %}
                     {% endfor %}
                     <!-- Stock Variants -->
-                    <td x-show="columns.eno_new" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'NEW-EO' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'NEW-EO'|default:0 }}">
+                    <td x-show="columns.new_eo" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'NEW-EO' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'NEW-EO'|default:0 }}">
                         {{ row.variants|get_item:"NEW-EO"|floatformat:0|default:"-" }}
                     </td>
-                    <td x-show="columns.eno_grd" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'GRD-EO' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'GRD-EO'|default:0 }}">
-                        {{ row.variants|get_item:"GRD-EO"|floatformat:0|default:"-" }}
+                    <td x-show="columns.used_grd" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'USED-GRD' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'USED-GRD'|default:0 }}">
+                        {{ row.variants|get_item:"USED-GRD"|floatformat:0|default:"-" }}
                     </td>
-                    <td x-show="columns.ardt_rcl" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'USED-RCL' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'USED-RCL'|default:0 }}">
+                    <td x-show="columns.used_rcl" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'USED-RCL' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'USED-RCL'|default:0 }}">
                         {{ row.variants|get_item:"USED-RCL"|floatformat:0|default:"-" }}
                     </td>
-                    <td x-show="columns.lstk_rcl" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.variants|get_item:'CLI-RCL' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'CLI-RCL'|default:0 }}">
-                        {{ row.variants|get_item:"CLI-RCL"|floatformat:0|default:"-" }}
+                    <td x-show="columns.new_cli" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'NEW-CLI' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'NEW-CLI'|default:0 }}">
+                        {{ row.variants|get_item:"NEW-CLI"|floatformat:0|default:"-" }}
+                    </td>
+                    <td x-show="columns.used_cli" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.variants|get_item:'USED-CLI' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'USED-CLI'|default:0 }}">
+                        {{ row.variants|get_item:"USED-CLI"|floatformat:0|default:"-" }}
                     </td>
                     <!-- New Stock -->
                     <td x-show="columns.new_stock" class="px-2 py-2 text-right font-mono bg-blue-50/50 dark:bg-blue-900/10 {% if row.new_stock > 0 %}text-blue-700 dark:text-blue-300{% else %}text-gray-300{% endif %}" data-value="{{ row.new_stock }}">
@@ -735,10 +745,11 @@
         'attr_{{ attr.code }}': {{ attr.visible_default|yesno:"true,false" }},
         {% endfor %}
         // Stock variants
-        eno_new: true,
-        eno_grd: true,
-        ardt_rcl: true,
-        lstk_rcl: true,
+        new_eo: true,
+        used_grd: true,
+        used_rcl: true,
+        new_cli: true,
+        used_cli: true,
         // Stock totals
         new_stock: true,
         total_new: true,
