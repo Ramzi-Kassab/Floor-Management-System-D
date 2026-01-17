@@ -1285,7 +1285,9 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
     paginate_by = 100
 
     def _get_category_attributes(self):
-        """Get all attributes for PDC Cutters category (own + inherited from parent)."""
+        """Get all attributes for PDC Cutters category (own + inherited from parent).
+        Returns attributes ordered to match Excel format with visibility defaults.
+        """
         try:
             category = InventoryCategory.objects.get(code="CT-PDC")
         except InventoryCategory.DoesNotExist:
@@ -1321,8 +1323,36 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                         })
             parent = parent.parent
 
-        # Sort by display order
-        all_attributes.sort(key=lambda x: x["display_order"])
+        # Excel column order for attributes (matching Excel file):
+        # MN (hdbs_code), Cutter (type), Size, Chamfer, Family, Category
+        excel_attr_order = {
+            "hdbs_code": 1, "hdbs": 1, "cutter_hdbs": 1,  # MN column
+            "cutter_type": 2, "type": 2,  # Cutter column
+            "cutter_size": 3, "size": 3, "diameter": 3,  # Size column
+            "chamfer": 4, "chamfer_angle": 4, "cutter_chamfer": 4,  # Chamfer column
+            "family": 5, "cutter_family": 5, "product_family": 5,  # Family column
+            "category": 6, "cutter_category": 6, "size_category": 6,  # Category column
+        }
+
+        # Excel-visible attributes (shown by default)
+        excel_visible_codes = {
+            "hdbs_code", "hdbs", "cutter_hdbs",
+            "cutter_type", "type",
+            "cutter_size", "size", "diameter",
+            "chamfer", "chamfer_angle", "cutter_chamfer",
+            "family", "cutter_family", "product_family",
+            "category", "cutter_category", "size_category",
+        }
+
+        # Add visibility and excel_order to each attribute
+        for attr in all_attributes:
+            code_lower = attr["code"].lower()
+            attr["excel_order"] = excel_attr_order.get(code_lower, 999)
+            attr["visible_default"] = code_lower in excel_visible_codes
+
+        # Sort by Excel order first, then by original display_order
+        all_attributes.sort(key=lambda x: (x["excel_order"], x["display_order"]))
+
         return all_attributes
 
     def get_queryset(self):

@@ -4,7 +4,7 @@
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
 {% block page_header %}
-<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6" id="pageHeader">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         <p class="text-gray-600 dark:text-gray-400 mt-1">PDC Cutter inventory - matching Excel format</p>
@@ -21,167 +21,176 @@
 {% endblock %}
 
 {% block content %}
-<div x-data="{
-    attrColumns: {
-        {% for attr in category_attributes %}
-        '{{ attr.code }}': true{% if not forloop.last %},{% endif %}
-        {% endfor %}
-    },
-    columns: {
-        eno_new: true,
-        eno_grd: true,
-        ardt_rcl: true,
-        lstk_rcl: true,
-        new_stock: true,
-        total_new: true,
-        cons_6m: true,
-        cons_3m: true,
-        cons_2m: true,
-        safety: true,
-        bom_req: true,
-        on_order: true,
-        forecast: true,
-        remarks: true
-    },
-    showColumnMenu: false
-}">
+<div x-data="cutterInventory()" x-init="init()">
 
-<!-- Summary Cards -->
-<div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Total Cutters</p>
-                <p class="text-2xl font-bold text-gray-900 dark:text-white mt-1">{{ total_cutters }}</p>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <i data-lucide="circle-dot" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
-            </div>
-        </div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Total Stock</p>
-                <p class="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{{ total_stock|floatformat:0 }}</p>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <i data-lucide="package" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+<!-- Summary Cards (collapsible when freeze panes active) -->
+<div id="summarySection" x-show="!freezePanes" x-transition>
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Total Cutters</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white mt-1">{{ total_cutters }}</p>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <i data-lucide="circle-dot" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Total New</p>
-                <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{{ total_new_stock|floatformat:0 }}</p>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                <i data-lucide="sparkles" class="w-6 h-6 text-emerald-600 dark:text-emerald-400"></i>
-            </div>
-        </div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-sm text-gray-500 dark:text-gray-400">On Order</p>
-                <p class="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{{ total_on_order|floatformat:0 }}</p>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <i data-lucide="truck" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Total Stock</p>
+                    <p class="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{{ total_stock|floatformat:0 }}</p>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                    <i data-lucide="package" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Below Safety</p>
-                <p class="text-2xl font-bold {% if below_safety_count > 0 %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %} mt-1">{{ below_safety_count }}</p>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Total New</p>
+                    <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{{ total_new_stock|floatformat:0 }}</p>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                    <i data-lucide="sparkles" class="w-6 h-6 text-emerald-600 dark:text-emerald-400"></i>
+                </div>
             </div>
-            <div class="w-12 h-12 rounded-full {% if below_safety_count > 0 %}bg-red-100 dark:bg-red-900/30{% else %}bg-gray-100 dark:bg-gray-700{% endif %} flex items-center justify-center">
-                <i data-lucide="alert-triangle" class="w-6 h-6 {% if below_safety_count > 0 %}text-red-600 dark:text-red-400{% else %}text-gray-400{% endif %}"></i>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">On Order</p>
+                    <p class="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{{ total_on_order|floatformat:0 }}</p>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <i data-lucide="truck" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Below Safety</p>
+                    <p class="text-2xl font-bold {% if below_safety_count > 0 %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %} mt-1">{{ below_safety_count }}</p>
+                </div>
+                <div class="w-12 h-12 rounded-full {% if below_safety_count > 0 %}bg-red-100 dark:bg-red-900/30{% else %}bg-gray-100 dark:bg-gray-700{% endif %} flex items-center justify-center">
+                    <i data-lucide="alert-triangle" class="w-6 h-6 {% if below_safety_count > 0 %}text-red-600 dark:text-red-400{% else %}text-gray-400{% endif %}"></i>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Filters & Column Toggle -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+<!-- Filters & Controls -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6" id="filterSection" :class="{ 'sticky top-0 z-40': freezePanes }">
     <form method="get" class="flex flex-wrap gap-4 items-end">
         <div class="flex-1 min-w-[200px]">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
             <input type="text" name="search" value="{{ current_search }}" placeholder="Code or name..."
                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 flex-wrap">
             <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                 <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Filter
             </button>
-            <a href="{% url 'inventory:cutter_inventory_list' %}" class="px-4 py-2 text-gray-600 hover:text-gray-800">Clear</a>
+            <a href="{% url 'inventory:cutter_inventory_list' %}" class="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-400">Clear</a>
+
+            <!-- Freeze Panes Toggle -->
+            <button type="button" @click="toggleFreezePanes()"
+                    :class="freezePanes ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                    class="px-4 py-2 rounded-lg hover:opacity-90 flex items-center gap-2">
+                <i data-lucide="lock" class="w-4 h-4"></i>
+                <span x-text="freezePanes ? 'Unfreeze' : 'Freeze Panes'"></span>
+            </button>
+
             <!-- Column Toggle Button -->
             <div class="relative">
                 <button type="button" @click="showColumnMenu = !showColumnMenu" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
                     <i data-lucide="columns" class="w-4 h-4 inline mr-1"></i>Columns
                 </button>
-                <!-- Column Menu Dropdown -->
+                <!-- Column Visibility Dropdown -->
                 <div x-show="showColumnMenu" @click.away="showColumnMenu = false"
-                     class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 p-3 max-h-96 overflow-y-auto">
+                     class="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 p-3 max-h-[70vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                        <span class="text-xs font-medium text-gray-500">Column Visibility</span>
+                        <div class="flex gap-2">
+                            <button type="button" @click="resetToDefaults()" class="text-xs text-blue-600 hover:text-blue-800">Reset</button>
+                            <button type="button" @click="showAllColumns()" class="text-xs text-blue-600 hover:text-blue-800">Show All</button>
+                        </div>
+                    </div>
                     <p class="text-xs font-medium text-gray-500 mb-2">Attributes</p>
                     {% for attr in category_attributes %}
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="attrColumns['{{ attr.code }}']"> {{ attr.name }}</label>
+                    <label class="flex items-center gap-2 py-1 text-sm">
+                        <input type="checkbox" x-model="columns.attr_{{ attr.code }}" @change="savePreferences()">
+                        <span>{{ attr.name }}</span>
+                        {% if not attr.visible_default %}<span class="text-xs text-gray-400">(hidden by default)</span>{% endif %}
+                    </label>
                     {% endfor %}
                     <hr class="my-2">
                     <p class="text-xs font-medium text-gray-500 mb-2">Stock Variants</p>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_new"> ENO New</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_grd"> ENO Grd</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.ardt_rcl"> ARDT Rcl</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.lstk_rcl"> LSTK Rcl</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_new" @change="savePreferences()"> ENO New</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_grd" @change="savePreferences()"> ENO Grd</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.ardt_rcl" @change="savePreferences()"> ARDT Rcl</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.lstk_rcl" @change="savePreferences()"> LSTK Rcl</label>
                     <hr class="my-2">
                     <p class="text-xs font-medium text-gray-500 mb-2">Stock Totals</p>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.new_stock"> New Stock</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.total_new"> Total New</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.new_stock" @change="savePreferences()"> New Stock</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.total_new" @change="savePreferences()"> Total New</label>
                     <hr class="my-2">
                     <p class="text-xs font-medium text-gray-500 mb-2">Consumption</p>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_6m"> 6M Consumption</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_3m"> 3M Consumption</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_2m"> 2M Consumption</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_6m" @change="savePreferences()"> 6M Consumption</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_3m" @change="savePreferences()"> 3M Consumption</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_2m" @change="savePreferences()"> 2M Consumption</label>
                     <hr class="my-2">
                     <p class="text-xs font-medium text-gray-500 mb-2">Planning</p>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.safety"> Safety Stock</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.bom_req"> BOM Req</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.on_order"> On Order</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.forecast"> Forecast</label>
-                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.remarks"> Remarks</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.safety" @change="savePreferences()"> Safety Stock</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.bom_req" @change="savePreferences()"> BOM Req</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.on_order" @change="savePreferences()"> On Order</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.forecast" @change="savePreferences()"> Forecast</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.remarks" @change="savePreferences()"> Remarks</label>
                 </div>
             </div>
         </div>
     </form>
 </div>
 
-<!-- Inventory Table -->
+<!-- Inventory Table with Freeze Panes -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-    <div class="overflow-x-auto">
+    <div class="overflow-x-auto" :class="{ 'max-h-[calc(100vh-180px)]': freezePanes }">
         <table class="w-full text-xs" id="cutterTable">
-            <thead>
+            <thead :class="{ 'sticky top-0 z-30': freezePanes }">
                 <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
-                    <th class="px-2 py-2 text-left font-medium w-8">#</th>
-                    <!-- Product Name - Filterable -->
-                    <th class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600 relative" data-column="product_name" data-type="text">
+                    <!-- # - Row Number (always visible, sticky when freeze) -->
+                    <th class="px-2 py-2 text-left font-medium w-8 bg-gray-50 dark:bg-gray-700/50" :class="{ 'sticky left-0 z-20': freezePanes }">#</th>
+                    <!-- MN - HDBS Code (sticky when freeze) -->
+                    <th class="px-2 py-2 text-left font-medium bg-gray-50 dark:bg-gray-700/50 min-w-[80px]" :class="{ 'sticky left-8 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]': freezePanes }" x-show="columns.attr_hdbs_code || columns.attr_hdbs || columns.attr_cutter_hdbs" data-column="mn" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'mn')">
+                            <span>MN</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- Product Name -->
+                    <th class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600 min-w-[180px] relative" data-column="product_name" data-type="text">
                         <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'product_name')">
                             <span>Product Name</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                         </div>
                     </th>
-                    <!-- Dynamic Attributes - Filterable -->
+                    <!-- Dynamic Attributes (in Excel order: Cutter/Type, Size, Chamfer, Family, Category) -->
                     {% for attr in category_attributes %}
-                    <th x-show="attrColumns['{{ attr.code }}']" class="px-2 py-2 text-left font-medium{% if forloop.last %} border-r border-gray-200 dark:border-gray-600{% endif %} relative" data-column="attr_{{ attr.code }}" data-type="text">
+                    {% if attr.code != 'hdbs_code' and attr.code != 'hdbs' and attr.code != 'cutter_hdbs' %}
+                    <th x-show="columns.attr_{{ attr.code }}" class="px-2 py-2 text-left font-medium relative" data-column="attr_{{ attr.code }}" data-type="text">
                         <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'attr_{{ attr.code }}')">
                             <span>{{ attr.name }}</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                         </div>
                     </th>
+                    {% endif %}
                     {% endfor %}
-                    <!-- Stock Variants (green background) - Filterable -->
+                    <!-- Stock Variants (green background) -->
                     <th x-show="columns.eno_new" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="E&O New" data-column="eno_new" data-type="number">
                         <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'eno_new')">
                             <span>ENO New</span>
@@ -239,9 +248,16 @@
                         </div>
                     </th>
                     <!-- Safety (red background) -->
-                    <th x-show="columns.safety" class="px-2 py-2 text-right font-medium bg-red-50 dark:bg-red-900/20 border-r border-gray-200 dark:border-gray-600 relative" data-column="safety" data-type="number">
+                    <th x-show="columns.safety" class="px-2 py-2 text-right font-medium bg-red-50 dark:bg-red-900/20 relative" data-column="safety" data-type="number">
                         <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'safety')">
                             <span>Safety</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- Category (from attributes, moved here to match Excel order) -->
+                    <th x-show="columns.attr_category || columns.attr_cutter_category || columns.attr_size_category" class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600 relative" data-column="attr_category" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'attr_category')">
+                            <span>Category</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                         </div>
                     </th>
@@ -272,18 +288,24 @@
                 {% for row in cutter_data %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.below_safety %}bg-red-50 dark:bg-red-900/10{% endif %}">
                     <!-- Row # -->
-                    <td class="px-2 py-2 text-gray-400 text-center">{{ row.row_num }}</td>
+                    <td class="px-2 py-2 text-gray-400 text-center bg-white dark:bg-gray-800" :class="{ 'sticky left-0 z-10': freezePanes }">{{ row.row_num }}</td>
+                    <!-- MN (HDBS Code) -->
+                    <td class="px-2 py-2 font-mono text-xs font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-800" :class="{ 'sticky left-8 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]': freezePanes }" x-show="columns.attr_hdbs_code || columns.attr_hdbs || columns.attr_cutter_hdbs" data-value="{{ row.attributes.hdbs_code|default:row.attributes.hdbs|default:row.attributes.cutter_hdbs|default:'' }}">
+                        {{ row.attributes.hdbs_code|default:row.attributes.hdbs|default:row.attributes.cutter_hdbs|default:"-" }}
+                    </td>
                     <!-- Product Name (with link) -->
                     <td class="px-2 py-2 border-r border-gray-100 dark:border-gray-700" data-value="{{ row.product_name }}">
                         <a href="{% url 'inventory:item_detail' row.item.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-blue-600 text-[10px] max-w-[180px] truncate block" title="{{ row.product_name }}">
                             {{ row.product_name|truncatechars:35 }}
                         </a>
                     </td>
-                    <!-- Dynamic Attributes -->
+                    <!-- Dynamic Attributes (excluding HDBS and Category which are handled separately) -->
                     {% for attr in category_attributes %}
-                    <td x-show="attrColumns['{{ attr.code }}']" class="px-2 py-2 text-gray-700 dark:text-gray-300{% if forloop.last %} border-r border-gray-100 dark:border-gray-700{% endif %}" data-value="{{ row.attributes|get_item:attr.code|default:'' }}">
+                    {% if attr.code != 'hdbs_code' and attr.code != 'hdbs' and attr.code != 'cutter_hdbs' and attr.code != 'category' and attr.code != 'cutter_category' and attr.code != 'size_category' %}
+                    <td x-show="columns.attr_{{ attr.code }}" class="px-2 py-2 text-gray-700 dark:text-gray-300" data-value="{{ row.attributes|get_item:attr.code|default:'' }}">
                         {{ row.attributes|get_item:attr.code|default:"-"|truncatechars:20 }}
                     </td>
+                    {% endif %}
                     {% endfor %}
                     <!-- Stock Variants -->
                     <td x-show="columns.eno_new" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'NEW-EO' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'NEW-EO'|default:0 }}">
@@ -316,8 +338,12 @@
                         {{ row.consumption_2m|floatformat:0 }}
                     </td>
                     <!-- Safety Stock -->
-                    <td x-show="columns.safety" class="px-2 py-2 text-right font-mono bg-red-50/50 dark:bg-red-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.below_safety %}text-red-700 dark:text-red-300 font-bold{% else %}text-gray-500{% endif %}" data-value="{{ row.safety_stock }}">
+                    <td x-show="columns.safety" class="px-2 py-2 text-right font-mono bg-red-50/50 dark:bg-red-900/10 {% if row.below_safety %}text-red-700 dark:text-red-300 font-bold{% else %}text-gray-500{% endif %}" data-value="{{ row.safety_stock }}">
                         {{ row.safety_stock|floatformat:0 }}
+                    </td>
+                    <!-- Category -->
+                    <td x-show="columns.attr_category || columns.attr_cutter_category || columns.attr_size_category" class="px-2 py-2 text-gray-700 dark:text-gray-300 border-r border-gray-100 dark:border-gray-700" data-value="{{ row.attributes.category|default:row.attributes.cutter_category|default:row.attributes.size_category|default:'' }}">
+                        {{ row.attributes.category|default:row.attributes.cutter_category|default:row.attributes.size_category|default:"-" }}
                     </td>
                     <!-- Planning -->
                     <td x-show="columns.bom_req" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 text-purple-600 dark:text-purple-400" data-value="{{ row.bom_requirement }}">
@@ -348,8 +374,8 @@
     </div>
 </div>
 
-<!-- Legend -->
-<div class="mt-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+<!-- Legend (hidden when freeze panes active) -->
+<div class="mt-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4" x-show="!freezePanes" x-transition>
     <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Column Legend</h3>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-gray-500 dark:text-gray-400">
         <div class="flex items-center gap-2">
@@ -373,17 +399,11 @@
         <strong>Forecast Formula:</strong> Total New + On Order - BOM Requirement |
         <strong>Safety Formula:</strong> 2M consumption + buffer (2-10), rounded up to nearest 5
     </div>
-    {% if category_attributes %}
-    <div class="mt-2 text-xs text-gray-400">
-        <strong>Dynamic Attributes ({{ category_attributes|length }}):</strong>
-        {% for attr in category_attributes %}{{ attr.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
-    </div>
-    {% endif %}
 </div>
 
 {% if page_obj.has_other_pages %}
 <!-- Pagination -->
-<div class="mt-6 flex items-center justify-between">
+<div class="mt-6 flex items-center justify-between" x-show="!freezePanes" x-transition>
     <p class="text-sm text-gray-500">
         Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} cutters
     </p>
@@ -478,6 +498,83 @@
 </div>
 
 <script>
+    // Default column visibility (matching Excel)
+    const defaultColumns = {
+        // Attributes - Excel visible ones
+        {% for attr in category_attributes %}
+        'attr_{{ attr.code }}': {{ attr.visible_default|yesno:"true,false" }},
+        {% endfor %}
+        // Stock variants
+        eno_new: true,
+        eno_grd: true,
+        ardt_rcl: true,
+        lstk_rcl: true,
+        // Stock totals
+        new_stock: true,
+        total_new: true,
+        // Consumption
+        cons_6m: true,
+        cons_3m: true,
+        cons_2m: true,
+        // Planning
+        safety: true,
+        bom_req: true,
+        on_order: true,
+        forecast: true,
+        remarks: true
+    };
+
+    function cutterInventory() {
+        return {
+            columns: { ...defaultColumns },
+            freezePanes: false,
+            showColumnMenu: false,
+
+            init() {
+                // Load saved preferences from localStorage
+                const saved = localStorage.getItem('cutterInventoryPrefs');
+                if (saved) {
+                    try {
+                        const prefs = JSON.parse(saved);
+                        if (prefs.columns) {
+                            this.columns = { ...defaultColumns, ...prefs.columns };
+                        }
+                        if (prefs.freezePanes !== undefined) {
+                            this.freezePanes = prefs.freezePanes;
+                        }
+                    } catch (e) {
+                        console.error('Failed to load preferences:', e);
+                    }
+                }
+            },
+
+            savePreferences() {
+                const prefs = {
+                    columns: this.columns,
+                    freezePanes: this.freezePanes
+                };
+                localStorage.setItem('cutterInventoryPrefs', JSON.stringify(prefs));
+            },
+
+            toggleFreezePanes() {
+                this.freezePanes = !this.freezePanes;
+                this.savePreferences();
+            },
+
+            resetToDefaults() {
+                this.columns = { ...defaultColumns };
+                this.savePreferences();
+            },
+
+            showAllColumns() {
+                Object.keys(this.columns).forEach(key => {
+                    this.columns[key] = true;
+                });
+                this.savePreferences();
+            }
+        };
+    }
+
     // Column menu state
     let currentColumn = null;
     let currentColumnType = 'text';
@@ -490,11 +587,9 @@
         const menu = document.getElementById('columnMenu');
         const th = event.currentTarget.closest('th');
 
-        // Get column type
         currentColumnType = th.dataset.type || 'text';
         currentColumn = column;
 
-        // Update sort text based on type
         if (currentColumnType === 'number') {
             document.querySelector('.sort-asc-text').textContent = 'Sort Smallest to Largest';
             document.querySelector('.sort-desc-text').textContent = 'Sort Largest to Smallest';
@@ -503,16 +598,10 @@
             document.querySelector('.sort-desc-text').textContent = 'Sort Z to A';
         }
 
-        // Update clear filter column name
         document.getElementById('clearFilterColumnName').textContent = th.querySelector('span').textContent;
-
-        // Populate values list
         populateValuesList(column);
-
-        // Show menu first to get its dimensions
         menu.classList.remove('hidden');
 
-        // Position menu with viewport boundary checking
         const rect = th.getBoundingClientRect();
         const menuRect = menu.getBoundingClientRect();
         const viewportWidth = window.innerWidth;
@@ -522,17 +611,12 @@
         let left = rect.left;
         let top = rect.bottom + 5;
 
-        // Check right boundary
         if (left + menuRect.width > viewportWidth - padding) {
             left = viewportWidth - menuRect.width - padding;
         }
-
-        // Check left boundary
         if (left < padding) {
             left = padding;
         }
-
-        // Check bottom boundary
         if (top + menuRect.height > viewportHeight - padding) {
             top = rect.top - menuRect.height - 5;
             if (top < padding) {
@@ -544,7 +628,6 @@
         menu.style.top = top + 'px';
     }
 
-    // Populate values list from table data
     function populateValuesList(column) {
         const table = document.getElementById('cutterTable');
         const rows = table.querySelectorAll('tbody tr');
@@ -552,9 +635,8 @@
         if (!th) return;
 
         const colIndex = Array.from(th.parentNode.children).indexOf(th);
-
-        // Collect unique values
         const valuesSet = new Set();
+
         rows.forEach(row => {
             const cell = row.children[colIndex];
             if (cell) {
@@ -566,7 +648,6 @@
         });
 
         columnValues = Array.from(valuesSet).sort((a, b) => {
-            // Try numeric sort first
             const numA = parseFloat(a);
             const numB = parseFloat(b);
             if (!isNaN(numA) && !isNaN(numB)) {
@@ -575,11 +656,9 @@
             return a.localeCompare(b);
         });
         selectedValues = new Set(columnValues);
-
         renderValuesList();
     }
 
-    // Render values list with checkboxes
     function renderValuesList(filter = '') {
         const container = document.getElementById('valuesList');
         const filtered = filter
@@ -594,7 +673,6 @@
             </label>
         `).join('');
 
-        // Add blank option
         if (!filter) {
             container.innerHTML = `
                 <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
@@ -606,13 +684,10 @@
         }
     }
 
-    // Filter values list
     function filterValuesList() {
-        const search = document.getElementById('valueSearch').value;
-        renderValuesList(search);
+        renderValuesList(document.getElementById('valueSearch').value);
     }
 
-    // Toggle value selection
     function toggleValue(value) {
         if (selectedValues.has(value)) {
             selectedValues.delete(value);
@@ -621,20 +696,17 @@
         }
     }
 
-    // Select all values
     function selectAllValues() {
         selectedValues = new Set(columnValues);
         selectedValues.add('__blank__');
         renderValuesList();
     }
 
-    // Select no values
     function selectNoneValues() {
         selectedValues = new Set();
         renderValuesList();
     }
 
-    // Sort column (client-side)
     function sortColumn(direction) {
         const table = document.getElementById('cutterTable');
         const tbody = table.querySelector('tbody');
@@ -652,33 +724,24 @@
             let valA = cellA.dataset.value || cellA.textContent.trim();
             let valB = cellB.dataset.value || cellB.textContent.trim();
 
-            // Try numeric comparison
             const numA = parseFloat(valA);
             const numB = parseFloat(valB);
             if (!isNaN(numA) && !isNaN(numB)) {
                 return direction === 'asc' ? numA - numB : numB - numA;
             }
-
-            // String comparison
-            return direction === 'asc'
-                ? valA.localeCompare(valB)
-                : valB.localeCompare(valA);
+            return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
         });
 
-        // Re-append sorted rows
         rows.forEach(row => tbody.appendChild(row));
         closeColumnMenu();
     }
 
-    // Clear column filter
     function clearColumnFilter() {
         const table = document.getElementById('cutterTable');
-        const rows = table.querySelectorAll('tbody tr');
-        rows.forEach(row => row.style.display = '');
+        table.querySelectorAll('tbody tr').forEach(row => row.style.display = '');
         closeColumnMenu();
     }
 
-    // Apply custom filter (client-side)
     function applyCustomFilter() {
         const operator = document.getElementById('filterOperator').value;
         const value1 = document.getElementById('filterValue1').value.toLowerCase();
@@ -699,27 +762,13 @@
             let show = true;
 
             switch(operator) {
-                case 'contains':
-                    show = cellValue.includes(value1);
-                    break;
-                case 'equals':
-                    show = cellValue === value1;
-                    break;
-                case 'not_equals':
-                    show = cellValue !== value1;
-                    break;
-                case 'starts_with':
-                    show = cellValue.startsWith(value1);
-                    break;
-                case 'ends_with':
-                    show = cellValue.endsWith(value1);
-                    break;
-                case 'greater':
-                    show = parseFloat(cellValue) > parseFloat(value1);
-                    break;
-                case 'less':
-                    show = parseFloat(cellValue) < parseFloat(value1);
-                    break;
+                case 'contains': show = cellValue.includes(value1); break;
+                case 'equals': show = cellValue === value1; break;
+                case 'not_equals': show = cellValue !== value1; break;
+                case 'starts_with': show = cellValue.startsWith(value1); break;
+                case 'ends_with': show = cellValue.endsWith(value1); break;
+                case 'greater': show = parseFloat(cellValue) > parseFloat(value1); break;
+                case 'less': show = parseFloat(cellValue) < parseFloat(value1); break;
                 case 'between':
                     const num = parseFloat(cellValue);
                     show = num >= parseFloat(value1) && num <= parseFloat(value2);
@@ -732,7 +781,6 @@
         closeColumnMenu();
     }
 
-    // Apply value filter (client-side)
     function applyValueFilter() {
         const table = document.getElementById('cutterTable');
         const rows = table.querySelectorAll('tbody tr');
@@ -761,22 +809,15 @@
         closeColumnMenu();
     }
 
-    // Close column menu
     function closeColumnMenu() {
         document.getElementById('columnMenu').classList.add('hidden');
     }
 
-    // Show/hide second value input for "between" operator
     document.getElementById('filterOperator').addEventListener('change', function() {
         const value2 = document.getElementById('filterValue2');
-        if (this.value === 'between') {
-            value2.classList.remove('hidden');
-        } else {
-            value2.classList.add('hidden');
-        }
+        value2.classList.toggle('hidden', this.value !== 'between');
     });
 
-    // Close menu when clicking outside
     document.addEventListener('click', function(e) {
         const menu = document.getElementById('columnMenu');
         if (!menu.contains(e.target) && !e.target.closest('.column-header')) {
@@ -784,21 +825,11 @@
         }
     });
 
-    // Close menu on scroll
-    window.addEventListener('scroll', function() {
-        closeColumnMenu();
-    }, true);
+    window.addEventListener('scroll', () => closeColumnMenu(), true);
+    window.addEventListener('resize', () => closeColumnMenu());
 
-    // Close menu on window resize
-    window.addEventListener('resize', function() {
-        closeColumnMenu();
-    });
-
-    // Initialize Lucide icons after menu is shown
-    const observer = new MutationObserver(function() {
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
+    const observer = new MutationObserver(() => {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     });
     observer.observe(document.getElementById('columnMenu'), { attributes: true, attributeFilter: ['class'] });
 </script>
