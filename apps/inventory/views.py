@@ -260,6 +260,45 @@ class CategoryDeleteView(LoginRequiredMixin, DeleteView):
         return context
 
 
+class CategoryApplyToItemsView(LoginRequiredMixin, View):
+    """Apply category changes to all related items."""
+
+    def post(self, request, pk):
+        category = get_object_or_404(InventoryCategory, pk=pk)
+        action = request.POST.get("action")
+
+        if action == "regenerate_names":
+            updated, skipped = category.regenerate_item_names()
+            if updated > 0:
+                messages.success(
+                    request,
+                    f"Regenerated names for {updated} items. {skipped} items skipped (manually named or unchanged)."
+                )
+            else:
+                messages.info(request, f"No items needed name updates. {skipped} items checked.")
+
+        elif action == "apply_defaults":
+            updated, fields = category.apply_defaults_to_items()
+            if updated > 0:
+                messages.success(
+                    request,
+                    f"Applied defaults to {updated} items. Fields updated: {', '.join(fields)}"
+                )
+            else:
+                messages.info(request, "No items to update or no defaults configured.")
+
+        elif action == "apply_all":
+            # Apply both name regeneration and defaults
+            name_updated, name_skipped = category.regenerate_item_names()
+            default_updated, fields = category.apply_defaults_to_items()
+            messages.success(
+                request,
+                f"Applied changes: {name_updated} names regenerated, {default_updated} items got default values."
+            )
+
+        return redirect("inventory:category_detail", pk=pk)
+
+
 # =============================================================================
 # Location Views
 # =============================================================================

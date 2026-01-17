@@ -753,6 +753,61 @@ class InventoryCategory(models.Model):
         self.save(update_fields=["next_sequence"])
         return code
 
+    def regenerate_item_names(self):
+        """
+        Regenerate names for all items in this category using the current name_template.
+        Only updates items that don't have manually set names.
+        Returns tuple: (updated_count, skipped_count)
+        """
+        updated_count = 0
+        skipped_count = 0
+
+        for item in self.items.all():
+            if item.name_manually_set:
+                skipped_count += 1
+                continue
+
+            new_name = item.generate_name_from_attributes()
+            if new_name and new_name != item.name:
+                item.name = new_name
+                item.save(update_fields=["name"])
+                updated_count += 1
+            else:
+                skipped_count += 1
+
+        return updated_count, skipped_count
+
+    def apply_defaults_to_items(self):
+        """
+        Apply category default values to all items in this category.
+        Updates: currency, min_stock, reorder_qty, packaging UOMs.
+        Returns tuple: (updated_count, fields_updated)
+        """
+        updated_count = 0
+        fields_updated = []
+
+        update_fields = {}
+        if self.default_currency:
+            update_fields['currency'] = self.default_currency
+            fields_updated.append('currency')
+        if self.default_min_stock is not None:
+            update_fields['min_stock_level'] = self.default_min_stock
+            fields_updated.append('min_stock_level')
+        if self.default_reorder_qty is not None:
+            update_fields['reorder_quantity'] = self.default_reorder_qty
+            fields_updated.append('reorder_quantity')
+        if self.default_purchase_uom_id:
+            update_fields['purchase_uom_id'] = self.default_purchase_uom_id
+            fields_updated.append('purchase_uom')
+        if self.default_release_uom_id:
+            update_fields['stock_uom_id'] = self.default_release_uom_id
+            fields_updated.append('stock_uom')
+
+        if update_fields:
+            updated_count = self.items.update(**update_fields)
+
+        return updated_count, fields_updated
+
 
 # =============================================================================
 # MASTER DATA: ATTRIBUTES (Simple Global List)

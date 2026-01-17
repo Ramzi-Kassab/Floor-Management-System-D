@@ -131,6 +131,47 @@
             </div>
         </div>
 
+        <!-- Bulk Actions Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                <i data-lucide="refresh-cw" class="w-5 h-5 inline mr-2 text-gray-400"></i>
+                Apply Changes to Items
+            </h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Apply category settings to all <strong>{{ items_count }}</strong> items in this category.
+                Items with manually set names will be skipped.
+            </p>
+            <div class="flex flex-wrap gap-3">
+                <form action="{% url 'inventory:category_apply_to_items' category.pk %}" method="post" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="regenerate_names">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            onclick="return confirm('Regenerate names for all {{ items_count }} items using the current name template?')">
+                        <i data-lucide="type" class="w-4 h-4 mr-2"></i>
+                        Regenerate Names
+                    </button>
+                </form>
+                <form action="{% url 'inventory:category_apply_to_items' category.pk %}" method="post" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="apply_defaults">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                            onclick="return confirm('Apply default values (currency, min stock, UOMs) to all {{ items_count }} items?')">
+                        <i data-lucide="settings" class="w-4 h-4 mr-2"></i>
+                        Apply Defaults
+                    </button>
+                </form>
+                <form action="{% url 'inventory:category_apply_to_items' category.pk %}" method="post" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="apply_all">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                            onclick="return confirm('Apply ALL category changes (names + defaults) to all {{ items_count }} items?')">
+                        <i data-lucide="zap" class="w-4 h-4 mr-2"></i>
+                        Apply All Changes
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <!-- Category Attributes Card -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <div class="flex items-center justify-between mb-4">

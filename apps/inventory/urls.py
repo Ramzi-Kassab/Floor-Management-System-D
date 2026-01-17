@@ -14,6 +14,7 @@ urlpatterns = [
     path("categories/<int:pk>/", views.CategoryDetailView.as_view(), name="category_detail"),
     path("categories/<int:pk>/edit/", views.CategoryUpdateView.as_view(), name="category_update"),
     path("categories/<int:pk>/delete/", views.CategoryDeleteView.as_view(), name="category_delete"),
+    path("categories/<int:pk>/apply-to-items/", views.CategoryApplyToItemsView.as_view(), name="category_apply_to_items"),
     # Attributes (simple global list - just names)
     path("attributes/", views.AttributeListView.as_view(), name="attribute_list"),
     path("attributes/create/", views.StandaloneAttributeCreateView.as_view(), name="standalone_attribute_create"),
