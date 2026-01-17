@@ -166,7 +166,7 @@
                     <!-- # - Row Number (always visible, sticky when freeze) -->
                     <th class="px-2 py-2 text-left font-medium w-8 bg-gray-50 dark:bg-gray-700/50" :class="{ 'sticky left-0 z-20': freezePanes }">#</th>
                     <!-- MN - HDBS Code (sticky when freeze) -->
-                    <th class="px-2 py-2 text-left font-medium bg-gray-50 dark:bg-gray-700/50 min-w-[80px]" :class="{ 'sticky left-8 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]': freezePanes }" x-show="columns.attr_hdbs_code || columns.attr_hdbs || columns.attr_cutter_hdbs" data-column="mn" data-type="text">
+                    <th class="px-2 py-2 text-left font-medium bg-gray-50 dark:bg-gray-700/50 min-w-[80px]" :class="{ 'sticky left-8 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]': freezePanes }" x-show="columns.attr_hdbs_code" data-column="mn" data-type="text">
                         <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'mn')">
                             <span>MN</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
@@ -255,7 +255,7 @@
                         </div>
                     </th>
                     <!-- Category (from attributes, moved here to match Excel order) -->
-                    <th x-show="columns.attr_category || columns.attr_cutter_category || columns.attr_size_category" class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600 relative" data-column="attr_category" data-type="text">
+                    <th x-show="columns.attr_category" class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600 relative" data-column="attr_category" data-type="text">
                         <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'attr_category')">
                             <span>Category</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
@@ -290,8 +290,8 @@
                     <!-- Row # -->
                     <td class="px-2 py-2 text-gray-400 text-center bg-white dark:bg-gray-800" :class="{ 'sticky left-0 z-10': freezePanes }">{{ row.row_num }}</td>
                     <!-- MN (HDBS Code) -->
-                    <td class="px-2 py-2 font-mono text-xs font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-800" :class="{ 'sticky left-8 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]': freezePanes }" x-show="columns.attr_hdbs_code || columns.attr_hdbs || columns.attr_cutter_hdbs" data-value="{{ row.attributes.hdbs_code|default:row.attributes.hdbs|default:row.attributes.cutter_hdbs|default:'' }}">
-                        {{ row.attributes.hdbs_code|default:row.attributes.hdbs|default:row.attributes.cutter_hdbs|default:"-" }}
+                    <td class="px-2 py-2 font-mono text-xs font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-800" :class="{ 'sticky left-8 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]': freezePanes }" x-show="columns.attr_hdbs_code" data-value="{{ row.attributes|get_item:'hdbs_code'|default:'' }}">
+                        {{ row.attributes|get_item:'hdbs_code'|default:"-" }}
                     </td>
                     <!-- Product Name (with link) -->
                     <td class="px-2 py-2 border-r border-gray-100 dark:border-gray-700" data-value="{{ row.product_name }}">
@@ -342,8 +342,8 @@
                         {{ row.safety_stock|floatformat:0 }}
                     </td>
                     <!-- Category -->
-                    <td x-show="columns.attr_category || columns.attr_cutter_category || columns.attr_size_category" class="px-2 py-2 text-gray-700 dark:text-gray-300 border-r border-gray-100 dark:border-gray-700" data-value="{{ row.attributes.category|default:row.attributes.cutter_category|default:row.attributes.size_category|default:'' }}">
-                        {{ row.attributes.category|default:row.attributes.cutter_category|default:row.attributes.size_category|default:"-" }}
+                    <td x-show="columns.attr_category" class="px-2 py-2 text-gray-700 dark:text-gray-300 border-r border-gray-100 dark:border-gray-700" data-value="{{ row.attributes|get_item:'category'|default:'' }}">
+                        {{ row.attributes|get_item:'category'|default:"-" }}
                     </td>
                     <!-- Planning -->
                     <td x-show="columns.bom_req" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 text-purple-600 dark:text-purple-400" data-value="{{ row.bom_requirement }}">
