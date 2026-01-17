@@ -1468,3 +1468,60 @@ PriceMatrixRuleFormSet = inlineformset_factory(
     extra=5,
     can_delete=True,
 )
+
+
+# =============================================================================
+# VARIANT FORMS
+# =============================================================================
+
+
+class ItemVariantForm(forms.ModelForm):
+    """Form for Item Variant with ERP Item No uniqueness validation."""
+
+    class Meta:
+        model = ItemVariant
+        fields = [
+            "variant_case",
+            "customer",
+            "account",
+            "standard_cost",
+            "last_cost",
+            "legacy_mat_no",
+            "erp_item_no",
+            "is_active",
+            "notes",
+        ]
+        widgets = {
+            "variant_case": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "customer": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "account": forms.Select(attrs={"class": TAILWIND_SELECT}),
+            "standard_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "last_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
+            "legacy_mat_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Legacy MAT number"}),
+            "erp_item_no": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "Unique ERP Item number"}),
+            "is_active": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
+            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 2}),
+        }
+
+    def clean_erp_item_no(self):
+        """Validate ERP Item No is unique across all variants."""
+        erp_item_no = self.cleaned_data.get('erp_item_no')
+        if erp_item_no:
+            # Check if another variant has this ERP Item No
+            existing = ItemVariant.objects.filter(erp_item_no=erp_item_no)
+            if self.instance and self.instance.pk:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                existing_variant = existing.first()
+                raise forms.ValidationError(
+                    f"ERP Item No '{erp_item_no}' already exists on variant '{existing_variant.code}'. "
+                    f"ERP Item numbers must be unique."
+                )
+
+            # Also check if it matches an InventoryItem code
+            if InventoryItem.objects.filter(code=erp_item_no).exists():
+                raise forms.ValidationError(
+                    f"ERP Item No '{erp_item_no}' conflicts with an existing item code. "
+                    f"ERP Item numbers must be unique across items and variants."
+                )
+        return erp_item_no

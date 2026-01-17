@@ -2679,7 +2679,10 @@ class ItemVariantUpdateView(LoginRequiredMixin, UpdateView):
 
     model = ItemVariant
     template_name = "inventory/item_variant_form.html"
-    fields = ["variant_case", "customer", "account", "standard_cost", "last_cost", "legacy_mat_no", "erp_item_no", "is_active", "notes"]
+
+    def get_form_class(self):
+        from .forms import ItemVariantForm
+        return ItemVariantForm
 
     def get_context_data(self, **kwargs):
         from apps.sales.models import Customer
