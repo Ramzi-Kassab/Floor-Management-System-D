@@ -65,25 +65,44 @@
         position: sticky;
         left: 0;
         z-index: 15;
-        background: inherit;
+        background: #f9fafb !important; /* gray-50 header background */
     }
     .freeze-col-2 {
         position: sticky;
         left: 40px;
         z-index: 15;
-        background: inherit;
+        background: #f9fafb !important; /* gray-50 header background */
         box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2);
+    }
+    .dark .freeze-col-1,
+    .dark .freeze-col-2 {
+        background: #1f2937 !important; /* dark:bg-gray-800 */
     }
     .freeze-col-1-body {
         position: sticky;
         left: 0;
         z-index: 5;
+        background: white !important;
     }
     .freeze-col-2-body {
         position: sticky;
         left: 40px;
         z-index: 5;
+        background: white !important;
         box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2);
+    }
+    .dark .freeze-col-1-body,
+    .dark .freeze-col-2-body {
+        background: #1f2937 !important; /* dark:bg-gray-800 */
+    }
+    /* Red row backgrounds for below safety stock */
+    tr.below-safety .freeze-col-1-body,
+    tr.below-safety .freeze-col-2-body {
+        background: #fef2f2 !important; /* red-50 */
+    }
+    .dark tr.below-safety .freeze-col-1-body,
+    .dark tr.below-safety .freeze-col-2-body {
+        background: rgba(127, 29, 29, 0.3) !important; /* dark red */
     }
 
     /* Full page mode - maximizes table view */
@@ -468,12 +487,12 @@
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                 {% for row in cutter_data %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.below_safety %}bg-red-50 dark:bg-red-900/10{% endif %}">
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.below_safety %}below-safety bg-red-50 dark:bg-red-900/10{% endif %}">
                     <!-- Row # -->
-                    <td class="px-2 py-2 text-gray-400 text-center {% if row.below_safety %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
+                    <td class="px-2 py-2 text-gray-400 text-center bg-white dark:bg-gray-800"
                         :class="freezePanes ? 'freeze-col-1-body' : ''">{{ row.row_num }}</td>
                     <!-- MN (HDBS Code) -->
-                    <td class="px-2 py-2 font-mono text-xs font-medium {% if row.below_safety %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
+                    <td class="px-2 py-2 font-mono text-xs font-medium bg-white dark:bg-gray-800"
                         :class="freezePanes ? 'freeze-col-2-body' : ''"
                         x-show="columns.attr_hdbs_code" data-value="{{ row.attributes|get_item:'hdbs_code'|default:'' }}">
                         <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-blue-600 hover:text-blue-800 hover:underline" title="Open {{ row.product_name }}">
