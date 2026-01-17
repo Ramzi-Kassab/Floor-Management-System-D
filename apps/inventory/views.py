@@ -475,7 +475,7 @@ class ItemListView(LoginRequiredMixin, ListView):
         # Filter by low stock
         low_stock = self.request.GET.get("low_stock")
         if low_stock:
-            qs = qs.filter(current_stock__lte=F("min_stock_level"))
+            qs = qs.filter(current_stock__lte=F("min_stock"))
 
         # Search
         search = self.request.GET.get("q")
@@ -510,7 +510,7 @@ class ItemListView(LoginRequiredMixin, ListView):
             ) if hasattr(item, 'variants') else (item.current_stock or 0)
 
             # Check low stock
-            min_stock = item.min_stock_level or 0
+            min_stock = item.min_stock or 0
             is_low_stock = (item.current_stock or 0) <= min_stock if min_stock > 0 else False
 
             item_data.append({
@@ -525,7 +525,7 @@ class ItemListView(LoginRequiredMixin, ListView):
                 'stock': item.current_stock or 0,
                 'min_stock': min_stock,
                 'cost': item.standard_cost or 0,
-                'uom': item.stock_uom.symbol if item.stock_uom else '-',
+                'uom': item.uom.symbol if item.uom else '-',
                 'is_active': item.is_active,
                 'is_low_stock': is_low_stock,
                 'attributes': attributes,
@@ -562,7 +562,7 @@ class ItemListView(LoginRequiredMixin, ListView):
         context["active_items"] = all_items.filter(is_active=True).count()
         context["low_stock_count"] = all_items.annotate(
             stock=Sum("stock_records__quantity_on_hand")
-        ).filter(stock__lte=F("min_stock_level"), min_stock_level__gt=0).count()
+        ).filter(stock__lte=F("min_stock"), min_stock__gt=0).count()
 
         return context
 
