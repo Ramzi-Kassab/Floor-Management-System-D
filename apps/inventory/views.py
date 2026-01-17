@@ -450,10 +450,13 @@ class ItemListView(LoginRequiredMixin, ListView):
             current_stock=Sum("stock_records__quantity_on_hand")
         )
 
-        # Filter by category
+        # Filter by category (supports both ID and code)
         category = self.request.GET.get("category")
         if category:
-            qs = qs.filter(category_id=category)
+            if category.isdigit():
+                qs = qs.filter(category_id=category)
+            else:
+                qs = qs.filter(category__code=category)
 
         # Filter by type
         item_type = self.request.GET.get("type")
