@@ -349,6 +349,7 @@
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_new" @change="savePreferences()"> ENO New</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_grd" @change="savePreferences()"> ENO Grd</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.ardt_rcl" @change="savePreferences()"> ARDT Rcl</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.retrofit" @change="savePreferences()"> Retrofit</label>
                     <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cli_stk" @change="savePreferences()"> Client Stock</label>
                     <hr class="my-2">
                     <p class="text-xs font-medium text-gray-500 mb-2">Stock Totals</p>
@@ -427,6 +428,12 @@
                     <th x-show="columns.ardt_rcl" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="ARDT Reclaim Stock" data-column="ardt_rcl" data-type="number">
                         <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'ardt_rcl')">
                             <span>ARDT Rcl</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.retrofit" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="Retrofit (NEW-RET)" data-column="retrofit" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'retrofit')">
+                            <span>Retrofit</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                         </div>
                     </th>
@@ -542,6 +549,9 @@
                     </td>
                     <td x-show="columns.ardt_rcl" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'USED-RCL' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'USED-RCL'|default:0 }}">
                         {{ row.variants|get_item:"USED-RCL"|floatformat:0|default:"-" }}
+                    </td>
+                    <td x-show="columns.retrofit" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'NEW-RET' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'NEW-RET'|default:0 }}">
+                        {{ row.variants|get_item:"NEW-RET"|floatformat:0|default:"-" }}
                     </td>
                     <td x-show="columns.cli_stk" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.client_stock > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.client_stock|default:0 }}">
                         {{ row.client_stock|floatformat:0|default:"-" }}
@@ -738,6 +748,7 @@
         eno_new: true,
         eno_grd: true,
         ardt_rcl: true,
+        retrofit: true,
         cli_stk: true,
         // Stock totals
         new_stock: true,
