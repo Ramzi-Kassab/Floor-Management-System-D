@@ -21,7 +21,7 @@
 {% endblock %}
 
 {% block content %}
-<div x-data="cutterInventory()" x-init="init()">
+<div class="overflow-x-clip" x-data="cutterInventory()" x-init="init()">
 
 <!-- Summary Cards (collapsible when freeze panes active) -->
 <div id="summarySection" x-show="!freezePanes" x-transition>
@@ -159,7 +159,7 @@
 
 <!-- Inventory Table with Freeze Panes -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden isolate">
-    <div class="overflow-x-auto overflow-y-auto" :class="{ 'max-h-[calc(100vh-180px)]': freezePanes }">
+    <div class="overflow-x-auto overflow-y-auto relative" :class="{ 'max-h-[calc(100vh-180px)]': freezePanes }">
         <table class="w-full text-xs border-collapse" id="cutterTable">
             <thead :class="{ 'sticky top-0 z-20': freezePanes }">
                 <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
