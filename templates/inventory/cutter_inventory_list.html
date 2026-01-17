@@ -113,6 +113,40 @@
         padding: 0.5rem 1rem;
         margin-bottom: 0.5rem;
     }
+
+    /* Text wrap mode - cells wrap text and expand height */
+    .text-wrap-mode #cutterTable td,
+    .text-wrap-mode #cutterTable th {
+        white-space: normal;
+        word-wrap: break-word;
+        max-width: none;
+    }
+    .text-wrap-mode #cutterTable td {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+    .text-wrap-mode #cutterTable .truncate {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    /* No-wrap mode (default) - columns auto-size, text truncates */
+    .no-wrap-mode #cutterTable {
+        width: max-content;
+        min-width: 100%;
+    }
+    .no-wrap-mode #cutterTable td,
+    .no-wrap-mode #cutterTable th {
+        white-space: nowrap;
+        max-width: none;
+    }
+    .no-wrap-mode #cutterTable .truncate {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: nowrap;
+        max-width: none;
+    }
 </style>
 {% endblock %}
 
@@ -134,7 +168,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="cutter-page-container" :class="{ 'freeze-mode': freezePanes, 'full-page-mode': fullPageView }" x-data="cutterInventory()" x-init="init()">
+<div class="cutter-page-container" :class="{ 'freeze-mode': freezePanes, 'full-page-mode': fullPageView, 'text-wrap-mode': textWrap, 'no-wrap-mode': !textWrap }" x-data="cutterInventory()" x-init="init()">
 
 <!-- HEADER SECTION - Always visible -->
 <div class="cutter-header-section">
@@ -227,6 +261,15 @@
                     class="px-4 py-2 rounded-lg hover:opacity-90 flex items-center gap-2">
                 <i data-lucide="maximize-2" class="w-4 h-4"></i>
                 <span x-text="fullPageView ? 'Exit Full' : 'Full Page'"></span>
+            </button>
+
+            <!-- Text Wrap Toggle -->
+            <button type="button" @click="toggleTextWrap()"
+                    :class="textWrap ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                    class="px-4 py-2 rounded-lg hover:opacity-90 flex items-center gap-2"
+                    :title="textWrap ? 'Text wraps, rows expand' : 'No wrap, columns expand'">
+                <i data-lucide="wrap-text" class="w-4 h-4"></i>
+                <span x-text="textWrap ? 'Wrap' : 'No Wrap'"></span>
             </button>
 
             <!-- Column Toggle Button -->
@@ -565,7 +608,8 @@
 </div>
 
 <!-- Column Filter Menu (Excel-like dropdown) -->
-<div id="columnMenu" class="hidden fixed z-[100] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 min-w-[260px] max-h-[80vh] overflow-hidden flex flex-col">
+<div id="columnMenu" class="hidden fixed z-[100] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 min-w-[260px] max-h-[80vh] overflow-hidden flex flex-col"
+     onwheel="event.stopPropagation();" onscroll="event.stopPropagation();">
     <!-- Sort Section -->
     <div class="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <button type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2" onclick="sortColumn('asc')">
@@ -620,7 +664,8 @@
         <div class="px-2 py-1 flex-shrink-0">
             <input type="text" id="valueSearch" placeholder="Search values..." class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200" oninput="filterValuesList()">
         </div>
-        <div id="valuesList" class="flex-1 overflow-y-auto px-2 py-1 min-h-[100px] max-h-[200px]">
+        <div id="valuesList" class="flex-1 overflow-y-auto px-2 py-1 min-h-[100px] max-h-[200px]"
+             onwheel="event.stopPropagation();">
             <!-- Values will be populated dynamically -->
         </div>
         <div class="px-2 pt-2 flex-shrink-0">
@@ -663,6 +708,7 @@
             columns: { ...defaultColumns },
             freezePanes: false,
             fullPageView: false,
+            textWrap: false,
             showColumnMenu: false,
 
             init() {
@@ -684,6 +730,9 @@
                                 this.applyPageHeaderState(true);
                             }
                         }
+                        if (prefs.textWrap !== undefined) {
+                            this.textWrap = prefs.textWrap;
+                        }
                     } catch (e) {
                         console.error('Failed to load preferences:', e);
                     }
@@ -694,7 +743,8 @@
                 const prefs = {
                     columns: this.columns,
                     freezePanes: this.freezePanes,
-                    fullPageView: this.fullPageView
+                    fullPageView: this.fullPageView,
+                    textWrap: this.textWrap
                 };
                 localStorage.setItem('cutterInventoryPrefs', JSON.stringify(prefs));
             },
@@ -728,6 +778,11 @@
                 if (pageHeader) {
                     pageHeader.style.display = hide ? 'none' : '';
                 }
+            },
+
+            toggleTextWrap() {
+                this.textWrap = !this.textWrap;
+                this.savePreferences();
             },
 
             resetToDefaults() {
