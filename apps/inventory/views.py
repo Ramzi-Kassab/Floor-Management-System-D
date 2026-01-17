@@ -380,15 +380,73 @@ class LocationUpdateView(LoginRequiredMixin, UpdateView):
 
 
 class ItemListView(LoginRequiredMixin, ListView):
-    """List all inventory items."""
+    """List all inventory items with enhanced features matching Cutter Inventory."""
 
     model = InventoryItem
     template_name = "inventory/item_list.html"
     context_object_name = "items"
-    paginate_by = 25
+    paginate_by = 50
+
+    def _get_common_attributes(self):
+        """Get common attributes that appear across multiple categories."""
+        from collections import Counter
+
+        # Get all unique attribute codes and their frequency
+        attr_counts = Counter()
+        attr_names = {}
+
+        for cat_attr in CategoryAttribute.objects.select_related("attribute").all():
+            if cat_attr.attribute:
+                code = cat_attr.attribute.code
+                attr_counts[code] += 1
+                attr_names[code] = cat_attr.attribute.name
+
+        # Return attributes that appear in at least 1 category, ordered by frequency
+        common_attrs = []
+        # Priority attributes (always first if they exist)
+        priority_codes = ['hdbs_code', 'hdbs', 'cutter_hdbs', 'type', 'size', 'diameter',
+                         'material', 'grade', 'family', 'category']
+
+        seen = set()
+        for code in priority_codes:
+            if code in attr_names and code not in seen:
+                seen.add(code)
+                common_attrs.append({
+                    'code': code,
+                    'name': attr_names[code],
+                    'count': attr_counts[code],
+                    'visible_default': True
+                })
+
+        # Add remaining attributes
+        for code, count in attr_counts.most_common():
+            if code not in seen:
+                seen.add(code)
+                common_attrs.append({
+                    'code': code,
+                    'name': attr_names[code],
+                    'count': count,
+                    'visible_default': False
+                })
+
+        return common_attrs
 
     def get_queryset(self):
-        qs = InventoryItem.objects.select_related("category", "primary_supplier").annotate(
+        from django.db.models import Prefetch
+        from .models import ItemAttributeValue, ItemVariant
+
+        qs = InventoryItem.objects.select_related(
+            "category", "primary_supplier", "stock_uom"
+        ).prefetch_related(
+            Prefetch(
+                "attribute_values",
+                queryset=ItemAttributeValue.objects.select_related("attribute", "attribute__attribute")
+            ),
+            Prefetch(
+                "variants",
+                queryset=ItemVariant.objects.filter(is_active=True).select_related("variant_case")
+            )
+        ).annotate(
             current_stock=Sum("stock_records__quantity_on_hand")
         )
 
@@ -402,27 +460,110 @@ class ItemListView(LoginRequiredMixin, ListView):
         if item_type:
             qs = qs.filter(item_type=item_type)
 
+        # Filter by supplier
+        supplier = self.request.GET.get("supplier")
+        if supplier:
+            qs = qs.filter(primary_supplier_id=supplier)
+
+        # Filter by active status
+        active = self.request.GET.get("active")
+        if active == "1":
+            qs = qs.filter(is_active=True)
+        elif active == "0":
+            qs = qs.filter(is_active=False)
+
         # Filter by low stock
         low_stock = self.request.GET.get("low_stock")
         if low_stock:
-            qs = qs.filter(current_stock__lte=F("min_stock"))
+            qs = qs.filter(current_stock__lte=F("min_stock_level"))
 
         # Search
         search = self.request.GET.get("q")
         if search:
-            qs = qs.filter(Q(code__icontains=search) | Q(name__icontains=search))
+            qs = qs.filter(
+                Q(code__icontains=search) |
+                Q(name__icontains=search) |
+                Q(description__icontains=search)
+            )
 
         return qs.order_by("code")
 
+    def _build_item_data(self, items):
+        """Build enhanced item data with attributes."""
+        item_data = []
+        row_num = 0
+
+        for item in items:
+            row_num += 1
+
+            # Build attributes dict
+            attributes = {}
+            for av in item.attribute_values.all():
+                if av.attribute and av.attribute.attribute:
+                    code = av.attribute.attribute.code
+                    attributes[code] = av.display_value
+
+            # Calculate total stock from variants
+            total_stock = sum(
+                v.current_stock for v in item.variants.all()
+                if hasattr(v, 'current_stock') and v.current_stock
+            ) if hasattr(item, 'variants') else (item.current_stock or 0)
+
+            # Check low stock
+            min_stock = item.min_stock_level or 0
+            is_low_stock = (item.current_stock or 0) <= min_stock if min_stock > 0 else False
+
+            item_data.append({
+                'row_num': row_num,
+                'item': item,
+                'code': item.code,
+                'name': item.name,
+                'category': item.category.name if item.category else '-',
+                'category_code': item.category.code if item.category else '',
+                'item_type': item.get_item_type_display() if item.item_type else '-',
+                'supplier': item.primary_supplier.name if item.primary_supplier else '-',
+                'stock': item.current_stock or 0,
+                'min_stock': min_stock,
+                'cost': item.standard_cost or 0,
+                'uom': item.stock_uom.symbol if item.stock_uom else '-',
+                'is_active': item.is_active,
+                'is_low_stock': is_low_stock,
+                'attributes': attributes,
+            })
+
+        return item_data
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # Build enhanced item data
+        items = context.get('items', [])
+        context['item_data'] = self._build_item_data(items)
+
+        # Get common attributes for column headers
+        context['common_attributes'] = self._get_common_attributes()
+
         context["page_title"] = "Inventory Items"
-        context["categories"] = InventoryCategory.objects.filter(is_active=True)
+        context["categories"] = InventoryCategory.objects.filter(is_active=True).order_by('code')
         context["type_choices"] = InventoryItem.ItemType.choices
+        context["suppliers"] = Supplier.objects.filter(is_active=True).order_by('name')
+
+        # Current filter values
         context["current_category"] = self.request.GET.get("category", "")
         context["current_type"] = self.request.GET.get("type", "")
+        context["current_supplier"] = self.request.GET.get("supplier", "")
+        context["current_active"] = self.request.GET.get("active", "")
         context["search_query"] = self.request.GET.get("q", "")
         context["low_stock_filter"] = self.request.GET.get("low_stock", "")
+
+        # Summary stats
+        all_items = InventoryItem.objects.all()
+        context["total_items"] = all_items.count()
+        context["active_items"] = all_items.filter(is_active=True).count()
+        context["low_stock_count"] = all_items.annotate(
+            stock=Sum("stock_records__quantity_on_hand")
+        ).filter(stock__lte=F("min_stock_level"), min_stock_level__gt=0).count()
+
         return context
 
 

@@ -1,9 +1,91 @@
 {% extends "base.html" %}
+{% load inventory_filters %}
 
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* CRITICAL: Prevent main content from extending under sidebar */
+    main {
+        overflow-x: hidden !important;
+        min-width: 0 !important;
+    }
+    main > div {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+    }
+
+    /* Page container */
+    .items-page-container {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    /* Freeze mode */
+    .items-page-container.freeze-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 140px);
+    }
+    .freeze-mode .items-header-section {
+        flex-shrink: 0;
+    }
+    .freeze-mode .items-table-section {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Table wrapper */
+    .items-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+    }
+    .freeze-mode .items-table-wrapper {
+        height: 100%;
+    }
+    .freeze-mode .items-table-wrapper thead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    /* Sticky columns */
+    .freeze-col-1 { position: sticky; left: 0; z-index: 15; background: inherit; }
+    .freeze-col-2 { position: sticky; left: 32px; z-index: 15; background: inherit; box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2); }
+    .freeze-col-1-body { position: sticky; left: 0; z-index: 5; }
+    .freeze-col-2-body { position: sticky; left: 32px; z-index: 5; box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2); }
+
+    /* Full page mode */
+    .full-page-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 80px);
+    }
+    .full-page-mode .items-header-section { flex-shrink: 0; }
+    .full-page-mode .items-table-section { flex: 1; min-height: 0; overflow: hidden; }
+    .full-page-mode .items-table-wrapper { height: 100%; }
+    .full-page-mode ~ #pageHeader, body:has(.full-page-mode) #pageHeader { display: none !important; }
+    .full-page-mode #filterSection { padding: 0.5rem 1rem; margin-bottom: 0.5rem; }
+
+    /* Text wrap mode */
+    .text-wrap-mode #itemsTable td, .text-wrap-mode #itemsTable th {
+        white-space: normal; word-wrap: break-word; max-width: none;
+    }
+    .text-wrap-mode #itemsTable td { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+    /* No-wrap mode */
+    .no-wrap-mode #itemsTable { width: auto; table-layout: auto; }
+    .no-wrap-mode #itemsTable td, .no-wrap-mode #itemsTable th {
+        white-space: nowrap !important; max-width: none !important; overflow: visible !important;
+    }
+</style>
+{% endblock %}
+
 {% block page_header %}
-<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6" id="pageHeader">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         <p class="text-gray-600 dark:text-gray-400">Manage inventory items and stock levels</p>
@@ -11,12 +93,6 @@
     <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
         <a href="{% url 'inventory:item_export' %}" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
             <i data-lucide="download" class="w-4 h-4 mr-1"></i>Export
-        </a>
-        <a href="{% url 'inventory:item_import' %}" class="inline-flex items-center px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
-            <i data-lucide="upload" class="w-4 h-4 mr-1"></i>Import
-        </a>
-        <a href="{% url 'inventory:transaction_create' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
-            <i data-lucide="arrow-left-right" class="w-4 h-4 mr-1"></i>Transaction
         </a>
         <a href="{% url 'inventory:item_create' %}" class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
             <i data-lucide="plus" class="w-4 h-4 mr-1"></i>New Item
@@ -26,259 +102,339 @@
 {% endblock %}
 
 {% block content %}
-<!-- Summary Cards -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
-        <div class="flex items-center">
-            <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <i data-lucide="package" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
-            </div>
-            <div class="ml-4">
-                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Items</p>
-                <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ total_items }}</p>
-            </div>
-        </div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
-        <div class="flex items-center">
-            <div class="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                <i data-lucide="check-circle" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
-            </div>
-            <div class="ml-4">
-                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Active Items</p>
-                <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ active_items }}</p>
-            </div>
-        </div>
-    </div>
-    <a href="?low_stock=1" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 hover:ring-2 ring-red-500 transition-all">
-        <div class="flex items-center">
-            <div class="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
-            </div>
-            <div class="ml-4">
-                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Low Stock</p>
-                <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ low_stock_count }}</p>
-            </div>
-        </div>
-    </a>
-</div>
+<div class="items-page-container" :class="{ 'freeze-mode': freezePanes, 'full-page-mode': fullPageView, 'text-wrap-mode': textWrap, 'no-wrap-mode': !textWrap }" x-data="itemsInventory()" x-init="init()">
 
-<!-- Filters -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
-    <form method="get" class="space-y-4">
-        <!-- Search Row -->
-        <div class="flex flex-col md:flex-row gap-4">
-            <div class="flex-1">
-                <input type="text" name="q" value="{{ search_query }}" placeholder="Search by code, name, description, or supplier part#..."
-                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+<!-- HEADER SECTION -->
+<div class="items-header-section">
+    <!-- Summary Cards -->
+    <div id="summarySection" x-show="!fullPageView" x-transition>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+                <div class="flex items-center">
+                    <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                        <i data-lucide="package" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Items</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ total_items }}</p>
+                    </div>
+                </div>
             </div>
-            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Search
-            </button>
-            {% if search_query or current_category or current_type or current_supplier or current_active or low_stock_filter %}
-            <a href="{% url 'inventory:item_list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
-                <i data-lucide="x" class="w-4 h-4 inline mr-1"></i>Clear
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+                <div class="flex items-center">
+                    <div class="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                        <i data-lucide="check-circle" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Active Items</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ active_items }}</p>
+                    </div>
+                </div>
+            </div>
+            <a href="?low_stock=1" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 hover:ring-2 ring-red-500 transition-all">
+                <div class="flex items-center">
+                    <div class="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                        <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Low Stock</p>
+                        <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ low_stock_count }}</p>
+                    </div>
+                </div>
             </a>
-            {% endif %}
         </div>
+    </div>
 
-        <!-- Filter Row -->
-        <div class="flex flex-col md:flex-row gap-4 items-end">
-            <div class="w-full md:w-48">
+    <!-- Filters & Controls -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-4" id="filterSection">
+        <form method="get" class="flex flex-wrap gap-3 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
+                <input type="text" name="q" value="{{ search_query }}" placeholder="Code, name, description..."
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            </div>
+            <div class="w-40">
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Category</label>
                 <select name="category" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-                    <option value="">All Categories</option>
+                    <option value="">All</option>
                     {% for cat in categories %}
-                    <option value="{{ cat.pk }}" {% if current_category == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
-                    {% for child in cat.children.all %}
-                    <option value="{{ child.pk }}" {% if current_category == child.pk|stringformat:"s" %}selected{% endif %}>&nbsp;&nbsp;- {{ child.name }}</option>
-                    {% endfor %}
+                    <option value="{{ cat.pk }}" {% if current_category == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.code }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="w-full md:w-40">
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Item Type</label>
+            <div class="w-32">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
                 <select name="type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-                    <option value="">All Types</option>
+                    <option value="">All</option>
                     {% for value, label in type_choices %}
                     <option value="{{ value }}" {% if current_type == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="w-full md:w-48">
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Supplier</label>
-                <select name="supplier" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-                    <option value="">All Suppliers</option>
-                    {% for sup in suppliers %}
-                    <option value="{{ sup.pk }}" {% if current_supplier == sup.pk|stringformat:"s" %}selected{% endif %}>{{ sup.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="w-full md:w-32">
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
-                <select name="active" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
-                    <option value="">All</option>
-                    <option value="1" {% if current_active == "1" %}selected{% endif %}>Active</option>
-                    <option value="0" {% if current_active == "0" %}selected{% endif %}>Inactive</option>
-                </select>
-            </div>
-            <div class="flex items-center h-[42px]">
-                <label class="inline-flex items-center cursor-pointer">
-                    <input type="checkbox" name="low_stock" value="1" {% if low_stock_filter %}checked{% endif %}
-                           class="rounded border-gray-300 text-red-600 focus:ring-red-500">
-                    <span class="ml-2 text-sm text-red-600 dark:text-red-400 font-medium">Low Stock Only</span>
-                </label>
-            </div>
-        </div>
-    </form>
-</div>
+            <div class="flex gap-2 flex-wrap items-center">
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                    <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Filter
+                </button>
+                {% if search_query or current_category or current_type or low_stock_filter %}
+                <a href="{% url 'inventory:item_list' %}" class="px-3 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 text-sm">Clear</a>
+                {% endif %}
 
-<!-- Items Table -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-    {% if items %}
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
-                    <th class="px-4 py-3 font-medium">Code</th>
-                    <th class="px-4 py-3 font-medium">Name</th>
-                    <th class="px-4 py-3 font-medium">Type</th>
-                    <th class="px-4 py-3 font-medium">Category</th>
-                    <th class="px-4 py-3 font-medium">Supplier</th>
-                    <th class="px-4 py-3 font-medium text-right">Stock</th>
-                    <th class="px-4 py-3 font-medium text-right">Min</th>
-                    <th class="px-4 py-3 font-medium text-right">Cost</th>
-                    <th class="px-4 py-3 font-medium text-center">Status</th>
-                    <th class="px-4 py-3 font-medium text-right">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                {% for item in items %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if not item.is_active %}opacity-50{% endif %}">
-                    <td class="px-4 py-3">
-                        <a href="{% url 'inventory:item_detail' item.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono text-xs">
-                            {{ item.code }}
-                        </a>
-                    </td>
-                    <td class="px-4 py-3 text-gray-900 dark:text-white">
-                        <div class="max-w-[200px] truncate" title="{{ item.name }}">{{ item.name }}</div>
-                    </td>
-                    <td class="px-4 py-3">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                            {% if item.item_type == 'COMPONENT' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
-                            {% elif item.item_type == 'RAW_MATERIAL' %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
-                            {% elif item.item_type == 'CONSUMABLE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
-                            {% elif item.item_type == 'TOOL' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
-                            {% elif item.item_type == 'SPARE_PART' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
-                            {% else %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200{% endif %}">
-                            {{ item.get_item_type_display }}
-                        </span>
-                    </td>
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">
-                        {% if item.category %}
-                        <span title="{{ item.category.name }}">{{ item.category.code }}</span>
-                        {% else %}-{% endif %}
-                    </td>
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">
-                        {% if item.primary_supplier %}
-                        <span class="max-w-[100px] truncate block" title="{{ item.primary_supplier.name }}">{{ item.primary_supplier.name }}</span>
-                        {% else %}-{% endif %}
-                    </td>
-                    <td class="px-4 py-3 text-right font-mono text-xs {% if item.current_stock != None and item.current_stock <= item.min_stock %}text-red-600 font-bold{% else %}text-gray-900 dark:text-white{% endif %}">
-                        {{ item.current_stock|default:"0" }} {{ item.unit }}
-                    </td>
-                    <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 font-mono text-xs">
-                        {{ item.min_stock }} {{ item.unit }}
-                    </td>
-                    <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 text-xs">
-                        {{ item.currency }} {{ item.standard_cost }}
-                    </td>
-                    <td class="px-4 py-3 text-center">
-                        {% if item.is_active %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
-                        {% else %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-4 py-3 text-right">
-                        <div class="flex items-center justify-end space-x-1">
-                            <a href="{% url 'inventory:item_detail' item.pk %}" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded" title="View">
-                                <i data-lucide="eye" class="w-4 h-4"></i>
-                            </a>
-                            <a href="{% url 'inventory:item_update' item.pk %}" class="p-1.5 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/50 rounded" title="Edit">
-                                <i data-lucide="edit" class="w-4 h-4"></i>
-                            </a>
+                <!-- View Toggle Buttons -->
+                <button type="button" @click="toggleFreezePanes()"
+                        :class="freezePanes ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                        class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                    <span x-text="freezePanes ? 'Unfreeze' : 'Freeze'"></span>
+                </button>
+                <button type="button" @click="toggleFullPageView()"
+                        :class="fullPageView ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                        class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                    <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                    <span x-text="fullPageView ? 'Exit' : 'Full'"></span>
+                </button>
+                <button type="button" @click="toggleTextWrap()"
+                        :class="textWrap ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                        class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                    <i data-lucide="wrap-text" class="w-4 h-4"></i>
+                    <span x-text="textWrap ? 'Wrap' : 'NoWrap'"></span>
+                </button>
+
+                <!-- Column Toggle -->
+                <div class="relative">
+                    <button type="button" @click="showColumnMenu = !showColumnMenu" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+                        <i data-lucide="columns" class="w-4 h-4 inline mr-1"></i>Columns
+                    </button>
+                    <div x-show="showColumnMenu" @click.away="showColumnMenu = false"
+                         class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 p-3 max-h-[60vh] overflow-y-auto"
+                         onwheel="event.stopPropagation();">
+                        <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                            <span class="text-xs font-medium text-gray-500">Columns</span>
+                            <div class="flex gap-2">
+                                <button type="button" @click="resetToDefaults()" class="text-xs text-blue-600 hover:text-blue-800">Reset</button>
+                                <button type="button" @click="showAllColumns()" class="text-xs text-blue-600 hover:text-blue-800">All</button>
+                            </div>
                         </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    {% if page_obj.has_other_pages %}
-    <div class="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
-        <div class="flex items-center justify-between">
-            <p class="text-sm text-gray-500">
-                Showing {{ page_obj.start_index }} - {{ page_obj.end_index }} of {{ page_obj.paginator.count }} items
-            </p>
-            <div class="flex space-x-2">
-                {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_type %}&type={{ current_type }}{% endif %}{% if current_supplier %}&supplier={{ current_supplier }}{% endif %}{% if current_active %}&active={{ current_active }}{% endif %}{% if low_stock_filter %}&low_stock=1{% endif %}"
-                   class="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">Previous</a>
-                {% endif %}
-                <span class="px-3 py-1.5 text-sm text-gray-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-                {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}{% if current_type %}&type={{ current_type }}{% endif %}{% if current_supplier %}&supplier={{ current_supplier }}{% endif %}{% if current_active %}&active={{ current_active }}{% endif %}{% if low_stock_filter %}&low_stock=1{% endif %}"
-                   class="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">Next</a>
-                {% endif %}
+                        <p class="text-xs font-medium text-gray-500 mb-2">Basic</p>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.code" @change="savePreferences()"> Code</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.name" @change="savePreferences()"> Name</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.category" @change="savePreferences()"> Category</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.item_type" @change="savePreferences()"> Type</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.supplier" @change="savePreferences()"> Supplier</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.stock" @change="savePreferences()"> Stock</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.min_stock" @change="savePreferences()"> Min Stock</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cost" @change="savePreferences()"> Cost</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.status" @change="savePreferences()"> Status</label>
+                        {% if common_attributes %}
+                        <hr class="my-2">
+                        <p class="text-xs font-medium text-gray-500 mb-2">Attributes</p>
+                        {% for attr in common_attributes %}
+                        <label class="flex items-center gap-2 py-1 text-sm">
+                            <input type="checkbox" x-model="columns.attr_{{ attr.code }}" @change="savePreferences()">
+                            <span>{{ attr.name }}</span>
+                        </label>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
             </div>
+        </form>
+    </div>
+</div>
+<!-- END HEADER SECTION -->
+
+<!-- TABLE SECTION -->
+<div class="items-table-section">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden h-full">
+        <div class="items-table-wrapper">
+            {% if item_data %}
+            <table class="w-full text-xs border-collapse" id="itemsTable">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr class="text-gray-500 dark:text-gray-400">
+                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700" :class="freezePanes ? 'freeze-col-1' : ''">#</th>
+                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700" :class="freezePanes ? 'freeze-col-2' : ''" x-show="columns.code">Code</th>
+                        <th class="pl-4 pr-2 py-2 text-left font-medium" x-show="columns.name">Name</th>
+                        <th class="px-2 py-2 text-left font-medium" x-show="columns.category">Category</th>
+                        <th class="px-2 py-2 text-left font-medium" x-show="columns.item_type">Type</th>
+                        <th class="px-2 py-2 text-left font-medium" x-show="columns.supplier">Supplier</th>
+                        {% for attr in common_attributes %}
+                        <th class="px-2 py-2 text-left font-medium" x-show="columns.attr_{{ attr.code }}">{{ attr.name }}</th>
+                        {% endfor %}
+                        <th class="px-2 py-2 text-right font-medium" x-show="columns.stock">Stock</th>
+                        <th class="px-2 py-2 text-right font-medium" x-show="columns.min_stock">Min</th>
+                        <th class="px-2 py-2 text-right font-medium" x-show="columns.cost">Cost</th>
+                        <th class="px-2 py-2 text-center font-medium" x-show="columns.status">Status</th>
+                        <th class="px-2 py-2 text-center font-medium">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for row in item_data %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/10{% endif %}">
+                        <td class="px-2 py-2 text-gray-400 text-center {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
+                            :class="freezePanes ? 'freeze-col-1-body' : ''">{{ row.row_num }}</td>
+                        <td class="px-2 py-2 font-mono text-xs font-medium {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
+                            :class="freezePanes ? 'freeze-col-2-body' : ''" x-show="columns.code">
+                            <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-blue-600 hover:text-blue-800 hover:underline" title="Open {{ row.name }}">
+                                {{ row.code }}
+                            </a>
+                        </td>
+                        <td class="pl-4 pr-2 py-2" x-show="columns.name">
+                            <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-gray-900 dark:text-white hover:text-blue-600">{{ row.name }}</a>
+                        </td>
+                        <td class="px-2 py-2 text-gray-600 dark:text-gray-300" x-show="columns.category">{{ row.category }}</td>
+                        <td class="px-2 py-2 text-gray-600 dark:text-gray-300" x-show="columns.item_type">{{ row.item_type }}</td>
+                        <td class="px-2 py-2 text-gray-600 dark:text-gray-300" x-show="columns.supplier">{{ row.supplier }}</td>
+                        {% for attr in common_attributes %}
+                        <td class="px-2 py-2 text-gray-600 dark:text-gray-300" x-show="columns.attr_{{ attr.code }}">{{ row.attributes|get_item:attr.code|default:"-" }}</td>
+                        {% endfor %}
+                        <td class="px-2 py-2 text-right font-mono {% if row.is_low_stock %}text-red-600 font-bold{% else %}text-gray-900 dark:text-white{% endif %}" x-show="columns.stock">{{ row.stock|floatformat:0 }}</td>
+                        <td class="px-2 py-2 text-right text-gray-500" x-show="columns.min_stock">{{ row.min_stock|floatformat:0 }}</td>
+                        <td class="px-2 py-2 text-right text-gray-900 dark:text-white" x-show="columns.cost">{{ row.cost|floatformat:2 }}</td>
+                        <td class="px-2 py-2 text-center" x-show="columns.status">
+                            {% if row.is_active %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-2 py-2 text-center">
+                            <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-blue-600 hover:text-blue-800" title="View">
+                                <i data-lucide="eye" class="w-4 h-4 inline"></i>
+                            </a>
+                            <a href="{% url 'inventory:item_update' row.item.pk %}" class="text-gray-600 hover:text-gray-800 ml-2" title="Edit">
+                                <i data-lucide="edit" class="w-4 h-4 inline"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-12">
+                <i data-lucide="package" class="w-12 h-12 mx-auto text-gray-300 mb-3"></i>
+                <p class="text-gray-500">No items found</p>
+                <a href="{% url 'inventory:item_create' %}" class="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add First Item
+                </a>
+            </div>
+            {% endif %}
         </div>
     </div>
-    {% endif %}
-    {% else %}
-    <div class="text-center py-16">
-        <i data-lucide="package" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
-        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No items found</h3>
-        {% if search_query or current_category or current_type or current_supplier or low_stock_filter %}
-        <p class="text-gray-500 dark:text-gray-400 mb-4">Try adjusting your search or filter criteria.</p>
-        <a href="{% url 'inventory:item_list' %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
-            <i data-lucide="x" class="w-4 h-4 mr-2"></i>Clear Filters
-        </a>
-        {% else %}
-        <p class="text-gray-500 dark:text-gray-400 mb-4">Get started by adding your first inventory item or importing from Excel.</p>
-        <div class="flex justify-center space-x-3">
-            <a href="{% url 'inventory:item_import' %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
-                <i data-lucide="upload" class="w-4 h-4 mr-2"></i>Import from Excel
-            </a>
-            <a href="{% url 'inventory:item_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Item
-            </a>
-        </div>
+</div>
+<!-- END TABLE SECTION -->
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<div class="mt-4 flex items-center justify-between" x-show="!fullPageView" x-transition>
+    <p class="text-sm text-gray-500">
+        Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} items
+    </p>
+    <nav class="flex gap-1">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&category={{ current_category }}&type={{ current_type }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm">Prev</a>
         {% endif %}
-    </div>
-    {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <span class="px-3 py-1 bg-blue-600 text-white rounded text-sm">{{ num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+        <a href="?page={{ num }}&q={{ search_query }}&category={{ current_category }}&type={{ current_type }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm">{{ num }}</a>
+        {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&category={{ current_category }}&type={{ current_type }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm">Next</a>
+        {% endif %}
+    </nav>
+</div>
+{% endif %}
+
 </div>
 
-<!-- Quick Links -->
-<div class="mt-6 flex flex-wrap gap-3">
-    <a href="{% url 'inventory:category_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="folder" class="w-4 h-4 mr-2"></i>Categories
-    </a>
-    <a href="{% url 'inventory:attribute_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="sliders" class="w-4 h-4 mr-2"></i>Attributes
-    </a>
-    <a href="{% url 'inventory:variant_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="git-branch" class="w-4 h-4 mr-2"></i>Variants
-    </a>
-    <a href="{% url 'inventory:location_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="map-pin" class="w-4 h-4 mr-2"></i>Locations
-    </a>
-    <a href="{% url 'inventory:stock_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="layers" class="w-4 h-4 mr-2"></i>Stock Levels
-    </a>
-    <a href="{% url 'inventory:transaction_list' %}" class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border border-gray-200 dark:border-gray-700">
-        <i data-lucide="history" class="w-4 h-4 mr-2"></i>Transactions
-    </a>
-</div>
+<script>
+    // Default column visibility
+    const defaultColumns = {
+        code: true,
+        name: true,
+        category: true,
+        item_type: true,
+        supplier: true,
+        stock: true,
+        min_stock: true,
+        cost: true,
+        status: true,
+        {% for attr in common_attributes %}
+        attr_{{ attr.code }}: {{ attr.visible_default|yesno:"true,false" }},
+        {% endfor %}
+    };
+
+    function itemsInventory() {
+        return {
+            columns: { ...defaultColumns },
+            freezePanes: false,
+            fullPageView: false,
+            textWrap: false,
+            showColumnMenu: false,
+
+            init() {
+                const saved = localStorage.getItem('itemsInventoryPrefs');
+                if (saved) {
+                    try {
+                        const prefs = JSON.parse(saved);
+                        if (prefs.columns) this.columns = { ...defaultColumns, ...prefs.columns };
+                        if (prefs.freezePanes !== undefined) this.freezePanes = prefs.freezePanes;
+                        if (prefs.fullPageView !== undefined) {
+                            this.fullPageView = prefs.fullPageView;
+                            if (this.fullPageView) {
+                                this.applySidebarState(true);
+                                this.applyPageHeaderState(true);
+                            }
+                        }
+                        if (prefs.textWrap !== undefined) this.textWrap = prefs.textWrap;
+                    } catch (e) { console.error('Failed to load preferences:', e); }
+                }
+            },
+
+            savePreferences() {
+                localStorage.setItem('itemsInventoryPrefs', JSON.stringify({
+                    columns: this.columns,
+                    freezePanes: this.freezePanes,
+                    fullPageView: this.fullPageView,
+                    textWrap: this.textWrap
+                }));
+            },
+
+            toggleFreezePanes() { this.freezePanes = !this.freezePanes; this.savePreferences(); },
+
+            toggleFullPageView() {
+                this.fullPageView = !this.fullPageView;
+                this.applySidebarState(this.fullPageView);
+                this.applyPageHeaderState(this.fullPageView);
+                this.savePreferences();
+            },
+
+            applySidebarState(collapse) {
+                const mainEl = document.querySelector('[x-data]');
+                if (mainEl && mainEl._x_dataStack) {
+                    const rootData = mainEl._x_dataStack[0];
+                    if (rootData && rootData.sidebarOpen !== undefined) rootData.sidebarOpen = !collapse;
+                }
+            },
+
+            applyPageHeaderState(hide) {
+                const pageHeader = document.getElementById('pageHeader');
+                if (pageHeader) pageHeader.style.display = hide ? 'none' : '';
+            },
+
+            toggleTextWrap() { this.textWrap = !this.textWrap; this.savePreferences(); },
+
+            resetToDefaults() { this.columns = { ...defaultColumns }; this.savePreferences(); },
+
+            showAllColumns() {
+                Object.keys(this.columns).forEach(key => this.columns[key] = true);
+                this.savePreferences();
+            }
+        };
+    }
+</script>
 {% endblock %}

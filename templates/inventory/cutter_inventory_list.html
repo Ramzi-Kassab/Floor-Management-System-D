@@ -470,10 +470,12 @@
                     <td class="px-2 py-2 text-gray-400 text-center {% if row.below_safety %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
                         :class="freezePanes ? 'freeze-col-1-body' : ''">{{ row.row_num }}</td>
                     <!-- MN (HDBS Code) -->
-                    <td class="px-2 py-2 font-mono text-xs font-medium text-gray-900 dark:text-white {% if row.below_safety %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
+                    <td class="px-2 py-2 font-mono text-xs font-medium {% if row.below_safety %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
                         :class="freezePanes ? 'freeze-col-2-body' : ''"
                         x-show="columns.attr_hdbs_code" data-value="{{ row.attributes|get_item:'hdbs_code'|default:'' }}">
-                        {{ row.attributes|get_item:'hdbs_code'|default:"-" }}
+                        <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-blue-600 hover:text-blue-800 hover:underline" title="Open {{ row.product_name }}">
+                            {{ row.attributes|get_item:'hdbs_code'|default:"-" }}
+                        </a>
                     </td>
                     <!-- Product Name (with link) -->
                     <td class="pl-4 pr-2 py-2 border-r border-gray-100 dark:border-gray-700" data-value="{{ row.product_name }}">
