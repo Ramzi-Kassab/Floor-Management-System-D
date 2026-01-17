@@ -80,8 +80,10 @@ InventoryItem
 
 ### Cross-Table Item Number Uniqueness
 - **InventoryItem.code** and **ItemVariant.code** now validated for global uniqueness
+- **ItemVariant.erp_item_no** validated for uniqueness across all variants
 - Validation runs in both `clean()` method (forms) and `save()` method (direct calls)
 - Prevents creating an item with a code that exists as a variant code, and vice versa
+- Prevents duplicate ERP Item Numbers across variants
 - Prepares system for importing real cutter data with unique ERP item numbers
 
 ### QR Code Print Labels for Variants
@@ -107,6 +109,9 @@ InventoryItem
   - Reads from `docs/Cutters ERP Item Numbers2.xlsx`
   - Creates base items with attributes (Type, Size, Chamfer, Family, Shape)
   - Creates variants with unique ERP item numbers per variant case
+
+### Bug Fixes
+- **ItemListView Category Filter**: Now handles both numeric IDs and category codes (e.g., `?category=CT-PDC`)
 
 ## Previous Changes (Jan 16, 2026)
 
