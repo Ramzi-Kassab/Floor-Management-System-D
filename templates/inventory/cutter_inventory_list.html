@@ -158,16 +158,17 @@
 </div>
 
 <!-- Inventory Table with Freeze Panes -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-    <div class="overflow-auto" :class="{ 'max-h-[calc(100vh-180px)] overflow-y-auto': freezePanes }">
-        <table class="w-full text-xs border-collapse" id="cutterTable">
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden relative">
+    <div class="overflow-x-auto overflow-y-auto" :class="{ 'max-h-[calc(100vh-180px)]': freezePanes }" style="position: relative;">
+        <table class="w-full text-xs border-collapse table-auto" id="cutterTable" style="min-width: 100%;">
             <thead :class="{ 'sticky top-0 z-30': freezePanes }">
                 <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
                     <!-- # - Row Number (always visible, sticky when freeze) -->
-                    <th class="px-2 py-2 text-left font-medium w-10 min-w-[40px] bg-gray-50 dark:bg-gray-700/50" :class="{ 'sticky left-0 z-40 bg-gray-50 dark:bg-gray-700': freezePanes }">#</th>
-                    <!-- MN - HDBS Code (sticky when freeze) - Always show when freeze is active -->
-                    <th class="px-2 py-2 text-left font-medium bg-gray-50 dark:bg-gray-700/50 min-w-[80px]"
-                        :class="{ 'sticky left-[40px] z-40 bg-gray-50 dark:bg-gray-700 border-r-2 border-gray-300 dark:border-gray-600': freezePanes }"
+                    <th class="px-2 py-2 text-left font-medium w-10 min-w-[40px]"
+                        :class="freezePanes ? 'sticky left-0 z-40 bg-gray-100 dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-700/50'">#</th>
+                    <!-- MN - HDBS Code (sticky when freeze) -->
+                    <th class="px-2 py-2 text-left font-medium min-w-[70px]"
+                        :class="freezePanes ? 'sticky left-[40px] z-40 bg-gray-100 dark:bg-gray-700 shadow-[4px_0_6px_-4px_rgba(0,0,0,0.3)]' : 'bg-gray-50 dark:bg-gray-700/50'"
                         x-show="columns.attr_hdbs_code" data-column="mn" data-type="text">
                         <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'mn')">
                             <span>MN</span>
@@ -291,10 +292,10 @@
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.below_safety %}bg-red-50 dark:bg-red-900/10{% endif %}">
                     <!-- Row # -->
                     <td class="px-2 py-2 text-gray-400 text-center"
-                        :class="freezePanes ? 'sticky left-0 z-20 bg-white dark:bg-gray-800' : 'bg-white dark:bg-gray-800'">{{ row.row_num }}</td>
+                        :class="freezePanes ? 'sticky left-0 z-20 bg-white dark:bg-gray-800 {% if row.below_safety %}!bg-red-50 dark:!bg-red-900/30{% endif %}' : ''">{{ row.row_num }}</td>
                     <!-- MN (HDBS Code) -->
                     <td class="px-2 py-2 font-mono text-xs font-medium text-gray-900 dark:text-white"
-                        :class="freezePanes ? 'sticky left-[40px] z-20 bg-white dark:bg-gray-800 border-r-2 border-gray-300 dark:border-gray-600' : 'bg-white dark:bg-gray-800'"
+                        :class="freezePanes ? 'sticky left-[40px] z-20 bg-white dark:bg-gray-800 shadow-[4px_0_6px_-4px_rgba(0,0,0,0.3)] {% if row.below_safety %}!bg-red-50 dark:!bg-red-900/30{% endif %}' : ''"
                         x-show="columns.attr_hdbs_code" data-value="{{ row.attributes|get_item:'hdbs_code'|default:'' }}">
                         {{ row.attributes|get_item:'hdbs_code'|default:"-" }}
                     </td>
