@@ -374,7 +374,7 @@
 </div>
 
 <!-- Column Menu Template (Excel-like dropdown) -->
-<div id="columnMenu" class="hidden fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 min-w-[240px] max-h-[400px] overflow-hidden">
+<div id="columnMenu" class="hidden fixed z-[100] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 min-w-[260px] max-h-[80vh] overflow-hidden flex flex-col">
     <!-- Sort Section -->
     <div class="p-2 border-b border-gray-200 dark:border-gray-700">
         <button type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2" onclick="sortColumn('asc')">
@@ -418,21 +418,21 @@
     </div>
 
     <!-- Values List (with checkboxes) -->
-    <div class="p-2">
-        <div class="px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase flex items-center justify-between">
+    <div class="p-2 flex-1 flex flex-col min-h-0">
+        <div class="px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase flex items-center justify-between flex-shrink-0">
             <span>Filter by Values</span>
             <div class="flex gap-2">
                 <button type="button" class="text-blue-600 hover:text-blue-800 text-xs" onclick="selectAllValues()">All</button>
                 <button type="button" class="text-blue-600 hover:text-blue-800 text-xs" onclick="selectNoneValues()">None</button>
             </div>
         </div>
-        <div class="px-2 py-1">
+        <div class="px-2 py-1 flex-shrink-0">
             <input type="text" id="valueSearch" placeholder="Search values..." class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200" oninput="filterValuesList()">
         </div>
-        <div id="valuesList" class="max-h-[150px] overflow-y-auto px-2 py-1">
+        <div id="valuesList" class="flex-1 overflow-y-auto px-2 py-1 min-h-[100px] max-h-[200px]">
             <!-- Values will be populated dynamically -->
         </div>
-        <div class="px-2 pt-2">
+        <div class="px-2 pt-2 flex-shrink-0">
             <button type="button" class="w-full px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700" onclick="applyValueFilter()">
                 Apply
             </button>
@@ -472,17 +472,41 @@
         // Populate values list
         populateValuesList(column);
 
-        // Position menu
-        const rect = th.getBoundingClientRect();
-        menu.style.left = rect.left + 'px';
-        menu.style.top = (rect.bottom + 5) + 'px';
+        // Show menu first to get its dimensions
+        menu.classList.remove('hidden');
 
-        // Show/hide menu
-        if (menu.classList.contains('hidden')) {
-            menu.classList.remove('hidden');
-        } else {
-            menu.classList.add('hidden');
+        // Position menu with viewport boundary checking
+        const rect = th.getBoundingClientRect();
+        const menuRect = menu.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const padding = 10; // Padding from viewport edge
+
+        // Calculate initial position
+        let left = rect.left;
+        let top = rect.bottom + 5;
+
+        // Check right boundary
+        if (left + menuRect.width > viewportWidth - padding) {
+            left = viewportWidth - menuRect.width - padding;
         }
+
+        // Check left boundary
+        if (left < padding) {
+            left = padding;
+        }
+
+        // Check bottom boundary - if menu would extend beyond viewport, show it above
+        if (top + menuRect.height > viewportHeight - padding) {
+            top = rect.top - menuRect.height - 5;
+            // If still doesn't fit above, just position at top with scroll
+            if (top < padding) {
+                top = padding;
+            }
+        }
+
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
     }
 
     // Populate values list from table data
@@ -679,6 +703,16 @@
         if (!menu.contains(e.target) && !e.target.closest('.column-header')) {
             closeColumnMenu();
         }
+    });
+
+    // Close menu on scroll (to prevent positioning issues)
+    window.addEventListener('scroll', function() {
+        closeColumnMenu();
+    }, true);
+
+    // Close menu on window resize
+    window.addEventListener('resize', function() {
+        closeColumnMenu();
     });
 
     // Initialize Lucide icons after menu is shown
