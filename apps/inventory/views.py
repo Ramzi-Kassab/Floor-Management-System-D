@@ -1644,7 +1644,8 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                 "attributes": attr_values,  # Dynamic attributes dict
                 "variants": {},
                 "new_stock": Decimal("0"),  # NEW-PUR only
-                "total_new": Decimal("0"),  # NEW-PUR + NEW-EO + NEW-RET
+                "total_new": Decimal("0"),  # NEW-PUR + NEW-EO + NEW-RET + NEW-CLI
+                "client_stock": Decimal("0"),  # NEW-CLI + USED-CLI
                 "total_stock": Decimal("0"),
                 "consumption_2m": Decimal("0"),
                 "consumption_3m": Decimal("0"),
@@ -1671,6 +1672,9 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                         row["new_stock"] = variant_stock
                     if variant.variant_case.code in new_variant_codes:
                         row["total_new"] += variant_stock
+                    # Track client stock (NEW-CLI + USED-CLI)
+                    if variant.variant_case.code in ["NEW-CLI", "USED-CLI"]:
+                        row["client_stock"] += variant_stock
 
             # Get consumption from StockLedger (ISSUE, CONSUMPTION transactions)
             from .models import StockLedger
