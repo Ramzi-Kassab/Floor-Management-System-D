@@ -546,7 +546,7 @@ class ItemListView(LoginRequiredMixin, ListView):
         context["page_title"] = "Inventory Items"
         context["categories"] = InventoryCategory.objects.filter(is_active=True).order_by('code')
         context["type_choices"] = InventoryItem.ItemType.choices
-        context["suppliers"] = Party.objects.filter(is_active=True, party_type=Party.PartyType.SUPPLIER).order_by('name')
+        context["suppliers"] = Party.objects.filter(is_active=True, party_type=Party.PartyType.VENDOR).order_by('name')
 
         # Current filter values
         context["current_category"] = self.request.GET.get("category", "")
