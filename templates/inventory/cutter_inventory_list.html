@@ -3,6 +3,26 @@
 
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Ensure main content area doesn't extend under sidebar */
+    main {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+    }
+    main > div {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+    }
+    /* Freeze panes sticky positioning - contained within table scroll area */
+    .freeze-sticky-col {
+        position: sticky;
+        z-index: 10;
+        background: inherit;
+    }
+</style>
+{% endblock %}
+
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6" id="pageHeader">
     <div>
@@ -21,7 +41,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="overflow-x-clip" x-data="cutterInventory()" x-init="init()">
+<div class="w-full max-w-full overflow-hidden" x-data="cutterInventory()" x-init="init()">
 
 <!-- Summary Cards (collapsible when freeze panes active) -->
 <div id="summarySection" x-show="!freezePanes" x-transition>
@@ -158,8 +178,8 @@
 </div>
 
 <!-- Inventory Table with Freeze Panes -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden isolate">
-    <div class="overflow-x-auto overflow-y-auto relative" :class="{ 'max-h-[calc(100vh-180px)]': freezePanes }">
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden w-full max-w-full">
+    <div class="overflow-x-auto overflow-y-auto" :class="{ 'max-h-[calc(100vh-180px)]': freezePanes }">
         <table class="w-full text-xs border-collapse" id="cutterTable">
             <thead :class="{ 'sticky top-0 z-20': freezePanes }">
                 <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
