@@ -7,10 +7,10 @@ This command reads the 'Cutters ERP Item Numbers2.xlsx' file and creates:
 - ItemAttributeValue records for cutter attributes
 
 Excel Structure (DATA sheet):
-- MN: Material Number (SAP reference - stored as mat_number)
+- MN: Material Number (HDBS MAT - stored as hdbs_code attribute)
 - Product name: Item name
-- Cutter Type: e.g., CT97, OBS ERC (stored as hdbs_code attribute)
-- Size: e.g., 1313, 1608
+- Cutter Type: e.g., CT97, OBS ERC (stored as cutter_type attribute)
+- Size: e.g., 1313, 1608 (parsed into diameter and length)
 - Chamfer: e.g., 10C, 18C, U
 - Family: e.g., P - Premium
 - Cutter Shape: e.g., Round, Trifex
@@ -20,7 +20,7 @@ Excel Structure (DATA sheet):
 - ARDT Reclaim Cutter: Item number for USED-RCL variant
 - Retrofit Cutter: Item number for NEW-RET variant
 - LSTK Reclaim Cutter: Item number for client reclaim (NEW-CLI)
-- New Stock: Item number for NEW-PUR variant
+- New Stock: Item number for NEW-PUR variant (also used as item_number attribute)
 
 Usage:
     python manage.py import_cutters_excel                    # Preview
@@ -55,13 +55,40 @@ class Command(BaseCommand):
     }
 
     # Mapping of Excel columns to attribute codes
+    # Note: hdbs_code comes from MN column, cutter_type from Cutter Type column
+    # Diameter and Length are parsed from Size column separately
     ATTRIBUTE_COLUMN_MAP = {
-        'Cutter Type': 'hdbs_code',      # HDBS Code (e.g., CT109)
-        'Size': 'cutter_size',
+        'Cutter Type': 'cutter_type',    # Cutter Type (e.g., CT97, OBS ERC)
+        'Size': 'cutter_size',           # Full size code (e.g., 1313, 1608)
         'Chamfer': 'chamfer',
         'Family': 'family',
         'Cutter Shape': 'cutter_shape',
     }
+
+    @staticmethod
+    def parse_size(size_str):
+        """
+        Parse size string into diameter and length.
+        - 4 digits (e.g., 1313): first 2 = diameter, last 2 = length
+        - 2 digits (e.g., 13): diameter only, length = N/A
+        Returns (diameter, length) tuple
+        """
+        if not size_str:
+            return None, None
+
+        size_str = str(size_str).strip()
+
+        # Remove any non-digit characters
+        digits = ''.join(c for c in size_str if c.isdigit())
+
+        if len(digits) >= 4:
+            # First 2 digits = diameter, last 2 digits = length
+            return digits[:2], digits[2:4]
+        elif len(digits) >= 2:
+            # Only diameter, no length
+            return digits[:2], 'N/A'
+        else:
+            return None, None
 
     # Variants that need account and customer set (LSTK with Halliburton)
     LSTK_VARIANTS = {'NEW-CLI'}  # LSTK Reclaim Cutter -> client reclaim with LSTK account
@@ -245,7 +272,7 @@ class Command(BaseCommand):
                         item.is_active = True
                         item.save()
 
-                        # Set attributes
+                        # Set attributes from Excel columns
                         for excel_col, attr_code in self.ATTRIBUTE_COLUMN_MAP.items():
                             value = row_dict.get(excel_col)
                             if value and attr_code in category_attributes:
@@ -255,6 +282,44 @@ class Command(BaseCommand):
                                     attribute=cat_attr,
                                     defaults={
                                         'text_value': str(value).strip(),
+                                    }
+                                )
+
+                        # Set hdbs_code attribute from MN column (HDBS MAT number)
+                        if mn and 'hdbs_code' in category_attributes:
+                            cat_attr = category_attributes['hdbs_code']
+                            ItemAttributeValue.objects.update_or_create(
+                                item=item,
+                                attribute=cat_attr,
+                                defaults={
+                                    'text_value': mn,
+                                }
+                            )
+
+                        # Parse diameter and length from Size column
+                        size_value = row_dict.get('Size')
+                        if size_value:
+                            diameter, length = self.parse_size(size_value)
+
+                            # Set diameter attribute
+                            if diameter and 'diameter' in category_attributes:
+                                cat_attr = category_attributes['diameter']
+                                ItemAttributeValue.objects.update_or_create(
+                                    item=item,
+                                    attribute=cat_attr,
+                                    defaults={
+                                        'text_value': diameter,
+                                    }
+                                )
+
+                            # Set length attribute
+                            if length and 'length' in category_attributes:
+                                cat_attr = category_attributes['length']
+                                ItemAttributeValue.objects.update_or_create(
+                                    item=item,
+                                    attribute=cat_attr,
+                                    defaults={
+                                        'text_value': length,
                                     }
                                 )
 
