@@ -215,7 +215,8 @@
                             </div>
                         </div>
                         <p class="text-xs font-medium text-gray-500 mb-2">Basic</p>
-                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.code" @change="savePreferences()"> Code</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.code" @change="savePreferences()"> Code (Internal)</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.mat_number" @change="savePreferences()"> SAP No.</label>
                         <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.name" @change="savePreferences()"> Name</label>
                         <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.category" @change="savePreferences()"> Category</label>
                         <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.item_type" @change="savePreferences()"> Type</label>
@@ -251,7 +252,8 @@
                 <thead class="bg-gray-50 dark:bg-gray-700/50">
                     <tr class="text-gray-500 dark:text-gray-400">
                         <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700" :class="freezePanes ? 'freeze-col-1' : ''">#</th>
-                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700" :class="freezePanes ? 'freeze-col-2' : ''" x-show="columns.code">Code</th>
+                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700" x-show="columns.code">Code</th>
+                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700" :class="freezePanes ? 'freeze-col-2' : ''" x-show="columns.mat_number">SAP No.</th>
                         <th class="pl-4 pr-2 py-2 text-left font-medium" x-show="columns.name">Name</th>
                         <th class="px-2 py-2 text-left font-medium" x-show="columns.category">Category</th>
                         <th class="px-2 py-2 text-left font-medium" x-show="columns.item_type">Type</th>
@@ -271,10 +273,12 @@
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/10{% endif %}">
                         <td class="px-2 py-2 text-gray-400 text-center {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
                             :class="freezePanes ? 'freeze-col-1-body' : ''">{{ row.row_num }}</td>
+                        <td class="px-2 py-2 font-mono text-xs text-gray-500 {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
+                            x-show="columns.code">{{ row.code }}</td>
                         <td class="px-2 py-2 font-mono text-xs font-medium {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
-                            :class="freezePanes ? 'freeze-col-2-body' : ''" x-show="columns.code">
+                            :class="freezePanes ? 'freeze-col-2-body' : ''" x-show="columns.mat_number">
                             <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-blue-600 hover:text-blue-800 hover:underline" title="Open {{ row.name }}">
-                                {{ row.code }}
+                                {{ row.mat_number }}
                             </a>
                         </td>
                         <td class="pl-4 pr-2 py-2" x-show="columns.name">
@@ -354,7 +358,8 @@
 <script>
     // Default column visibility
     const defaultColumns = {
-        code: true,
+        code: false,           // Internal code - hidden by default
+        mat_number: true,      // SAP MAT number - shown by default
         name: true,
         category: true,
         item_type: true,

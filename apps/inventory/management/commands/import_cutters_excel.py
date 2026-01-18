@@ -2,14 +2,14 @@
 Import PDC Cutters from Excel file with variant item numbers.
 
 This command reads the 'Cutters ERP Item Numbers2.xlsx' file and creates:
-- InventoryItem records for each base cutter
-- ItemVariant records for each variant with its unique item number
+- InventoryItem records for each base cutter (auto-increment code)
+- ItemVariant records for each variant with its unique ERP item number
 - ItemAttributeValue records for cutter attributes
 
 Excel Structure (DATA sheet):
-- MN: Material Number (base item code)
+- MN: Material Number (SAP reference - stored as mat_number)
 - Product name: Item name
-- Cutter Type: e.g., CT97, OBS ERC
+- Cutter Type: e.g., CT97, OBS ERC (stored as hdbs_code attribute)
 - Size: e.g., 1313, 1608
 - Chamfer: e.g., 10C, 18C, U
 - Family: e.g., P - Premium
@@ -19,7 +19,7 @@ Excel Structure (DATA sheet):
 - ENO Ground Cutter: Item number for USED-GRD variant
 - ARDT Reclaim Cutter: Item number for USED-RCL variant
 - Retrofit Cutter: Item number for NEW-RET variant
-- LSTK Reclaim Cutter: Item number for client reclaim (NEW-CLI/USED-CLI)
+- LSTK Reclaim Cutter: Item number for client reclaim (NEW-CLI)
 - New Stock: Item number for NEW-PUR variant
 
 Usage:
@@ -55,12 +55,11 @@ class Command(BaseCommand):
 
     # Mapping of Excel columns to attribute codes
     ATTRIBUTE_COLUMN_MAP = {
-        'Cutter Type': 'cutter_type',
+        'Cutter Type': 'hdbs_code',      # HDBS Code (e.g., CT109)
         'Size': 'cutter_size',
         'Chamfer': 'chamfer',
         'Family': 'family',
         'Cutter Shape': 'cutter_shape',
-        'Category': 'category',
     }
 
     def add_arguments(self, parser):
@@ -80,6 +79,26 @@ class Command(BaseCommand):
             action='store_true',
             help='Skip items that already exist instead of updating',
         )
+
+    def get_next_item_code(self, category):
+        """Generate next auto-increment code for the category."""
+        prefix = "CUT"
+        # Find the highest existing number
+        existing = InventoryItem.objects.filter(
+            category=category,
+            code__startswith=f"{prefix}-"
+        ).values_list('code', flat=True)
+
+        max_num = 0
+        for code in existing:
+            try:
+                num = int(code.split('-')[1])
+                if num > max_num:
+                    max_num = num
+            except (IndexError, ValueError):
+                continue
+
+        return f"{prefix}-{max_num + 1:04d}"
 
     def handle(self, *args, **options):
         import openpyxl
@@ -126,6 +145,7 @@ class Command(BaseCommand):
         for ca in CategoryAttribute.objects.filter(category=pdc_category).select_related('attribute'):
             if ca.attribute:
                 category_attributes[ca.attribute.code] = ca
+        self.stdout.write(f"Category attributes: {list(category_attributes.keys())}")
 
         # Process rows
         row_count = 0
@@ -135,6 +155,23 @@ class Command(BaseCommand):
         variants_created = 0
         errors = []
 
+        # Track next code number for new items
+        next_code_num = 1
+        existing_codes = set(InventoryItem.objects.filter(
+            category=pdc_category,
+            code__startswith="CUT-"
+        ).values_list('code', flat=True))
+
+        # Find max existing number
+        for code in existing_codes:
+            try:
+                num = int(code.split('-')[1])
+                if num >= next_code_num:
+                    next_code_num = num + 1
+            except (IndexError, ValueError):
+                continue
+
+        self.stdout.write(f"Next code number: CUT-{next_code_num:04d}")
         self.stdout.write("\nProcessing rows...")
 
         for row_num, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
@@ -152,13 +189,10 @@ class Command(BaseCommand):
                 errors.append(f"Row {row_num}: Missing MN or Product name")
                 continue
 
-            # Generate item code from MN
-            item_code = f"CT-{mn}"
-
             if not confirm:
                 # Preview mode
                 if row_count <= 5:
-                    self.stdout.write(f"  Row {row_num}: {item_code} - {product_name[:40]}")
+                    self.stdout.write(f"  Row {row_num}: MN={mn}, Name={product_name[:40]}")
                     # Count non-empty variant columns
                     variant_count = sum(1 for col in self.VARIANT_COLUMN_MAP.keys()
                                        if row_dict.get(col))
@@ -169,8 +203,11 @@ class Command(BaseCommand):
                 # Import mode
                 try:
                     with transaction.atomic():
-                        # Check if item exists
-                        existing_item = InventoryItem.objects.filter(code=item_code).first()
+                        # Check if item exists by mat_number (MN)
+                        existing_item = InventoryItem.objects.filter(
+                            category=pdc_category,
+                            mat_number=mn
+                        ).first()
 
                         if existing_item and skip_existing:
                             items_skipped += 1
@@ -181,6 +218,10 @@ class Command(BaseCommand):
                             item = existing_item
                             items_updated += 1
                         else:
+                            # Generate auto-increment code
+                            item_code = f"CUT-{next_code_num:04d}"
+                            next_code_num += 1
+
                             item = InventoryItem(
                                 code=item_code,
                                 category=pdc_category,
@@ -189,7 +230,7 @@ class Command(BaseCommand):
                             items_created += 1
 
                         item.name = product_name
-                        item.mat_number = mn
+                        item.mat_number = mn  # Store MN as SAP reference
                         item.is_active = True
                         item.save()
 
@@ -208,35 +249,34 @@ class Command(BaseCommand):
 
                         # Create variants
                         for excel_col, variant_code in self.VARIANT_COLUMN_MAP.items():
-                            variant_item_number = row_dict.get(excel_col)
-                            if variant_item_number and str(variant_item_number).strip():
-                                variant_item_number = str(variant_item_number).strip()
+                            erp_item_number = row_dict.get(excel_col)
+                            if erp_item_number and str(erp_item_number).strip():
+                                erp_item_number = str(erp_item_number).strip()
 
                                 # Get variant case
                                 variant_case = variant_cases.get(variant_code)
                                 if not variant_case:
                                     continue
 
-                                # Check if variant already exists
+                                # Check if variant already exists for this item+case
                                 existing_variant = ItemVariant.objects.filter(
                                     base_item=item,
                                     variant_case=variant_case
                                 ).first()
 
                                 if existing_variant:
-                                    # Update code if different
-                                    if existing_variant.code != variant_item_number:
-                                        existing_variant.code = variant_item_number
-                                        existing_variant.erp_item_no = variant_item_number
+                                    # Update ERP item number if different
+                                    if existing_variant.erp_item_no != erp_item_number:
+                                        existing_variant.erp_item_no = erp_item_number
                                         existing_variant.save()
                                 else:
                                     # Create new variant
+                                    # Code is auto-generated by model, erp_item_no is unique
                                     try:
                                         ItemVariant.objects.create(
                                             base_item=item,
                                             variant_case=variant_case,
-                                            code=variant_item_number,
-                                            erp_item_no=variant_item_number,
+                                            erp_item_no=erp_item_number,
                                             is_active=True,
                                         )
                                         variants_created += 1

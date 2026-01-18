@@ -520,6 +520,7 @@ class ItemListView(LoginRequiredMixin, ListView):
                 'row_num': row_num,
                 'item': item,
                 'code': item.code,
+                'mat_number': item.mat_number or '-',  # SAP MAT number
                 'name': item.name,
                 'category': item.category.name if item.category else '-',
                 'category_code': item.category.code if item.category else '',
