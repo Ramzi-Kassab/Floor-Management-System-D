@@ -121,12 +121,25 @@ InventoryItem
 - **ERP Item No Validation Display**: Added error message display to variant edit form template
 - **Management Commands Model Imports**: Fixed `ItemStock` → `InventoryStock`, `Attribute` → `CategoryAttribute`
 
-### Real Cutter Data Import (Jan 18, 2026)
+### PDC Cutter Import - Corrected Attribute Mappings (Jan 18, 2026)
+- **Fixed import_cutters_excel** command with correct attribute mappings:
+  - `item_number` attribute ← "New Stock" column (ERP Item No, e.g., CT-0062)
+  - `hdbs_code` attribute ← "MN" column (HDBS MAT number, e.g., 802065)
+  - `cutter_type` attribute ← "Cutter Type" column (e.g., CT97, OBS ERC)
+  - `diameter` attribute ← First 2 digits of Size (e.g., 13 from 1313)
+  - `length` attribute ← Last 2 digits of Size (e.g., 13 from 1313, or N/A if only 2 digits)
+  - `cutter_size`, `chamfer`, `family`, `cutter_shape` ← direct column mapping
+- **LSTK Variant Support**: NEW-CLI variants get `account="LSTK"` and `customer=Halliburton`
+- **18 PDC Cutter Attributes** now linked to CUT-PDC category
 - Successfully imported **301 PDC cutter items** with **848 variants** from Excel
-- Each item has attributes: Type, Size, Chamfer, Family, Shape
-- Each variant has unique ERP Item Number from Excel columns
-- Variant cases mapped: NEW-PUR, NEW-RET, NEW-EO, USED-GRD, USED-RCL, NEW-CLI
-- Old test data (CT-00xx items) cleaned up via shell script
+
+### Cutter Inventory Dashboard Enhancements (Jan 18, 2026)
+- **Pagination**: Always visible with page size selector (50, 100, 200, 500)
+- **Export to Excel**: Changed from CSV to Excel (.xlsx) format
+  - Professional formatting with header styles
+  - Frozen header row and first 3 columns
+  - Export includes all attributes, stock variants, consumption, safety stock
+- **Button update**: "Export" → "Export Excel" with spreadsheet icon
 
 ## Previous Changes (Jan 16, 2026)
 

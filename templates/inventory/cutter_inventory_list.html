@@ -203,8 +203,8 @@
         <p class="text-gray-600 dark:text-gray-400 mt-1">PDC Cutter inventory - matching Excel format</p>
     </div>
     <div class="mt-4 md:mt-0 flex gap-2">
-        <a href="{% url 'inventory:cutter_inventory_export' %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-            <i data-lucide="download" class="w-4 h-4 mr-2"></i>Export
+        <a href="{% url 'inventory:cutter_inventory_export' %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" title="Export to Excel">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4 mr-2"></i>Export Excel
         </a>
         <a href="{% url 'inventory:cutter_order_list' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="shopping-cart" class="w-4 h-4 mr-2"></i>View Orders
@@ -640,27 +640,44 @@
 </div>
 
 {% if page_obj.has_other_pages %}
-<!-- Pagination -->
-<div class="mt-6 flex items-center justify-between" x-show="!fullPageView" x-transition>
-    <p class="text-sm text-gray-500">
-        Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} cutters
-    </p>
+<!-- Pagination - Always visible -->
+<div class="mt-6 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+        <p class="text-sm text-gray-500">
+            Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} cutters
+        </p>
+        <!-- Page size selector -->
+        <form method="get" class="flex items-center gap-2">
+            <input type="hidden" name="search" value="{{ current_search }}">
+            <label class="text-sm text-gray-500">Show:</label>
+            <select name="page_size" onchange="this.form.submit()" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700">
+                <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
+                <option value="500" {% if page_size == 500 %}selected{% endif %}>500</option>
+            </select>
+        </form>
+    </div>
     <nav class="flex gap-1">
         {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}&search={{ current_search }}"
+        <a href="?page=1&search={{ current_search }}&page_size={{ page_size }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200" title="First">«</a>
+        <a href="?page={{ page_obj.previous_page_number }}&search={{ current_search }}&page_size={{ page_size }}"
            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">Prev</a>
         {% endif %}
         {% for num in page_obj.paginator.page_range %}
         {% if page_obj.number == num %}
         <span class="px-3 py-1 bg-blue-600 text-white rounded">{{ num }}</span>
         {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-        <a href="?page={{ num }}&search={{ current_search }}"
+        <a href="?page={{ num }}&search={{ current_search }}&page_size={{ page_size }}"
            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">{{ num }}</a>
         {% endif %}
         {% endfor %}
         {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&search={{ current_search }}"
+        <a href="?page={{ page_obj.next_page_number }}&search={{ current_search }}&page_size={{ page_size }}"
            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">Next</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}&search={{ current_search }}&page_size={{ page_size }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200" title="Last">»</a>
         {% endif %}
     </nav>
 </div>

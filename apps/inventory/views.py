@@ -1468,6 +1468,17 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
     context_object_name = "cutters"
     paginate_by = 100
 
+    def get_paginate_by(self, queryset):
+        """Allow page size to be changed via query parameter."""
+        page_size = self.request.GET.get('page_size', 100)
+        try:
+            page_size = int(page_size)
+            if page_size in [50, 100, 200, 500]:
+                return page_size
+        except (ValueError, TypeError):
+            pass
+        return 100
+
     def _get_category_attributes(self):
         """Get all attributes for PDC Cutters category (own + inherited from parent).
         Returns attributes ordered to match Excel format with visibility defaults.
@@ -1740,6 +1751,7 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
 
         # Filters - removed supplier filter (only Halliburton supplies PDC cutters)
         context["current_search"] = self.request.GET.get("search", "")
+        context["page_size"] = self.get_paginate_by(None)
 
         return context
 
@@ -3087,7 +3099,7 @@ class ItemImportTemplateView(LoginRequiredMixin, View):
 
 
 class CutterInventoryExportView(LoginRequiredMixin, View):
-    """Export cutter inventory to CSV with all stock and consumption data."""
+    """Export cutter inventory to Excel with all stock and consumption data."""
 
     def _get_attribute_value_by_code(self, cutter, attr_code):
         """Get attribute value by attribute code."""
@@ -3123,14 +3135,17 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
         from datetime import timedelta
         from django.db.models import Prefetch, Sum
         from decimal import Decimal
-
-        response = HttpResponse(content_type="text/csv")
-        response["Content-Disposition"] = 'attachment; filename="cutter_inventory.csv"'
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        from io import BytesIO
 
         # Get PDC Cutters category
         try:
             category = InventoryCategory.objects.get(code="CUT-PDC")
         except InventoryCategory.DoesNotExist:
+            response = HttpResponse(content_type="text/csv")
+            response["Content-Disposition"] = 'attachment; filename="error.csv"'
             writer = csv.writer(response)
             writer.writerow(["Error: PDC Cutters category not found"])
             return response
@@ -3179,16 +3194,38 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
         variant_codes = ["NEW-PUR", "NEW-RET", "NEW-EO", "USED-GRD", "USED-RCL", "NEW-CLI", "USED-CLI"]
         new_variant_codes = ["NEW-PUR", "NEW-EO", "NEW-RET", "NEW-CLI"]
 
-        writer = csv.writer(response)
+        # Create Excel workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Cutter Inventory"
+
+        # Define styles
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        stock_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        consumption_fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
 
         # Build header row
         header = ["#", "Code", "Product Name"]
         for attr in all_attributes:
             header.append(attr["name"])
         header.extend(["ENO New", "ENO Grd", "ARDT Rcl", "LSTK Rcl", "Retrofit", "New Stock", "Total New",
-                      "6M Consumption", "3M Consumption", "2M Consumption",
+                      "6M Cons", "3M Cons", "2M Cons",
                       "Safety Stock", "BOM Req", "On Order", "Forecast", "Remarks"])
-        writer.writerow(header)
+
+        # Write header
+        for col_num, value in enumerate(header, 1):
+            cell = ws.cell(row=1, column=col_num, value=value)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = thin_border
 
         # Write data rows
         row_num = 0
@@ -3265,24 +3302,47 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
             row = [row_num, cutter.code, cutter.name]
             row.extend(attr_values)
             row.extend([
-                variant_stock.get("NEW-EO", 0),
-                variant_stock.get("USED-GRD", 0),
-                variant_stock.get("USED-RCL", 0),
-                lstk_rcl,
-                variant_stock.get("NEW-RET", 0),  # Retrofit
-                new_stock,
-                total_new,
-                abs(consumption_6m),
-                abs(consumption_3m),
-                abs(consumption_2m),
-                safety_stock,
-                bom_requirement,
-                on_order,
-                forecast,
+                float(variant_stock.get("NEW-EO", 0)),
+                float(variant_stock.get("USED-GRD", 0)),
+                float(variant_stock.get("USED-RCL", 0)),
+                float(lstk_rcl),
+                float(variant_stock.get("NEW-RET", 0)),  # Retrofit
+                float(new_stock),
+                float(total_new),
+                float(abs(consumption_6m)),
+                float(abs(consumption_3m)),
+                float(abs(consumption_2m)),
+                float(safety_stock),
+                float(bom_requirement),
+                float(on_order),
+                float(forecast),
                 cutter.notes or ""
             ])
-            writer.writerow(row)
 
+            # Write row to Excel
+            excel_row = row_num + 1  # +1 for header
+            for col_num, value in enumerate(row, 1):
+                cell = ws.cell(row=excel_row, column=col_num, value=value)
+                cell.border = thin_border
+
+        # Auto-size columns
+        for col_num, _ in enumerate(header, 1):
+            col_letter = get_column_letter(col_num)
+            ws.column_dimensions[col_letter].width = 12
+
+        # Freeze header row and first 3 columns
+        ws.freeze_panes = 'D2'
+
+        # Save to response
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="cutter_inventory.xlsx"'
         return response
 
 
