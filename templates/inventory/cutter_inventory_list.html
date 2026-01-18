@@ -639,13 +639,19 @@
     </div>
 </div>
 
-{% if page_obj.has_other_pages %}
 <!-- Pagination - Always visible -->
 <div class="mt-6 flex items-center justify-between">
     <div class="flex items-center gap-4">
+        {% if page_obj %}
         <p class="text-sm text-gray-500">
             Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} cutters
         </p>
+        {% else %}
+        <p class="text-sm text-gray-500">
+            Showing all {{ total_cutters }} cutters
+            <span class="text-green-600 ml-2">✓ Column filters work on all data</span>
+        </p>
+        {% endif %}
         <!-- Page size selector -->
         <form method="get" class="flex items-center gap-2">
             <input type="hidden" name="search" value="{{ current_search }}">
@@ -655,9 +661,11 @@
                 <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
                 <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
                 <option value="500" {% if page_size == 500 %}selected{% endif %}>500</option>
+                <option value="all" {% if page_size == 'all' %}selected{% endif %}>All (for column filters)</option>
             </select>
         </form>
     </div>
+    {% if page_obj and page_obj.has_other_pages %}
     <nav class="flex gap-1">
         {% if page_obj.has_previous %}
         <a href="?page=1&search={{ current_search }}&page_size={{ page_size }}"
@@ -680,8 +688,10 @@
            class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200" title="Last">»</a>
         {% endif %}
     </nav>
+    {% elif page_obj %}
+    <p class="text-xs text-amber-600">Note: Column filters only work on visible rows. Select "All" to filter all data.</p>
+    {% endif %}
 </div>
-{% endif %}
 
 </div>
 

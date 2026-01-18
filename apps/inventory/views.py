@@ -1469,8 +1469,10 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
     paginate_by = 100
 
     def get_paginate_by(self, queryset):
-        """Allow page size to be changed via query parameter."""
-        page_size = self.request.GET.get('page_size', 100)
+        """Allow page size to be changed via query parameter. 'all' disables pagination."""
+        page_size = self.request.GET.get('page_size', '100')
+        if page_size == 'all':
+            return None  # Disable pagination - show all records
         try:
             page_size = int(page_size)
             if page_size in [50, 100, 200, 500]:
@@ -1751,7 +1753,9 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
 
         # Filters - removed supplier filter (only Halliburton supplies PDC cutters)
         context["current_search"] = self.request.GET.get("search", "")
-        context["page_size"] = self.get_paginate_by(None)
+        # Return 'all' string if pagination disabled, otherwise the number
+        paginate_by = self.get_paginate_by(None)
+        context["page_size"] = 'all' if paginate_by is None else paginate_by
 
         return context
 
