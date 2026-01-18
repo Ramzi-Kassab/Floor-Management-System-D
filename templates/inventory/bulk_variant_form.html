@@ -55,7 +55,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Select Variant Cases</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Check the boxes to create variants. Each variant has its own ERP Item Number.</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Check the boxes to create variants. Each variant has its own ERP I No.</p>
         </div>
 
         <div class="p-6">
@@ -129,13 +129,13 @@
                             <!-- Fields (shown when not disabled) -->
                             {% if not vc_data.exists and vc_data.case.code != 'NEW-PUR' %}
                             <div id="fields_{{ vc_data.case.pk }}" class="variant-fields hidden grid grid-cols-1 md:grid-cols-3 gap-4 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                                <!-- ERP Item Number -->
+                                <!-- ERP I No. -->
                                 <div>
-                                    <label class="block text-xs font-medium text-gray-500 mb-1">ERP Item Number</label>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">ERP I No.</label>
                                     <input type="text"
                                            name="erp_{{ vc_data.case.pk }}"
                                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                           placeholder="ERP Item Number">
+                                           placeholder="e.g., 1234567">
                                 </div>
 
                                 {% if vc_data.case.ownership == 'CLIENT' %}

@@ -181,12 +181,12 @@
                             <p class="text-xs text-gray-500 mt-1">Old system MAT number</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ERP Item Number</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ERP I No.</label>
                             <input type="text" name="erp_item_no"
                                 value="{{ form.erp_item_no.value|default:'' }}"
                                 class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 {% if form.erp_item_no.errors %}border-red-500{% endif %}"
-                                placeholder="e.g., ERP-67890">
-                            <p class="text-xs text-gray-500 mt-1">ERP system reference (must be unique)</p>
+                                placeholder="e.g., 1234567">
+                            <p class="text-xs text-gray-500 mt-1">Unique ERP Item Number</p>
                             {% if form.erp_item_no.errors %}<p class="text-red-600 text-sm mt-1">{{ form.erp_item_no.errors.0 }}</p>{% endif %}
                         </div>
                     </div>

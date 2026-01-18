@@ -326,7 +326,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                ERP Item Number
+                                ERP I No.
                                 <span x-show="erpItemNumber" class="text-green-600 text-xs ml-1">✓</span>
                             </label>
                             <input type="text" name="item_number" x-model="erpItemNumber" readonly
@@ -1124,7 +1124,7 @@ function itemForm() {
         syncLegacyReferences() {
             // Map attribute codes to legacy fields
             // hdbs_code / HDBS_CODE -> SAP MAT Number (Halliburton items)
-            // item_number / ITEM_NUMBER -> ERP Item Number
+            // item_number / ITEM_NUMBER -> ERP I No.
             const hdbsValue = this.attributeValues['hdbs_code'] || this.attributeValues['HDBS_CODE'] ||
                               this.attributeValues['hdbs'] || this.attributeValues['HDBS'] || '';
             const itemNumValue = this.attributeValues['item_number'] || this.attributeValues['ITEM_NUMBER'] ||
