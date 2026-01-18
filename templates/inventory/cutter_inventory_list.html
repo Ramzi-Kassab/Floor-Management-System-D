@@ -284,47 +284,94 @@
 
 <!-- Filters & Controls -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-4" id="filterSection">
-    <form method="get" class="flex flex-wrap gap-4 items-end">
-        <div class="flex-1 min-w-[200px]">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
-            <input type="text" name="search" value="{{ current_search }}" placeholder="Code or name..."
-                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+    <form method="get" class="flex flex-wrap gap-3 items-center">
+        <!-- Search field - narrower -->
+        <div class="w-48">
+            <input type="text" name="search" value="{{ current_search }}" placeholder="Search code or name..."
+                   class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
         </div>
-        <div class="flex gap-2 flex-wrap">
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Filter
-            </button>
-            <a href="{% url 'inventory:cutter_inventory_list' %}" class="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-400">Clear</a>
+        <button type="submit" class="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="search" class="w-4 h-4 inline"></i>
+        </button>
+        <a href="{% url 'inventory:cutter_inventory_list' %}" class="px-3 py-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 text-sm">Clear</a>
 
+        <!-- Divider -->
+        <div class="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+
+        <!-- Page size selector -->
+        <div class="flex items-center gap-2">
+            <label class="text-sm text-gray-500">Show:</label>
+            <select name="page_size" onchange="this.form.submit()" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700">
+                <option value="all" {% if page_size == 'all' %}selected{% endif %}>All</option>
+                <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
+                <option value="500" {% if page_size == 500 %}selected{% endif %}>500</option>
+            </select>
+        </div>
+
+        <!-- Record count display -->
+        <div class="text-sm text-gray-500">
+            {% if page_obj %}
+            <span>{{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }}</span>
+            {% else %}
+            <span class="text-green-600">{{ total_cutters }} records</span>
+            {% endif %}
+        </div>
+
+        <!-- Pagination controls (inline when paginated) -->
+        {% if page_obj and page_obj.has_other_pages %}
+        <div class="flex items-center gap-1">
+            {% if page_obj.has_previous %}
+            <a href="?page=1&search={{ current_search }}&page_size={{ page_size }}"
+               class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm" title="First">«</a>
+            <a href="?page={{ page_obj.previous_page_number }}&search={{ current_search }}&page_size={{ page_size }}"
+               class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm">‹</a>
+            {% endif %}
+            <span class="px-2 py-1 text-sm text-gray-600 dark:text-gray-300">Page {{ page_obj.number }}/{{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&search={{ current_search }}&page_size={{ page_size }}"
+               class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm">›</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}&search={{ current_search }}&page_size={{ page_size }}"
+               class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm" title="Last">»</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Spacer to push toggle buttons to the right -->
+        <div class="flex-1"></div>
+
+        <!-- Toggle buttons -->
+        <div class="flex gap-2 flex-wrap">
             <!-- Freeze Panes Toggle -->
             <button type="button" @click="toggleFreezePanes()"
                     :class="freezePanes ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
-                    class="px-4 py-2 rounded-lg hover:opacity-90 flex items-center gap-2">
+                    class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
                 <i data-lucide="lock" class="w-4 h-4"></i>
-                <span x-text="freezePanes ? 'Unfreeze' : 'Freeze Panes'"></span>
+                <span x-text="freezePanes ? 'Unfreeze' : 'Freeze'"></span>
             </button>
 
             <!-- Full Page View Toggle -->
             <button type="button" @click="toggleFullPageView()"
                     :class="fullPageView ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
-                    class="px-4 py-2 rounded-lg hover:opacity-90 flex items-center gap-2">
+                    class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
                 <i data-lucide="maximize-2" class="w-4 h-4"></i>
-                <span x-text="fullPageView ? 'Exit Full' : 'Full Page'"></span>
+                <span x-text="fullPageView ? 'Exit' : 'Full'"></span>
             </button>
 
             <!-- Text Wrap Toggle -->
             <button type="button" @click="toggleTextWrap()"
                     :class="textWrap ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
-                    class="px-4 py-2 rounded-lg hover:opacity-90 flex items-center gap-2"
+                    class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm"
                     :title="textWrap ? 'Text wraps, rows expand' : 'No wrap, columns expand'">
                 <i data-lucide="wrap-text" class="w-4 h-4"></i>
-                <span x-text="textWrap ? 'Wrap' : 'No Wrap'"></span>
+                <span x-text="textWrap ? 'Wrap' : 'NoWrap'"></span>
             </button>
 
             <!-- Column Toggle Button -->
             <div class="relative">
-                <button type="button" @click="showColumnMenu = !showColumnMenu" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
-                    <i data-lucide="columns" class="w-4 h-4 inline mr-1"></i>Columns
+                <button type="button" @click="showColumnMenu = !showColumnMenu" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+                    <i data-lucide="columns" class="w-4 h-4 inline mr-1"></i>Cols
                 </button>
                 <!-- Column Visibility Dropdown -->
                 <div x-show="showColumnMenu" @click.away="showColumnMenu = false"
@@ -371,6 +418,28 @@
             </div>
         </div>
     </form>
+</div>
+</div>
+
+<!-- Filter Notification (shown when filtered data may exist outside visible rows) -->
+<div id="filterNotification" class="hidden mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg flex items-center justify-between">
+    <div class="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+        <i data-lucide="info" class="w-5 h-5"></i>
+        <span id="filterNotificationText">No matching records in current view.</span>
+        {% if page_obj %}
+        <span class="text-amber-600 dark:text-amber-300">The record may exist in other pages. Click "Show All" to search all records.</span>
+        {% endif %}
+    </div>
+    <div class="flex items-center gap-2">
+        {% if page_obj %}
+        <a href="?page_size=all&search={{ current_search }}" class="px-3 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 text-sm font-medium">
+            Show All
+        </a>
+        {% endif %}
+        <button type="button" onclick="hideFilterNotification()" class="text-amber-600 hover:text-amber-800 dark:text-amber-400">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+    </div>
 </div>
 </div>
 <!-- END HEADER SECTION -->
@@ -637,60 +706,6 @@
         <strong>Forecast Formula:</strong> Total New + On Order - BOM Requirement |
         <strong>Safety Formula:</strong> 2M consumption + buffer (2-10), rounded up to nearest 5
     </div>
-</div>
-
-<!-- Pagination - Always visible -->
-<div class="mt-6 flex items-center justify-between">
-    <div class="flex items-center gap-4">
-        {% if page_obj %}
-        <p class="text-sm text-gray-500">
-            Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} cutters
-        </p>
-        {% else %}
-        <p class="text-sm text-gray-500">
-            Showing all {{ total_cutters }} cutters
-            <span class="text-green-600 ml-2">✓ Column filters work on all data</span>
-        </p>
-        {% endif %}
-        <!-- Page size selector -->
-        <form method="get" class="flex items-center gap-2">
-            <input type="hidden" name="search" value="{{ current_search }}">
-            <label class="text-sm text-gray-500">Show:</label>
-            <select name="page_size" onchange="this.form.submit()" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700">
-                <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
-                <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
-                <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
-                <option value="500" {% if page_size == 500 %}selected{% endif %}>500</option>
-                <option value="all" {% if page_size == 'all' %}selected{% endif %}>All (for column filters)</option>
-            </select>
-        </form>
-    </div>
-    {% if page_obj and page_obj.has_other_pages %}
-    <nav class="flex gap-1">
-        {% if page_obj.has_previous %}
-        <a href="?page=1&search={{ current_search }}&page_size={{ page_size }}"
-           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200" title="First">«</a>
-        <a href="?page={{ page_obj.previous_page_number }}&search={{ current_search }}&page_size={{ page_size }}"
-           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">Prev</a>
-        {% endif %}
-        {% for num in page_obj.paginator.page_range %}
-        {% if page_obj.number == num %}
-        <span class="px-3 py-1 bg-blue-600 text-white rounded">{{ num }}</span>
-        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-        <a href="?page={{ num }}&search={{ current_search }}&page_size={{ page_size }}"
-           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">{{ num }}</a>
-        {% endif %}
-        {% endfor %}
-        {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&search={{ current_search }}&page_size={{ page_size }}"
-           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">Next</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}&search={{ current_search }}&page_size={{ page_size }}"
-           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200" title="Last">»</a>
-        {% endif %}
-    </nav>
-    {% elif page_obj %}
-    <p class="text-xs text-amber-600">Note: Column filters only work on visible rows. Select "All" to filter all data.</p>
-    {% endif %}
 </div>
 
 </div>
@@ -1052,7 +1067,32 @@
     function clearColumnFilter() {
         const table = document.getElementById('cutterTable');
         table.querySelectorAll('tbody tr').forEach(row => row.style.display = '');
+        hideFilterNotification();
         closeColumnMenu();
+    }
+
+    // Whether we're in paginated mode (server passes this info)
+    const isPaginated = {{ page_obj|yesno:"true,false" }};
+    const totalRecords = {{ total_cutters|default:0 }};
+
+    function checkFilterResults() {
+        const table = document.getElementById('cutterTable');
+        const visibleRows = table.querySelectorAll('tbody tr:not([style*="display: none"])');
+        const notification = document.getElementById('filterNotification');
+        const notificationText = document.getElementById('filterNotificationText');
+
+        if (visibleRows.length === 0 && isPaginated) {
+            // No visible results in paginated mode - show notification
+            notificationText.textContent = `No matching records found in current page (showing subset of ${totalRecords} total records).`;
+            notification.classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            notification.classList.add('hidden');
+        }
+    }
+
+    function hideFilterNotification() {
+        document.getElementById('filterNotification').classList.add('hidden');
     }
 
     function applyCustomFilter() {
@@ -1092,6 +1132,7 @@
         });
 
         closeColumnMenu();
+        checkFilterResults();
     }
 
     function applyValueFilter() {
@@ -1120,6 +1161,7 @@
         });
 
         closeColumnMenu();
+        checkFilterResults();
     }
 
     function closeColumnMenu() {

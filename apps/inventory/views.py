@@ -1466,11 +1466,11 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
     model = InventoryItem
     template_name = "inventory/cutter_inventory_list.html"
     context_object_name = "cutters"
-    paginate_by = 100
+    paginate_by = None  # Default to showing all records
 
     def get_paginate_by(self, queryset):
-        """Allow page size to be changed via query parameter. 'all' disables pagination."""
-        page_size = self.request.GET.get('page_size', '100')
+        """Allow page size to be changed via query parameter. Default is 'all' (no pagination)."""
+        page_size = self.request.GET.get('page_size', 'all')
         if page_size == 'all':
             return None  # Disable pagination - show all records
         try:
@@ -1479,7 +1479,7 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                 return page_size
         except (ValueError, TypeError):
             pass
-        return 100
+        return None  # Default to all
 
     def _get_category_attributes(self):
         """Get all attributes for PDC Cutters category (own + inherited from parent).
