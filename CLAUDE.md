@@ -110,8 +110,23 @@ InventoryItem
   - Creates base items with attributes (Type, Size, Chamfer, Family, Shape)
   - Creates variants with unique ERP item numbers per variant case
 
+### GRN Delete Functionality
+- **New View**: `GRNDeleteView` at `/inventory/grn/<pk>/delete/`
+- **Restriction**: Only DRAFT status GRNs can be deleted
+- **UI**: Delete button appears on GRN detail page for DRAFT GRNs
+- **Cascade**: Automatically deletes associated GRN lines
+
 ### Bug Fixes
 - **ItemListView Category Filter**: Now handles both numeric IDs and category codes (e.g., `?category=CT-PDC`)
+- **ERP Item No Validation Display**: Added error message display to variant edit form template
+- **Management Commands Model Imports**: Fixed `ItemStock` → `InventoryStock`, `Attribute` → `CategoryAttribute`
+
+### Real Cutter Data Import (Jan 18, 2026)
+- Successfully imported **301 PDC cutter items** with **848 variants** from Excel
+- Each item has attributes: Type, Size, Chamfer, Family, Shape
+- Each variant has unique ERP Item Number from Excel columns
+- Variant cases mapped: NEW-PUR, NEW-RET, NEW-EO, USED-GRD, USED-RCL, NEW-CLI
+- Old test data (CT-00xx items) cleaned up via shell script
 
 ## Previous Changes (Jan 16, 2026)
 
@@ -219,7 +234,8 @@ InventoryItem
 ## Current Data State
 - 14 designs in database
 - 3 BOMs created
-- 20 inventory items
+- **301+ PDC cutter items** (imported from Excel)
+- **848+ item variants** with unique ERP item numbers
 - 354 attributes defined
 - 42 inventory categories
 
