@@ -134,7 +134,10 @@ InventoryItem
 - Successfully imported **301 PDC cutter items** with **848 variants** from Excel
 
 ### Cutter Inventory Dashboard Enhancements (Jan 18, 2026)
-- **Pagination**: Always visible with page size selector (50, 100, 200, 500)
+- **Pagination**: Always visible with page size selector (50, 100, 200, 500, All)
+  - "All" option loads all records for column filters to work on complete dataset
+  - Shows note when paginated: "Column filters only work on visible rows"
+  - Shows green checkmark when "All" selected: "✓ Column filters work on all data"
 - **Export to Excel**: Changed from CSV to Excel (.xlsx) format
   - Professional formatting with header styles
   - Frozen header row and first 3 columns
