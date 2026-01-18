@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Work Orders - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Column filter inputs */
+    .col-filter {
+        width: 100%;
+        padding: 4px 6px;
+        font-size: 11px;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        background: white;
+    }
+    .dark .col-filter {
+        background: #374151;
+        border-color: #4b5563;
+        color: white;
+    }
+    .col-filter:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+    /* Hide rows that don't match filter */
+    tr.filtered-out {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            Showing {{ work_orders|length }} of {{ total_count }} work orders
+        </p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'workorders:dashboard' %}"
+           class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm">
+            <i data-lucide="layout-dashboard" class="w-4 h-4 mr-2"></i>
+            Dashboard
+        </a>
+        <a href="{% url 'workorders:export_excel' %}?{{ request.GET.urlencode }}"
+           class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4 mr-2"></i>
+            Export Excel
+        </a>
+        <a href="{% url 'workorders:create' %}"
+           class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+            New Work Order
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<form method="get" id="filterForm">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-4">
+        <div class="flex flex-wrap gap-3 items-end">
+            <!-- Search -->
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                    <input type="text" name="search" value="{{ current_search }}"
+                           placeholder="WO#, Customer, Serial#, DRSS#..."
+                           class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div class="w-36">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
+                <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="">All</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- WO Type -->
+            <div class="w-36">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
+                <select name="wo_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="">All</option>
+                    {% for value, label in wo_type_choices %}
+                    <option value="{{ value }}" {% if current_wo_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Priority -->
+            <div class="w-32">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Priority</label>
+                <select name="priority" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="">All</option>
+                    {% for value, label in priority_choices %}
+                    <option value="{{ value }}" {% if current_priority == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Date From -->
+            <div class="w-36">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">From Date</label>
+                <input type="date" name="date_from" value="{{ date_from }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Date To -->
+            <div class="w-36">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">To Date</label>
+                <input type="date" name="date_to" value="{{ date_to }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Page Size -->
+            <div class="w-28">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Show</label>
+                <select name="page_size" onchange="this.form.submit()" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="all" {% if page_size == 'all' %}selected{% endif %}>All</option>
+                    <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                    <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
+                </select>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex gap-2">
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                    <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>
+                    Filter
+                </button>
+                {% if current_search or current_status or current_wo_type or current_priority or date_from or date_to %}
+                <a href="{% url 'workorders:workorder_list_enhanced' %}" class="px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm">
+                    Clear
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Work Orders Table -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if work_orders %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm" id="woTable">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-4 py-3 font-medium">WO #</th>
+                    <th class="px-4 py-3 font-medium">Type</th>
+                    <th class="px-4 py-3 font-medium">Customer</th>
+                    <th class="px-4 py-3 font-medium">Serial #</th>
+                    <th class="px-4 py-3 font-medium">DRSS#</th>
+                    <th class="px-4 py-3 font-medium">Brazing MAT#</th>
+                    <th class="px-4 py-3 font-medium">Priority</th>
+                    <th class="px-4 py-3 font-medium">Status</th>
+                    <th class="px-4 py-3 font-medium">Due Date</th>
+                    <th class="px-4 py-3 font-medium">Assigned</th>
+                    <th class="px-4 py-3 font-medium text-right">Actions</th>
+                </tr>
+                <!-- Column Filters -->
+                <tr class="bg-gray-100 dark:bg-gray-600/50">
+                    <th class="px-4 py-2"><input type="text" class="col-filter" data-col="0" placeholder="Filter..."></th>
+                    <th class="px-4 py-2"><input type="text" class="col-filter" data-col="1" placeholder="Filter..."></th>
+                    <th class="px-4 py-2"><input type="text" class="col-filter" data-col="2" placeholder="Filter..."></th>
+                    <th class="px-4 py-2"><input type="text" class="col-filter" data-col="3" placeholder="Filter..."></th>
+                    <th class="px-4 py-2"><input type="text" class="col-filter" data-col="4" placeholder="Filter..."></th>
+                    <th class="px-4 py-2"><input type="text" class="col-filter" data-col="5" placeholder="Filter..."></th>
+                    <th class="px-4 py-2"><input type="text" class="col-filter" data-col="6" placeholder="Filter..."></th>
+                    <th class="px-4 py-2"><input type="text" class="col-filter" data-col="7" placeholder="Filter..."></th>
+                    <th class="px-4 py-2"><input type="text" class="col-filter" data-col="8" placeholder="Filter..."></th>
+                    <th class="px-4 py-2"><input type="text" class="col-filter" data-col="9" placeholder="Filter..."></th>
+                    <th class="px-4 py-2"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700" id="woTableBody">
+                {% for wo in work_orders %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors {% if wo.is_overdue %}bg-red-50 dark:bg-red-900/10{% endif %}" data-row>
+                    <td class="px-4 py-3">
+                        <a href="{% url 'workorders:workorder_detail_enhanced' wo.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                            {{ wo.wo_number }}
+                        </a>
+                    </td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ wo.get_wo_type_display }}</td>
+                    <td class="px-4 py-3 text-gray-900 dark:text-white">{{ wo.customer.name|default:"--" }}</td>
+                    <td class="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">{{ wo.drill_bit.serial_number|default:"--" }}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ wo.drss_no|default:"--" }}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">{{ wo.brazing_mat_no|default:"--" }}</td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                            {% if wo.priority == 'CRITICAL' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                            {% elif wo.priority == 'URGENT' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                            {% elif wo.priority == 'HIGH' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                            {% elif wo.priority == 'NORMAL' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                            {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                            {{ wo.get_priority_display }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                            {% if wo.status == 'DRAFT' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+                            {% elif wo.status == 'PLANNED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                            {% elif wo.status == 'RELEASED' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200
+                            {% elif wo.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                            {% elif wo.status == 'ON_HOLD' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                            {% elif wo.status == 'QC_PENDING' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                            {% elif wo.status == 'COMPLETED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                            {% elif wo.status == 'CANCELLED' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ wo.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if wo.due_date %}
+                        <span class="{% if wo.is_overdue %}text-red-600 dark:text-red-400 font-medium{% else %}text-gray-600 dark:text-gray-400{% endif %}">
+                            {{ wo.due_date|date:"M d" }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {{ wo.assigned_to.get_short_name|default:"--" }}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <div class="flex items-center justify-end space-x-1">
+                            <a href="{% url 'workorders:workorder_detail_enhanced' wo.pk %}" class="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="View Job Card">
+                                <i data-lucide="file-text" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'workorders:router_sheet' wo.pk %}" class="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Router Sheet">
+                                <i data-lucide="route" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'workorders:update' wo.pk %}" class="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Edit">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+        <div class="flex items-center justify-between">
+            <div class="text-sm text-gray-600 dark:text-gray-400">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </div>
+            <div class="flex space-x-2">
+                {% if page_obj.has_previous %}
+                <a href="?page=1&{{ request.GET.urlencode|slice:'6:' }}" class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">First</a>
+                <a href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode|slice:'6:' }}" class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">Previous</a>
+                {% endif %}
+                {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode|slice:'6:' }}" class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}&{{ request.GET.urlencode|slice:'6:' }}" class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">Last</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-16">
+        <i data-lucide="clipboard-list" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No work orders found</h3>
+        {% if current_search or current_status or current_wo_type %}
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Try adjusting your filters</p>
+        <a href="{% url 'workorders:workorder_list_enhanced' %}" class="text-blue-600 dark:text-blue-400 hover:underline">Clear filters</a>
+        {% else %}
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Get started by creating your first work order</p>
+        <a href="{% url 'workorders:create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Work Order
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Column filter functionality
+    const filters = document.querySelectorAll('.col-filter');
+    const tbody = document.getElementById('woTableBody');
+
+    if (!tbody) return;
+
+    filters.forEach(filter => {
+        filter.addEventListener('input', applyFilters);
+    });
+
+    function applyFilters() {
+        const rows = tbody.querySelectorAll('tr[data-row]');
+        const filterValues = {};
+
+        filters.forEach(f => {
+            const col = f.dataset.col;
+            const val = f.value.toLowerCase().trim();
+            if (val) filterValues[col] = val;
+        });
+
+        rows.forEach(row => {
+            let visible = true;
+            const cells = row.querySelectorAll('td');
+
+            for (const col in filterValues) {
+                const cell = cells[parseInt(col)];
+                if (cell) {
+                    const text = cell.textContent.toLowerCase();
+                    if (!text.includes(filterValues[col])) {
+                        visible = false;
+                        break;
+                    }
+                }
+            }
+
+            row.classList.toggle('filtered-out', !visible);
+        });
+
+        // Update visible count
+        const visibleCount = tbody.querySelectorAll('tr[data-row]:not(.filtered-out)').length;
+        const totalCount = rows.length;
+        // Could update a counter display here if needed
+    }
+});
+</script>
+{% endblock %}

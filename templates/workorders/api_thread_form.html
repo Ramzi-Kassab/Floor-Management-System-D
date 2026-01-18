@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">API Thread Inspection Form</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Job Card
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- Header Info -->
+    <div class="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">WO Number</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.wo_number }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">Serial #</p>
+                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.serial_number|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">Customer</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.customer.name|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">Date</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ "now"|date:"M d, Y" }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Pin Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Pin Details</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pin Size</label>
+                    <input type="text" name="pin_size" placeholder="e.g., 6-5/8 REG"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pin Height (mm)</label>
+                    <input type="number" name="pin_height" step="0.01"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+        </div>
+
+        <!-- Inspection Points -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Inspection Points</h3>
+            <div class="space-y-4">
+                <!-- Pin Face -->
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900 dark:text-white">Pin Face</p>
+                        <input type="text" name="pin_face_remarks" placeholder="Remarks..."
+                               class="mt-1 w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700">
+                    </div>
+                    <label class="flex items-center">
+                        <input type="checkbox" name="pin_face_ok" value="true" checked
+                               class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                        <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">OK</span>
+                    </label>
+                </div>
+
+                <!-- Thread -->
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900 dark:text-white">Thread Condition</p>
+                        <input type="text" name="thread_remarks" placeholder="Remarks..."
+                               class="mt-1 w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700">
+                    </div>
+                    <label class="flex items-center">
+                        <input type="checkbox" name="thread_ok" value="true" checked
+                               class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                        <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">OK</span>
+                    </label>
+                </div>
+
+                <!-- Pitch Gauge -->
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900 dark:text-white">Pitch Gauge</p>
+                        <input type="text" name="pitch_gauge_remarks" placeholder="Remarks..."
+                               class="mt-1 w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700">
+                    </div>
+                    <label class="flex items-center">
+                        <input type="checkbox" name="pitch_gauge_ok" value="true" checked
+                               class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                        <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">OK</span>
+                    </label>
+                </div>
+
+                <!-- Mud Seal -->
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div>
+                        <p class="font-medium text-gray-900 dark:text-white">Mud Seal</p>
+                        <input type="text" name="mud_seal_remarks" placeholder="Remarks..."
+                               class="mt-1 w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700">
+                    </div>
+                    <label class="flex items-center">
+                        <input type="checkbox" name="mud_seal_ok" value="true" checked
+                               class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                        <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">OK</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Repair Requirements -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Repair Requirements</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+                <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <input type="checkbox" name="thread_repair_required" value="true"
+                           class="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500">
+                    <span class="ml-3 font-medium text-gray-900 dark:text-white">Thread Repair Required</span>
+                </label>
+            </div>
+            <div>
+                <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <input type="checkbox" name="repair_brush_selected" value="true"
+                           class="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500">
+                    <span class="ml-3 font-medium text-gray-900 dark:text-white">Repair Brush Selected</span>
+                </label>
+            </div>
+            <div>
+                <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <input type="checkbox" name="upper_section_replacement" value="true"
+                           class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500">
+                    <span class="ml-3 font-medium text-gray-900 dark:text-white">Upper Section Replacement</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Other Observations -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Other Observations & Result</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Other Observations</label>
+                <textarea name="other_observation" rows="4"
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"></textarea>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Initial Result</label>
+                <select name="initial_result" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    <option value="">Select Result</option>
+                    <option value="PASS">Pass - Thread OK</option>
+                    <option value="FAIL">Fail - Repair Required</option>
+                    <option value="SCRAP">Scrap - Beyond Repair</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="flex justify-end space-x-3">
+        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+           class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            Cancel
+        </a>
+        <button type="submit" class="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+            <i data-lucide="save" class="w-4 h-4 inline mr-2"></i>Create Inspection
+        </button>
+    </div>
+</form>
+{% endblock %}

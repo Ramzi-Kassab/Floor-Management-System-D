@@ -70,7 +70,84 @@ InventoryItem
 └── attribute_values (ItemAttributeValue - cutter specs)
 ```
 
-## Recent Changes (Jan 17, 2026)
+## Recent Changes (Jan 18, 2026)
+
+### Job Card / Work Order System Enhancement
+A comprehensive Job Card system has been implemented to digitize the paper-based job card workflow for drill bit manufacturing and repair.
+
+#### New Models (apps/workorders/models.py)
+- **CutterEvaluationMatrix**: Blade × Cutter position grid for tracking cutter actions
+  - Evaluation types: ARDT, ENGINEER, REWORK
+  - Supports 3 parallel evaluations per work order
+- **CutterEvaluationEntry**: Individual blade/position entries with actions (O=OK, X=Replace, R=Rotate, S=Spin, D=Damaged, M=Missing)
+- **InstructionRule**: Rule-based instructions system with conditions
+  - Filter by WO type and Bit type
+  - Priority-based ordering
+  - Condition evaluation against work order fields
+- **InstructionRuleCondition**: Field-based conditions (equals, contains, greater_than, etc.)
+- **RouterSheetEntry**: Process steps with QR scan tracking for start/end times
+- **EvaluationChecklist**: 15-point E-Checklist for FC bit evaluation
+- **LPTReport**: Liquid Penetrant Test documentation
+- **APIThreadInspection**: API pin/thread inspection form
+
+#### WorkOrder Model Updates
+New Job Card specific fields:
+- `brazing_mat_no`: Free text L5 MAT# for brazing operations
+- `system_mat_no`: Fixed L5 MAT# shared with client/sales
+- `drss_no`, `reference_po_no`, `contract_no`: Reference numbers
+- `from_location_text`, `bit_received_date`: Incoming bit info
+- `evaluated_by`, `evaluated_at`, `qc_by`, `qc_at`, `reviewed_by_eng`, `eng_review_at`: Signature tracking
+
+#### New Views (apps/workorders/views_jobcard.py)
+- **WorkOrderDashboardView**: Summary cards, quick actions, recent work orders at `/workorders/dashboard/`
+- **WorkOrderListEnhancedView**: Excel-like filtering with column filters at `/workorders/enhanced/`
+- **WorkOrderDetailEnhancedView**: Job Card detail with tabs (Overview, Cutter Evaluation, Router Sheet, QC Forms, Instructions, History)
+- **DrillBitListEnhancedView**: Enhanced drill bit list with lifecycle tracking at `/workorders/drill-bits/enhanced/`
+- **DrillBitDetailEnhancedView**: Full bit history with events and repairs
+- **CutterEvaluationCreateView/EditView**: Interactive matrix editor for blade/cutter evaluations
+- **RouterSheetView**: Step-by-step tracking with QR scanning support
+- **EvaluationChecklistView**: E-Checklist form (15 checkpoints)
+- **LPTReportCreateView**: LPT test documentation form
+- **APIThreadInspectionCreateView**: API thread inspection form
+- **InstructionRuleListView/Create/Update/Delete**: Manage conditional instructions
+- **export_work_orders_excel**: Excel export with openpyxl
+
+#### New Templates
+- `templates/workorders/dashboard.html` - Main dashboard
+- `templates/workorders/workorder_list_enhanced.html` - Enhanced list with column filters
+- `templates/workorders/workorder_detail_enhanced.html` - Job Card with tabs
+- `templates/workorders/drillbit_list_enhanced.html` - Drill bit list
+- `templates/workorders/drillbit_detail_enhanced.html` - Drill bit detail
+- `templates/workorders/cutter_evaluation_form.html` - Create evaluation
+- `templates/workorders/cutter_evaluation_matrix.html` - Interactive grid editor
+- `templates/workorders/router_sheet.html` - Router sheet with QR support
+- `templates/workorders/e_checklist_form.html` - E-Checklist (15 items)
+- `templates/workorders/lpt_report_form.html` - LPT test form
+- `templates/workorders/api_thread_form.html` - API thread inspection
+- `templates/workorders/instruction_rule_list.html` - Rules list
+- `templates/workorders/instruction_rule_form.html` - Rule create/edit
+- `templates/workorders/instruction_rule_confirm_delete.html` - Delete confirmation
+
+#### Sidebar Updates
+Under Production section:
+- Dashboard (highlighted) - `/workorders/dashboard/`
+- Job Cards - `/workorders/enhanced/`
+- Work Orders - `/workorders/` (original list)
+- Drill Bits - `/workorders/drill-bits/enhanced/`
+- Job Card Tools sub-section:
+  - Instructions - `/workorders/instruction-rules/`
+  - Process Routes
+  - WO Costs
+
+#### Key Features
+1. **Cutter Evaluation Matrix**: Click-to-edit grid for blade × cutter positions
+2. **Router Sheet QR Tracking**: Start/end time tracking per step with QR scan support
+3. **Instruction Rules Engine**: Conditional instructions based on WO type, bit type, and custom conditions
+4. **QC Forms**: E-Checklist, LPT Reports, API Thread Inspections
+5. **Modern UI**: Responsive design, dark mode support, Excel-like column filters
+6. **Excel Export**: Professional formatting with frozen headers
+
+## Previous Changes (Jan 17, 2026)
 
 ### Cutter Inventory Column Updates
 - **Renamed Column**: "Client Stk" → "LSTK Rcl" (specifically for Client Reclaim with Halliburton + LSTK account)

@@ -515,6 +515,53 @@ class WorkOrder(models.Model):
     )
     department = models.ForeignKey("organization.Department", on_delete=models.SET_NULL, null=True, blank=True, related_name="work_orders")
 
+    # Job Card Specific Fields
+    brazing_mat_no = models.CharField(
+        max_length=100, blank=True,
+        help_text="Brazing MAT# - Free text (e.g., 123456M1, 3251477-Testing Trifex)"
+    )
+    system_mat_no = models.CharField(
+        max_length=50, blank=True,
+        help_text="System L5 MAT# - Fixed, shared with client/sales"
+    )
+    drss_no = models.CharField(
+        max_length=50, blank=True,
+        help_text="DRSS Request Number"
+    )
+    reference_po_no = models.CharField(
+        max_length=50, blank=True,
+        help_text="Reference/PO Number"
+    )
+    contract_no = models.CharField(
+        max_length=50, blank=True,
+        help_text="Contract Number"
+    )
+    from_location_text = models.CharField(
+        max_length=100, blank=True,
+        help_text="Source location text (e.g., ARAMCO, LSTK, ARDT-LV4)"
+    )
+    bit_received_date = models.DateField(
+        null=True, blank=True,
+        help_text="Date bit was received for this work order"
+    )
+
+    # Evaluation tracking
+    evaluated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="wo_evaluations_performed"
+    )
+    evaluated_at = models.DateTimeField(null=True, blank=True)
+    qc_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="wo_qc_performed"
+    )
+    qc_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by_eng = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="wo_eng_reviews"
+    )
+    eng_review_at = models.DateTimeField(null=True, blank=True)
+
     # Notes
     description = models.TextField(blank=True)
     notes = models.TextField(blank=True)
@@ -1478,3 +1525,643 @@ class WorkOrderCost(models.Model):
         )
 
         self.save()
+
+
+# =============================================================================
+# JOB CARD ENHANCEMENTS - Cutter Evaluation & QC Forms
+# =============================================================================
+
+class CutterEvaluationMatrix(models.Model):
+    """
+    Cutter evaluation matrix for a work order.
+    Links to the design's pocket layout and tracks ARDT/Engineer evaluations
+    for each cutter position (blade × cutter position from ID to Gauge).
+    """
+    class EvaluationType(models.TextChoices):
+        ARDT = "ARDT", "ARDT Evaluation"
+        ENGINEER = "ENGINEER", "Engineer Evaluation"
+        REWORK = "REWORK", "Rework Evaluation"
+        DIE_CHECK = "DIE_CHECK", "Die Check"
+
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, related_name="cutter_evaluations"
+    )
+    evaluation_type = models.CharField(max_length=20, choices=EvaluationType.choices)
+    evaluation_number = models.IntegerField(default=1, help_text="Evaluation sequence (for multiple evaluations)")
+
+    # Evaluator info
+    evaluated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="cutter_evaluations_performed"
+    )
+    evaluated_at = models.DateTimeField(null=True, blank=True)
+    qc_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="cutter_evaluations_qc"
+    )
+    qc_at = models.DateTimeField(null=True, blank=True)
+
+    # Remarks
+    ardt_remark = models.TextField(blank=True, help_text="ARDT evaluation remarks")
+    eng_remark = models.TextField(blank=True, help_text="Engineer evaluation remarks")
+    general_remark = models.TextField(blank=True)
+
+    # Hardfacing/Build-up decisions
+    ardt_matrix_buildup = models.BooleanField(default=False, help_text="ARDT Matrix Build up required")
+    eng_matrix_buildup = models.BooleanField(default=False, help_text="Engineer Matrix Build up required")
+
+    # NCR reference for rework
+    ncr_ref_no = models.CharField(max_length=50, blank=True, help_text="NCR Reference Number for rework")
+
+    # Status
+    is_complete = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "cutter_evaluation_matrices"
+        ordering = ["work_order", "evaluation_type", "evaluation_number"]
+        unique_together = ["work_order", "evaluation_type", "evaluation_number"]
+        verbose_name = "Cutter Evaluation Matrix"
+        verbose_name_plural = "Cutter Evaluation Matrices"
+
+    def __str__(self):
+        return f"{self.work_order.wo_number} - {self.get_evaluation_type_display()} #{self.evaluation_number}"
+
+
+class CutterEvaluationEntry(models.Model):
+    """
+    Individual cutter evaluation entry within a matrix.
+    Each entry represents one cutter position on one blade.
+    """
+    class Action(models.TextChoices):
+        OK = "O", "OK - No action needed"
+        REPLACE = "X", "Replace"
+        ROTATE = "R", "Rotate"
+        SPIN = "S", "Spin"
+        DAMAGED = "D", "Damaged"
+        MISSING = "M", "Missing"
+        BLANK = "", "Not evaluated"
+
+    class CutterSource(models.TextChoices):
+        NEW = "NEW", "New Cutter"
+        RECLAIM = "RECLAIM", "Reclaim Cutter"
+        EXISTING = "EXISTING", "Existing (no change)"
+
+    matrix = models.ForeignKey(
+        CutterEvaluationMatrix, on_delete=models.CASCADE, related_name="entries"
+    )
+
+    # Position on the bit
+    blade_number = models.IntegerField(help_text="Blade number (1-12)")
+    cutter_position = models.IntegerField(help_text="Cutter position from ID to Gauge (1-15+)")
+
+    # Evaluation action
+    action = models.CharField(max_length=1, choices=Action.choices, default=Action.BLANK)
+
+    # Cutter details (if replacing)
+    cutter_source = models.CharField(
+        max_length=10, choices=CutterSource.choices,
+        blank=True, help_text="Source of replacement cutter"
+    )
+    cutter_item = models.ForeignKey(
+        "inventory.InventoryItem", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="evaluation_entries", help_text="Replacement cutter from inventory"
+    )
+    cutter_size = models.CharField(max_length=10, blank=True, help_text="Cutter size code (e.g., 1313, 1608)")
+    cutter_type = models.CharField(max_length=20, blank=True, help_text="Cutter type/HDBS code")
+    cutter_chamfer = models.CharField(max_length=10, blank=True)
+
+    # Notes
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        db_table = "cutter_evaluation_entries"
+        ordering = ["matrix", "blade_number", "cutter_position"]
+        unique_together = ["matrix", "blade_number", "cutter_position"]
+        verbose_name = "Cutter Evaluation Entry"
+        verbose_name_plural = "Cutter Evaluation Entries"
+
+    def __str__(self):
+        return f"Blade {self.blade_number}, Pos {self.cutter_position}: {self.get_action_display()}"
+
+
+class InstructionRule(models.Model):
+    """
+    Rule-based instruction system.
+    Allows users to define conditions that trigger specific instructions
+    for work orders based on design, MAT number, customer, etc.
+    """
+    class Priority(models.IntegerChoices):
+        LOW = 1, "Low"
+        NORMAL = 5, "Normal"
+        HIGH = 8, "High"
+        CRITICAL = 10, "Critical"
+
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    instruction_text = models.TextField(help_text="The instruction to display when conditions match")
+
+    # Priority determines display order
+    priority = models.IntegerField(choices=Priority.choices, default=Priority.NORMAL)
+
+    # Applicability filters (simple field-based matching)
+    # These are OR conditions within the same rule
+    applies_to_wo_types = models.JSONField(
+        null=True, blank=True,
+        help_text="List of WO types this applies to, e.g., ['FC_REPAIR', 'FC_REWORK']"
+    )
+    applies_to_bit_types = models.JSONField(
+        null=True, blank=True,
+        help_text="List of bit types, e.g., ['FC', 'RC']"
+    )
+
+    # Status
+    is_active = models.BooleanField(default=True)
+
+    # Audit
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="created_instruction_rules"
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="approved_instruction_rules"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "instruction_rules"
+        ordering = ["-priority", "name"]
+        verbose_name = "Instruction Rule"
+        verbose_name_plural = "Instruction Rules"
+
+    def __str__(self):
+        return f"{self.name} (Priority: {self.priority})"
+
+
+class InstructionRuleCondition(models.Model):
+    """
+    Individual conditions within an instruction rule.
+    All conditions within a rule are evaluated with AND logic.
+    """
+    class Operator(models.TextChoices):
+        EQUALS = "eq", "Equals"
+        NOT_EQUALS = "ne", "Not Equals"
+        CONTAINS = "contains", "Contains"
+        STARTS_WITH = "starts", "Starts With"
+        ENDS_WITH = "ends", "Ends With"
+        GREATER_THAN = "gt", "Greater Than"
+        LESS_THAN = "lt", "Less Than"
+        IN_LIST = "in", "In List"
+        NOT_IN_LIST = "not_in", "Not In List"
+        IS_NULL = "null", "Is Null"
+        IS_NOT_NULL = "not_null", "Is Not Null"
+
+    class FieldSource(models.TextChoices):
+        WORK_ORDER = "wo", "Work Order"
+        DRILL_BIT = "bit", "Drill Bit"
+        DESIGN = "design", "Design"
+        CUSTOMER = "customer", "Customer"
+        BOM = "bom", "BOM"
+
+    rule = models.ForeignKey(
+        InstructionRule, on_delete=models.CASCADE, related_name="conditions"
+    )
+
+    # What to check
+    field_source = models.CharField(max_length=20, choices=FieldSource.choices)
+    field_name = models.CharField(max_length=100, help_text="Field name to check (e.g., 'mat_number', 'size')")
+    operator = models.CharField(max_length=20, choices=Operator.choices)
+    value = models.CharField(max_length=500, help_text="Value to compare against (comma-separated for IN/NOT_IN)")
+
+    class Meta:
+        db_table = "instruction_rule_conditions"
+        ordering = ["rule", "id"]
+        verbose_name = "Instruction Rule Condition"
+        verbose_name_plural = "Instruction Rule Conditions"
+
+    def __str__(self):
+        return f"{self.field_source}.{self.field_name} {self.operator} {self.value}"
+
+    def evaluate(self, work_order):
+        """Evaluate this condition against a work order."""
+        # Get the source object
+        if self.field_source == self.FieldSource.WORK_ORDER:
+            obj = work_order
+        elif self.field_source == self.FieldSource.DRILL_BIT:
+            obj = work_order.drill_bit
+        elif self.field_source == self.FieldSource.DESIGN:
+            obj = work_order.design
+        elif self.field_source == self.FieldSource.CUSTOMER:
+            obj = work_order.customer
+        elif self.field_source == self.FieldSource.BOM:
+            obj = work_order.bom
+        else:
+            return False
+
+        if obj is None:
+            return self.operator in [self.Operator.IS_NULL]
+
+        # Get field value
+        try:
+            field_value = getattr(obj, self.field_name, None)
+            if callable(field_value):
+                field_value = field_value()
+        except AttributeError:
+            return False
+
+        # Convert to string for comparison
+        field_str = str(field_value) if field_value is not None else ""
+        compare_value = self.value
+
+        # Evaluate based on operator
+        if self.operator == self.Operator.EQUALS:
+            return field_str.lower() == compare_value.lower()
+        elif self.operator == self.Operator.NOT_EQUALS:
+            return field_str.lower() != compare_value.lower()
+        elif self.operator == self.Operator.CONTAINS:
+            return compare_value.lower() in field_str.lower()
+        elif self.operator == self.Operator.STARTS_WITH:
+            return field_str.lower().startswith(compare_value.lower())
+        elif self.operator == self.Operator.ENDS_WITH:
+            return field_str.lower().endswith(compare_value.lower())
+        elif self.operator == self.Operator.IN_LIST:
+            values = [v.strip().lower() for v in compare_value.split(",")]
+            return field_str.lower() in values
+        elif self.operator == self.Operator.NOT_IN_LIST:
+            values = [v.strip().lower() for v in compare_value.split(",")]
+            return field_str.lower() not in values
+        elif self.operator == self.Operator.IS_NULL:
+            return field_value is None or field_str == ""
+        elif self.operator == self.Operator.IS_NOT_NULL:
+            return field_value is not None and field_str != ""
+        elif self.operator in [self.Operator.GREATER_THAN, self.Operator.LESS_THAN]:
+            try:
+                field_num = float(field_str)
+                compare_num = float(compare_value)
+                if self.operator == self.Operator.GREATER_THAN:
+                    return field_num > compare_num
+                else:
+                    return field_num < compare_num
+            except (ValueError, TypeError):
+                return False
+
+        return False
+
+
+class LPTReport(models.Model):
+    """
+    Liquid Penetrant Testing Report for quality control.
+    Can be for new cutters, reclaimed cutters, or full bit inspection.
+    """
+    class TestType(models.TextChoices):
+        NEW_CUTTER = "NEW_CUTTER", "New Cutters"
+        RECLAIM_CUTTER = "RECLAIM_CUTTER", "Reclaimed Cutters"
+        NEW_BIT = "NEW_BIT", "New Bit"
+        REPAIR_BEFORE = "REPAIR_BEFORE", "Before Repair"
+        REPAIR_AFTER = "REPAIR_AFTER", "After Repair (Tip Grinding)"
+        DEBRAZED = "DEBRAZED", "Debrazed Cutters"
+
+    class Result(models.TextChoices):
+        PASS = "PASS", "Pass"
+        FAIL = "FAIL", "Fail"
+        CONDITIONAL = "CONDITIONAL", "Conditional Pass"
+        PENDING = "PENDING", "Pending Evaluation"
+
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, related_name="lpt_reports"
+    )
+    report_number = models.CharField(max_length=30, unique=True)
+    test_type = models.CharField(max_length=20, choices=TestType.choices)
+
+    # Technique info
+    technique = models.CharField(
+        max_length=100, default="Fluorescent - Washable Technique",
+        help_text="Testing technique used"
+    )
+    procedure_ref = models.CharField(
+        max_length=100, default="SA-PP-1013 Liquid Penetrant Testing",
+        help_text="Procedure reference"
+    )
+
+    # Materials used
+    cleaner_product = models.CharField(max_length=100, default="Water")
+    cleaner_batch = models.CharField(max_length=50, blank=True)
+    cleaner_expiry = models.DateField(null=True, blank=True)
+
+    penetrant_product = models.CharField(max_length=100, blank=True)
+    penetrant_batch = models.CharField(max_length=50, blank=True)
+    penetrant_expiry = models.DateField(null=True, blank=True)
+
+    developer_product = models.CharField(max_length=100, blank=True)
+    developer_batch = models.CharField(max_length=50, blank=True)
+    developer_expiry = models.DateField(null=True, blank=True)
+
+    # Test parameters
+    surface_temperature = models.CharField(max_length=50, blank=True)
+    penetrant_dwell_time = models.CharField(max_length=50, blank=True)
+    light_intensity = models.CharField(max_length=50, blank=True)
+    developer_dwell_time = models.CharField(max_length=50, blank=True)
+
+    # Operator info
+    lpt_operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="lpt_reports_operated"
+    )
+    operator_date = models.DateField(null=True, blank=True)
+
+    # Evaluator info
+    lpt_evaluator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="lpt_reports_evaluated"
+    )
+    evaluator_date = models.DateField(null=True, blank=True)
+
+    # Result
+    result = models.CharField(max_length=20, choices=Result.choices, default=Result.PENDING)
+    disposition = models.TextField(blank=True, help_text="Disposition/Remarks")
+
+    # For cutter-specific LPT
+    cutter_details = models.JSONField(
+        null=True, blank=True,
+        help_text="Array of cutter details: [{size, type, sap_no, qty, category, remark}]"
+    )
+
+    # Photos
+    photo_before = models.ImageField(upload_to="lpt_photos/", null=True, blank=True)
+    photo_after = models.ImageField(upload_to="lpt_photos/", null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "lpt_reports"
+        ordering = ["-created_at"]
+        verbose_name = "LPT Report"
+        verbose_name_plural = "LPT Reports"
+
+    def __str__(self):
+        return f"{self.report_number} - {self.get_test_type_display()}"
+
+
+class APIThreadInspection(models.Model):
+    """
+    API Thread Inspection form for pin/thread quality checks.
+    """
+    class RepairRequired(models.TextChoices):
+        YES = "YES", "Required"
+        NO = "NO", "Not Required"
+
+    class Result(models.TextChoices):
+        PASS = "PASS", "Pass"
+        FAIL = "FAIL", "Fail"
+        CONDITIONAL = "CONDITIONAL", "Conditional"
+
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, related_name="api_thread_inspections"
+    )
+    inspection_number = models.CharField(max_length=30, unique=True)
+    pin_size = models.CharField(max_length=50, blank=True)
+
+    # Initial evaluation checkpoints
+    pin_face_ok = models.BooleanField(null=True, blank=True)
+    pin_face_remarks = models.CharField(max_length=200, blank=True)
+
+    thread_ok = models.BooleanField(null=True, blank=True)
+    thread_remarks = models.CharField(max_length=200, blank=True)
+
+    pitch_gauge_ok = models.BooleanField(null=True, blank=True)
+    pitch_gauge_remarks = models.CharField(max_length=200, blank=True)
+
+    mud_seal_ok = models.BooleanField(null=True, blank=True)
+    mud_seal_remarks = models.CharField(max_length=200, blank=True)
+
+    other_observation = models.TextField(blank=True)
+    pin_height = models.CharField(max_length=50, blank=True)
+
+    # Repair decision
+    thread_repair_required = models.CharField(
+        max_length=10, choices=RepairRequired.choices, blank=True
+    )
+    repair_brush_selected = models.BooleanField(default=False)
+    upper_section_replacement = models.BooleanField(default=False)
+
+    # After repair checkpoints
+    after_pin_face_ok = models.BooleanField(null=True, blank=True)
+    after_pin_face_remarks = models.CharField(max_length=200, blank=True)
+
+    after_thread_ok = models.BooleanField(null=True, blank=True)
+    after_thread_remarks = models.CharField(max_length=200, blank=True)
+
+    after_pitch_gauge_ok = models.BooleanField(null=True, blank=True)
+    after_pitch_gauge_remarks = models.CharField(max_length=200, blank=True)
+
+    after_mud_seal_ok = models.BooleanField(null=True, blank=True)
+    after_mud_seal_remarks = models.CharField(max_length=200, blank=True)
+
+    # Result
+    initial_result = models.CharField(max_length=20, choices=Result.choices, blank=True)
+    final_result = models.CharField(max_length=20, choices=Result.choices, blank=True)
+
+    # Inspector info
+    inspector = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="api_inspections_performed"
+    )
+    inspection_date = models.DateField(null=True, blank=True)
+
+    # QC sign-off
+    qc_inspector = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="api_inspections_qc"
+    )
+    qc_date = models.DateField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "api_thread_inspections"
+        ordering = ["-created_at"]
+        verbose_name = "API Thread Inspection"
+        verbose_name_plural = "API Thread Inspections"
+
+    def __str__(self):
+        return f"{self.inspection_number} - {self.work_order.wo_number}"
+
+
+class RouterSheetEntry(models.Model):
+    """
+    Individual step entry in a router sheet with QR-based time tracking.
+    Extends OperationExecution with additional Job Card specific fields.
+    """
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, related_name="router_entries"
+    )
+    operation_execution = models.OneToOneField(
+        OperationExecution, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="router_entry"
+    )
+
+    # Step info (can be standalone if no ProcessRoute assigned)
+    step_number = models.IntegerField()
+    step_description = models.CharField(max_length=200)
+
+    # QR-based time tracking
+    qr_scan_start = models.DateTimeField(null=True, blank=True, help_text="QR scan timestamp for start")
+    qr_scan_end = models.DateTimeField(null=True, blank=True, help_text="QR scan timestamp for end")
+    station_qr = models.CharField(max_length=100, blank=True, help_text="Station QR code scanned")
+
+    # Manual time entry (fallback)
+    manual_date = models.DateField(null=True, blank=True)
+    manual_time_receipt = models.TimeField(null=True, blank=True)
+
+    # Operator
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="router_entries_operated"
+    )
+    operator_signature = models.ImageField(upload_to="signatures/", null=True, blank=True)
+
+    # Status
+    is_complete = models.BooleanField(default=False)
+
+    # Remarks
+    remarks = models.TextField(blank=True)
+
+    # Special fields for certain steps
+    cerebro_removal = models.BooleanField(null=True, blank=True, help_text="Cerebro Removal: Yes/No/NA")
+    oring_removal = models.BooleanField(null=True, blank=True, help_text="Cer. O-Ring Removal: Yes/No/NA")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "router_sheet_entries"
+        ordering = ["work_order", "step_number"]
+        unique_together = ["work_order", "step_number"]
+        verbose_name = "Router Sheet Entry"
+        verbose_name_plural = "Router Sheet Entries"
+
+    def __str__(self):
+        return f"{self.work_order.wo_number} Step {self.step_number}: {self.step_description}"
+
+    @property
+    def duration_minutes(self):
+        """Calculate duration from QR scans or manual entry."""
+        if self.qr_scan_start and self.qr_scan_end:
+            delta = self.qr_scan_end - self.qr_scan_start
+            return int(delta.total_seconds() / 60)
+        return None
+
+
+class EvaluationChecklist(models.Model):
+    """
+    FC BIT EVALUATION CHECKLIST - Standard QC checklist for bit evaluation.
+    """
+    class Result(models.TextChoices):
+        OK = "OK", "OK"
+        NOT_OK = "NOT_OK", "Not OK"
+        NA = "NA", "N/A"
+
+    work_order = models.OneToOneField(
+        WorkOrder, on_delete=models.CASCADE, related_name="evaluation_checklist"
+    )
+
+    # Checklist items
+    bit_cleanliness = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    bit_cleanliness_remarks = models.CharField(max_length=200, blank=True)
+
+    paperwork = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    paperwork_remarks = models.CharField(max_length=200, blank=True)
+
+    bit_stamping = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    bit_stamping_remarks = models.CharField(max_length=200, blank=True)
+
+    die_check = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    die_check_remarks = models.CharField(max_length=200, blank=True)
+
+    ring_gauge_go = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    ring_gauge_go_remarks = models.CharField(max_length=200, blank=True)
+
+    ring_gauge_no_go = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    ring_gauge_no_go_remarks = models.CharField(max_length=200, blank=True)
+
+    nozzle_bore_liner = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    nozzle_bore_liner_remarks = models.CharField(max_length=200, blank=True)
+
+    nozzle_threads = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    nozzle_threads_remarks = models.CharField(max_length=200, blank=True)
+
+    apex = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    apex_remarks = models.CharField(max_length=200, blank=True)
+
+    junk_slot = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    junk_slot_remarks = models.CharField(max_length=200, blank=True)
+
+    breaker_slot = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    breaker_slot_remarks = models.CharField(max_length=200, blank=True)
+
+    body_condition = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    body_condition_remarks = models.CharField(max_length=200, blank=True)
+
+    mud_seal_surface = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    mud_seal_surface_remarks = models.CharField(max_length=200, blank=True)
+
+    api_pin = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    api_pin_remarks = models.CharField(max_length=200, blank=True)
+
+    inner_diameter = models.CharField(max_length=10, choices=Result.choices, blank=True)
+    inner_diameter_remarks = models.CharField(max_length=200, blank=True)
+
+    # Overall result
+    overall_pass = models.BooleanField(null=True, blank=True)
+    general_remarks = models.TextField(blank=True)
+
+    # Inspector info
+    inspector = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="evaluation_checklists_performed"
+    )
+    inspection_date = models.DateField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "evaluation_checklists"
+        verbose_name = "Evaluation Checklist"
+        verbose_name_plural = "Evaluation Checklists"
+
+    def __str__(self):
+        return f"E-Checklist for {self.work_order.wo_number}"
+
+    @property
+    def pass_count(self):
+        """Count of OK items."""
+        count = 0
+        for field in self._meta.fields:
+            if field.name.endswith('_remarks'):
+                continue
+            if field.choices and hasattr(self, field.name):
+                val = getattr(self, field.name)
+                if val == self.Result.OK:
+                    count += 1
+        return count
+
+    @property
+    def fail_count(self):
+        """Count of NOT_OK items."""
+        count = 0
+        for field in self._meta.fields:
+            if field.name.endswith('_remarks'):
+                continue
+            if field.choices and hasattr(self, field.name):
+                val = getattr(self, field.name)
+                if val == self.Result.NOT_OK:
+                    count += 1
+        return count
+

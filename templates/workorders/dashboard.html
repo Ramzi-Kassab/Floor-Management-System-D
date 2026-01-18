@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Work Orders Dashboard - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Overview of work orders and drill bit operations</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex space-x-2">
+        <a href="{% url 'workorders:workorder_list_enhanced' %}"
+           class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+            <i data-lucide="list" class="w-4 h-4 mr-2"></i>
+            View All
+        </a>
+        <a href="{% url 'workorders:create' %}"
+           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+            New Work Order
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <!-- Total Work Orders -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Work Orders</p>
+                <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">{{ total_work_orders|intcomma }}</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
+                <i data-lucide="clipboard-list" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- In Progress -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">In Progress</p>
+                <p class="text-3xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">{{ in_progress_count|intcomma }}</p>
+            </div>
+            <div class="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/50 rounded-lg flex items-center justify-center">
+                <i data-lucide="loader" class="w-6 h-6 text-yellow-600 dark:text-yellow-400"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- QC Pending -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">QC Pending</p>
+                <p class="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-1">{{ qc_pending_count|intcomma }}</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center">
+                <i data-lucide="clipboard-check" class="w-6 h-6 text-purple-600 dark:text-purple-400"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Completed -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Completed</p>
+                <p class="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{{ completed_count|intcomma }}</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
+                <i data-lucide="check-circle" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alerts Row -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <!-- Overdue -->
+    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-5">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <div class="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-lg flex items-center justify-center mr-4">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-red-600 dark:text-red-400"></i>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-red-600 dark:text-red-400">Overdue</p>
+                    <p class="text-2xl font-bold text-red-700 dark:text-red-300">{{ overdue_count }}</p>
+                </div>
+            </div>
+            <a href="{% url 'workorders:workorder_list_enhanced' %}?overdue=yes"
+               class="text-red-600 dark:text-red-400 hover:underline text-sm">View &rarr;</a>
+        </div>
+    </div>
+
+    <!-- Due This Week -->
+    <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-5">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <div class="w-10 h-10 bg-amber-100 dark:bg-amber-900/50 rounded-lg flex items-center justify-center mr-4">
+                    <i data-lucide="calendar-clock" class="w-5 h-5 text-amber-600 dark:text-amber-400"></i>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-amber-600 dark:text-amber-400">Due This Week</p>
+                    <p class="text-2xl font-bold text-amber-700 dark:text-amber-300">{{ due_this_week }}</p>
+                </div>
+            </div>
+            <a href="{% url 'workorders:workorder_list_enhanced' %}?due_week=yes"
+               class="text-amber-600 dark:text-amber-400 hover:underline text-sm">View &rarr;</a>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions & Drill Bits Row -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <!-- Quick Actions -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
+        <div class="grid grid-cols-2 gap-3">
+            <a href="{% url 'workorders:create' %}?type=FC_REPAIR"
+               class="flex items-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors">
+                <i data-lucide="wrench" class="w-5 h-5 text-orange-600 dark:text-orange-400 mr-2"></i>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-200">FC Repair</span>
+            </a>
+            <a href="{% url 'workorders:create' %}?type=FC_NEW"
+               class="flex items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+                <i data-lucide="plus-circle" class="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2"></i>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-200">FC New</span>
+            </a>
+            <a href="{% url 'workorders:drillbit_create' %}"
+               class="flex items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
+                <i data-lucide="disc" class="w-5 h-5 text-green-600 dark:text-green-400 mr-2"></i>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Register Bit</span>
+            </a>
+            <a href="{% url 'workorders:instruction_rule_list' %}"
+               class="flex items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
+                <i data-lucide="book-text" class="w-5 h-5 text-purple-600 dark:text-purple-400 mr-2"></i>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Instructions</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Drill Bit Stats -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 lg:col-span-2">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Drill Bits</h3>
+            <a href="{% url 'workorders:drillbit_list_enhanced' %}" class="text-blue-600 dark:text-blue-400 text-sm hover:underline">View All &rarr;</a>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+            <div class="text-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ total_bits }}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Total Bits</p>
+            </div>
+            <div class="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                <p class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{{ bits_in_production }}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">In Production</p>
+            </div>
+            <div class="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ bits_at_rig }}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">At Rig</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Work Orders -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Work Orders</h3>
+        <a href="{% url 'workorders:workorder_list_enhanced' %}" class="text-blue-600 dark:text-blue-400 text-sm hover:underline">View All</a>
+    </div>
+
+    {% if recent_work_orders %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">WO #</th>
+                    <th class="px-6 py-3 font-medium">Type</th>
+                    <th class="px-6 py-3 font-medium">Customer</th>
+                    <th class="px-6 py-3 font-medium">Serial #</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium">Due Date</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for wo in recent_work_orders %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                    <td class="px-6 py-4">
+                        <a href="{% url 'workorders:workorder_detail_enhanced' wo.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                            {{ wo.wo_number }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
+                        {{ wo.get_wo_type_display }}
+                    </td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white">
+                        {{ wo.customer.name|default:"--" }}
+                    </td>
+                    <td class="px-6 py-4 font-mono text-xs text-gray-600 dark:text-gray-400">
+                        {{ wo.drill_bit.serial_number|default:"--" }}
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if wo.status == 'DRAFT' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+                            {% elif wo.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                            {% elif wo.status == 'QC_PENDING' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                            {% elif wo.status == 'COMPLETED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ wo.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if wo.due_date %}
+                        <span class="{% if wo.is_overdue %}text-red-600 dark:text-red-400 font-medium{% else %}text-gray-600 dark:text-gray-400{% endif %}">
+                            {{ wo.due_date|date:"M d, Y" }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{% url 'workorders:workorder_detail_enhanced' wo.pk %}"
+                           class="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400" title="View Job Card">
+                            <i data-lucide="eye" class="w-4 h-4 inline"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <i data-lucide="clipboard-list" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <p class="text-gray-500 dark:text-gray-400">No work orders yet</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

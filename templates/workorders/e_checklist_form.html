@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">FC Bit Evaluation Checklist</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Job Card
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- Header Info -->
+    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">WO Number</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.wo_number }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">Serial #</p>
+                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.serial_number|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">Customer</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.customer.name|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">Date</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ "now"|date:"M d, Y" }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Checklist Items -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Inspection Checklist</h3>
+        </div>
+
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% with checkpoints="bit_cleanliness,paperwork,bit_stamping,die_check,ring_gauge_go,ring_gauge_no_go,nozzle_bore_liner,nozzle_threads,apex,junk_slot,breaker_slot,body_condition,mud_seal_surface,api_pin,inner_diameter" %}
+            {% for checkpoint in checkpoints|make_list %}
+            {% endfor %}
+            {% endwith %}
+
+            <!-- Bit Cleanliness -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">1. Bit Cleanliness</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Bit is clean and free of debris</p>
+                </div>
+                <div>
+                    <select name="bit_cleanliness" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.bit_cleanliness.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="bit_cleanliness_remarks" value="{{ form.bit_cleanliness_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Paperwork -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">2. Paperwork</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">All documentation complete</p>
+                </div>
+                <div>
+                    <select name="paperwork" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.paperwork.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="paperwork_remarks" value="{{ form.paperwork_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Bit Stamping -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">3. Bit Stamping</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Serial number visible and correct</p>
+                </div>
+                <div>
+                    <select name="bit_stamping" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.bit_stamping.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="bit_stamping_remarks" value="{{ form.bit_stamping_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Die Check -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">4. Die Check</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Die penetrant inspection</p>
+                </div>
+                <div>
+                    <select name="die_check" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.die_check.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="die_check_remarks" value="{{ form.die_check_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Ring Gauge GO -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">5. Ring Gauge (GO)</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">GO gauge check</p>
+                </div>
+                <div>
+                    <select name="ring_gauge_go" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.ring_gauge_go.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="ring_gauge_go_remarks" value="{{ form.ring_gauge_go_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Ring Gauge NO-GO -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">6. Ring Gauge (NO-GO)</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">NO-GO gauge check</p>
+                </div>
+                <div>
+                    <select name="ring_gauge_no_go" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.ring_gauge_no_go.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="ring_gauge_no_go_remarks" value="{{ form.ring_gauge_no_go_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Nozzle Bore Liner -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">7. Nozzle Bore/Liner</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Bore and liner condition</p>
+                </div>
+                <div>
+                    <select name="nozzle_bore_liner" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.nozzle_bore_liner.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="nozzle_bore_liner_remarks" value="{{ form.nozzle_bore_liner_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Nozzle Threads -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">8. Nozzle Threads</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Thread condition</p>
+                </div>
+                <div>
+                    <select name="nozzle_threads" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.nozzle_threads.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="nozzle_threads_remarks" value="{{ form.nozzle_threads_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Apex -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">9. Apex</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Apex condition</p>
+                </div>
+                <div>
+                    <select name="apex" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.apex.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="apex_remarks" value="{{ form.apex_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Junk Slot -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">10. Junk Slot</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Junk slot condition</p>
+                </div>
+                <div>
+                    <select name="junk_slot" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.junk_slot.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="junk_slot_remarks" value="{{ form.junk_slot_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Breaker Slot -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">11. Breaker Slot</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Breaker slot condition</p>
+                </div>
+                <div>
+                    <select name="breaker_slot" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.breaker_slot.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="breaker_slot_remarks" value="{{ form.breaker_slot_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Body Condition -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">12. Body Condition</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Overall body condition</p>
+                </div>
+                <div>
+                    <select name="body_condition" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.body_condition.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="body_condition_remarks" value="{{ form.body_condition_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Mud Seal Surface -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">13. Mud Seal Surface</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Seal surface condition</p>
+                </div>
+                <div>
+                    <select name="mud_seal_surface" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.mud_seal_surface.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="mud_seal_surface_remarks" value="{{ form.mud_seal_surface_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- API Pin -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">14. API Pin</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Pin thread condition</p>
+                </div>
+                <div>
+                    <select name="api_pin" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.api_pin.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="api_pin_remarks" value="{{ form.api_pin_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+
+            <!-- Inner Diameter -->
+            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div>
+                    <label class="block font-medium text-gray-900 dark:text-white">15. Inner Diameter</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">ID measurement</p>
+                </div>
+                <div>
+                    <select name="inner_diameter" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                        {% for value, label in result_choices %}
+                        <option value="{{ value }}" {% if form.inner_diameter.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="inner_diameter_remarks" value="{{ form.inner_diameter_remarks.value|default:'' }}"
+                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overall Result -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Overall Result</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Final Result</label>
+                <select name="overall_pass" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                    {% for value, label in result_choices %}
+                    <option value="{{ value }}" {% if form.overall_pass.value == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">General Remarks</label>
+                <textarea name="general_remarks" rows="3" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">{{ form.general_remarks.value|default:'' }}</textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="flex justify-end space-x-3">
+        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+           class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            Cancel
+        </a>
+        <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="save" class="w-4 h-4 inline mr-2"></i>Save Checklist
+        </button>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,554 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .tab-btn { transition: all 0.2s; }
+    .tab-btn.active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+    .dark .tab-btn.active { color: #60a5fa; border-color: #60a5fa; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div class="flex items-start">
+        <!-- QR Code -->
+        {% if qr_code %}
+        <div class="hidden md:block mr-4 bg-white p-2 rounded-lg shadow-sm">
+            <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code" class="w-20 h-20">
+        </div>
+        {% endif %}
+        <div>
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ work_order.wo_number }}</h1>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                    {% if work_order.status == 'DRAFT' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+                    {% elif work_order.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                    {% elif work_order.status == 'QC_PENDING' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200
+                    {% elif work_order.status == 'COMPLETED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ work_order.get_status_display }}
+                </span>
+            </div>
+            <p class="text-gray-600 dark:text-gray-400 mt-1">
+                {{ work_order.get_wo_type_display }}
+                {% if work_order.customer %}- {{ work_order.customer.name }}{% endif %}
+            </p>
+            {% if work_order.drill_bit %}
+            <p class="text-sm text-gray-500 dark:text-gray-500 font-mono">
+                S/N: {{ work_order.drill_bit.serial_number }}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'workorders:router_sheet' work_order.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm">
+            <i data-lucide="route" class="w-4 h-4 mr-2"></i>
+            Router Sheet
+        </a>
+        <a href="{% url 'workorders:update' work_order.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
+            Edit
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="{ activeTab: 'overview' }">
+    <!-- Tab Navigation -->
+    <div class="bg-white dark:bg-gray-800 rounded-t-xl shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div class="flex overflow-x-auto">
+            <button @click="activeTab = 'overview'" class="tab-btn px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'overview' }">
+                <i data-lucide="info" class="w-4 h-4 inline mr-2"></i>Overview
+            </button>
+            <button @click="activeTab = 'evaluation'" class="tab-btn px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'evaluation' }">
+                <i data-lucide="grid-3x3" class="w-4 h-4 inline mr-2"></i>Cutter Evaluation
+            </button>
+            <button @click="activeTab = 'router'" class="tab-btn px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'router' }">
+                <i data-lucide="route" class="w-4 h-4 inline mr-2"></i>Router Sheet
+            </button>
+            <button @click="activeTab = 'qc'" class="tab-btn px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'qc' }">
+                <i data-lucide="clipboard-check" class="w-4 h-4 inline mr-2"></i>QC Forms
+            </button>
+            <button @click="activeTab = 'instructions'" class="tab-btn px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'instructions' }">
+                <i data-lucide="book-text" class="w-4 h-4 inline mr-2"></i>Instructions
+                {% if instructions %}<span class="ml-1 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">{{ instructions|length }}</span>{% endif %}
+            </button>
+            <button @click="activeTab = 'history'" class="tab-btn px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'history' }">
+                <i data-lucide="history" class="w-4 h-4 inline mr-2"></i>History
+            </button>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-b-xl shadow-sm p-6">
+        <!-- Overview Tab -->
+        <div x-show="activeTab === 'overview'" class="tab-content" :class="{ 'active': activeTab === 'overview' }">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Main Info -->
+                <div class="lg:col-span-2 space-y-6">
+                    <!-- Job Card Header -->
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Job Card Information</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">WO Number</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.wo_number }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">DRSS#</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.drss_no|default:"--" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">Brazing MAT#</p>
+                                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.brazing_mat_no|default:"--" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">System MAT#</p>
+                                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.system_mat_no|default:"--" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">Contract#</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.contract_no|default:"--" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">PO Reference</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.reference_po_no|default:"--" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">From Location</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.from_location_text|default:"--" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">Bit Received</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.bit_received_date|date:"M d, Y"|default:"--" }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Drill Bit Info -->
+                    {% if work_order.drill_bit %}
+                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Drill Bit</h3>
+                            <a href="{% url 'workorders:drillbit_detail_enhanced' work_order.drill_bit.pk %}" class="text-blue-600 dark:text-blue-400 text-sm hover:underline">View Details &rarr;</a>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">Serial#</p>
+                                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.serial_number }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">MAT#</p>
+                                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.mat_number|default:"--" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">Size</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.drill_bit.bit_size|default:"--" }}"</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400">Type</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.drill_bit.get_bit_type_display }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Description -->
+                    {% if work_order.description %}
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Description</h3>
+                        <p class="text-gray-600 dark:text-gray-400">{{ work_order.description }}</p>
+                    </div>
+                    {% endif %}
+
+                    <!-- Notes -->
+                    {% if work_order.notes %}
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Notes</h3>
+                        <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ work_order.notes }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Sidebar -->
+                <div class="space-y-4">
+                    <!-- Status Card -->
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Status & Priority</h4>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-600 dark:text-gray-400">Status</span>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                    {% if work_order.status == 'COMPLETED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                    {% elif work_order.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200{% endif %}">
+                                    {{ work_order.get_status_display }}
+                                </span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-600 dark:text-gray-400">Priority</span>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                    {% if work_order.priority == 'CRITICAL' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                                    {% elif work_order.priority == 'URGENT' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200
+                                    {% else %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200{% endif %}">
+                                    {{ work_order.get_priority_display }}
+                                </span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-600 dark:text-gray-400">Due Date</span>
+                                <span class="{% if work_order.is_overdue %}text-red-600 dark:text-red-400 font-medium{% else %}text-gray-900 dark:text-white{% endif %}">
+                                    {{ work_order.due_date|date:"M d, Y"|default:"--" }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Approval Signatures -->
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Signatures</h4>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600 dark:text-gray-400">Evaluated By</span>
+                                <span class="text-gray-900 dark:text-white">{{ work_order.evaluated_by.get_short_name|default:"--" }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600 dark:text-gray-400">QC By</span>
+                                <span class="text-gray-900 dark:text-white">{{ work_order.qc_by.get_short_name|default:"--" }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600 dark:text-gray-400">Eng. Review</span>
+                                <span class="text-gray-900 dark:text-white">{{ work_order.reviewed_by_eng.get_short_name|default:"--" }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Assigned -->
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Assignment</h4>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600 dark:text-gray-400">Assigned To</span>
+                                <span class="text-gray-900 dark:text-white">{{ work_order.assigned_to.get_full_name|default:"Unassigned" }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600 dark:text-gray-400">Created By</span>
+                                <span class="text-gray-900 dark:text-white">{{ work_order.created_by.get_short_name|default:"--" }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600 dark:text-gray-400">Created</span>
+                                <span class="text-gray-900 dark:text-white">{{ work_order.created_at|date:"M d, Y" }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cutter Evaluation Tab -->
+        <div x-show="activeTab === 'evaluation'" x-cloak>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Cutter Evaluation Matrices</h3>
+                    <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}"
+                       class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Evaluation
+                    </a>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- ARDT Evaluation -->
+                    <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                        <h4 class="font-medium text-orange-800 dark:text-orange-200 mb-2">ARDT Cutter Entry</h4>
+                        {% if ardt_evaluation %}
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                            {{ ardt_evaluation.entries.count }} entries
+                            <br>By: {{ ardt_evaluation.evaluated_by.get_short_name|default:"--" }}
+                        </p>
+                        <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk ardt_evaluation.pk %}"
+                           class="text-orange-600 dark:text-orange-400 text-sm hover:underline">Edit Matrix &rarr;</a>
+                        {% else %}
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Not started</p>
+                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type=ARDT"
+                           class="text-orange-600 dark:text-orange-400 text-sm hover:underline">Start Evaluation &rarr;</a>
+                        {% endif %}
+                    </div>
+
+                    <!-- Engineer Evaluation -->
+                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                        <h4 class="font-medium text-blue-800 dark:text-blue-200 mb-2">Eng. Cutter Entry</h4>
+                        {% if eng_evaluation %}
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                            {{ eng_evaluation.entries.count }} entries
+                            <br>By: {{ eng_evaluation.evaluated_by.get_short_name|default:"--" }}
+                        </p>
+                        <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk eng_evaluation.pk %}"
+                           class="text-blue-600 dark:text-blue-400 text-sm hover:underline">Edit Matrix &rarr;</a>
+                        {% else %}
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Not started</p>
+                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type=ENGINEER"
+                           class="text-blue-600 dark:text-blue-400 text-sm hover:underline">Start Evaluation &rarr;</a>
+                        {% endif %}
+                    </div>
+
+                    <!-- Rework Evaluation -->
+                    <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+                        <h4 class="font-medium text-purple-800 dark:text-purple-200 mb-2">Rework Cutter Entry</h4>
+                        {% if rework_evaluation %}
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                            {{ rework_evaluation.entries.count }} entries
+                            <br>By: {{ rework_evaluation.evaluated_by.get_short_name|default:"--" }}
+                        </p>
+                        <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk rework_evaluation.pk %}"
+                           class="text-purple-600 dark:text-purple-400 text-sm hover:underline">Edit Matrix &rarr;</a>
+                        {% else %}
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Not started</p>
+                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type=REWORK"
+                           class="text-purple-600 dark:text-purple-400 text-sm hover:underline">Start Evaluation &rarr;</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Router Sheet Tab -->
+        <div x-show="activeTab === 'router'" x-cloak>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Router Sheet Steps</h3>
+                    <a href="{% url 'workorders:router_sheet' work_order.pk %}"
+                       class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                        <i data-lucide="qr-code" class="w-4 h-4 mr-2"></i>Open Router Sheet
+                    </a>
+                </div>
+
+                {% if router_entries %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                                <th class="px-4 py-2 font-medium w-16">#</th>
+                                <th class="px-4 py-2 font-medium">Step</th>
+                                <th class="px-4 py-2 font-medium">Operator</th>
+                                <th class="px-4 py-2 font-medium">Start</th>
+                                <th class="px-4 py-2 font-medium">End</th>
+                                <th class="px-4 py-2 font-medium">Duration</th>
+                                <th class="px-4 py-2 font-medium">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            {% for entry in router_entries %}
+                            <tr class="{% if entry.is_complete %}bg-green-50 dark:bg-green-900/10{% endif %}">
+                                <td class="px-4 py-2 font-medium">{{ entry.step_number }}</td>
+                                <td class="px-4 py-2">{{ entry.step_description }}</td>
+                                <td class="px-4 py-2">{{ entry.operator.get_short_name|default:"--" }}</td>
+                                <td class="px-4 py-2">{{ entry.qr_scan_start|date:"M d H:i"|default:"--" }}</td>
+                                <td class="px-4 py-2">{{ entry.qr_scan_end|date:"M d H:i"|default:"--" }}</td>
+                                <td class="px-4 py-2">{% if entry.duration_minutes %}{{ entry.duration_minutes }} min{% else %}--{% endif %}</td>
+                                <td class="px-4 py-2">
+                                    {% if entry.is_complete %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                        Complete
+                                    </span>
+                                    {% elif entry.qr_scan_start %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                        In Progress
+                                    </span>
+                                    {% else %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                        Pending
+                                    </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-8">
+                    <i data-lucide="route" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3"></i>
+                    <p class="text-gray-500 dark:text-gray-400">No router steps defined yet</p>
+                    <a href="{% url 'workorders:router_sheet' work_order.pk %}" class="text-blue-600 dark:text-blue-400 text-sm hover:underline mt-2 inline-block">Setup Router Sheet &rarr;</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- QC Forms Tab -->
+        <div x-show="activeTab === 'qc'" x-cloak>
+            <div class="space-y-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Quality Control Forms</h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- E-Checklist -->
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <div class="flex items-center mb-3">
+                            <i data-lucide="clipboard-check" class="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2"></i>
+                            <h4 class="font-medium text-gray-900 dark:text-white">E-Checklist</h4>
+                        </div>
+                        {% if e_checklist %}
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                            {% if e_checklist.overall_pass == 'PASS' %}
+                            <span class="text-green-600 dark:text-green-400">PASS</span>
+                            {% elif e_checklist.overall_pass == 'FAIL' %}
+                            <span class="text-red-600 dark:text-red-400">FAIL</span>
+                            {% else %}
+                            <span class="text-gray-500">Pending</span>
+                            {% endif %}
+                        </p>
+                        <a href="{% url 'workorders:e_checklist' work_order.pk %}" class="text-blue-600 dark:text-blue-400 text-sm hover:underline">Edit &rarr;</a>
+                        {% else %}
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Not started</p>
+                        <a href="{% url 'workorders:e_checklist' work_order.pk %}" class="text-blue-600 dark:text-blue-400 text-sm hover:underline">Start &rarr;</a>
+                        {% endif %}
+                    </div>
+
+                    <!-- LPT Reports -->
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <div class="flex items-center mb-3">
+                            <i data-lucide="droplet" class="w-5 h-5 text-purple-600 dark:text-purple-400 mr-2"></i>
+                            <h4 class="font-medium text-gray-900 dark:text-white">LPT Reports</h4>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">{{ lpt_reports|length }} report(s)</p>
+                        <a href="{% url 'workorders:lpt_report_create' work_order.pk %}" class="text-purple-600 dark:text-purple-400 text-sm hover:underline">Add LPT &rarr;</a>
+                    </div>
+
+                    <!-- API Thread -->
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <div class="flex items-center mb-3">
+                            <i data-lucide="circle-dot" class="w-5 h-5 text-orange-600 dark:text-orange-400 mr-2"></i>
+                            <h4 class="font-medium text-gray-900 dark:text-white">API Thread</h4>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">{{ api_inspections|length }} inspection(s)</p>
+                        <a href="{% url 'workorders:api_thread_create' work_order.pk %}" class="text-orange-600 dark:text-orange-400 text-sm hover:underline">Add Inspection &rarr;</a>
+                    </div>
+
+                    <!-- Die Check -->
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <div class="flex items-center mb-3">
+                            <i data-lucide="scan" class="w-5 h-5 text-green-600 dark:text-green-400 mr-2"></i>
+                            <h4 class="font-medium text-gray-900 dark:text-white">Die Check</h4>
+                        </div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Coming soon</p>
+                    </div>
+                </div>
+
+                <!-- LPT Report List -->
+                {% if lpt_reports %}
+                <div>
+                    <h4 class="font-medium text-gray-900 dark:text-white mb-3">LPT Reports</h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                                    <th class="px-4 py-2 font-medium">Report#</th>
+                                    <th class="px-4 py-2 font-medium">Type</th>
+                                    <th class="px-4 py-2 font-medium">Result</th>
+                                    <th class="px-4 py-2 font-medium">Operator</th>
+                                    <th class="px-4 py-2 font-medium">Date</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for report in lpt_reports %}
+                                <tr>
+                                    <td class="px-4 py-2 font-mono">{{ report.report_number }}</td>
+                                    <td class="px-4 py-2">{{ report.get_test_type_display }}</td>
+                                    <td class="px-4 py-2">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                            {% if report.result == 'ACCEPTABLE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                            {% elif report.result == 'REJECTABLE' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                            {{ report.get_result_display }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-2">{{ report.lpt_operator.get_short_name|default:"--" }}</td>
+                                    <td class="px-4 py-2">{{ report.operator_date|date:"M d, Y" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Instructions Tab -->
+        <div x-show="activeTab === 'instructions'" x-cloak>
+            <div class="space-y-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Applicable Instructions</h3>
+
+                {% if instructions %}
+                <div class="space-y-3">
+                    {% for rule in instructions %}
+                    <div class="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400 rounded-r-lg p-4">
+                        <div class="flex items-start">
+                            <i data-lucide="alert-circle" class="w-5 h-5 text-amber-600 dark:text-amber-400 mr-3 mt-0.5 flex-shrink-0"></i>
+                            <div>
+                                <h4 class="font-medium text-gray-900 dark:text-white">{{ rule.name }}</h4>
+                                <p class="text-gray-700 dark:text-gray-300 mt-1">{{ rule.instruction_text }}</p>
+                                {% if rule.description %}
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">{{ rule.description }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-8">
+                    <i data-lucide="book-check" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3"></i>
+                    <p class="text-gray-500 dark:text-gray-400">No specific instructions apply to this work order</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div x-show="activeTab === 'history'" x-cloak>
+            <div class="space-y-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Status History</h3>
+
+                {% if status_history %}
+                <div class="relative">
+                    <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-600"></div>
+                    <div class="space-y-4">
+                        {% for log in status_history %}
+                        <div class="relative flex items-start ml-8">
+                            <div class="absolute -left-6 w-3 h-3 rounded-full bg-blue-500 border-2 border-white dark:border-gray-800"></div>
+                            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 flex-1">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <span class="text-sm font-medium text-gray-900 dark:text-white">
+                                            {{ log.from_status }} &rarr; {{ log.to_status }}
+                                        </span>
+                                        {% if log.notes %}
+                                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ log.notes }}</p>
+                                        {% endif %}
+                                    </div>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ log.changed_at|date:"M d, H:i" }}</span>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">by {{ log.changed_by.get_short_name|default:"System" }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-8">
+                    <i data-lucide="history" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3"></i>
+                    <p class="text-gray-500 dark:text-gray-400">No status changes recorded</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

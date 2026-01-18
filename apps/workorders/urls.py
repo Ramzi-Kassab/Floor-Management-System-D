@@ -1,15 +1,53 @@
 """
 ARDT FMS - Work Orders URLs
-Version: 5.4 - Sprint 1.5
+Version: 6.0 - Job Card Enhancement
 """
 
 from django.urls import path
 
 from . import views
+from . import views_jobcard
 
 app_name = "workorders"
 
 urlpatterns = [
+    # ========================================================================
+    # JOB CARD ENHANCED VIEWS
+    # ========================================================================
+    # Dashboard
+    path("dashboard/", views_jobcard.WorkOrderDashboardView.as_view(), name="dashboard"),
+
+    # Enhanced Work Order List & Detail
+    path("enhanced/", views_jobcard.WorkOrderListEnhancedView.as_view(), name="workorder_list_enhanced"),
+    path("enhanced/<int:pk>/", views_jobcard.WorkOrderDetailEnhancedView.as_view(), name="workorder_detail_enhanced"),
+    path("export/excel/", views_jobcard.export_work_orders_excel, name="export_excel"),
+
+    # Enhanced Drill Bit List & Detail
+    path("drill-bits/enhanced/", views_jobcard.DrillBitListEnhancedView.as_view(), name="drillbit_list_enhanced"),
+    path("drill-bits/enhanced/<int:pk>/", views_jobcard.DrillBitDetailEnhancedView.as_view(), name="drillbit_detail_enhanced"),
+
+    # Cutter Evaluation Matrix
+    path("<int:wo_pk>/cutter-evaluation/create/", views_jobcard.CutterEvaluationCreateView.as_view(), name="cutter_evaluation_create"),
+    path("<int:wo_pk>/cutter-evaluation/<int:pk>/", views_jobcard.CutterEvaluationEditView.as_view(), name="cutter_evaluation_edit"),
+
+    # Router Sheet
+    path("<int:pk>/router-sheet/", views_jobcard.RouterSheetView.as_view(), name="router_sheet"),
+    path("<int:wo_pk>/router-sheet/<int:step_number>/scan/", views_jobcard.router_step_scan, name="router_step_scan"),
+
+    # QC Forms
+    path("<int:wo_pk>/e-checklist/", views_jobcard.EvaluationChecklistView.as_view(), name="e_checklist"),
+    path("<int:wo_pk>/lpt-report/create/", views_jobcard.LPTReportCreateView.as_view(), name="lpt_report_create"),
+    path("<int:wo_pk>/api-thread/create/", views_jobcard.APIThreadInspectionCreateView.as_view(), name="api_thread_create"),
+
+    # Instruction Rules
+    path("instruction-rules/", views_jobcard.InstructionRuleListView.as_view(), name="instruction_rule_list"),
+    path("instruction-rules/create/", views_jobcard.InstructionRuleCreateView.as_view(), name="instruction_rule_create"),
+    path("instruction-rules/<int:pk>/edit/", views_jobcard.InstructionRuleUpdateView.as_view(), name="instruction_rule_update"),
+    path("instruction-rules/<int:pk>/delete/", views_jobcard.InstructionRuleDeleteView.as_view(), name="instruction_rule_delete"),
+
+    # ========================================================================
+    # ORIGINAL WORK ORDER VIEWS
+    # ========================================================================
     # Work Order - List and CRUD
     path("", views.WorkOrderListView.as_view(), name="list"),
     path("create/", views.WorkOrderCreateView.as_view(), name="create"),

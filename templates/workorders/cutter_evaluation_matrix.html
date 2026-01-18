@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .matrix-cell {
+        width: 40px;
+        height: 40px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+        border: 1px solid #e5e7eb;
+    }
+    .dark .matrix-cell {
+        border-color: #4b5563;
+    }
+    .matrix-cell:hover {
+        transform: scale(1.1);
+        z-index: 10;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .matrix-cell.action-O { background: #dcfce7; color: #166534; }
+    .matrix-cell.action-X { background: #fee2e2; color: #991b1b; }
+    .matrix-cell.action-R { background: #fef3c7; color: #92400e; }
+    .matrix-cell.action-S { background: #dbeafe; color: #1e40af; }
+    .matrix-cell.action-D { background: #fce7f3; color: #9d174d; }
+    .matrix-cell.action-M { background: #f3f4f6; color: #6b7280; }
+    .dark .matrix-cell.action-O { background: #166534; color: #dcfce7; }
+    .dark .matrix-cell.action-X { background: #991b1b; color: #fee2e2; }
+    .dark .matrix-cell.action-R { background: #92400e; color: #fef3c7; }
+    .dark .matrix-cell.action-S { background: #1e40af; color: #dbeafe; }
+    .dark .matrix-cell.action-D { background: #9d174d; color: #fce7f3; }
+    .dark .matrix-cell.action-M { background: #4b5563; color: #9ca3af; }
+    .blade-header {
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        transform: rotate(180deg);
+    }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            {{ work_order.wo_number }} - {{ matrix.get_evaluation_type_display }}
+        </p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <button onclick="window.print()"
+                class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm">
+            <i data-lucide="printer" class="w-4 h-4 mr-2"></i>Print
+        </button>
+        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Job Card
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="cutterMatrix()">
+    <!-- Legend -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+        <div class="flex flex-wrap gap-4 items-center">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Legend:</span>
+            {% for value, label in action_choices %}
+            <div class="flex items-center gap-2">
+                <span class="w-8 h-8 rounded flex items-center justify-center text-xs font-bold matrix-cell action-{{ value }}">{{ value }}</span>
+                <span class="text-sm text-gray-600 dark:text-gray-400">{{ label }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Matrix Grid -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 overflow-x-auto">
+        <table class="border-collapse">
+            <thead>
+                <tr>
+                    <th class="px-2 py-2 text-xs font-medium text-gray-500 dark:text-gray-400"></th>
+                    {% for i in "123456789012345"|make_list %}
+                    {% if forloop.counter <= max_cutters %}
+                    <th class="px-1 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 text-center">{{ forloop.counter }}</th>
+                    {% endif %}
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td class="px-2 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 text-right">B{{ row.blade }}</td>
+                    {% for cutter in row.cutters %}
+                    <td class="p-0.5">
+                        <button type="button"
+                                class="matrix-cell rounded action-{{ cutter.action|default:'' }}"
+                                @click="openModal({{ row.blade }}, {{ cutter.position }}, '{{ cutter.action|default:'' }}')"
+                                data-blade="{{ row.blade }}"
+                                data-position="{{ cutter.position }}">
+                            {{ cutter.action|default:"" }}
+                        </button>
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Edit Modal -->
+    <div x-show="showModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+         @click.self="showModal = false">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6" @click.stop>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Edit Blade <span x-text="currentBlade"></span>, Position <span x-text="currentPosition"></span>
+            </h3>
+
+            <form @submit.prevent="saveEntry">
+                <div class="space-y-4">
+                    <!-- Action -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Action</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            {% for value, label in action_choices %}
+                            <button type="button"
+                                    class="p-3 rounded-lg border-2 text-center transition-colors"
+                                    :class="currentAction === '{{ value }}' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'"
+                                    @click="currentAction = '{{ value }}'">
+                                <span class="block text-lg font-bold">{{ value }}</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ label }}</span>
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Source -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cutter Source</label>
+                        <select x-model="currentSource" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                            <option value="">Not specified</option>
+                            {% for value, label in source_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Notes -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
+                        <input type="text" x-model="currentNotes" placeholder="Optional notes..."
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" @click="showModal = false"
+                            class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+                        Cancel
+                    </button>
+                    <button type="button" @click="clearEntry"
+                            class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200">
+                        Clear
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function cutterMatrix() {
+    return {
+        showModal: false,
+        currentBlade: 1,
+        currentPosition: 1,
+        currentAction: '',
+        currentSource: '',
+        currentNotes: '',
+
+        openModal(blade, position, action) {
+            this.currentBlade = blade;
+            this.currentPosition = position;
+            this.currentAction = action || '';
+            this.currentSource = '';
+            this.currentNotes = '';
+            this.showModal = true;
+        },
+
+        async saveEntry() {
+            const formData = new FormData();
+            formData.append('blade', this.currentBlade);
+            formData.append('position', this.currentPosition);
+            formData.append('action', this.currentAction);
+            formData.append('source', this.currentSource);
+            formData.append('notes', this.currentNotes);
+
+            try {
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken')
+                    }
+                });
+
+                if (response.ok) {
+                    // Update the cell
+                    const cell = document.querySelector(`button[data-blade="${this.currentBlade}"][data-position="${this.currentPosition}"]`);
+                    if (cell) {
+                        cell.className = `matrix-cell rounded action-${this.currentAction}`;
+                        cell.textContent = this.currentAction;
+                    }
+                    this.showModal = false;
+                }
+            } catch (error) {
+                console.error('Error saving entry:', error);
+            }
+        },
+
+        async clearEntry() {
+            this.currentAction = '';
+            await this.saveEntry();
+        }
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}
