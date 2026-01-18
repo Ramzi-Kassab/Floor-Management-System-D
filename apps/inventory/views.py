@@ -4133,6 +4133,34 @@ class GRNUpdateView(LoginRequiredMixin, UpdateView):
         return reverse_lazy("inventory:grn_detail", kwargs={"pk": self.object.pk})
 
 
+class GRNDeleteView(LoginRequiredMixin, View):
+    """Delete GRN (only if DRAFT status)."""
+
+    def post(self, request, pk):
+        grn = get_object_or_404(GoodsReceiptNote, pk=pk)
+
+        # Only allow deletion of DRAFT GRNs
+        if grn.status != "DRAFT":
+            messages.error(
+                request,
+                f"Cannot delete GRN {grn.grn_number}. Only DRAFT GRNs can be deleted. "
+                f"Current status: {grn.get_status_display()}"
+            )
+            return redirect("inventory:grn_detail", pk=pk)
+
+        grn_number = grn.grn_number
+
+        try:
+            # Delete lines first (CASCADE should handle this, but being explicit)
+            grn.lines.all().delete()
+            grn.delete()
+            messages.success(request, f"GRN {grn_number} has been deleted.")
+            return redirect("inventory:grn_list")
+        except Exception as e:
+            messages.error(request, f"Error deleting GRN: {e}")
+            return redirect("inventory:grn_detail", pk=pk)
+
+
 class GRNFromPOView(LoginRequiredMixin, View):
     """
     Create a GRN from an existing Purchase Order.

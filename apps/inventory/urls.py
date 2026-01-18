@@ -129,6 +129,7 @@ urlpatterns = [
     path("grn/<int:pk>/submit-qc/", views.GRNSubmitForQCView.as_view(), name="grn_submit_qc"),
     path("grn/<int:pk>/qc/", views.GRNQCView.as_view(), name="grn_qc"),
     path("grn/<int:pk>/approve-variance/", views.GRNApproveVarianceView.as_view(), name="grn_approve_variance"),
+    path("grn/<int:pk>/delete/", views.GRNDeleteView.as_view(), name="grn_delete"),
 
     # Stock Issues
     path("issues/", views.StockIssueListView.as_view(), name="issue_list"),
