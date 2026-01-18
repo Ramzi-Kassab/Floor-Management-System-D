@@ -34,7 +34,7 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from apps.inventory.models import (
     InventoryItem, InventoryCategory, ItemVariant, VariantCase,
-    Attribute, ItemAttributeValue
+    CategoryAttribute, ItemAttributeValue
 )
 
 
@@ -121,8 +121,11 @@ class Command(BaseCommand):
         variant_cases = {vc.code: vc for vc in VariantCase.objects.all()}
         self.stdout.write(f"Variant cases: {list(variant_cases.keys())}")
 
-        # Get attributes
-        attributes = {attr.code: attr for attr in Attribute.objects.all()}
+        # Get category attributes for PDC category (keyed by attribute code)
+        category_attributes = {}
+        for ca in CategoryAttribute.objects.filter(category=pdc_category).select_related('attribute'):
+            if ca.attribute:
+                category_attributes[ca.attribute.code] = ca
 
         # Process rows
         row_count = 0
@@ -193,13 +196,13 @@ class Command(BaseCommand):
                         # Set attributes
                         for excel_col, attr_code in self.ATTRIBUTE_COLUMN_MAP.items():
                             value = row_dict.get(excel_col)
-                            if value and attr_code in attributes:
-                                attr = attributes[attr_code]
+                            if value and attr_code in category_attributes:
+                                cat_attr = category_attributes[attr_code]
                                 ItemAttributeValue.objects.update_or_create(
                                     item=item,
-                                    attribute=attr,
+                                    attribute=cat_attr,
                                     defaults={
-                                        'value_text': str(value).strip(),
+                                        'text_value': str(value).strip(),
                                     }
                                 )
 
