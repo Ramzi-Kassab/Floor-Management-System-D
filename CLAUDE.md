@@ -117,7 +117,7 @@ InventoryItem
 - **Cascade**: Automatically deletes associated GRN lines
 
 ### Bug Fixes
-- **ItemListView Category Filter**: Now handles both numeric IDs and category codes (e.g., `?category=CT-PDC`)
+- **ItemListView Category Filter**: Now handles both numeric IDs and category codes (e.g., `?category=CUT-PDC`)
 - **ERP Item No Validation Display**: Added error message display to variant edit form template
 - **Management Commands Model Imports**: Fixed `ItemStock` → `InventoryStock`, `Attribute` → `CategoryAttribute`
 

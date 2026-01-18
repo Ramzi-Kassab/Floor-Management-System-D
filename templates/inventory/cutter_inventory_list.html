@@ -209,7 +209,7 @@
         <a href="{% url 'inventory:cutter_order_list' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="shopping-cart" class="w-4 h-4 mr-2"></i>View Orders
         </a>
-        <a href="{% url 'inventory:item_list' %}?category=CT-PDC" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+        <a href="{% url 'inventory:item_list' %}?category=CUT-PDC" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
             <i data-lucide="list" class="w-4 h-4 mr-2"></i>All Cutters
         </a>
     </div>
@@ -601,7 +601,7 @@
                     <td colspan="24" class="px-4 py-8 text-center text-gray-500">
                         <i data-lucide="circle-dot" class="w-12 h-12 mx-auto text-gray-300 mb-3"></i>
                         <p>No PDC Cutters found</p>
-                        <p class="text-sm mt-1">Ensure items exist with category code "CT-PDC"</p>
+                        <p class="text-sm mt-1">Ensure items exist with category code "CUT-PDC"</p>
                     </td>
                 </tr>
                 {% endfor %}

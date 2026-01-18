@@ -1473,7 +1473,7 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         Returns attributes ordered to match Excel format with visibility defaults.
         """
         try:
-            category = InventoryCategory.objects.get(code="CT-PDC")
+            category = InventoryCategory.objects.get(code="CUT-PDC")
         except InventoryCategory.DoesNotExist:
             return []
 
@@ -1540,12 +1540,12 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         return all_attributes
 
     def get_queryset(self):
-        """Get PDC Cutter items only (category code CT-PDC)"""
+        """Get PDC Cutter items only (category code CUT-PDC)"""
         from django.db.models import Prefetch
         from .models import ItemVariant, VariantStock, ItemAttributeValue
 
         qs = InventoryItem.objects.filter(
-            category__code="CT-PDC",
+            category__code="CUT-PDC",
             is_active=True
         ).select_related("category").prefetch_related(
             Prefetch(
@@ -1758,7 +1758,7 @@ class CutterOrderListView(LoginRequiredMixin, ListView):
         from apps.supplychain.models import PurchaseOrderLine
 
         qs = PurchaseOrderLine.objects.filter(
-            inventory_item__category__code="CT-PDC",
+            inventory_item__category__code="CUT-PDC",
             is_cancelled=False
         ).select_related(
             "purchase_order", "inventory_item"
@@ -1800,7 +1800,7 @@ class CutterOrderListView(LoginRequiredMixin, ListView):
 
         # Filters
         context["cutter_items"] = InventoryItem.objects.filter(
-            category__code="CT-PDC", is_active=True
+            category__code="CUT-PDC", is_active=True
         ).order_by("code")
         context["current_status"] = self.request.GET.get("status", "")
         context["current_item"] = self.request.GET.get("item", "")
@@ -3129,7 +3129,7 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
 
         # Get PDC Cutters category
         try:
-            category = InventoryCategory.objects.get(code="CT-PDC")
+            category = InventoryCategory.objects.get(code="CUT-PDC")
         except InventoryCategory.DoesNotExist:
             writer = csv.writer(response)
             writer.writerow(["Error: PDC Cutters category not found"])
@@ -3156,7 +3156,7 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
 
         # Get cutters with prefetched data
         cutters = InventoryItem.objects.filter(
-            category__code="CT-PDC",
+            category__code="CUT-PDC",
             is_active=True
         ).select_related("category").prefetch_related(
             Prefetch(
