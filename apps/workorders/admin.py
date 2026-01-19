@@ -216,9 +216,11 @@ class BitRepairHistoryAdmin(admin.ModelAdmin):
 
 @admin.register(SalvageItem)
 class SalvageItemAdmin(admin.ModelAdmin):
-    list_display = ["work_order", "item_type", "quantity", "condition", "disposition"]
-    list_filter = ["item_type", "condition", "disposition"]
-    list_select_related = ["work_order"]
+    list_display = ["salvage_number", "work_order", "salvage_type", "status", "condition_rating", "salvage_date"]
+    list_filter = ["salvage_type", "status"]
+    list_select_related = ["work_order", "drill_bit"]
+    search_fields = ["salvage_number", "description"]
+    date_hierarchy = "salvage_date"
 
 
 # =============================================================================
@@ -227,9 +229,8 @@ class SalvageItemAdmin(admin.ModelAdmin):
 
 @admin.register(RepairApprovalAuthority)
 class RepairApprovalAuthorityAdmin(admin.ModelAdmin):
-    list_display = ["user", "max_approval_amount", "is_active"]
+    list_display = ["name", "min_amount", "max_amount", "is_active"]
     list_filter = ["is_active"]
-    list_select_related = ["user"]
 
 
 # =============================================================================
@@ -238,9 +239,10 @@ class RepairApprovalAuthorityAdmin(admin.ModelAdmin):
 
 @admin.register(RepairEvaluation)
 class RepairEvaluationAdmin(admin.ModelAdmin):
-    list_display = ["work_order", "evaluation_type", "recommendation", "estimated_cost", "status"]
-    list_filter = ["evaluation_type", "recommendation", "status"]
-    list_select_related = ["work_order", "evaluated_by", "approved_by"]
+    list_display = ["evaluation_number", "drill_bit", "status", "repair_recommended", "evaluated_by"]
+    list_filter = ["status", "repair_recommended"]
+    list_select_related = ["drill_bit", "evaluated_by", "approved_by"]
+    search_fields = ["evaluation_number", "drill_bit__serial_number"]
 
 
 # =============================================================================
@@ -254,10 +256,11 @@ class RepairBOMLineInline(admin.TabularInline):
 
 @admin.register(RepairBOM)
 class RepairBOMAdmin(admin.ModelAdmin):
-    list_display = ["work_order", "bom_type", "revision", "status", "total_cost"]
-    list_filter = ["bom_type", "status"]
-    list_select_related = ["work_order", "created_by"]
+    list_display = ["work_order", "status", "estimated_material_cost", "actual_material_cost"]
+    list_filter = ["status"]
+    list_select_related = ["work_order", "approved_by"]
     inlines = [RepairBOMLineInline]
+    date_hierarchy = "created_at"
 
 
 # =============================================================================
@@ -272,17 +275,17 @@ class ProcessRouteOperationInline(admin.TabularInline):
 
 @admin.register(ProcessRoute)
 class ProcessRouteAdmin(admin.ModelAdmin):
-    list_display = ["code", "name", "route_type", "is_active"]
-    list_filter = ["route_type", "is_active"]
-    search_fields = ["code", "name"]
+    list_display = ["route_number", "name", "repair_type", "is_active", "version"]
+    list_filter = ["repair_type", "is_active"]
+    search_fields = ["route_number", "name"]
     inlines = [ProcessRouteOperationInline]
 
 
 @admin.register(OperationExecution)
 class OperationExecutionAdmin(admin.ModelAdmin):
-    list_display = ["work_order", "operation", "status", "started_at", "completed_at"]
+    list_display = ["work_order", "route_operation", "sequence", "status", "start_time", "end_time"]
     list_filter = ["status"]
-    list_select_related = ["work_order", "operation", "operator"]
+    list_select_related = ["work_order", "route_operation", "operator"]
 
 
 # =============================================================================
@@ -291,9 +294,8 @@ class OperationExecutionAdmin(admin.ModelAdmin):
 
 @admin.register(WorkOrderCost)
 class WorkOrderCostAdmin(admin.ModelAdmin):
-    list_display = ["work_order", "labor_cost", "material_cost", "overhead_cost", "total_cost"]
-    list_select_related = ["work_order"]
-    readonly_fields = ["total_cost"]
+    list_display = ["work_order", "labor_cost", "actual_material_cost", "overhead_cost", "total_actual_cost"]
+    readonly_fields = ["total_actual_cost"]
 
 
 # =============================================================================
@@ -320,9 +322,9 @@ class CutterEvaluationMatrixAdmin(admin.ModelAdmin):
 
 @admin.register(RouterSheetEntry)
 class RouterSheetEntryAdmin(admin.ModelAdmin):
-    list_display = ["work_order", "step_number", "step_name", "status", "started_at", "completed_at"]
-    list_filter = ["status"]
-    list_select_related = ["work_order", "started_by", "completed_by"]
+    list_display = ["work_order", "step_number", "step_description", "is_complete", "operator"]
+    list_filter = ["is_complete"]
+    list_select_related = ["work_order", "operator"]
     ordering = ["work_order", "step_number"]
 
 
@@ -343,10 +345,10 @@ class EvaluationChecklistAdmin(admin.ModelAdmin):
 
 @admin.register(LPTReport)
 class LPTReportAdmin(admin.ModelAdmin):
-    list_display = ["work_order", "test_date", "surface_condition", "result", "inspector"]
-    list_filter = ["result", "surface_condition"]
-    list_select_related = ["work_order", "inspector"]
-    date_hierarchy = "test_date"
+    list_display = ["report_number", "work_order", "test_type", "result", "lpt_operator"]
+    list_filter = ["result", "test_type"]
+    list_select_related = ["work_order", "lpt_operator"]
+    date_hierarchy = "created_at"
 
 
 # =============================================================================
@@ -355,8 +357,8 @@ class LPTReportAdmin(admin.ModelAdmin):
 
 @admin.register(APIThreadInspection)
 class APIThreadInspectionAdmin(admin.ModelAdmin):
-    list_display = ["work_order", "inspection_date", "connection_type", "result", "inspector"]
-    list_filter = ["result", "connection_type"]
+    list_display = ["inspection_number", "work_order", "inspection_date", "final_result", "inspector"]
+    list_filter = ["final_result", "thread_repair_required"]
     list_select_related = ["work_order", "inspector"]
     date_hierarchy = "inspection_date"
 

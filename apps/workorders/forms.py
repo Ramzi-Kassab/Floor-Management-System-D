@@ -725,18 +725,22 @@ class InstructionRuleForm(forms.ModelForm):
     """Form for InstructionRule - conditional instructions for work orders."""
     class Meta:
         model = InstructionRule
-        fields = ['title', 'wo_type', 'bit_type', 'priority', 'instruction_text', 'is_active']
+        fields = ['name', 'description', 'instruction_text', 'priority',
+                  'applies_to_wo_types', 'applies_to_bit_types', 'is_active']
         widgets = {
-            'title': forms.TextInput(attrs={
+            'name': forms.TextInput(attrs={
                 'class': INPUT_CLASS,
-                'placeholder': 'Rule title',
+                'placeholder': 'Rule name',
             }),
-            'wo_type': forms.Select(attrs={'class': SELECT_CLASS}),
-            'bit_type': forms.Select(attrs={'class': SELECT_CLASS}),
+            'description': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 2,
+                'placeholder': 'Brief description...',
+            }),
             'priority': forms.NumberInput(attrs={
                 'class': INPUT_CLASS,
-                'min': 0,
-                'max': 100,
+                'min': 1,
+                'max': 10,
             }),
             'instruction_text': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
@@ -748,9 +752,10 @@ class InstructionRuleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Make wo_type and bit_type optional (for "any" matching)
-        self.fields['wo_type'].required = False
-        self.fields['bit_type'].required = False
+        # Make type filters optional (for "any" matching)
+        self.fields['applies_to_wo_types'].required = False
+        self.fields['applies_to_bit_types'].required = False
+        self.fields['description'].required = False
 
 
 class InstructionRuleConditionForm(forms.ModelForm):
@@ -784,7 +789,7 @@ class CutterEvaluationMatrixForm(forms.ModelForm):
     """Form for CutterEvaluationMatrix - create/edit cutter evaluation."""
     class Meta:
         model = CutterEvaluationMatrix
-        fields = ['evaluation_type', 'evaluation_number', 'notes']
+        fields = ['evaluation_type', 'evaluation_number', 'general_remark']
         widgets = {
             'evaluation_type': forms.Select(attrs={'class': SELECT_CLASS}),
             'evaluation_number': forms.NumberInput(attrs={
@@ -792,43 +797,43 @@ class CutterEvaluationMatrixForm(forms.ModelForm):
                 'min': 1,
                 'max': 3,
             }),
-            'notes': forms.Textarea(attrs={
+            'general_remark': forms.Textarea(attrs={
                 'class': TEXTAREA_CLASS,
                 'rows': 2,
-                'placeholder': 'Optional notes...',
+                'placeholder': 'Optional remarks...',
             }),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['notes'].required = False
+        self.fields['general_remark'].required = False
 
 
 class RouterSheetEntryForm(forms.ModelForm):
     """Form for RouterSheetEntry - process step tracking."""
     class Meta:
         model = RouterSheetEntry
-        fields = ['step_number', 'step_name', 'description', 'estimated_hours']
+        fields = ['step_number', 'step_description', 'manual_date', 'manual_time_receipt']
         widgets = {
             'step_number': forms.NumberInput(attrs={'class': INPUT_CLASS}),
-            'step_name': forms.TextInput(attrs={
+            'step_description': forms.TextInput(attrs={
                 'class': INPUT_CLASS,
-                'placeholder': 'Step name',
+                'placeholder': 'Step description',
             }),
-            'description': forms.Textarea(attrs={
-                'class': TEXTAREA_CLASS,
-                'rows': 2,
-            }),
-            'estimated_hours': forms.NumberInput(attrs={
+            'manual_date': forms.DateInput(attrs={
+                'type': 'date',
                 'class': INPUT_CLASS,
-                'step': '0.25',
+            }),
+            'manual_time_receipt': forms.TimeInput(attrs={
+                'type': 'time',
+                'class': INPUT_CLASS,
             }),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['description'].required = False
-        self.fields['estimated_hours'].required = False
+        self.fields['manual_date'].required = False
+        self.fields['manual_time_receipt'].required = False
 
 
 class EvaluationChecklistForm(forms.ModelForm):
@@ -876,31 +881,32 @@ class LPTReportForm(forms.ModelForm):
     class Meta:
         model = LPTReport
         fields = [
-            'test_date', 'surface_condition', 'penetrant_type',
-            'penetrant_application_time', 'developer_type', 'developer_dwell_time',
-            'temperature', 'lighting_conditions', 'result', 'indications_found',
-            'remarks', 'photo'
+            'report_number', 'test_type', 'technique', 'procedure_ref',
+            'penetrant_product', 'penetrant_dwell_time',
+            'developer_product', 'developer_dwell_time',
+            'surface_temperature', 'light_intensity',
+            'result', 'disposition'
         ]
         widgets = {
-            'test_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
-            'surface_condition': forms.Select(attrs={'class': SELECT_CLASS}),
-            'penetrant_type': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'penetrant_application_time': forms.NumberInput(attrs={'class': INPUT_CLASS}),
-            'developer_type': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'developer_dwell_time': forms.NumberInput(attrs={'class': INPUT_CLASS}),
-            'temperature': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.1'}),
-            'lighting_conditions': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'report_number': forms.TextInput(attrs={'class': INPUT_CLASS, 'placeholder': 'LPT-XXXXXXX'}),
+            'test_type': forms.Select(attrs={'class': SELECT_CLASS}),
+            'technique': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'procedure_ref': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'penetrant_product': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'penetrant_dwell_time': forms.TextInput(attrs={'class': INPUT_CLASS, 'placeholder': 'e.g., 10 min'}),
+            'developer_product': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'developer_dwell_time': forms.TextInput(attrs={'class': INPUT_CLASS, 'placeholder': 'e.g., 10 min'}),
+            'surface_temperature': forms.TextInput(attrs={'class': INPUT_CLASS, 'placeholder': 'e.g., 25°C'}),
+            'light_intensity': forms.TextInput(attrs={'class': INPUT_CLASS, 'placeholder': 'e.g., 1000 lux'}),
             'result': forms.Select(attrs={'class': SELECT_CLASS}),
-            'indications_found': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 3}),
-            'remarks': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'photo': forms.FileInput(attrs={'class': FILE_CLASS, 'accept': 'image/*'}),
+            'disposition': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 3, 'placeholder': 'Disposition/Remarks'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        optional = ['penetrant_type', 'penetrant_application_time', 'developer_type',
-                    'developer_dwell_time', 'temperature', 'lighting_conditions',
-                    'indications_found', 'remarks', 'photo']
+        optional = ['penetrant_product', 'penetrant_dwell_time', 'developer_product',
+                    'developer_dwell_time', 'surface_temperature', 'light_intensity',
+                    'disposition']
         for field in optional:
             self.fields[field].required = False
 
@@ -910,30 +916,38 @@ class APIThreadInspectionForm(forms.ModelForm):
     class Meta:
         model = APIThreadInspection
         fields = [
-            'inspection_date', 'connection_type', 'thread_form', 'thread_pitch',
-            'taper', 'thread_height', 'lead', 'standoff', 'ovality',
-            'surface_finish', 'result', 'remarks', 'photo'
+            'inspection_number', 'pin_size', 'inspection_date',
+            'pin_face_ok', 'pin_face_remarks',
+            'thread_ok', 'thread_remarks',
+            'pitch_gauge_ok', 'pitch_gauge_remarks',
+            'mud_seal_ok', 'mud_seal_remarks',
+            'pin_height', 'other_observation',
+            'thread_repair_required', 'initial_result', 'final_result'
         ]
         widgets = {
+            'inspection_number': forms.TextInput(attrs={'class': INPUT_CLASS, 'placeholder': 'API-XXXXXXX'}),
+            'pin_size': forms.TextInput(attrs={'class': INPUT_CLASS}),
             'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
-            'connection_type': forms.Select(attrs={'class': SELECT_CLASS}),
-            'thread_form': forms.TextInput(attrs={'class': INPUT_CLASS}),
-            'thread_pitch': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
-            'taper': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
-            'thread_height': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
-            'lead': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
-            'standoff': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
-            'ovality': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
-            'surface_finish': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
-            'result': forms.Select(attrs={'class': SELECT_CLASS}),
-            'remarks': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
-            'photo': forms.FileInput(attrs={'class': FILE_CLASS, 'accept': 'image/*'}),
+            'pin_face_ok': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'pin_face_remarks': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'thread_ok': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'thread_remarks': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'pitch_gauge_ok': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'pitch_gauge_remarks': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'mud_seal_ok': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+            'mud_seal_remarks': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'pin_height': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'other_observation': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
+            'thread_repair_required': forms.Select(attrs={'class': SELECT_CLASS}),
+            'initial_result': forms.Select(attrs={'class': SELECT_CLASS}),
+            'final_result': forms.Select(attrs={'class': SELECT_CLASS}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        optional = ['thread_form', 'thread_pitch', 'taper', 'thread_height',
-                    'lead', 'standoff', 'ovality', 'surface_finish', 'remarks', 'photo']
+        optional = ['pin_size', 'pin_face_remarks', 'thread_remarks',
+                    'pitch_gauge_remarks', 'mud_seal_remarks', 'pin_height',
+                    'other_observation', 'thread_repair_required', 'initial_result', 'final_result']
         for field in optional:
             self.fields[field].required = False
 
