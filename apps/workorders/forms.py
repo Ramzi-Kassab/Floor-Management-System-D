@@ -668,3 +668,393 @@ class WorkOrderCostForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields:
             self.fields[field].required = False
+
+
+# ============================================================================
+# JOB CARD FORMS - Location, InstructionRule, QC Forms
+# ============================================================================
+
+from .models import (
+    Location, InstructionRule, InstructionRuleCondition,
+    CutterEvaluationMatrix, CutterEvaluationEntry,
+    RouterSheetEntry, EvaluationChecklist, LPTReport, APIThreadInspection
+)
+
+
+class LocationForm(forms.ModelForm):
+    """Form for Location - manage physical locations for drill bits."""
+    class Meta:
+        model = Location
+        fields = ['code', 'name', 'location_type', 'address', 'is_active']
+        widgets = {
+            'code': forms.TextInput(attrs={
+                'class': INPUT_CLASS,
+                'placeholder': 'e.g., WH-MAIN',
+            }),
+            'name': forms.TextInput(attrs={
+                'class': INPUT_CLASS,
+                'placeholder': 'e.g., Main Warehouse',
+            }),
+            'location_type': forms.Select(attrs={'class': SELECT_CLASS}),
+            'address': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 2,
+                'placeholder': 'Physical address (optional)',
+            }),
+            'is_active': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['address'].required = False
+
+    def clean_code(self):
+        code = self.cleaned_data.get('code')
+        if code:
+            code = code.upper().strip()
+            # Check uniqueness excluding current instance
+            qs = Location.objects.filter(code=code)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError("A location with this code already exists.")
+        return code
+
+
+class InstructionRuleForm(forms.ModelForm):
+    """Form for InstructionRule - conditional instructions for work orders."""
+    class Meta:
+        model = InstructionRule
+        fields = ['title', 'wo_type', 'bit_type', 'priority', 'instruction_text', 'is_active']
+        widgets = {
+            'title': forms.TextInput(attrs={
+                'class': INPUT_CLASS,
+                'placeholder': 'Rule title',
+            }),
+            'wo_type': forms.Select(attrs={'class': SELECT_CLASS}),
+            'bit_type': forms.Select(attrs={'class': SELECT_CLASS}),
+            'priority': forms.NumberInput(attrs={
+                'class': INPUT_CLASS,
+                'min': 0,
+                'max': 100,
+            }),
+            'instruction_text': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 4,
+                'placeholder': 'Enter the instruction text that will be displayed...',
+            }),
+            'is_active': forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make wo_type and bit_type optional (for "any" matching)
+        self.fields['wo_type'].required = False
+        self.fields['bit_type'].required = False
+
+
+class InstructionRuleConditionForm(forms.ModelForm):
+    """Form for InstructionRuleCondition - inline in InstructionRule."""
+    class Meta:
+        model = InstructionRuleCondition
+        fields = ['field_name', 'operator', 'value']
+        widgets = {
+            'field_name': forms.Select(attrs={'class': SELECT_CLASS}),
+            'operator': forms.Select(attrs={'class': SELECT_CLASS}),
+            'value': forms.TextInput(attrs={
+                'class': INPUT_CLASS,
+                'placeholder': 'Value to compare',
+            }),
+        }
+
+
+# Formset for InstructionRuleCondition
+InstructionRuleConditionFormSet = forms.inlineformset_factory(
+    InstructionRule,
+    InstructionRuleCondition,
+    form=InstructionRuleConditionForm,
+    extra=1,
+    can_delete=True,
+    min_num=0,
+    validate_min=False,
+)
+
+
+class CutterEvaluationMatrixForm(forms.ModelForm):
+    """Form for CutterEvaluationMatrix - create/edit cutter evaluation."""
+    class Meta:
+        model = CutterEvaluationMatrix
+        fields = ['evaluation_type', 'evaluation_number', 'notes']
+        widgets = {
+            'evaluation_type': forms.Select(attrs={'class': SELECT_CLASS}),
+            'evaluation_number': forms.NumberInput(attrs={
+                'class': INPUT_CLASS,
+                'min': 1,
+                'max': 3,
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 2,
+                'placeholder': 'Optional notes...',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['notes'].required = False
+
+
+class RouterSheetEntryForm(forms.ModelForm):
+    """Form for RouterSheetEntry - process step tracking."""
+    class Meta:
+        model = RouterSheetEntry
+        fields = ['step_number', 'step_name', 'description', 'estimated_hours']
+        widgets = {
+            'step_number': forms.NumberInput(attrs={'class': INPUT_CLASS}),
+            'step_name': forms.TextInput(attrs={
+                'class': INPUT_CLASS,
+                'placeholder': 'Step name',
+            }),
+            'description': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS,
+                'rows': 2,
+            }),
+            'estimated_hours': forms.NumberInput(attrs={
+                'class': INPUT_CLASS,
+                'step': '0.25',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['description'].required = False
+        self.fields['estimated_hours'].required = False
+
+
+class EvaluationChecklistForm(forms.ModelForm):
+    """Form for EvaluationChecklist - E-Checklist for FC bits."""
+    class Meta:
+        model = EvaluationChecklist
+        fields = [
+            'bit_cleanliness', 'bit_cleanliness_remarks',
+            'paperwork', 'paperwork_remarks',
+            'bit_stamping', 'bit_stamping_remarks',
+            'die_check', 'die_check_remarks',
+            'ring_gauge_go', 'ring_gauge_go_remarks',
+            'ring_gauge_no_go', 'ring_gauge_no_go_remarks',
+            'nozzle_bore_liner', 'nozzle_bore_liner_remarks',
+            'nozzle_threads', 'nozzle_threads_remarks',
+            'apex', 'apex_remarks',
+            'junk_slot', 'junk_slot_remarks',
+            'breaker_slot', 'breaker_slot_remarks',
+            'body_condition', 'body_condition_remarks',
+            'mud_seal_surface', 'mud_seal_surface_remarks',
+            'api_pin', 'api_pin_remarks',
+            'inner_diameter', 'inner_diameter_remarks',
+            'overall_pass', 'general_remarks',
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make all fields optional
+        for field in self.fields:
+            self.fields[field].required = False
+            # Add styling
+            if '_remarks' in field or field == 'general_remarks':
+                self.fields[field].widget = forms.TextInput(attrs={
+                    'class': INPUT_CLASS,
+                    'placeholder': 'Remarks (optional)',
+                })
+            elif field == 'overall_pass':
+                self.fields[field].widget = forms.CheckboxInput(attrs={'class': CHECKBOX_CLASS})
+            else:
+                self.fields[field].widget = forms.Select(attrs={'class': SELECT_CLASS})
+
+
+class LPTReportForm(forms.ModelForm):
+    """Form for LPTReport - Liquid Penetrant Test documentation."""
+    class Meta:
+        model = LPTReport
+        fields = [
+            'test_date', 'surface_condition', 'penetrant_type',
+            'penetrant_application_time', 'developer_type', 'developer_dwell_time',
+            'temperature', 'lighting_conditions', 'result', 'indications_found',
+            'remarks', 'photo'
+        ]
+        widgets = {
+            'test_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
+            'surface_condition': forms.Select(attrs={'class': SELECT_CLASS}),
+            'penetrant_type': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'penetrant_application_time': forms.NumberInput(attrs={'class': INPUT_CLASS}),
+            'developer_type': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'developer_dwell_time': forms.NumberInput(attrs={'class': INPUT_CLASS}),
+            'temperature': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.1'}),
+            'lighting_conditions': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'result': forms.Select(attrs={'class': SELECT_CLASS}),
+            'indications_found': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 3}),
+            'remarks': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
+            'photo': forms.FileInput(attrs={'class': FILE_CLASS, 'accept': 'image/*'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['penetrant_type', 'penetrant_application_time', 'developer_type',
+                    'developer_dwell_time', 'temperature', 'lighting_conditions',
+                    'indications_found', 'remarks', 'photo']
+        for field in optional:
+            self.fields[field].required = False
+
+
+class APIThreadInspectionForm(forms.ModelForm):
+    """Form for APIThreadInspection - API thread inspection documentation."""
+    class Meta:
+        model = APIThreadInspection
+        fields = [
+            'inspection_date', 'connection_type', 'thread_form', 'thread_pitch',
+            'taper', 'thread_height', 'lead', 'standoff', 'ovality',
+            'surface_finish', 'result', 'remarks', 'photo'
+        ]
+        widgets = {
+            'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS}),
+            'connection_type': forms.Select(attrs={'class': SELECT_CLASS}),
+            'thread_form': forms.TextInput(attrs={'class': INPUT_CLASS}),
+            'thread_pitch': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'taper': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'thread_height': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'lead': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'standoff': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'ovality': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'surface_finish': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.01'}),
+            'result': forms.Select(attrs={'class': SELECT_CLASS}),
+            'remarks': forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2}),
+            'photo': forms.FileInput(attrs={'class': FILE_CLASS, 'accept': 'image/*'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        optional = ['thread_form', 'thread_pitch', 'taper', 'thread_height',
+                    'lead', 'standoff', 'ovality', 'surface_finish', 'remarks', 'photo']
+        for field in optional:
+            self.fields[field].required = False
+
+
+# ============================================================================
+# DRILL BIT ACTION FORMS
+# ============================================================================
+
+class DrillBitReceiveForm(forms.Form):
+    """Form for receiving a drill bit."""
+    location = forms.ModelChoiceField(
+        queryset=Location.objects.filter(is_active=True),
+        required=True,
+        widget=forms.Select(attrs={'class': SELECT_CLASS}),
+        help_text="Select receiving location"
+    )
+    received_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={'type': 'date', 'class': INPUT_CLASS})
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2})
+    )
+
+
+class DrillBitShipForm(forms.Form):
+    """Form for shipping a drill bit."""
+    destination = forms.ModelChoiceField(
+        queryset=Location.objects.filter(is_active=True, location_type__in=['RIG', 'WAREHOUSE']),
+        required=True,
+        widget=forms.Select(attrs={'class': SELECT_CLASS}),
+        help_text="Select destination location"
+    )
+    customer = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    rig = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    shipping_ref = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': INPUT_CLASS, 'placeholder': 'Shipping reference'})
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2})
+    )
+
+
+class DrillBitTransferForm(forms.Form):
+    """Form for transferring a drill bit between locations."""
+    to_location = forms.ModelChoiceField(
+        queryset=Location.objects.filter(is_active=True),
+        required=True,
+        widget=forms.Select(attrs={'class': SELECT_CLASS}),
+        help_text="Select destination location"
+    )
+    reason = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={'class': INPUT_CLASS, 'placeholder': 'Transfer reason'})
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2})
+    )
+
+
+class DrillBitReturnForm(forms.Form):
+    """Form for returning a drill bit from the field."""
+    location = forms.ModelChoiceField(
+        queryset=Location.objects.filter(is_active=True, location_type__in=['WAREHOUSE', 'EVALUATION', 'REPAIR_SHOP']),
+        required=True,
+        widget=forms.Select(attrs={'class': SELECT_CLASS}),
+        help_text="Select receiving location"
+    )
+    condition = forms.ChoiceField(
+        choices=[
+            ('GOOD', 'Good'),
+            ('DAMAGED', 'Damaged'),
+            ('NEEDS_REPAIR', 'Needs Repair'),
+            ('SCRAP', 'Scrap'),
+        ],
+        required=True,
+        widget=forms.Select(attrs={'class': SELECT_CLASS})
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2})
+    )
+
+
+class DrillBitScrapForm(forms.Form):
+    """Form for scrapping a drill bit."""
+    location = forms.ModelChoiceField(
+        queryset=Location.objects.filter(is_active=True, location_type='SCRAP'),
+        required=False,
+        widget=forms.Select(attrs={'class': SELECT_CLASS}),
+        help_text="Select scrap location (optional)"
+    )
+    reason = forms.CharField(
+        required=True,
+        widget=forms.TextInput(attrs={'class': INPUT_CLASS, 'placeholder': 'Scrap reason'})
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2})
+    )
+
+
+class DrillBitStartRepairForm(forms.Form):
+    """Form for starting repair on a drill bit."""
+    work_order = forms.ModelChoiceField(
+        queryset=WorkOrder.objects.filter(status__in=['DRAFT', 'PLANNED', 'RELEASED']),
+        required=False,
+        widget=forms.Select(attrs={'class': SELECT_CLASS}),
+        help_text="Link to existing work order (optional)"
+    )
+    location = forms.ModelChoiceField(
+        queryset=Location.objects.filter(is_active=True, location_type='REPAIR_SHOP'),
+        required=False,
+        widget=forms.Select(attrs={'class': SELECT_CLASS}),
+        help_text="Select repair shop location"
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2})
+    )

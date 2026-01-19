@@ -828,7 +828,7 @@ class InstructionRuleListView(LoginRequiredMixin, ListView):
 
 class InstructionRuleCreateView(LoginRequiredMixin, CreateView):
     """
-    Create a new instruction rule.
+    Create a new instruction rule with inline conditions.
     """
     model = InstructionRule
     template_name = "workorders/instruction_rule_form.html"
@@ -841,17 +841,39 @@ class InstructionRuleCreateView(LoginRequiredMixin, CreateView):
         context['page_title'] = 'Create Instruction Rule'
         context['wo_type_choices'] = WorkOrder.WOType.choices
         context['bit_type_choices'] = DrillBit.BitCategory.choices
+
+        # Add condition formset
+        from .forms import InstructionRuleConditionFormSet
+        if self.request.POST:
+            context['condition_formset'] = InstructionRuleConditionFormSet(
+                self.request.POST, prefix='conditions'
+            )
+        else:
+            context['condition_formset'] = InstructionRuleConditionFormSet(prefix='conditions')
         return context
 
     def form_valid(self, form):
+        from .forms import InstructionRuleConditionFormSet
+        context = self.get_context_data()
+        condition_formset = context['condition_formset']
+
         form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        if condition_formset.is_valid():
+            condition_formset.instance = self.object
+            condition_formset.save()
+        else:
+            # Re-render form with errors
+            return self.render_to_response(self.get_context_data(form=form))
+
         messages.success(self.request, "Instruction rule created successfully")
-        return super().form_valid(form)
+        return redirect(self.success_url)
 
 
 class InstructionRuleUpdateView(LoginRequiredMixin, UpdateView):
     """
-    Update an instruction rule.
+    Update an instruction rule with inline conditions.
     """
     model = InstructionRule
     template_name = "workorders/instruction_rule_form.html"
@@ -864,12 +886,35 @@ class InstructionRuleUpdateView(LoginRequiredMixin, UpdateView):
         context['page_title'] = f'Edit Rule: {self.object.name}'
         context['wo_type_choices'] = WorkOrder.WOType.choices
         context['bit_type_choices'] = DrillBit.BitCategory.choices
-        context['conditions'] = self.object.conditions.all()
+
+        # Add condition formset
+        from .forms import InstructionRuleConditionFormSet
+        if self.request.POST:
+            context['condition_formset'] = InstructionRuleConditionFormSet(
+                self.request.POST, instance=self.object, prefix='conditions'
+            )
+        else:
+            context['condition_formset'] = InstructionRuleConditionFormSet(
+                instance=self.object, prefix='conditions'
+            )
         return context
 
     def form_valid(self, form):
+        from .forms import InstructionRuleConditionFormSet
+        context = self.get_context_data()
+        condition_formset = context['condition_formset']
+
+        self.object = form.save()
+
+        if condition_formset.is_valid():
+            condition_formset.instance = self.object
+            condition_formset.save()
+        else:
+            # Re-render form with errors
+            return self.render_to_response(self.get_context_data(form=form))
+
         messages.success(self.request, "Instruction rule updated successfully")
-        return super().form_valid(form)
+        return redirect(self.success_url)
 
 
 class InstructionRuleDeleteView(LoginRequiredMixin, DeleteView):

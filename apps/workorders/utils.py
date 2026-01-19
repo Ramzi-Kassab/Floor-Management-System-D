@@ -161,3 +161,139 @@ def calculate_progress(work_order):
         "CANCELLED": 0,
     }
     return status_progress.get(work_order.status, 0)
+
+
+# =============================================================================
+# STATUS TRANSITION LOGGING
+# =============================================================================
+
+def log_status_transition(instance, from_status, to_status, user, reason=""):
+    """
+    Record a status transition in the audit log.
+
+    Args:
+        instance: The model instance that had its status changed (WorkOrder, DrillBit, etc.)
+        from_status: The previous status value
+        to_status: The new status value
+        user: The user who made the change
+        reason: Optional reason for the status change
+
+    Returns:
+        StatusTransitionLog: The created log entry, or None if no change
+    """
+    from django.contrib.contenttypes.models import ContentType
+    from .models import StatusTransitionLog
+
+    if from_status == to_status:
+        return None
+
+    content_type = ContentType.objects.get_for_model(instance)
+
+    return StatusTransitionLog.objects.create(
+        content_type=content_type,
+        object_id=instance.pk,
+        from_status=from_status or "",
+        to_status=to_status,
+        changed_by=user,
+        reason=reason,
+    )
+
+
+def get_status_history(instance, limit=None):
+    """
+    Get the status transition history for a model instance.
+
+    Args:
+        instance: The model instance to get history for
+        limit: Optional limit on number of records to return
+
+    Returns:
+        QuerySet: StatusTransitionLog entries for this instance
+    """
+    from django.contrib.contenttypes.models import ContentType
+    from .models import StatusTransitionLog
+
+    content_type = ContentType.objects.get_for_model(instance)
+    queryset = StatusTransitionLog.objects.filter(
+        content_type=content_type,
+        object_id=instance.pk,
+    ).select_related('changed_by').order_by('-changed_at')
+
+    if limit:
+        queryset = queryset[:limit]
+
+    return queryset
+
+
+# WorkOrder-specific transition rules
+WORK_ORDER_TRANSITIONS = {
+    'DRAFT': ['PLANNED', 'CANCELLED'],
+    'PLANNED': ['RELEASED', 'DRAFT', 'CANCELLED'],
+    'RELEASED': ['IN_PROGRESS', 'PLANNED', 'CANCELLED'],
+    'IN_PROGRESS': ['QC_HOLD', 'COMPLETED', 'CANCELLED'],
+    'QC_HOLD': ['IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+    'COMPLETED': ['CLOSED'],
+    'CLOSED': [],
+    'CANCELLED': [],
+}
+
+
+def can_workorder_transition(from_status, to_status):
+    """
+    Check if a work order status transition is valid.
+
+    Args:
+        from_status: Current status
+        to_status: Proposed new status
+
+    Returns:
+        tuple: (is_valid: bool, error_message: str or None)
+    """
+    if from_status is None or from_status == '':
+        # New work order - can start in DRAFT only
+        if to_status == 'DRAFT':
+            return True, None
+        return False, "New work orders must start in DRAFT status."
+
+    allowed = WORK_ORDER_TRANSITIONS.get(from_status, [])
+    if to_status in allowed:
+        return True, None
+
+    return False, f"Cannot transition from {from_status} to {to_status}."
+
+
+# DrillBit lifecycle-specific transition rules
+DRILLBIT_LIFECYCLE_TRANSITIONS = {
+    'NEW': ['DEPLOYED', 'EVALUATION', 'IN_REPAIR', 'SCRAP'],
+    'DEPLOYED': ['BACKLOADED', 'SCRAP'],
+    'BACKLOADED': ['EVALUATION', 'IN_REPAIR', 'DEPLOYED', 'SCRAP'],
+    'EVALUATION': ['IN_REPAIR', 'REPAIRED', 'SCRAP', 'BACKLOADED'],
+    'IN_REPAIR': ['REPAIRED', 'SCRAP'],
+    'REPAIRED': ['RERUN', 'DEPLOYED', 'EVALUATION', 'SCRAP'],
+    'RERUN': ['DEPLOYED', 'BACKLOADED', 'SCRAP'],
+    'SCRAP': [],  # Terminal state
+}
+
+
+def can_drillbit_lifecycle_transition(from_status, to_status):
+    """
+    Check if a drill bit lifecycle status transition is valid.
+
+    Args:
+        from_status: Current lifecycle status
+        to_status: Proposed new lifecycle status
+
+    Returns:
+        tuple: (is_valid: bool, error_message: str or None)
+    """
+    if from_status is None or from_status == '':
+        # New drill bit - can start in NEW only
+        if to_status == 'NEW':
+            return True, None
+        return False, "New drill bits must start in NEW status."
+
+    allowed = DRILLBIT_LIFECYCLE_TRANSITIONS.get(from_status, [])
+    if to_status in allowed:
+        return True, None
+
+    return False, f"Cannot transition drill bit from {from_status} to {to_status}."

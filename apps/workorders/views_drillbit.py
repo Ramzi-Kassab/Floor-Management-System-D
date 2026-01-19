@@ -336,30 +336,38 @@ class DrillBitReceiveView(LoginRequiredMixin, TemplateView):
         received_date = request.POST.get("received_date")
         notes = request.POST.get("notes", "")
 
-        location = get_object_or_404(Location, pk=location_id) if location_id else None
+        # Validate location
+        if not location_id:
+            messages.error(request, "Please select a receiving location.")
+            return redirect("workorders:drillbit_receive", pk=bit.pk)
 
-        if received_date:
-            bit.received_date = datetime.strptime(received_date, "%Y-%m-%d").date()
+        try:
+            location = get_object_or_404(Location, pk=location_id)
 
-        if location:
+            if received_date:
+                bit.received_date = datetime.strptime(received_date, "%Y-%m-%d").date()
+
             bit.bit_location = location
             bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+            bit.status = DrillBit.Status.IN_STOCK
+            bit.lifecycle_status = DrillBit.LifecycleStatus.NEW
+            bit.save()
 
-        bit.status = DrillBit.Status.IN_STOCK
-        bit.lifecycle_status = DrillBit.LifecycleStatus.NEW
-        bit.save()
+            # Create event
+            BitEvent.objects.create(
+                bit=bit,
+                event_type=BitEvent.EventType.RECEIVED,
+                event_date=timezone.now(),
+                location=location,
+                notes=notes or "Received into inventory.",
+                performed_by=request.user,
+            )
 
-        # Create event
-        BitEvent.objects.create(
-            bit=bit,
-            event_type=BitEvent.EventType.RECEIVED,
-            event_date=timezone.now(),
-            location=location or bit.bit_location,
-            notes=notes or "Received into inventory.",
-            performed_by=request.user,
-        )
+            messages.success(request, f'Drill bit "{bit.serial_number}" received successfully.')
+        except Exception as e:
+            messages.error(request, f"Error receiving drill bit: {str(e)}")
+            return redirect("workorders:drillbit_receive", pk=bit.pk)
 
-        messages.success(request, f'Drill bit "{bit.serial_number}" received successfully.')
         return redirect("workorders:drillbit_detail", pk=bit.pk)
 
 
@@ -457,29 +465,44 @@ class DrillBitTransferView(LoginRequiredMixin, TemplateView):
         transfer_reason = request.POST.get("reason", "")
         notes = request.POST.get("notes", "")
 
-        from_location = bit.bit_location
-        to_location = get_object_or_404(Location, pk=to_location_id)
+        # Validate destination location
+        if not to_location_id:
+            messages.error(request, "Please select a destination location.")
+            return redirect("workorders:drillbit_transfer", pk=bit.pk)
 
-        # Update bit
-        bit.bit_location = to_location
-        bit.save()
+        try:
+            from_location = bit.bit_location
+            to_location = get_object_or_404(Location, pk=to_location_id)
 
-        # Create event
-        BitEvent.objects.create(
-            bit=bit,
-            event_type=BitEvent.EventType.TRANSFER,
-            event_date=timezone.now(),
-            location=to_location,
-            from_location=from_location,
-            to_location=to_location,
-            notes=f"Transfer reason: {transfer_reason}. {notes}".strip(),
-            performed_by=request.user,
-        )
+            # Prevent transfer to same location
+            if from_location and from_location.pk == to_location.pk:
+                messages.warning(request, "Bit is already at the selected location.")
+                return redirect("workorders:drillbit_transfer", pk=bit.pk)
 
-        messages.success(
-            request,
-            f'Drill bit "{bit.serial_number}" transferred to {to_location.name}.',
-        )
+            # Update bit
+            bit.bit_location = to_location
+            bit.save()
+
+            # Create event
+            BitEvent.objects.create(
+                bit=bit,
+                event_type=BitEvent.EventType.TRANSFER,
+                event_date=timezone.now(),
+                location=to_location,
+                from_location=from_location,
+                to_location=to_location,
+                notes=f"Transfer reason: {transfer_reason}. {notes}".strip(),
+                performed_by=request.user,
+            )
+
+            messages.success(
+                request,
+                f'Drill bit "{bit.serial_number}" transferred to {to_location.name}.',
+            )
+        except Exception as e:
+            messages.error(request, f"Error transferring drill bit: {str(e)}")
+            return redirect("workorders:drillbit_transfer", pk=bit.pk)
+
         return redirect("workorders:drillbit_detail", pk=bit.pk)
 
 
