@@ -741,9 +741,9 @@ class RepairEvaluationListView(LoginRequiredMixin, ListView):
 
         recommendation = self.request.GET.get('recommendation')
         if recommendation:
-            queryset = queryset.filter(recommendation=recommendation)
+            queryset = queryset.filter(repair_recommended=(recommendation.lower() == 'true'))
 
-        return queryset.order_by('-evaluation_date')
+        return queryset.order_by('-evaluated_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
