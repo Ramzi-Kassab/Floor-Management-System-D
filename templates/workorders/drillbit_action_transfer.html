@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <nav class="flex mb-4" aria-label="Breadcrumb">
+            <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                <li><a href="{% url 'workorders:drillbit_inventory_dashboard' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">Drill Bits</a></li>
+                <li class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <a href="{% url 'workorders:drillbit_detail' pk=drill_bit.pk %}" class="ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400">{{ drill_bit.serial_number }}</a>
+                </li>
+                <li class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="ml-1 text-gray-500 dark:text-gray-400">Transfer</span>
+                </li>
+            </ol>
+        </nav>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Transfer this drill bit to a different location</p>
+    </div>
+
+    <!-- Current Location Card -->
+    <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+        <div class="flex items-center">
+            <svg class="w-6 h-6 text-yellow-600 dark:text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+            </svg>
+            <div>
+                <p class="text-sm font-medium text-yellow-800 dark:text-yellow-300">Serial: {{ drill_bit.serial_number }}</p>
+                <p class="text-xs text-yellow-600 dark:text-yellow-400">
+                    Current Location: <strong>{{ drill_bit.bit_location.name|default:"Not set" }}</strong>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div class="space-y-4">
+                <!-- To Location -->
+                <div>
+                    <label for="to_location" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Transfer To <span class="text-red-500">*</span>
+                    </label>
+                    <select name="to_location" id="to_location"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                            required>
+                        <option value="">Select destination...</option>
+                        {% for location in locations %}
+                        {% if location.pk != drill_bit.bit_location_id %}
+                        <option value="{{ location.pk }}">{{ location.name }} ({{ location.get_location_type_display }})</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Reason -->
+                <div>
+                    <label for="reason" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Transfer Reason <span class="text-red-500">*</span>
+                    </label>
+                    <select name="reason" id="reason"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                            required>
+                        <option value="">Select reason...</option>
+                        <option value="Storage reorganization">Storage reorganization</option>
+                        <option value="Moving to evaluation">Moving to evaluation</option>
+                        <option value="Moving to repair shop">Moving to repair shop</option>
+                        <option value="Moving to QC area">Moving to QC area</option>
+                        <option value="Staging for shipment">Staging for shipment</option>
+                        <option value="Inventory count">Inventory count</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <label for="notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Notes
+                    </label>
+                    <textarea name="notes" id="notes" rows="3"
+                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                              placeholder="Additional details about the transfer..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-end space-x-4">
+            <a href="{% url 'workorders:drillbit_detail' pk=drill_bit.pk %}"
+               class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors inline-flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                </svg>
+                Confirm Transfer
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

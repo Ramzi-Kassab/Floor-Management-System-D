@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div class="text-center mb-6">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900 mb-4">
+                <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Scrap Drill Bit</h2>
+            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                Are you sure you want to scrap drill bit <strong>{{ object.serial_number }}</strong>?
+            </p>
+            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                This will mark the bit as scrapped but keep its history.
+            </p>
+        </div>
+
+        {% if work_orders_count > 0 %}
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+            <p class="text-sm text-yellow-700 dark:text-yellow-300">
+                This drill bit has <strong>{{ work_orders_count }} work order(s)</strong> and <strong>{{ events_count }} event(s)</strong> in its history.
+            </p>
+        </div>
+        {% endif %}
+
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <div class="flex justify-center space-x-4">
+                <a href="{% url 'workorders:drillbit_detail' pk=object.pk %}"
+                   class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    Cancel
+                </a>
+                <button type="submit"
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                    Confirm Scrap
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

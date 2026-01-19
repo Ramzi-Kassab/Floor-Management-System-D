@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <nav class="flex mb-4" aria-label="Breadcrumb">
+            <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                <li><a href="{% url 'workorders:drillbit_inventory_dashboard' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">Drill Bits</a></li>
+                <li class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <a href="{% url 'workorders:drillbit_detail' pk=drill_bit.pk %}" class="ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400">{{ drill_bit.serial_number }}</a>
+                </li>
+                <li class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="ml-1 text-gray-500 dark:text-gray-400">Return</span>
+                </li>
+            </ol>
+        </nav>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Record return of this drill bit from field/customer</p>
+    </div>
+
+    <!-- Bit Info Card -->
+    <div class="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4 mb-6">
+        <div class="flex items-center">
+            <svg class="w-6 h-6 text-teal-600 dark:text-teal-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+            </svg>
+            <div>
+                <p class="text-sm font-medium text-teal-800 dark:text-teal-300">Serial: {{ drill_bit.serial_number }}</p>
+                <p class="text-xs text-teal-600 dark:text-teal-400">
+                    {{ drill_bit.get_bit_type_display }} | {{ drill_bit.size }}" |
+                    Deployments: {{ drill_bit.deployment_count }} | Backloads: {{ drill_bit.backload_count }}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div class="space-y-4">
+                <!-- Receiving Location -->
+                <div>
+                    <label for="location" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Receiving Location <span class="text-red-500">*</span>
+                    </label>
+                    <select name="location" id="location"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                            required>
+                        <option value="">Select location...</option>
+                        {% for location in locations %}
+                        <option value="{{ location.pk }}">{{ location.name }} ({{ location.get_location_type_display }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Condition -->
+                <div>
+                    <label for="condition" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Condition on Return <span class="text-red-500">*</span>
+                    </label>
+                    <select name="condition" id="condition"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                            required>
+                        <option value="GOOD">Good - Ready for rerun</option>
+                        <option value="FAIR">Fair - Needs evaluation</option>
+                        <option value="DAMAGED">Damaged - Needs repair</option>
+                        <option value="SCRAP">Scrap candidate</option>
+                    </select>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <label for="notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Notes
+                    </label>
+                    <textarea name="notes" id="notes" rows="3"
+                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                              placeholder="Condition details, run information, etc."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-end space-x-4">
+            <a href="{% url 'workorders:drillbit_detail' pk=drill_bit.pk %}"
+               class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors inline-flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                </svg>
+                Confirm Return
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

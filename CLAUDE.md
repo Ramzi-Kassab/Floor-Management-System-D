@@ -147,6 +147,80 @@ Under Production section:
 5. **Modern UI**: Responsive design, dark mode support, Excel-like column filters
 6. **Excel Export**: Professional formatting with frozen headers
 
+### Drill Bit Inventory System (Jan 19, 2026)
+Comprehensive drill bit inventory management with lifecycle tracking, events, and location management.
+
+#### Existing Models Used
+- **DrillBit**: Full model with serial numbers (6-8 digits), status tracking, location, customer, costs, repair history
+  - Serial numbers: 8 digits for PDC Fixed Cutter, 6-8 for Tri-cone
+  - Multiple status fields: `lifecycle_status`, `physical_status`, `accounting_status`
+  - Cost tracking: `original_cost`, `total_repair_cost`, `current_book_value`
+  - Repair counters: `repair_count`, `deployment_count`, `backload_count`
+- **BitEvent**: Lifecycle event tracking with 20+ event types (RECEIVED, DEPLOYED, BACKLOADED, REPAIR_START, etc.)
+- **Location**: Predefined locations (WAREHOUSE, REPAIR_SHOP, QC, RIG, EVALUATION, SCRAP, etc.)
+- **sales.Customer**: Customer master for ownership tracking
+
+#### New Views (apps/workorders/views_drillbit.py)
+- **DrillBitInventoryDashboardView**: Summary cards (total bits, by type, available, in repair) at `/workorders/drill-bits/inventory/`
+  - Aggregations by status, lifecycle, customer, location, size
+  - Cost summaries (original, repair, book value)
+  - Recent events feed
+- **DrillBitCreateView**: Register new bit with existing serial at `/workorders/drill-bits/new/`
+- **DrillBitUpdateView**: Edit bit details at `/workorders/drill-bits/<pk>/edit/`
+- **DrillBitDeleteView**: Mark as scrapped at `/workorders/drill-bits/<pk>/delete/`
+- **DrillBitReceiveView**: Record receipt at `/workorders/drill-bits/<pk>/receive/`
+- **DrillBitShipView**: Record shipment to customer/rig at `/workorders/drill-bits/<pk>/ship/`
+- **DrillBitTransferView**: Location transfer at `/workorders/drill-bits/<pk>/transfer/`
+- **DrillBitReturnView**: Record return from field at `/workorders/drill-bits/<pk>/return/`
+- **DrillBitScrapView**: Mark as scrapped with reason at `/workorders/drill-bits/<pk>/scrap/`
+- **DrillBitStartRepairView**: Start repair/production at `/workorders/drill-bits/<pk>/start-repair/`
+- **LocationListView/CreateView/UpdateView/DeleteView**: Manage locations at `/workorders/locations/`
+- **BitEventListView**: View all events at `/workorders/bit-events/`
+- **DrillBitExportExcelView**: Excel export at `/workorders/drill-bits/export/excel/`
+- **DrillBitSearchAPIView**: API for autocomplete at `/workorders/api/drill-bits/search/`
+
+#### New Templates
+- `templates/workorders/drillbit_inventory_dashboard.html` - Inventory dashboard with cards and charts
+- `templates/workorders/drillbit_form.html` - Create/edit drill bit form
+- `templates/workorders/drillbit_confirm_delete.html` - Scrap confirmation
+- `templates/workorders/drillbit_action_receive.html` - Receive action form
+- `templates/workorders/drillbit_action_ship.html` - Ship action form
+- `templates/workorders/drillbit_action_transfer.html` - Transfer action form
+- `templates/workorders/drillbit_action_return.html` - Return action form
+- `templates/workorders/drillbit_action_scrap.html` - Scrap action form
+- `templates/workorders/drillbit_action_start_repair.html` - Start repair form
+- `templates/workorders/location_list.html` - Locations list
+- `templates/workorders/location_form.html` - Location create/edit
+- `templates/workorders/location_confirm_delete.html` - Location delete confirmation
+- `templates/workorders/bitevent_list.html` - Event history list
+
+#### Sidebar Updates
+Under Production > Drill Bit Inventory sub-section:
+- Inventory Dashboard - `/workorders/drill-bits/inventory/`
+- Register New Bit - `/workorders/drill-bits/new/`
+- Locations - `/workorders/locations/`
+- Bit Events - `/workorders/bit-events/`
+- Export Excel - `/workorders/drill-bits/export/excel/`
+
+#### Management Command
+```bash
+python manage.py seed_drillbit_inventory           # Preview mode
+python manage.py seed_drillbit_inventory --confirm # Create test data
+python manage.py seed_drillbit_inventory --confirm --bits 50  # Create 50 test bits
+```
+Creates:
+- 11 predefined locations (Warehouse, Repair Shop, QC Area, Rig Sites, etc.)
+- Sample drill bits with various statuses and lifecycle events
+
+#### Key Features
+1. **Serial Number Support**: 8 digits for PDC, 6-8 for Tri-cone (not auto-generated - accepts existing serials)
+2. **Lifecycle Event Tracking**: Full audit trail with BitEvent model
+3. **Location Management**: Predefined locations with types (WAREHOUSE, REPAIR_SHOP, RIG, etc.)
+4. **Action Buttons**: Quick actions for receive, ship, transfer, return, scrap, start repair
+5. **Dashboard Aggregations**: Summary by status, lifecycle, customer, location
+6. **Excel Export**: Professional formatting with all drill bit data
+7. **Customer Integration**: Links to existing sales.Customer model
+
 ## Previous Changes (Jan 17, 2026)
 
 ### Cutter Inventory Column Updates

@@ -7,6 +7,7 @@ from django.urls import path
 
 from . import views
 from . import views_jobcard
+from . import views_drillbit
 
 app_name = "workorders"
 
@@ -25,6 +26,42 @@ urlpatterns = [
     # Enhanced Drill Bit List & Detail
     path("drill-bits/enhanced/", views_jobcard.DrillBitListEnhancedView.as_view(), name="drillbit_list_enhanced"),
     path("drill-bits/enhanced/<int:pk>/", views_jobcard.DrillBitDetailEnhancedView.as_view(), name="drillbit_detail_enhanced"),
+
+    # ========================================================================
+    # DRILL BIT INVENTORY VIEWS
+    # ========================================================================
+    # Dashboard
+    path("drill-bits/inventory/", views_drillbit.DrillBitInventoryDashboardView.as_view(), name="drillbit_inventory_dashboard"),
+
+    # Drill Bit CRUD (new enhanced versions)
+    path("drill-bits/new/", views_drillbit.DrillBitCreateView.as_view(), name="drillbit_create"),
+    path("drill-bits/<int:pk>/detail/", views_jobcard.DrillBitDetailEnhancedView.as_view(), name="drillbit_detail"),
+    path("drill-bits/<int:pk>/edit/", views_drillbit.DrillBitUpdateView.as_view(), name="drillbit_edit"),
+    path("drill-bits/<int:pk>/delete/", views_drillbit.DrillBitDeleteView.as_view(), name="drillbit_delete"),
+
+    # Drill Bit Actions
+    path("drill-bits/<int:pk>/receive/", views_drillbit.DrillBitReceiveView.as_view(), name="drillbit_receive"),
+    path("drill-bits/<int:pk>/ship/", views_drillbit.DrillBitShipView.as_view(), name="drillbit_ship"),
+    path("drill-bits/<int:pk>/transfer/", views_drillbit.DrillBitTransferView.as_view(), name="drillbit_transfer"),
+    path("drill-bits/<int:pk>/return/", views_drillbit.DrillBitReturnView.as_view(), name="drillbit_return"),
+    path("drill-bits/<int:pk>/scrap/", views_drillbit.DrillBitScrapView.as_view(), name="drillbit_scrap"),
+    path("drill-bits/<int:pk>/start-repair/", views_drillbit.DrillBitStartRepairView.as_view(), name="drillbit_start_repair"),
+
+    # Excel Export
+    path("drill-bits/export/excel/", views_drillbit.DrillBitExportExcelView.as_view(), name="drillbit_export_excel"),
+
+    # Bit Events
+    path("bit-events/", views_drillbit.BitEventListView.as_view(), name="bitevent_list"),
+
+    # Locations
+    path("locations/", views_drillbit.LocationListView.as_view(), name="location_list"),
+    path("locations/create/", views_drillbit.LocationCreateView.as_view(), name="location_create"),
+    path("locations/<int:pk>/edit/", views_drillbit.LocationUpdateView.as_view(), name="location_edit"),
+    path("locations/<int:pk>/delete/", views_drillbit.LocationDeleteView.as_view(), name="location_delete"),
+
+    # API endpoints
+    path("api/drill-bits/search/", views_drillbit.DrillBitSearchAPIView.as_view(), name="drillbit_search_api"),
+    path("api/drill-bits/<int:pk>/quick-event/", views_drillbit.DrillBitQuickEventAPIView.as_view(), name="drillbit_quick_event_api"),
 
     # Cutter Evaluation Matrix
     path("<int:wo_pk>/cutter-evaluation/create/", views_jobcard.CutterEvaluationCreateView.as_view(), name="cutter_evaluation_create"),
