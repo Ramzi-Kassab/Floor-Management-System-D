@@ -773,7 +773,12 @@ def api_sync_to_erp(request):
         seen_positions = set()  # Track (blade_num, row_num, position_in_row) to avoid duplicates
 
         for blade in blades:
-            blade_num = blade.get('blade_id', 1)
+            # Blade data uses 'name' field like "B1", "B2", not 'blade_id'
+            blade_name = blade.get('name', 'B1')
+            try:
+                blade_num = int(blade_name.replace('B', '')) if blade_name.startswith('B') else int(blade_name)
+            except (ValueError, TypeError):
+                blade_num = 1
             position_in_blade = 0
 
             for row_key in ['r1', 'r2', 'r3', 'r4']:
@@ -813,8 +818,9 @@ def api_sync_to_erp(request):
                             if not config:
                                 continue
 
-                        # Map blade location from position name
-                        pos_name = cell.get('pos', '').upper()
+                        # Map blade location from position key (e.g., 'CONE', 'NOSE', 'SHOULDER')
+                        # The position is stored as the dictionary key, not in the cell object
+                        pos_name = pos_key.upper()
                         blade_location = None
                         if 'CONE' in pos_name:
                             blade_location = DesignPocket.BladeLocation.CONE
