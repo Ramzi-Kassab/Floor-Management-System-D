@@ -1000,27 +1000,50 @@
         <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 15px;">
                 <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold;">
-                    {% if bom_context.edit_mode %}EDITING BOM{% else %}VIEWING BOM{% endif %}
+                    VIEWING BOM
                 </span>
                 <div style="display: flex; gap: 20px; font-size: 13px;">
                     <span style="background: #10b981; padding: 2px 8px; border-radius: 3px; font-weight: bold;">L5</span>
                     <span><strong>L5 MAT:</strong> {{ bom_context.bom_code }}</span>
-                    <span><strong>L3/L4 MAT:</strong> {{ bom_context.design_mat }}</span>
+                    {% if bom_context.design_level %}
+                    <span style="background: {% if bom_context.design_level == 'L3' %}#2196f3{% else %}#8b5cf6{% endif %}; padding: 2px 8px; border-radius: 3px; font-weight: bold;">
+                        {{ bom_context.design_level }}
+                    </span>
+                    {% endif %}
+                    <span><strong>{{ bom_context.design_level }} MAT:</strong> {{ bom_context.design_mat }}</span>
                     <span><strong>HDBS:</strong> {{ bom_context.design_hdbs }}</span>
                     {% if bom_context.design_size %}<span><strong>Size:</strong> {{ bom_context.design_size }}</span>{% endif %}
                     {% if bom_context.smi_type %}<span><strong>SMI:</strong> {{ bom_context.smi_type }}</span>{% endif %}
                 </div>
             </div>
-            <div style="display: flex; gap: 10px;">
-                {% if not bom_context.edit_mode %}
-                <a href="{% url 'cutter_map:bom_view' bom_context.bom_id %}?edit=1"
-                   style="background: #f59e0b; color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 11px;">
-                    Edit Layout
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <!-- Save Changes Button -->
+                <button type="button" onclick="saveBOMChanges()"
+                        id="btnSaveChanges"
+                        style="background: #f59e0b; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; display: none;">
+                    💾 Save Changes
+                </button>
+                <!-- Discard Changes Button -->
+                <button type="button" onclick="discardBOMChanges()"
+                        id="btnDiscardChanges"
+                        style="background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; display: none;">
+                    ✕ Discard
+                </button>
+                <!-- Re-upload PDF Button -->
+                <button type="button" onclick="showReuploadDialog()"
+                        style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+                    📄 Re-upload PDF
+                </button>
+                <!-- Home Button -->
+                <a href="{% url 'dashboard:home' %}"
+                   style="background: rgba(255,255,255,0.2); color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 11px;"
+                   title="Home">
+                    🏠
                 </a>
-                {% endif %}
+                <!-- BOM List Button -->
                 <a href="{% url 'technology:bom_list' %}"
                    style="background: rgba(255,255,255,0.2); color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 11px;">
-                    ← Back to BOM List
+                    📋 BOM List
                 </a>
             </div>
         </div>
@@ -1031,6 +1054,7 @@
     <input type="hidden" id="designSize" value="{{ bom_context.design_size }}">
     <input type="hidden" id="bomId" value="{{ bom_context.bom_id }}">
     <input type="hidden" id="bomCode" value="{{ bom_context.bom_code }}">
+    <input type="hidden" id="bomViewMode" value="true">
     {% elif design_context %}
     <!-- Design Context Banner - Shown when coming from BOM Create -->
     <div style="background: linear-gradient(90deg, #1e3a5f, #2d5a87); color: white; padding: 12px 20px; margin-bottom: 0;">
@@ -2583,6 +2607,7 @@
             });
             renderBladesEditor();
             updateStats();
+            trackChange(); // Track modification
         }
 
         function removeBlade(idx) {
@@ -2590,6 +2615,7 @@
             currentData.blades.splice(idx, 1);
             renderBladesEditor();
             updateStats();
+            trackChange(); // Track modification
         }
 
         // ========== ENHANCED BLADE EDITOR FUNCTIONS ==========
@@ -3894,6 +3920,7 @@
             updateStats();
             renderFullPage();
             renderLocations();
+            trackChange(); // Check for changes when editing
         }
 
         // Drag and drop state
@@ -4926,6 +4953,8 @@
             } else {
                 matDisplay.textContent = 'Not set';
             }
+
+            trackChange(); // Check for changes when editing
         }
 
         function renderEditBom() {
@@ -8010,6 +8039,375 @@
             }, 500);
         }
 
+        // ========== BOM SAVE/DISCARD/REUPLOAD FUNCTIONS ==========
+        let hasUnsavedChanges = false;
+
+        function checkForChanges() {
+            // Check if we're in BOM view mode
+            const bomViewMode = document.getElementById('bomViewMode');
+            if (!bomViewMode || bomViewMode.value !== 'true') return;
+
+            // Compare current data with original
+            const changed = hasActualDataChanges();
+            hasUnsavedChanges = changed;
+
+            // Show/hide save/discard buttons
+            const saveBtn = document.getElementById('btnSaveChanges');
+            const discardBtn = document.getElementById('btnDiscardChanges');
+            if (saveBtn && discardBtn) {
+                saveBtn.style.display = changed ? 'inline-block' : 'none';
+                discardBtn.style.display = changed ? 'inline-block' : 'none';
+            }
+        }
+
+        function trackChange() {
+            // Call this after any data modification
+            setTimeout(checkForChanges, 100);
+        }
+
+        function saveBOMChanges() {
+            const bomId = document.getElementById('bomId')?.value;
+            const bomCode = document.getElementById('bomCode')?.value;
+            const designId = document.getElementById('designId')?.value;
+            const designMat = document.getElementById('designMat')?.value;
+
+            if (!bomId) {
+                showMsg('No BOM to save. Please create a BOM first.', 'error');
+                return;
+            }
+
+            const formData = collectFormData();
+            if (!formData) {
+                showMsg('No data to save.', 'error');
+                return;
+            }
+
+            // Build payload matching what api_sync_to_erp expects
+            const payload = {
+                design_id: designId || null,
+                parent_design_mat: designMat || '',
+                document_id: currentData.document_id || null,
+                data: {
+                    header: formData.header,
+                    summary: formData.summary,
+                    blades: formData.blades,
+                    images: formData.images || {},
+                    groups: formData.groups || []
+                },
+                create_missing_items: false,
+                update_existing_bom: true  // Signal that we're updating
+            };
+
+            showMsg('Saving BOM changes...', 'success');
+
+            fetch('/cutter-map/api/sync-to-erp/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    // Update original data to match current
+                    originalData = JSON.parse(JSON.stringify(currentData));
+                    hasUnsavedChanges = false;
+                    checkForChanges();
+                    showMsg('BOM changes saved successfully!', 'success');
+                } else {
+                    showMsg('Error saving: ' + (result.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Save error:', err);
+                showMsg('Error saving changes: ' + err.message, 'error');
+            });
+        }
+
+        function discardBOMChanges() {
+            if (!hasUnsavedChanges) {
+                showMsg('No changes to discard.', 'info');
+                return;
+            }
+
+            if (!confirm('Are you sure you want to discard all changes? This cannot be undone.')) {
+                return;
+            }
+
+            // Reload the page to get original data
+            window.location.reload();
+        }
+
+        function showReuploadDialog() {
+            // Create reupload dialog if it doesn't exist
+            let dialog = document.getElementById('reuploadDialog');
+            if (!dialog) {
+                dialog = document.createElement('div');
+                dialog.id = 'reuploadDialog';
+                dialog.className = 'mat-dialog hidden';
+                dialog.innerHTML = `
+                    <div class="mat-dialog-box" style="max-width: 600px;">
+                        <div class="mat-dialog-title" style="background: #1e3a5f; color: white; padding: 12px 15px; margin: -15px -15px 15px -15px; border-radius: 4px 4px 0 0;">
+                            📄 Re-upload PDF
+                        </div>
+                        <p style="font-size: 13px; color: #333; margin-bottom: 15px;">
+                            Upload a new PDF to replace the current data. If the extracted data differs from the saved BOM, you'll be prompted to review the changes.
+                        </p>
+                        <div id="reuploadDropzone" style="border: 2px dashed #ccc; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; margin-bottom: 15px; background: #f9f9f9;">
+                            <p style="font-size: 32px; margin-bottom: 10px;">📤</p>
+                            <p style="color: #666;">Drop PDF here or click to select</p>
+                            <input type="file" id="reuploadFileInput" accept=".pdf" style="display: none;">
+                        </div>
+                        <div id="reuploadStatus" style="display: none; margin-bottom: 15px; padding: 10px; border-radius: 4px;"></div>
+                        <div class="mat-dialog-buttons" style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button class="btn btn-gray" onclick="closeReuploadDialog()">Cancel</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(dialog);
+
+                // Set up drag and drop
+                const dropzone = document.getElementById('reuploadDropzone');
+                const fileInput = document.getElementById('reuploadFileInput');
+
+                dropzone.onclick = () => fileInput.click();
+                dropzone.ondragover = (e) => { e.preventDefault(); dropzone.style.borderColor = '#1e3a5f'; };
+                dropzone.ondragleave = () => { dropzone.style.borderColor = '#ccc'; };
+                dropzone.ondrop = (e) => {
+                    e.preventDefault();
+                    dropzone.style.borderColor = '#ccc';
+                    if (e.dataTransfer.files.length > 0) {
+                        handleReuploadFile(e.dataTransfer.files[0]);
+                    }
+                };
+                fileInput.onchange = (e) => {
+                    if (e.target.files.length > 0) {
+                        handleReuploadFile(e.target.files[0]);
+                    }
+                };
+            }
+            dialog.classList.remove('hidden');
+        }
+
+        function closeReuploadDialog() {
+            const dialog = document.getElementById('reuploadDialog');
+            if (dialog) {
+                dialog.classList.add('hidden');
+                // Reset status
+                const status = document.getElementById('reuploadStatus');
+                if (status) {
+                    status.style.display = 'none';
+                    status.innerHTML = '';
+                }
+            }
+        }
+
+        function handleReuploadFile(file) {
+            if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
+                showReuploadStatus('Please select a PDF file.', 'error');
+                return;
+            }
+
+            showReuploadStatus('Extracting data from PDF...', 'info');
+
+            const formData = new FormData();
+            formData.append('pdf', file);
+
+            fetch('/cutter-map/upload/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCSRFToken() },
+                body: formData
+            })
+            .then(r => r.json())
+            .then(newData => {
+                if (newData.error) {
+                    showReuploadStatus('Error: ' + newData.error, 'error');
+                    return;
+                }
+
+                // Compare new data with original
+                const differences = compareExtractions(originalData, newData);
+
+                if (differences.length === 0) {
+                    showReuploadStatus('✓ No differences found. The PDF matches the saved BOM data.', 'success');
+                } else {
+                    // Show comparison dialog
+                    closeReuploadDialog();
+                    showComparisonDialog(newData, differences);
+                }
+            })
+            .catch(err => {
+                console.error('Re-upload error:', err);
+                showReuploadStatus('Error processing PDF: ' + err.message, 'error');
+            });
+        }
+
+        function showReuploadStatus(message, type) {
+            const status = document.getElementById('reuploadStatus');
+            if (status) {
+                status.style.display = 'block';
+                status.style.background = type === 'error' ? '#f8d7da' : type === 'success' ? '#d4edda' : '#cce5ff';
+                status.style.color = type === 'error' ? '#721c24' : type === 'success' ? '#155724' : '#004085';
+                status.innerHTML = message;
+            }
+        }
+
+        function compareExtractions(original, newData) {
+            const differences = [];
+
+            // Compare header
+            if (original.header && newData.header) {
+                if (original.header.mat_number !== newData.header.mat_number) {
+                    differences.push({
+                        field: 'MAT Number',
+                        old: original.header.mat_number,
+                        new: newData.header.mat_number
+                    });
+                }
+                if (original.header.sn_number !== newData.header.sn_number) {
+                    differences.push({
+                        field: 'SN Number',
+                        old: original.header.sn_number,
+                        new: newData.header.sn_number
+                    });
+                }
+            }
+
+            // Compare blade count
+            const oldBladeCount = (original.blades || []).length;
+            const newBladeCount = (newData.blades || []).length;
+            if (oldBladeCount !== newBladeCount) {
+                differences.push({
+                    field: 'Blade Count',
+                    old: oldBladeCount.toString(),
+                    new: newBladeCount.toString()
+                });
+            }
+
+            // Compare summary (cutter types)
+            const oldSummary = (original.summary || []).map(s => s.type).sort().join(',');
+            const newSummary = (newData.summary || []).map(s => s.type).sort().join(',');
+            if (oldSummary !== newSummary) {
+                differences.push({
+                    field: 'Cutter Types',
+                    old: oldSummary || '(none)',
+                    new: newSummary || '(none)'
+                });
+            }
+
+            // Compare total cutter count
+            const oldTotal = (original.summary || []).reduce((sum, s) => sum + (parseInt(s.count) || 0), 0);
+            const newTotal = (newData.summary || []).reduce((sum, s) => sum + (parseInt(s.count) || 0), 0);
+            if (oldTotal !== newTotal) {
+                differences.push({
+                    field: 'Total Cutters',
+                    old: oldTotal.toString(),
+                    new: newTotal.toString()
+                });
+            }
+
+            return differences;
+        }
+
+        function showComparisonDialog(newData, differences) {
+            let dialog = document.getElementById('comparisonDialog');
+            if (dialog) dialog.remove();
+
+            let diffHtml = differences.map(d => `
+                <tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>${d.field}</strong></td>
+                    <td style="padding: 8px; border-bottom: 1px solid #eee; color: #dc3545;">${d.old}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #eee; color: #28a745;">${d.new}</td>
+                </tr>
+            `).join('');
+
+            dialog = document.createElement('div');
+            dialog.id = 'comparisonDialog';
+            dialog.className = 'mat-dialog';
+            dialog.innerHTML = `
+                <div class="mat-dialog-box" style="max-width: 700px;">
+                    <div class="mat-dialog-title" style="background: #ffc107; color: #333; padding: 12px 15px; margin: -15px -15px 15px -15px; border-radius: 4px 4px 0 0;">
+                        ⚠️ Differences Detected
+                    </div>
+                    <p style="font-size: 13px; color: #333; margin-bottom: 15px;">
+                        The uploaded PDF contains different data than the saved BOM. Please review the differences:
+                    </p>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
+                        <thead>
+                            <tr style="background: #f5f5f5;">
+                                <th style="padding: 10px; text-align: left;">Field</th>
+                                <th style="padding: 10px; text-align: left;">Saved Value</th>
+                                <th style="padding: 10px; text-align: left;">New Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>${diffHtml}</tbody>
+                    </table>
+                    <div class="mat-dialog-buttons" style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
+                        <button class="btn btn-gray" onclick="document.getElementById('comparisonDialog').remove()">Cancel (Keep Saved)</button>
+                        <button class="btn" style="background: #dc3545; color: white;" onclick="applyNewExtraction(false)">Use New Data (Discard Old)</button>
+                        <button class="btn" style="background: #28a745; color: white;" onclick="applyNewExtraction(true)">Merge (Keep Images)</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dialog);
+
+            // Store new data for later use
+            window.pendingNewExtraction = newData;
+        }
+
+        function applyNewExtraction(keepImages) {
+            const newData = window.pendingNewExtraction;
+            if (!newData) return;
+
+            // If keeping images, merge them from current data
+            if (keepImages && currentData.images) {
+                newData.images = { ...currentData.images, ...(newData.images || {}) };
+            }
+
+            // Apply new data
+            currentData = {
+                ...newData,
+                from_bom: true,
+                bom_id: document.getElementById('bomId')?.value,
+                bom_code: document.getElementById('bomCode')?.value
+            };
+
+            // Populate header fields
+            if (currentData.header) {
+                document.getElementById('snNumber').value = currentData.header.sn_number || '';
+                document.getElementById('matNumber').value = currentData.header.mat_number || '';
+                document.getElementById('dateCreated').value = currentData.header.date_created || '';
+                document.getElementById('revisionLevel').value = currentData.header.revision_level || '';
+                document.getElementById('softwareVersion').value = currentData.header.software_version || '';
+            }
+
+            // Re-render everything
+            loadData();
+            calculateOriginalSizeTotals();
+
+            // Mark as changed
+            hasUnsavedChanges = true;
+            checkForChanges();
+
+            // Clean up
+            document.getElementById('comparisonDialog').remove();
+            delete window.pendingNewExtraction;
+
+            showMsg('New PDF data applied. Click "Save Changes" to save to BOM.', 'success');
+        }
+
+        // Add beforeunload handler
+        window.addEventListener('beforeunload', function(e) {
+            const bomViewMode = document.getElementById('bomViewMode');
+            if (bomViewMode && bomViewMode.value === 'true' && hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+                return e.returnValue;
+            }
+        });
+
         // ========== PAGE INITIALIZATION ==========
         // Try to restore from sessionStorage on page load, or load BOM data if viewing a BOM
         (function initializePage() {
@@ -8063,6 +8461,10 @@
                     }
 
                     console.log('Loaded BOM data:', currentData.bom_code);
+
+                    // Initialize change tracking (buttons hidden initially since no changes yet)
+                    checkForChanges();
+
                     return; // Don't check sessionStorage
                 }
             } catch (e) {

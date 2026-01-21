@@ -76,6 +76,7 @@ def bom_view(request, bom_id):
         'bom_code': bom.code,  # L5 MAT
         'design_id': bom.design.pk if bom.design else None,
         'design_mat': bom.design.mat_no if bom.design else '',  # L3/L4 MAT
+        'design_level': f"L{bom.design.order_level}" if bom.design and bom.design.order_level else '',
         'design_hdbs': bom.design.hdbs_type if bom.design else '',
         'design_size': str(bom.design.size) if bom.design and bom.design.size else '',
         'smi_type': bom.smi_type.smi_name if bom.smi_type else (bom.design.smi_type if bom.design else ''),
