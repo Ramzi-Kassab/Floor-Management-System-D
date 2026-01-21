@@ -8254,6 +8254,11 @@
                     status.style.display = 'none';
                     status.innerHTML = '';
                 }
+                // Reset file input so same file can be selected again
+                const fileInput = document.getElementById('reuploadFileInput');
+                if (fileInput) {
+                    fileInput.value = '';
+                }
             }
         }
 
@@ -8274,9 +8279,16 @@
                 body: formData
             })
             .then(r => r.json())
-            .then(newData => {
-                if (newData.error) {
-                    showReuploadStatus('Error: ' + newData.error, 'error');
+            .then(response => {
+                if (response.error) {
+                    showReuploadStatus('Error: ' + response.error, 'error');
+                    return;
+                }
+
+                // Response structure: { success: true, data: {...}, document_id, filename }
+                const newData = response.data;
+                if (!newData) {
+                    showReuploadStatus('Error: No data extracted from PDF', 'error');
                     return;
                 }
 
