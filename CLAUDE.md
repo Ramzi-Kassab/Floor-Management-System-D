@@ -70,7 +70,46 @@ InventoryItem
 └── attribute_values (ItemAttributeValue - cutter specs)
 ```
 
-## Recent Changes (Jan 18, 2026)
+## Recent Changes (Jan 21, 2026)
+
+### Blade Location Zones Update
+- **Removed TAPER zone**: Not used in frontend, removed from backend
+- **Added PAD zone**: New zone with purple color (#a855f7), code 'P'
+- **Correct order**: CONE → NOSE → SHOULDER → GAGE → PAD (C, N, S, G, P)
+- **DesignPocket.BladeLocation** updated to match frontend positions
+- **Zone row in Pockets Layout**: Changed from mirroring B1 data to static legend showing all zones
+
+### BOM Detail Page Redesign
+- **Removed old Builder**: `/technology/boms/<pk>/builder/` link removed (obsolete)
+- **New View/Edit Layout buttons**: Opens PDF Generator with BOM data pre-loaded
+  - View Layout: `/cutter-map/bom/<bom_id>/` - view-only mode
+  - Edit Layout: `/cutter-map/bom/<bom_id>/?edit=1` - full editing enabled
+- **source_data JSONField** added to BOM model to store complete PDF data
+- **api_sync_to_erp** now saves header, summary, and blades to `bom.source_data`
+
+### Data Flow for BOM ↔ PDF Generator
+```
+PDF Upload → Extract → Edit → Create BOM → source_data saved
+                                    ↓
+BOM Detail → View/Edit Layout → PDF Generator (pre-populated)
+```
+
+**What's saved in BOM.source_data:**
+- `header`: mat_number, sn_number, date_created, revision_level, software_version
+- `summary`: array of cutter specs (index, type, chamfer, mat_number, size, count, fill_color)
+- `blades`: complete blade layout with r1-r4 rows and positions
+
+### Bug Fixes (Cutter Map)
+- **Fixed blade number extraction**: Was using `blade.get('blade_id')` which doesn't exist; now parses from `blade.name` (e.g., "B1" → 1)
+- **Fixed blade location extraction**: Was using `cell.get('pos')` which doesn't exist; now uses `pos_key` (dictionary key like 'CONE', 'NOSE')
+- **Result**: All 6 blades now populate correctly in Pockets Grid and Location Assignment Grid
+
+### New Files
+- `apps/cutter_map/views.py:bom_view` - View BOM in PDF Generator
+- `templates/cutter_map/bom_no_data.html` - Message when BOM has no source_data
+- `apps/technology/migrations/0023-0025` - PAD zone and source_data migrations
+
+## Previous Changes (Jan 18, 2026)
 
 ### Job Card / Work Order System Enhancement
 A comprehensive Job Card system has been implemented to digitize the paper-based job card workflow for drill bit manufacturing and repair.
