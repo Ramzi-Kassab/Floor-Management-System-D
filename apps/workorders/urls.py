@@ -37,6 +37,7 @@ urlpatterns = [
 
     # Drill Bit CRUD (new enhanced versions)
     path("drill-bits/new/", views_drillbit.DrillBitCreateView.as_view(), name="drillbit_create"),
+    path("drill-bits/<int:pk>/first-event/", views_drillbit.DrillBitFirstEventView.as_view(), name="drillbit_first_event"),
     path("drill-bits/<int:pk>/detail/", views_jobcard.DrillBitDetailEnhancedView.as_view(), name="drillbit_detail"),
     path("drill-bits/<int:pk>/edit/", views_drillbit.DrillBitUpdateView.as_view(), name="drillbit_edit"),
     path("drill-bits/<int:pk>/delete/", views_drillbit.DrillBitDeleteView.as_view(), name="drillbit_delete"),

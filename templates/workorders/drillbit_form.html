@@ -19,7 +19,8 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         {% if action == 'create' %}
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Select a Design (L3/L4), optionally assign a BOM (L5), then enter the serial number and location.
+            Register a drill bit by selecting a Design and entering its serial number.
+            After registration, you'll specify what's happening with this bit.
         </p>
         {% endif %}
     </div>
@@ -114,59 +115,6 @@
             </div>
         </div>
 
-        <!-- Step 4: Location & Details -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white text-sm rounded-full mr-2">4</span>
-                Location & Details
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Location -->
-                <div>
-                    <label for="id_bit_location" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Initial Location <span class="text-red-500">*</span>
-                    </label>
-                    {{ form.bit_location }}
-                    {% if form.bit_location.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.bit_location.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <!-- Customer -->
-                <div>
-                    <label for="id_customer" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Customer (Optional)
-                    </label>
-                    {{ form.customer }}
-                    {% if form.customer.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.customer.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <!-- Received Date -->
-                <div>
-                    <label for="id_received_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Received Date
-                    </label>
-                    {{ form.received_date }}
-                    {% if form.received_date.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.received_date.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <!-- Original Cost -->
-                <div>
-                    <label for="id_original_cost" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Original Cost (USD)
-                    </label>
-                    {{ form.original_cost }}
-                    {% if form.original_cost.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.original_cost.errors.0 }}</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
         {% else %}
         <!-- Edit Mode - Show all fields -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
@@ -214,7 +162,7 @@
             </a>
             <button type="submit"
                     class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                {% if action == 'create' %}Register Drill Bit{% else %}Save Changes{% endif %}
+                {% if action == 'create' %}Continue{% else %}Save Changes{% endif %}
             </button>
         </div>
     </form>

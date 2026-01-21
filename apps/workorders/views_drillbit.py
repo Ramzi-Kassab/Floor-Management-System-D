@@ -166,12 +166,17 @@ class DrillBitInventoryDashboardView(LoginRequiredMixin, TemplateView):
 
 class DrillBitCreateView(LoginRequiredMixin, CreateView):
     """
-    Register a new drill bit in the system.
+    Register a new drill bit in the system - IDENTITY ONLY.
 
-    Workflow options:
-    1. Select Design (L3/L4) first, then optionally select related L5 BOM
-    2. Select L5 BOM first, which auto-populates the Design
-    3. Select only Design (no BOM) - for inventory bits without assigned BOM yet
+    Captures only what defines the bit:
+    - Serial Number
+    - Design (L3/L4)
+    - BOM (L5, optional)
+
+    After registration, redirects to "First Event" page where user can:
+    - Record RECEIVED event (bit arrived)
+    - Record CUSTOMER_INTAKE event (customer brought for service)
+    - Skip (just register, no event yet - for bits still in production)
     """
 
     model = DrillBit
@@ -185,7 +190,6 @@ class DrillBitCreateView(LoginRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Register New Drill Bit"
         context["action"] = "create"
-        context["locations"] = Location.objects.filter(is_active=True)
 
         from apps.technology.models import BOM, Design
 
@@ -217,31 +221,113 @@ class DrillBitCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-
         response = super().form_valid(form)
 
-        # Create initial event
-        if form.instance.bit_location:
-            bom_info = f"BOM: {self.object.bom.code}" if self.object.bom else "No BOM assigned"
-            BitEvent.objects.create(
-                bit=self.object,
-                event_type=BitEvent.EventType.RECEIVED,
-                event_date=timezone.now(),
-                location=form.instance.bit_location,
-                notes=f"Registered in system. Serial: {self.object.serial_number}. Design: {self.object.design.mat_no if self.object.design else 'N/A'}. {bom_info}",
-                performed_by=self.request.user,
-            )
+        # No event created here - First Event wizard will capture location and create event
+        # The bit exists in the system but has no location/status until first event
 
         design_info = self.object.design.mat_no if self.object.design else "Unknown"
         bom_info = f" with BOM {self.object.bom.code}" if self.object.bom else ""
         messages.success(
             self.request,
-            f'Drill bit "{self.object.serial_number}" registered successfully for design {design_info}{bom_info}.',
+            f'Drill bit "{self.object.serial_number}" registered for design {design_info}{bom_info}.',
         )
         return response
 
     def get_success_url(self):
-        return reverse("workorders:drillbit_detail", kwargs={"pk": self.object.pk})
+        # Redirect to first event page
+        return reverse("workorders:drillbit_first_event", kwargs={"pk": self.object.pk})
+
+
+class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
+    """
+    First Event wizard - capture what's happening with a newly registered bit.
+
+    Options:
+    1. RECEIVED - Bit physically arrived at ARDT warehouse
+    2. CUSTOMER_INTAKE - Customer brought bit for service
+    3. IN_PRODUCTION - Bit is still being manufactured (no location yet)
+    4. Skip - Just registered, will add event later
+    """
+    template_name = "workorders/drillbit_first_event.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        bit = get_object_or_404(DrillBit, pk=self.kwargs['pk'])
+        context['bit'] = bit
+        context['locations'] = Location.objects.filter(is_active=True).order_by('name')
+        context['customers'] = Customer.objects.filter(is_active=True).order_by('name') if hasattr(Customer, 'is_active') else Customer.objects.all().order_by('name')
+        return context
+
+    def post(self, request, *args, **kwargs):
+        bit = get_object_or_404(DrillBit, pk=self.kwargs['pk'])
+        event_type = request.POST.get('event_type')
+
+        if event_type == 'skip':
+            messages.info(request, f'Drill bit "{bit.serial_number}" registered. You can add events later from the detail page.')
+            return redirect('workorders:drillbit_detail', pk=bit.pk)
+
+        location_id = request.POST.get('location')
+        customer_id = request.POST.get('customer')
+        notes = request.POST.get('notes', '')
+
+        if not location_id:
+            messages.error(request, 'Please select a location.')
+            return redirect('workorders:drillbit_first_event', pk=bit.pk)
+
+        location = get_object_or_404(Location, pk=location_id)
+
+        # Update bit fields based on event type
+        if event_type == 'received':
+            # ARDT received new bit
+            bit.bit_location = location
+            bit.status = DrillBit.Status.IN_STOCK
+            bit.lifecycle_status = DrillBit.LifecycleStatus.NEW
+            bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+            bit.accounting_status = DrillBit.AccountingStatus.ARDT_OWNED
+            event_type_choice = BitEvent.EventType.RECEIVED
+            event_notes = f"Received at {location.name}. {notes}".strip()
+
+        elif event_type == 'customer_intake':
+            # Customer brought bit for service
+            bit.bit_location = location
+            bit.status = DrillBit.Status.RETURNED
+            bit.lifecycle_status = DrillBit.LifecycleStatus.EVALUATION
+            bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+            bit.accounting_status = DrillBit.AccountingStatus.CUSTOMER_OWNED
+            if customer_id:
+                bit.customer = get_object_or_404(Customer, pk=customer_id)
+            event_type_choice = BitEvent.EventType.BACKLOADED  # Using BACKLOADED for customer intake
+            event_notes = f"Customer intake at {location.name}. Customer: {bit.customer.name if bit.customer else 'Not specified'}. {notes}".strip()
+
+        elif event_type == 'in_production':
+            # Bit exists but still in production (no physical location at ARDT)
+            bit.status = DrillBit.Status.IN_PRODUCTION
+            bit.lifecycle_status = DrillBit.LifecycleStatus.NEW
+            # No physical location yet, but we need one for the event
+            # Use the selected location as "pending delivery to"
+            bit.bit_location = location
+            event_type_choice = BitEvent.EventType.RECEIVED
+            event_notes = f"Registered - In production, pending delivery to {location.name}. {notes}".strip()
+
+        else:
+            messages.error(request, 'Invalid event type.')
+            return redirect('workorders:drillbit_first_event', pk=bit.pk)
+
+        bit.save()
+
+        # Create the event
+        BitEvent.objects.create(
+            bit=bit,
+            event_type=event_type_choice,
+            event_date=timezone.now(),
+            location=location,
+            notes=event_notes,
+            performed_by=request.user,
+        )
+
+        messages.success(request, f'Drill bit "{bit.serial_number}" is now tracked at {location.name}.')
+        return redirect('workorders:drillbit_detail', pk=bit.pk)
 
 
 class DrillBitUpdateView(LoginRequiredMixin, UpdateView):

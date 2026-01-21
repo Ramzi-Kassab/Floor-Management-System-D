@@ -109,6 +109,45 @@ BOM Detail → View/Edit Layout → PDF Generator (pre-populated)
 - `templates/cutter_map/bom_no_data.html` - Message when BOM has no source_data
 - `apps/technology/migrations/0023-0025` - PAD zone and source_data migrations
 
+### Old BOM Builder Removed
+The manual BOM Builder (`/technology/boms/<pk>/builder/`) has been removed and fully replaced by the Cutter Map PDF Generator:
+- **Removed URLs**: `bom_builder`, `bom_builder_add_line`, `bom_builder_update_line`, `bom_builder_delete_line`, `bom_builder_reorder`, `bom_builder_search_items`
+- **Removed Views**: `BOMBuilderView`, `BOMBuilderAddLineView`, `BOMBuilderUpdateLineView`, `BOMBuilderDeleteLineView`, `BOMBuilderReorderView`, `BOMBuilderSearchItemsView`
+- **Removed Template**: `templates/technology/bom_builder.html`
+- **Updated Redirects**: BOM clone and PDF import now redirect to `cutter_map:bom_view` or `technology:bom_detail`
+- **Replacement**: Use `/cutter-map/bom/<bom_id>/` for viewing/editing BOM layout
+
+### Drill Bit Registration Simplified (Identity vs State)
+Registration now captures **identity only** - dynamic state is tracked via events.
+
+**Identity (fixed at registration):**
+- Serial Number (6-8 digits from Halliburton USA)
+- Design (L3/L4 - determines bit type and size)
+- BOM (L5 - optional)
+
+**State (dynamic, tracked via BitEvent):**
+- Location (changes with TRANSFER, DEPLOY, RECEIVE events)
+- Customer (assigned via intake or deployment)
+- Status (lifecycle_status, physical_status, accounting_status)
+
+**Business Model:**
+- ARDT-owned bits: For sale or rental service (Sperry, etc.)
+- Customer-owned bits: Halliburton/Aramco bits brought in for service
+- Serial numbers arrive in batches (2-3 at a time) after ordering
+
+### First Event Wizard (After Registration)
+After registering a drill bit (identity only), user is redirected to `/workorders/drill-bits/<pk>/first-event/`:
+
+**Event Options:**
+1. 📦 **Received at ARDT** - New bit physically arrived at warehouse
+2. 🔧 **Customer Intake** - Customer brought bit for repair/service
+3. 🏭 **In Production (USA)** - Bit still being manufactured
+4. ⏭️ **Skip for Now** - Just register identity, add events later
+
+**New View**: `DrillBitFirstEventView` at `apps/workorders/views_drillbit.py`
+**New Template**: `templates/workorders/drillbit_first_event.html`
+**Updated Form**: `DrillBitCreateForm` now only has `serial_number`, `design`, `bom` fields
+
 ## Previous Changes (Jan 18, 2026)
 
 ### Job Card / Work Order System Enhancement
