@@ -74,6 +74,7 @@ def bom_view(request, bom_id):
     bom_context = {
         'bom_id': bom.pk,
         'bom_code': bom.code,  # L5 MAT
+        'bom_status': bom.status,  # DRAFT, ACTIVE, or OBSOLETE
         'design_id': bom.design.pk if bom.design else None,
         'design_mat': bom.design.mat_no if bom.design else '',  # L3/L4 MAT
         'design_level': f"L{bom.design.order_level}" if bom.design and bom.design.order_level else '',
@@ -1004,6 +1005,61 @@ def api_sync_to_erp(request):
             'technical_error': error_msg,  # Include for debugging
             'can_retry': True  # Tell frontend user can try again
         }, status=500)
+
+
+@login_required
+@require_POST
+def api_activate_bom(request, bom_id):
+    """
+    API: Activate a BOM (set status from DRAFT to ACTIVE).
+
+    Validates that:
+    - BOM exists
+    - BOM has at least one line
+    - BOM is currently in DRAFT status
+    """
+    from apps.technology.models import BOM
+
+    try:
+        bom = BOM.objects.get(pk=bom_id)
+    except BOM.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': f'BOM with ID {bom_id} not found'
+        }, status=404)
+
+    # Check current status
+    if bom.status == BOM.Status.ACTIVE:
+        return JsonResponse({
+            'success': True,
+            'message': 'BOM is already active',
+            'status': bom.status
+        })
+
+    if bom.status == BOM.Status.OBSOLETE:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cannot activate an obsolete BOM'
+        }, status=400)
+
+    # Check if BOM has lines
+    lines_count = bom.lines.count()
+    if lines_count == 0:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cannot activate BOM with no items. Please add cutter items first.'
+        }, status=400)
+
+    # Activate the BOM
+    bom.status = BOM.Status.ACTIVE
+    bom.save(update_fields=['status'])
+
+    return JsonResponse({
+        'success': True,
+        'message': f'BOM {bom.code} activated successfully',
+        'status': bom.status,
+        'lines_count': lines_count
+    })
 
 
 @login_required

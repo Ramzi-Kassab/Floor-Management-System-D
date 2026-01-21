@@ -975,15 +975,15 @@
 <body>
     <div class="app-header" style="display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 15px;">
-            <a href="/" title="Back to Home" style="color: white; text-decoration: none; display: flex; align-items: center; padding: 6px 10px; background: rgba(255,255,255,0.15); border-radius: 4px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+            <a href="{% url 'dashboard:home' %}" title="Back to Home" style="color: white; text-decoration: none; display: flex; align-items: center; padding: 6px 10px; background: rgba(255,255,255,0.15); border-radius: 4px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
                 </svg>
             </a>
             <h1>HALLIBURTON PDF Generator</h1>
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
-            {% if not design_context %}
+            {% if not design_context and not bom_context %}
             <a href="{% url 'technology:bom_create' %}" style="color: white; text-decoration: none; font-size: 12px; padding: 6px 12px; background: rgba(255,255,255,0.15); border-radius: 4px;">
                 Create BOM from Design
             </a>
@@ -1002,21 +1002,25 @@
                 <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold;">
                     VIEWING BOM
                 </span>
-                <div style="display: flex; gap: 20px; font-size: 13px;">
+                <div style="display: flex; gap: 15px; font-size: 13px; align-items: center;">
                     <span style="background: #10b981; padding: 2px 8px; border-radius: 3px; font-weight: bold;">L5</span>
-                    <span><strong>L5 MAT:</strong> {{ bom_context.bom_code }}</span>
+                    <span><strong>MAT:</strong> {{ bom_context.bom_code }}</span>
                     {% if bom_context.design_level %}
                     <span style="background: {% if bom_context.design_level == 'L3' %}#2196f3{% else %}#8b5cf6{% endif %}; padding: 2px 8px; border-radius: 3px; font-weight: bold;">
                         {{ bom_context.design_level }}
                     </span>
+                    <span><strong>MAT:</strong> {{ bom_context.design_mat }}</span>
                     {% endif %}
-                    <span><strong>{{ bom_context.design_level }} MAT:</strong> {{ bom_context.design_mat }}</span>
                     <span><strong>HDBS:</strong> {{ bom_context.design_hdbs }}</span>
                     {% if bom_context.design_size %}<span><strong>Size:</strong> {{ bom_context.design_size }}</span>{% endif %}
                     {% if bom_context.smi_type %}<span><strong>SMI:</strong> {{ bom_context.smi_type }}</span>{% endif %}
                 </div>
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
+                <!-- BOM Status Badge -->
+                <span id="bomStatusBadge" style="background: {% if bom_context.bom_status == 'ACTIVE' %}#10b981{% elif bom_context.bom_status == 'OBSOLETE' %}#6b7280{% else %}#f59e0b{% endif %}; padding: 4px 10px; border-radius: 4px; font-size: 10px; font-weight: bold;">
+                    {{ bom_context.bom_status }}
+                </span>
                 <!-- Save Changes Button -->
                 <button type="button" onclick="saveBOMChanges()"
                         id="btnSaveChanges"
@@ -1029,22 +1033,19 @@
                         style="background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; display: none;">
                     ✕ Discard
                 </button>
+                <!-- Activate BOM Button (only shown for DRAFT BOMs) -->
+                {% if bom_context.bom_status == 'DRAFT' %}
+                <button type="button" onclick="activateBOM()"
+                        id="btnActivateBOM"
+                        style="background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold;">
+                    ✓ Activate BOM
+                </button>
+                {% endif %}
                 <!-- Re-upload PDF Button -->
                 <button type="button" onclick="showReuploadDialog()"
                         style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer;">
                     📄 Re-upload PDF
                 </button>
-                <!-- Home Button -->
-                <a href="{% url 'dashboard:home' %}"
-                   style="background: rgba(255,255,255,0.2); color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 11px;"
-                   title="Home">
-                    🏠
-                </a>
-                <!-- BOM List Button -->
-                <a href="{% url 'technology:bom_list' %}"
-                   style="background: rgba(255,255,255,0.2); color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 11px;">
-                    📋 BOM List
-                </a>
             </div>
         </div>
     </div>
@@ -1054,6 +1055,7 @@
     <input type="hidden" id="designSize" value="{{ bom_context.design_size }}">
     <input type="hidden" id="bomId" value="{{ bom_context.bom_id }}">
     <input type="hidden" id="bomCode" value="{{ bom_context.bom_code }}">
+    <input type="hidden" id="bomStatus" value="{{ bom_context.bom_status }}">
     <input type="hidden" id="bomViewMode" value="true">
     {% elif design_context %}
     <!-- Design Context Banner - Shown when coming from BOM Create -->
@@ -8140,6 +8142,57 @@
             window.location.reload();
         }
 
+        function activateBOM() {
+            const bomId = document.getElementById('bomId')?.value;
+
+            if (!bomId) {
+                showMsg('No BOM to activate.', 'error');
+                return;
+            }
+
+            if (hasUnsavedChanges) {
+                showMsg('Please save your changes before activating the BOM.', 'error');
+                return;
+            }
+
+            if (!confirm('Are you sure you want to activate this BOM? Once active, the BOM will be available for production use.')) {
+                return;
+            }
+
+            showMsg('Activating BOM...', 'success');
+
+            fetch(`/cutter-map/api/activate-bom/${bomId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                }
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    showMsg('BOM activated successfully!', 'success');
+                    // Update the status badge
+                    const badge = document.getElementById('bomStatusBadge');
+                    if (badge) {
+                        badge.textContent = 'ACTIVE';
+                        badge.style.background = '#10b981';
+                    }
+                    // Hide the activate button
+                    const btn = document.getElementById('btnActivateBOM');
+                    if (btn) {
+                        btn.style.display = 'none';
+                    }
+                } else {
+                    showMsg('Error: ' + (result.error || 'Could not activate BOM'), 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Activate error:', err);
+                showMsg('Error activating BOM: ' + err.message, 'error');
+            });
+        }
+
         function showReuploadDialog() {
             // Create reupload dialog if it doesn't exist
             let dialog = document.getElementById('reuploadDialog');
@@ -8213,7 +8266,7 @@
             showReuploadStatus('Extracting data from PDF...', 'info');
 
             const formData = new FormData();
-            formData.append('pdf', file);
+            formData.append('original_pdf', file);  // Field name must match form
 
             fetch('/cutter-map/upload/', {
                 method: 'POST',
