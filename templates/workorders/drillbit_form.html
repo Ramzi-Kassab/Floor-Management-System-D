@@ -19,7 +19,7 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         {% if action == 'create' %}
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Select a BOM (L5) to auto-populate design specifications, then enter the serial number and location.
+            Select a Design (L3/L4), optionally assign a BOM (L5), then enter the serial number and location.
         </p>
         {% endif %}
     </div>
@@ -29,54 +29,75 @@
         {% csrf_token %}
 
         {% if action == 'create' %}
-        <!-- Step 1: BOM Selection -->
+        <!-- Step 1: Design Selection -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                 <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white text-sm rounded-full mr-2">1</span>
-                Select BOM (L5)
+                Select Design (L3/L4)
             </h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Choose the Bill of Materials that this drill bit will be manufactured from.
-                This will auto-populate the design specifications.
+                Choose the design this drill bit will be manufactured from. This is required.
             </p>
-            <div>
-                <label for="id_bom" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    BOM <span class="text-red-500">*</span>
-                </label>
-                {{ form.bom }}
-                {% if form.bom.errors %}
-                <p class="mt-1 text-sm text-red-600">{{ form.bom.errors.0 }}</p>
-                {% endif %}
-            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="id_design" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Design <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.design }}
+                    {% if form.design.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.design.errors.0 }}</p>
+                    {% endif %}
+                </div>
 
-            <!-- Design Preview (populated by JavaScript) -->
-            <div id="design-preview" class="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hidden">
-                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Design Specifications (Auto-populated)</h4>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                        <span class="text-gray-500 dark:text-gray-400">Design MAT#:</span>
-                        <p id="preview-mat-no" class="font-medium text-gray-900 dark:text-white">-</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 dark:text-gray-400">Size:</span>
-                        <p id="preview-size" class="font-medium text-gray-900 dark:text-white">-</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 dark:text-gray-400">Category:</span>
-                        <p id="preview-category" class="font-medium text-gray-900 dark:text-white">-</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 dark:text-gray-400">HDBS Type:</span>
-                        <p id="preview-hdbs" class="font-medium text-gray-900 dark:text-white">-</p>
+                <!-- Design Preview -->
+                <div id="design-preview" class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hidden">
+                    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Design Info</h4>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                            <span class="text-gray-500 dark:text-gray-400">Size:</span>
+                            <p id="preview-size" class="font-medium text-gray-900 dark:text-white">-</p>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 dark:text-gray-400">Category:</span>
+                            <p id="preview-category" class="font-medium text-gray-900 dark:text-white">-</p>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 dark:text-gray-400">HDBS Type:</span>
+                            <p id="preview-hdbs" class="font-medium text-gray-900 dark:text-white">-</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Step 2: Serial Number -->
+        <!-- Step 2: BOM Selection (Optional) -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                 <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white text-sm rounded-full mr-2">2</span>
+                Select BOM (L5) - Optional
+            </h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                If you know the L5 BOM for this bit, select it here. This is optional - you can register a bit
+                with just a Design and assign the BOM later.
+            </p>
+            <div class="max-w-md">
+                <label for="id_bom" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    BOM (L5)
+                </label>
+                {{ form.bom }}
+                {% if form.bom.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.bom.errors.0 }}</p>
+                {% endif %}
+                <p id="bom-hint" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Select a design first to see available BOMs
+                </p>
+            </div>
+        </div>
+
+        <!-- Step 3: Serial Number -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white text-sm rounded-full mr-2">3</span>
                 Enter Serial Number
             </h3>
             <div class="max-w-md">
@@ -93,10 +114,10 @@
             </div>
         </div>
 
-        <!-- Step 3: Location & Details -->
+        <!-- Step 4: Location & Details -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white text-sm rounded-full mr-2">3</span>
+                <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white text-sm rounded-full mr-2">4</span>
                 Location & Details
             </h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -201,33 +222,83 @@
 
 {% if action == 'create' %}
 <script>
-// BOM data for preview
+// Data for JavaScript filtering
+const designsData = {{ designs_json|safe }};
 const bomsData = {{ boms_json|safe }};
 
 document.addEventListener('DOMContentLoaded', function() {
+    const designSelect = document.getElementById('id_design');
     const bomSelect = document.getElementById('id_bom');
     const designPreview = document.getElementById('design-preview');
+    const bomHint = document.getElementById('bom-hint');
 
-    if (bomSelect) {
-        bomSelect.addEventListener('change', function() {
-            const selectedId = parseInt(this.value);
-            const bom = bomsData.find(b => b.id === selectedId);
+    // Store original BOM options
+    const originalBomOptions = Array.from(bomSelect.options);
 
-            if (bom) {
-                document.getElementById('preview-mat-no').textContent = bom.design_mat_no || '-';
-                document.getElementById('preview-size').textContent = bom.size || '-';
-                document.getElementById('preview-category').textContent = bom.category || '-';
-                document.getElementById('preview-hdbs').textContent = bom.hdbs_type || '-';
-                designPreview.classList.remove('hidden');
-            } else {
-                designPreview.classList.add('hidden');
-            }
+    function updateDesignPreview(designId) {
+        const design = designsData.find(d => d.id === parseInt(designId));
+        if (design) {
+            document.getElementById('preview-size').textContent = design.size || '-';
+            document.getElementById('preview-category').textContent = design.category || '-';
+            document.getElementById('preview-hdbs').textContent = design.hdbs_type || '-';
+            designPreview.classList.remove('hidden');
+        } else {
+            designPreview.classList.add('hidden');
+        }
+    }
+
+    function filterBomsByDesign(designId) {
+        // Clear current options
+        bomSelect.innerHTML = '<option value="">---------</option>';
+
+        if (!designId) {
+            bomHint.textContent = 'Select a design first to see available BOMs';
+            return;
+        }
+
+        // Filter BOMs by selected design
+        const filteredBoms = bomsData.filter(b => b.design_id === parseInt(designId));
+
+        if (filteredBoms.length === 0) {
+            bomHint.textContent = 'No BOMs available for this design';
+        } else {
+            bomHint.textContent = `${filteredBoms.length} BOM(s) available for this design`;
+            filteredBoms.forEach(bom => {
+                const option = document.createElement('option');
+                option.value = bom.id;
+                option.textContent = `${bom.code} (${bom.name || 'L5'})`;
+                bomSelect.appendChild(option);
+            });
+        }
+    }
+
+    // When design changes
+    if (designSelect) {
+        designSelect.addEventListener('change', function() {
+            const designId = this.value;
+            updateDesignPreview(designId);
+            filterBomsByDesign(designId);
         });
 
         // Trigger on load if value exists
-        if (bomSelect.value) {
-            bomSelect.dispatchEvent(new Event('change'));
+        if (designSelect.value) {
+            updateDesignPreview(designSelect.value);
+            filterBomsByDesign(designSelect.value);
         }
+    }
+
+    // When BOM changes - auto-select design if not already selected
+    if (bomSelect) {
+        bomSelect.addEventListener('change', function() {
+            const bomId = parseInt(this.value);
+            if (bomId && !designSelect.value) {
+                const bom = bomsData.find(b => b.id === bomId);
+                if (bom && bom.design_id) {
+                    designSelect.value = bom.design_id;
+                    updateDesignPreview(bom.design_id);
+                }
+            }
+        });
     }
 });
 </script>

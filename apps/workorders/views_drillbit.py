@@ -167,7 +167,11 @@ class DrillBitInventoryDashboardView(LoginRequiredMixin, TemplateView):
 class DrillBitCreateView(LoginRequiredMixin, CreateView):
     """
     Register a new drill bit in the system.
-    Uses BOM selection to auto-populate design details.
+
+    Workflow options:
+    1. Select Design (L3/L4) first, then optionally select related L5 BOM
+    2. Select L5 BOM first, which auto-populates the Design
+    3. Select only Design (no BOM) - for inventory bits without assigned BOM yet
     """
 
     model = DrillBit
@@ -183,20 +187,32 @@ class DrillBitCreateView(LoginRequiredMixin, CreateView):
         context["action"] = "create"
         context["locations"] = Location.objects.filter(is_active=True)
 
-        # Get BOMs with design info for JavaScript
-        from apps.technology.models import BOM
+        from apps.technology.models import BOM, Design
+
+        # Get Designs for JavaScript
+        designs_data = []
+        for design in Design.objects.select_related("size").order_by("mat_no"):
+            designs_data.append({
+                "id": design.id,
+                "mat_no": design.mat_no,
+                "hdbs_type": design.hdbs_type or "",
+                "size": str(design.size) if design.size else "",
+                "category": design.category or "",
+            })
+        context["designs_json"] = designs_data
+
+        # Get BOMs with design_id for JavaScript filtering
         boms_data = []
         for bom in BOM.objects.filter(status="ACTIVE", design__isnull=False).select_related("design", "design__size"):
             boms_data.append({
                 "id": bom.id,
                 "code": bom.code,
+                "name": bom.name or "",
+                "design_id": bom.design.id if bom.design else None,
                 "design_mat_no": bom.design.mat_no if bom.design else "",
-                "design_name": str(bom.design) if bom.design else "",
-                "size": str(bom.design.size) if bom.design and bom.design.size else "",
-                "category": bom.design.category if bom.design else "",
-                "hdbs_type": bom.design.hdbs_type if bom.design else "",
             })
         context["boms_json"] = boms_data
+
         return context
 
     def form_valid(self, form):
@@ -206,18 +222,21 @@ class DrillBitCreateView(LoginRequiredMixin, CreateView):
 
         # Create initial event
         if form.instance.bit_location:
+            bom_info = f"BOM: {self.object.bom.code}" if self.object.bom else "No BOM assigned"
             BitEvent.objects.create(
                 bit=self.object,
                 event_type=BitEvent.EventType.RECEIVED,
                 event_date=timezone.now(),
                 location=form.instance.bit_location,
-                notes=f"Registered in system. Serial: {self.object.serial_number}. BOM: {self.object.bom.code if self.object.bom else 'N/A'}",
+                notes=f"Registered in system. Serial: {self.object.serial_number}. Design: {self.object.design.mat_no if self.object.design else 'N/A'}. {bom_info}",
                 performed_by=self.request.user,
             )
 
+        design_info = self.object.design.mat_no if self.object.design else "Unknown"
+        bom_info = f" with BOM {self.object.bom.code}" if self.object.bom else ""
         messages.success(
             self.request,
-            f'Drill bit "{self.object.serial_number}" registered successfully from BOM {self.object.bom.code if self.object.bom else "N/A"}.',
+            f'Drill bit "{self.object.serial_number}" registered successfully for design {design_info}{bom_info}.',
         )
         return response
 

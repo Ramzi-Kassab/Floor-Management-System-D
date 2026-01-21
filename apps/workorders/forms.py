@@ -287,14 +287,19 @@ class DrillBitFilterForm(forms.Form):
 
 class DrillBitCreateForm(forms.ModelForm):
     """
-    Form for creating new drill bits with BOM/Design selection.
-    Auto-populates size, type, etc. from the selected BOM's Design.
+    Form for creating new drill bits with Design/BOM selection.
+
+    Workflow options:
+    1. Select Design (L3/L4) first, then optionally select related L5 BOM
+    2. Select L5 BOM first, which auto-populates the Design
+    3. Select only Design (no BOM) - for inventory bits without assigned BOM yet
     """
     INPUT_CLASS = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
 
     class Meta:
         model = DrillBit
         fields = [
+            "design",
             "bom",
             "serial_number",
             "customer",
@@ -303,6 +308,10 @@ class DrillBitCreateForm(forms.ModelForm):
             "original_cost",
         ]
         widgets = {
+            "design": forms.Select(attrs={
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+                "id": "id_design",
+            }),
             "bom": forms.Select(attrs={
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
                 "id": "id_bom",
@@ -328,7 +337,8 @@ class DrillBitCreateForm(forms.ModelForm):
             }),
         }
         labels = {
-            "bom": "Select BOM (L5)",
+            "design": "Design (L3/L4)",
+            "bom": "BOM (L5) - Optional",
             "serial_number": "Serial Number",
             "customer": "Customer (Optional)",
             "bit_location": "Initial Location",
@@ -336,29 +346,32 @@ class DrillBitCreateForm(forms.ModelForm):
             "original_cost": "Original Cost ($)",
         }
         help_texts = {
-            "bom": "Select the L5 BOM - this will auto-populate design details",
+            "design": "Select the design (L3 or L4) for this drill bit",
+            "bom": "Optionally select the L5 BOM if known (will be filtered by selected design)",
             "serial_number": "6-8 digit serial number (not auto-generated)",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Import here to avoid circular imports
-        from apps.technology.models import BOM
+        from apps.technology.models import BOM, Design
         from apps.workorders.models import Location
 
-        # Only show active BOMs with designs
+        # Design is required
+        self.fields["design"].queryset = Design.objects.select_related("size").order_by("mat_no")
+        self.fields["design"].required = True
+        self.fields["design"].label_from_instance = lambda obj: f"{obj.mat_no} - {obj.hdbs_type or ''} ({obj.size})" if obj.size else obj.mat_no
+
+        # BOM is optional - will be filtered by JavaScript based on selected design
         self.fields["bom"].queryset = BOM.objects.filter(
             status="ACTIVE",
             design__isnull=False
         ).select_related("design", "design__size").order_by("design__mat_no", "code")
-        self.fields["bom"].label_from_instance = lambda obj: f"{obj.code} - {obj.design.mat_no} ({obj.design.size})" if obj.design else obj.code
+        self.fields["bom"].required = False
+        self.fields["bom"].label_from_instance = lambda obj: f"{obj.code} ({obj.name or 'L5'})"
 
         # Only active locations
         self.fields["bit_location"].queryset = Location.objects.filter(is_active=True)
         self.fields["bit_location"].required = True
-
-        # Make bom required
-        self.fields["bom"].required = True
 
     def clean_serial_number(self):
         serial_number = self.cleaned_data.get("serial_number")
@@ -370,6 +383,19 @@ class DrillBitCreateForm(forms.ModelForm):
             if not serial_number.isdigit() or len(serial_number) < 6 or len(serial_number) > 8:
                 raise ValidationError("Serial number must be 6-8 digits.")
         return serial_number
+
+    def clean(self):
+        cleaned_data = super().clean()
+        design = cleaned_data.get("design")
+        bom = cleaned_data.get("bom")
+
+        # If BOM is selected, ensure it belongs to the selected design
+        if bom and design and bom.design != design:
+            raise ValidationError({
+                "bom": "Selected BOM does not belong to the selected design."
+            })
+
+        return cleaned_data
 
     def save(self, commit=True):
         instance = super().save(commit=False)
