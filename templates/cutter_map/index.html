@@ -8299,11 +8299,15 @@
                     return;
                 }
 
+                // Store for potential image update
+                window.pendingNewExtraction = newData;
+
                 // Compare new data with original
                 const differences = compareExtractions(originalData, newData);
 
                 if (differences.length === 0) {
-                    showReuploadStatus('✓ No differences found. The PDF matches the saved BOM data.', 'success');
+                    // No data differences - but offer to update images
+                    showNoChangesWithImageOption(newData);
                 } else {
                     // Show comparison dialog
                     closeReuploadDialog();
@@ -8314,6 +8318,84 @@
                 console.error('Re-upload error:', err);
                 showReuploadStatus('Error processing PDF: ' + err.message, 'error');
             });
+        }
+
+        function showNoChangesWithImageOption(newData) {
+            // Check if new extraction has images
+            const hasNewImages = newData.images && Object.keys(newData.images).length > 0;
+            const hasNewShapes = newData.cutter_shapes && Object.keys(newData.cutter_shapes).length > 0;
+            const hasDrillBitImage = newData.drill_bit_image && newData.drill_bit_image.data;
+
+            let imageInfo = [];
+            if (hasDrillBitImage) imageInfo.push('Drill Bit Photo');
+            if (hasNewImages) imageInfo.push(`${Object.keys(newData.images).length} image(s)`);
+            if (hasNewShapes) imageInfo.push(`${Object.keys(newData.cutter_shapes).length} cutter shape(s)`);
+
+            const statusEl = document.getElementById('reuploadStatus');
+            if (statusEl) {
+                statusEl.style.display = 'block';
+                statusEl.style.background = '#d4edda';
+                statusEl.style.color = '#155724';
+
+                if (imageInfo.length > 0) {
+                    statusEl.innerHTML = `
+                        <div style="margin-bottom: 10px;">✓ No data differences found. The PDF matches the saved BOM.</div>
+                        <div style="margin-bottom: 10px; color: #004085;">
+                            <strong>Images found in PDF:</strong> ${imageInfo.join(', ')}
+                        </div>
+                        <button onclick="updateImagesFromExtraction()"
+                                style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+                            📷 Update Images & Shapes
+                        </button>
+                        <button onclick="closeReuploadDialog()"
+                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                            Keep Current
+                        </button>
+                    `;
+                } else {
+                    statusEl.innerHTML = '✓ No differences found. The PDF matches the saved BOM data (no new images detected).';
+                }
+            }
+        }
+
+        function updateImagesFromExtraction() {
+            const newData = window.pendingNewExtraction;
+            if (!newData) {
+                showMsg('No extraction data available.', 'error');
+                return;
+            }
+
+            // Update images in currentData
+            let updated = [];
+
+            if (newData.drill_bit_image && newData.drill_bit_image.data) {
+                currentData.drill_bit_image = newData.drill_bit_image;
+                updated.push('Drill Bit Photo');
+            }
+
+            if (newData.images && Object.keys(newData.images).length > 0) {
+                currentData.images = { ...currentData.images, ...newData.images };
+                updated.push('Images');
+            }
+
+            if (newData.cutter_shapes && Object.keys(newData.cutter_shapes).length > 0) {
+                currentData.cutter_shapes = { ...currentData.cutter_shapes, ...newData.cutter_shapes };
+                updated.push('Cutter Shapes');
+            }
+
+            // Mark as changed
+            hasUnsavedChanges = true;
+            checkForChanges();
+
+            // Close dialog
+            closeReuploadDialog();
+            delete window.pendingNewExtraction;
+
+            // Refresh views
+            renderFullPage();
+            renderEditLayout();
+
+            showMsg(`Updated: ${updated.join(', ')}. Click "Save Changes" to save.`, 'success');
         }
 
         function showReuploadStatus(message, type) {
