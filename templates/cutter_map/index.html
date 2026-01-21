@@ -994,7 +994,44 @@
         </div>
     </div>
 
-    {% if design_context %}
+    {% if bom_context %}
+    <!-- BOM Context Banner - Shown when viewing a saved BOM -->
+    <div style="background: linear-gradient(90deg, #065f46, #047857); color: white; padding: 12px 20px; margin-bottom: 0;">
+        <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold;">
+                    {% if bom_context.edit_mode %}EDITING BOM{% else %}VIEWING BOM{% endif %}
+                </span>
+                <div style="display: flex; gap: 20px; font-size: 13px;">
+                    <span style="background: #10b981; padding: 2px 8px; border-radius: 3px; font-weight: bold;">L5</span>
+                    <span><strong>L5 MAT:</strong> {{ bom_context.bom_code }}</span>
+                    <span><strong>L3/L4 MAT:</strong> {{ bom_context.design_mat }}</span>
+                    <span><strong>HDBS:</strong> {{ bom_context.design_hdbs }}</span>
+                    {% if bom_context.design_size %}<span><strong>Size:</strong> {{ bom_context.design_size }}</span>{% endif %}
+                    {% if bom_context.smi_type %}<span><strong>SMI:</strong> {{ bom_context.smi_type }}</span>{% endif %}
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                {% if not bom_context.edit_mode %}
+                <a href="{% url 'cutter_map:bom_view' bom_context.bom_id %}?edit=1"
+                   style="background: #f59e0b; color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 11px;">
+                    Edit Layout
+                </a>
+                {% endif %}
+                <a href="{% url 'technology:bom_list' %}"
+                   style="background: rgba(255,255,255,0.2); color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 11px;">
+                    ← Back to BOM List
+                </a>
+            </div>
+        </div>
+    </div>
+    <input type="hidden" id="designId" value="{{ bom_context.design_id }}">
+    <input type="hidden" id="designMat" value="{{ bom_context.design_mat }}">
+    <input type="hidden" id="designHdbs" value="{{ bom_context.design_hdbs }}">
+    <input type="hidden" id="designSize" value="{{ bom_context.design_size }}">
+    <input type="hidden" id="bomId" value="{{ bom_context.bom_id }}">
+    <input type="hidden" id="bomCode" value="{{ bom_context.bom_code }}">
+    {% elif design_context %}
     <!-- Design Context Banner - Shown when coming from BOM Create -->
     <div style="background: linear-gradient(90deg, #1e3a5f, #2d5a87); color: white; padding: 12px 20px; margin-bottom: 0;">
         <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between;">

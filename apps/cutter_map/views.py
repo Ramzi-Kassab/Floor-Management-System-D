@@ -73,10 +73,12 @@ def bom_view(request, bom_id):
     # Build context for template
     bom_context = {
         'bom_id': bom.pk,
-        'bom_code': bom.code,
+        'bom_code': bom.code,  # L5 MAT
         'design_id': bom.design.pk if bom.design else None,
-        'design_mat': bom.design.mat_no if bom.design else '',
+        'design_mat': bom.design.mat_no if bom.design else '',  # L3/L4 MAT
         'design_hdbs': bom.design.hdbs_type if bom.design else '',
+        'design_size': str(bom.design.size) if bom.design and bom.design.size else '',
+        'smi_type': bom.smi_type.smi_name if bom.smi_type else (bom.design.smi_type if bom.design else ''),
         'edit_mode': edit_mode,
         'from_bom_view': True,
         'source_data': json.dumps(bom.source_data)  # Pre-serialized for JS
@@ -599,6 +601,8 @@ def api_sync_to_erp(request):
         header = data.get('header', {})
         summary = data.get('summary', [])
         blades = data.get('blades', [])
+        images = data.get('images', {})  # Drill bit face photo, etc.
+        groups = data.get('groups', [])  # Cutter groups with shapes
 
         # 1. Find or create parent Design (L3/L4)
         parent_design = None
@@ -671,7 +675,9 @@ def api_sync_to_erp(request):
         bom.source_data = {
             'header': header,
             'summary': summary,
-            'blades': blades
+            'blades': blades,
+            'images': images,  # Drill bit face photo (base64)
+            'groups': groups   # Cutter groups with shapes
         }
         bom.source_mat_number = header.get('mat_number', '')
         bom.source_sn_number = header.get('sn_number', '')
