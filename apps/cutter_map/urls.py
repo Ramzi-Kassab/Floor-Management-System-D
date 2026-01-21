@@ -11,6 +11,9 @@ urlpatterns = [
     # Main page
     path('', views.index, name='index'),
 
+    # BOM view/edit (opens PDF Generator with BOM data)
+    path('bom/<int:bom_id>/', views.bom_view, name='bom_view'),
+
     # Document editor
     path('editor/<int:document_id>/', views.editor, name='editor'),
 

@@ -49,6 +49,55 @@ def index(request):
 
 
 @login_required
+def bom_view(request, bom_id):
+    """
+    View a BOM's cutter layout in the PDF Generator interface.
+
+    If edit=1 query param is passed, enables full editing mode.
+    Otherwise, opens in view-only mode with limited controls.
+    """
+    from apps.technology.models import BOM
+
+    bom = get_object_or_404(BOM, pk=bom_id)
+    edit_mode = request.GET.get('edit', '0') == '1'
+
+    # Check if BOM has source data
+    if not bom.source_data:
+        # If no source data, we can try to reconstruct from BOMLines
+        # For now, show an error
+        return render(request, 'cutter_map/bom_no_data.html', {
+            'bom': bom,
+            'message': 'This BOM does not have saved layout data. It may have been created manually.'
+        })
+
+    # Build context for template
+    bom_context = {
+        'bom_id': bom.pk,
+        'bom_code': bom.code,
+        'design_id': bom.design.pk if bom.design else None,
+        'design_mat': bom.design.mat_no if bom.design else '',
+        'design_hdbs': bom.design.hdbs_type if bom.design else '',
+        'edit_mode': edit_mode,
+        'from_bom_view': True,
+        'source_data': json.dumps(bom.source_data)  # Pre-serialized for JS
+    }
+
+    form = CutterMapUploadForm()
+
+    return render(request, 'cutter_map/index.html', {
+        'documents': [],
+        'form': form,
+        'design_context': {
+            'design_id': bom.design.pk if bom.design else None,
+            'design_mat': bom.design.mat_no if bom.design else '',
+            'design_hdbs': bom.design.hdbs_type if bom.design else '',
+            'from_bom_create': False
+        },
+        'bom_context': bom_context
+    })
+
+
+@login_required
 @require_http_methods(['POST'])
 def upload(request):
     """Handle PDF upload and extract data."""
@@ -617,6 +666,18 @@ def api_sync_to_erp(request):
                 status=BOM.Status.DRAFT,
                 created_by=request.user
             )
+
+        # Save complete source data for PDF Generator reconstruction
+        bom.source_data = {
+            'header': header,
+            'summary': summary,
+            'blades': blades
+        }
+        bom.source_mat_number = header.get('mat_number', '')
+        bom.source_sn_number = header.get('sn_number', '')
+        bom.source_revision_level = header.get('revision_level', '')
+        bom.source_software_version = header.get('software_version', '')
+        bom.save()
 
         # 3. Create BOM Lines and build index→item mapping
         # Option to create missing items (from payload)

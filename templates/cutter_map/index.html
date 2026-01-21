@@ -7974,8 +7974,65 @@
         }
 
         // ========== PAGE INITIALIZATION ==========
-        // Try to restore from sessionStorage on page load
+        // Try to restore from sessionStorage on page load, or load BOM data if viewing a BOM
         (function initializePage() {
+            {% if bom_context %}
+            // Load BOM data automatically
+            try {
+                const bomSourceData = {{ bom_context.source_data|safe }};
+                const bomEditMode = {{ bom_context.edit_mode|yesno:"true,false" }};
+
+                if (bomSourceData && bomSourceData.blades) {
+                    // Set current data from BOM
+                    currentData = {
+                        header: bomSourceData.header || {},
+                        summary: bomSourceData.summary || [],
+                        blades: bomSourceData.blades || [],
+                        groups: bomSourceData.groups || [],
+                        images: bomSourceData.images || {},
+                        has_group_legend: bomSourceData.has_group_legend || false,
+                        group_format: bomSourceData.group_format || 'comma',
+                        from_bom: true,
+                        bom_id: {{ bom_context.bom_id }},
+                        bom_code: '{{ bom_context.bom_code }}',
+                        edit_mode: bomEditMode
+                    };
+                    originalData = JSON.parse(JSON.stringify(currentData));
+
+                    // Show the data section
+                    document.getElementById('uploadSection').classList.add('hidden');
+                    document.getElementById('dataSection').classList.add('active');
+
+                    // Populate header fields
+                    if (currentData.header) {
+                        document.getElementById('snNumber').value = currentData.header.sn_number || '';
+                        document.getElementById('matNumber').value = currentData.header.mat_number || '';
+                        document.getElementById('dateCreated').value = currentData.header.date_created || '';
+                        document.getElementById('revisionLevel').value = currentData.header.revision_level || '';
+                        document.getElementById('softwareVersion').value = currentData.header.software_version || '';
+                    }
+
+                    // Load data views
+                    loadData();
+                    calculateOriginalSizeTotals();
+
+                    // Show mode message
+                    if (bomEditMode) {
+                        showMsg('BOM loaded in edit mode. Make changes and click "Create BOM" to save.', 'success');
+                    } else {
+                        showMsg('BOM loaded in view mode. Click "Edit" to enable editing.', 'info');
+                        // In view mode, we could disable editing controls
+                        // For now, just show the message
+                    }
+
+                    console.log('Loaded BOM data:', currentData.bom_code);
+                    return; // Don't check sessionStorage
+                }
+            } catch (e) {
+                console.error('Error loading BOM data:', e);
+            }
+            {% endif %}
+
             // Check if returning from another page with restore parameter
             const urlParams = new URLSearchParams(window.location.search);
             const shouldRestore = urlParams.get('restore') === '1';

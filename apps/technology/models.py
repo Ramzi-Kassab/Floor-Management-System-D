@@ -1045,6 +1045,11 @@ class BOM(models.Model):
         blank=True,
         help_text="Original uploaded PDF file"
     )
+    source_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Complete extracted/edited data from PDF (header, summary, blades)"
+    )
 
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)
