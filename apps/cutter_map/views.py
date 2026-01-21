@@ -600,9 +600,14 @@ def api_sync_to_erp(request):
 
         # Check if BOM already exists
         existing_bom = BOM.objects.filter(code=bom_code).first()
+        bom_was_updated = False
+        previous_lines_count = 0
+
         if existing_bom:
+            previous_lines_count = existing_bom.lines.count()
             existing_bom.lines.all().delete()
             bom = existing_bom
+            bom_was_updated = True
         else:
             bom = BOM.objects.create(
                 design=parent_design,
@@ -879,6 +884,9 @@ def api_sync_to_erp(request):
             'bom_lines_created': bom_lines_created,
             'pocket_configs_created': pocket_configs_created,
             'pockets_created': pockets_created,
+            # BOM update info
+            'bom_was_updated': bom_was_updated,
+            'previous_lines_count': previous_lines_count if bom_was_updated else 0,
             # Inventory matching statistics
             'inventory_stats': {
                 'items_matched': items_matched,

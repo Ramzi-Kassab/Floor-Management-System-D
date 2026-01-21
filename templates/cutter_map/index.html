@@ -7452,6 +7452,8 @@
             const unmatchedItems = stats.unmatched_items || [];
             const pocketsCreated = result.pockets_created || 0;
             const hasMissingPockets = result.pocket_configs_created > 0 && pocketsCreated === 0;
+            const bomWasUpdated = result.bom_was_updated || false;
+            const previousLinesCount = result.previous_lines_count || 0;
 
             const dialog = document.createElement('div');
             dialog.className = 'mat-dialog';
@@ -7460,8 +7462,20 @@
                 <div class="mat-dialog-box" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
                     <div class="mat-dialog-title" style="color: #155724; background: #d4edda; padding: 12px 15px; margin: -15px -15px 15px -15px; border-radius: 4px 4px 0 0; display: flex; align-items: center; gap: 10px;">
                         <span style="font-size: 24px;">✓</span>
-                        <span>BOM Created Successfully!</span>
+                        <span>BOM ${bomWasUpdated ? 'Updated' : 'Created'} Successfully!</span>
                     </div>
+
+                    ${bomWasUpdated ? `
+                    <!-- BOM Update Warning -->
+                    <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 10px 12px; margin-bottom: 15px; display: flex; align-items: flex-start; gap: 10px;">
+                        <span style="font-size: 18px;">⚠️</span>
+                        <div style="font-size: 12px; color: #856404;">
+                            <strong>Existing BOM Updated</strong><br>
+                            A BOM with code <strong>${result.bom_code}</strong> already existed with ${previousLinesCount} lines.
+                            The previous data has been replaced with the new import.
+                        </div>
+                    </div>
+                    ` : ''}
 
                     <!-- BOM Summary -->
                     <div style="background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
