@@ -185,7 +185,6 @@ class DrillBitCreateView(LoginRequiredMixin, CreateView):
         "lifecycle_status",
         "received_date",
         "original_cost",
-        "notes",
     ]
 
     def get_context_data(self, **kwargs):
@@ -243,7 +242,6 @@ class DrillBitUpdateView(LoginRequiredMixin, UpdateView):
         "accounting_status",
         "lifecycle_status",
         "original_cost",
-        "notes",
     ]
 
     def get_context_data(self, **kwargs):
