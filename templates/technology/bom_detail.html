@@ -204,6 +204,87 @@
                 </div>
             </form>
         </div>
+
+        <!-- Cutter Layout (CL) Visualization -->
+        {% if cutter_layout %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Cutter Layout</h2>
+                <div class="text-sm text-gray-500">
+                    {{ cutter_layout.blade_count }} blades, {{ cutter_layout.total_pockets }} positions
+                </div>
+            </div>
+
+            <!-- Location Legend -->
+            <div class="flex flex-wrap gap-3 mb-4 text-xs">
+                <span class="inline-flex items-center gap-1">
+                    <span class="w-4 h-4 rounded bg-red-200 border border-red-300"></span> Cone
+                </span>
+                <span class="inline-flex items-center gap-1">
+                    <span class="w-4 h-4 rounded bg-green-200 border border-green-300"></span> Nose
+                </span>
+                <span class="inline-flex items-center gap-1">
+                    <span class="w-4 h-4 rounded bg-yellow-200 border border-yellow-300"></span> Taper
+                </span>
+                <span class="inline-flex items-center gap-1">
+                    <span class="w-4 h-4 rounded bg-blue-200 border border-blue-300"></span> Shoulder
+                </span>
+                <span class="inline-flex items-center gap-1">
+                    <span class="w-4 h-4 rounded bg-purple-200 border border-purple-300"></span> Gage
+                </span>
+            </div>
+
+            <!-- Blades Grid -->
+            <div class="space-y-3">
+                {% for blade_num, pockets in cutter_layout.blades.items %}
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                    <div class="text-xs font-medium text-gray-500 mb-2">Blade {{ blade_num }}</div>
+                    <div class="flex flex-wrap gap-1">
+                        {% for pocket in pockets %}
+                        <div class="relative group">
+                            <div class="w-8 h-8 rounded flex items-center justify-center text-xs font-bold text-white shadow-sm cursor-default
+                                {% if pocket.location_code == 'C' %}ring-2 ring-red-400{% endif %}
+                                {% if pocket.location_code == 'N' %}ring-2 ring-green-400{% endif %}
+                                {% if pocket.location_code == 'T' %}ring-2 ring-yellow-400{% endif %}
+                                {% if pocket.location_code == 'S' %}ring-2 ring-blue-400{% endif %}
+                                {% if pocket.location_code == 'G' %}ring-2 ring-purple-400{% endif %}"
+                                style="background-color: {{ pocket.color }};">
+                                {{ pocket.position }}
+                            </div>
+                            <!-- Tooltip -->
+                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                                {% if pocket.size %}{{ pocket.size }}{% endif %}
+                                {% if pocket.location %}({{ pocket.location }}){% endif %}
+                                {% if pocket.row > 1 %}R{{ pocket.row }}{% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if bom.design %}
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'technology:design_pockets' bom.design.pk %}" class="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
+                    <i data-lucide="grid-3x3" class="w-4 h-4"></i>
+                    Edit Pocket Layout
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        {% elif bom.design %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Cutter Layout</h2>
+            <div class="text-center py-6">
+                <i data-lucide="grid-3x3" class="w-12 h-12 text-gray-300 mx-auto mb-3"></i>
+                <p class="text-gray-500 dark:text-gray-400 mb-2">No pocket layout defined</p>
+                <a href="{% url 'technology:design_pockets' bom.design.pk %}" class="text-sm text-blue-600 hover:underline">
+                    Configure Pocket Layout
+                </a>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <div class="space-y-6">

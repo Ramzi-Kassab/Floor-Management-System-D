@@ -946,6 +946,53 @@ class BOMDetailView(LoginRequiredMixin, DetailView):
         context["all_materials_available"] = all_available
         context["total_cost"] = self.object.total_cost
         context["line_form"] = BOMLineForm()
+
+        # Get Cutter Layout (CL) data from Design's pockets
+        design = self.object.design
+        cutter_layout = None
+        if design:
+            from .models import DesignPocket
+            pockets = DesignPocket.objects.filter(design=design).select_related(
+                'pocket_config', 'pocket_config__pocket_size'
+            ).order_by('blade_number', 'position_in_blade')
+
+            if pockets.exists():
+                # Build color map from BOM lines
+                line_colors = {}
+                for line in lines:
+                    if line.color_code:
+                        line_colors[line.line_number] = line.color_code
+
+                # Organize pockets by blade
+                blades_data = {}
+                for pocket in pockets:
+                    blade_num = pocket.blade_number
+                    if blade_num not in blades_data:
+                        blades_data[blade_num] = []
+
+                    # Get color from pocket_config order → BOM line
+                    color = '#4A4A4A'  # default gray
+                    if pocket.pocket_config:
+                        config_order = pocket.pocket_config.order
+                        color = pocket.pocket_config.color_code or line_colors.get(config_order, '#4A4A4A')
+
+                    blades_data[blade_num].append({
+                        'position': pocket.position_in_blade,
+                        'row': pocket.row_number,
+                        'location': pocket.get_blade_location_display() if pocket.blade_location else '',
+                        'location_code': pocket.blade_location or '',
+                        'config': pocket.pocket_config,
+                        'color': color,
+                        'size': pocket.pocket_config.pocket_size.code if pocket.pocket_config and pocket.pocket_config.pocket_size else '',
+                    })
+
+                cutter_layout = {
+                    'blade_count': design.no_of_blades or len(blades_data),
+                    'blades': blades_data,
+                    'total_pockets': pockets.count(),
+                }
+
+        context["cutter_layout"] = cutter_layout
         return context
 
 
