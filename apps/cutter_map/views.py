@@ -108,6 +108,7 @@ def upload(request):
     form = CutterMapUploadForm(request.POST, request.FILES)
 
     if not form.is_valid():
+        print(f"[UPLOAD] Form validation failed: {form.errors}")
         return JsonResponse({
             'error': form.errors.get('original_pdf', ['Invalid file'])[0]
         }, status=400)
@@ -117,6 +118,8 @@ def upload(request):
     doc.created_by = request.user
     doc.original_filename = request.FILES['original_pdf'].name.rsplit('.', 1)[0]
     doc.save()
+
+    print(f"[UPLOAD] Document saved: id={doc.id}, filename={doc.original_filename}")
 
     # Record history
     CutterMapHistory.objects.create(
@@ -128,7 +131,13 @@ def upload(request):
     try:
         # Extract data from PDF
         pdf_path = doc.original_pdf.path
+        print(f"[UPLOAD] Extracting from: {pdf_path}")
         data = extract_pdf_data(pdf_path)
+
+        # Log extraction results
+        blades_count = len(data.get('blades', []))
+        summary_count = len(data.get('summary', []))
+        print(f"[UPLOAD] Extraction complete: {blades_count} blades, {summary_count} summary items")
 
         # Store extracted data
         doc.extracted_data = data
