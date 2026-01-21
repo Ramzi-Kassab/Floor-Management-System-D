@@ -26,6 +26,8 @@ urlpatterns = [
     # Enhanced Drill Bit List & Detail
     path("drill-bits/enhanced/", views_jobcard.DrillBitListEnhancedView.as_view(), name="drillbit_list_enhanced"),
     path("drill-bits/enhanced/<int:pk>/", views_jobcard.DrillBitDetailEnhancedView.as_view(), name="drillbit_detail_enhanced"),
+    # Alias: drillbit_list -> drillbit_list_enhanced (for backward compatibility)
+    path("drill-bits/", views_jobcard.DrillBitListEnhancedView.as_view(), name="drillbit_list"),
 
     # ========================================================================
     # DRILL BIT INVENTORY VIEWS
