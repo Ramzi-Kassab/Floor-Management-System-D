@@ -820,14 +820,13 @@ def api_sync_to_erp(request):
 
                         # Map blade location from position key (e.g., 'CONE', 'NOSE', 'SHOULDER')
                         # The position is stored as the dictionary key, not in the cell object
+                        # Order: CONE → NOSE → SHOULDER → GAGE → PAD (matches frontend)
                         pos_name = pos_key.upper()
                         blade_location = None
                         if 'CONE' in pos_name:
                             blade_location = DesignPocket.BladeLocation.CONE
                         elif 'NOSE' in pos_name:
                             blade_location = DesignPocket.BladeLocation.NOSE
-                        elif 'TAPER' in pos_name:
-                            blade_location = DesignPocket.BladeLocation.TAPER
                         elif 'SHOULDER' in pos_name:
                             blade_location = DesignPocket.BladeLocation.SHOULDER
                         elif 'GAGE' in pos_name or 'GAUGE' in pos_name:

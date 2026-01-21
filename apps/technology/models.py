@@ -1386,9 +1386,9 @@ class DesignPocket(models.Model):
     Stored by blade, row, and position within blade/row.
     """
     class BladeLocation(models.TextChoices):
+        # Order: CONE → NOSE → SHOULDER → GAGE → PAD (matches frontend)
         CONE = "C", "Cone"
         NOSE = "N", "Nose"
-        TAPER = "T", "Taper"
         SHOULDER = "S", "Shoulder"
         GAGE = "G", "Gage"
         PAD = "P", "Pad"
