@@ -1497,6 +1497,63 @@
         let originalData = null; // Store original data for comparison/export
         let fullPageView = 'original'; // 'original' or 'modified'
 
+        // ========== SESSION STORAGE PERSISTENCE ==========
+        const STORAGE_KEY = 'cutterMapWorkingData';
+
+        function saveToSessionStorage() {
+            if (!currentData) return;
+            try {
+                const dataToSave = {
+                    currentData: currentData,
+                    originalData: originalData,
+                    designContext: {
+                        designId: document.getElementById('designId')?.value,
+                        designMat: document.getElementById('designMat')?.value,
+                        designHdbs: document.getElementById('designHdbs')?.value,
+                        designSize: document.getElementById('designSize')?.value,
+                        designLevel: document.getElementById('designLevel')?.value
+                    },
+                    timestamp: Date.now()
+                };
+                sessionStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+                console.log('Saved working data to sessionStorage');
+            } catch (e) {
+                console.warn('Failed to save to sessionStorage:', e);
+            }
+        }
+
+        function loadFromSessionStorage() {
+            try {
+                const saved = sessionStorage.getItem(STORAGE_KEY);
+                if (!saved) return false;
+
+                const data = JSON.parse(saved);
+                // Check if data is less than 2 hours old
+                if (Date.now() - data.timestamp > 2 * 60 * 60 * 1000) {
+                    sessionStorage.removeItem(STORAGE_KEY);
+                    return false;
+                }
+
+                // Check if design context matches current page
+                const currentDesignId = document.getElementById('designId')?.value;
+                if (currentDesignId && data.designContext?.designId && currentDesignId !== data.designContext.designId) {
+                    // Different design, don't restore
+                    return false;
+                }
+
+                currentData = data.currentData;
+                originalData = data.originalData;
+                return true;
+            } catch (e) {
+                console.warn('Failed to load from sessionStorage:', e);
+                return false;
+            }
+        }
+
+        function clearSessionStorage() {
+            sessionStorage.removeItem(STORAGE_KEY);
+        }
+
         // ========== EDIT LAYOUT STATE ==========
         let editState = {
             mode: 'edit', // 'edit' or 'review'
@@ -7602,14 +7659,26 @@
                         </button>
                         ` : ''}
 
-                        <button onclick="document.getElementById('bomSuccessDialog').remove(); resetApp();"
-                                style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 15px; background: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 6px; cursor: pointer;">
-                            <span>🔄</span> Create Another BOM
-                        </button>
+                        <div style="display: flex; gap: 10px; margin-top: 5px;">
+                            <button onclick="document.getElementById('bomSuccessDialog').remove();"
+                                    style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 15px; background: #fff; color: #333; border: 2px solid #1e3a5f; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                                ✕ Close & Continue Editing
+                            </button>
+                            <button onclick="document.getElementById('bomSuccessDialog').remove(); resetApp();"
+                                    style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 15px; background: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 6px; cursor: pointer;">
+                                🔄 Create Another BOM
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
             document.body.appendChild(dialog);
+
+            // Store result for potential return navigation
+            window.lastBomResult = result;
+
+            // Save working data to sessionStorage so user can return
+            saveToSessionStorage();
         }
 
         function addUnmatchedCutters(items, designId, bomId) {
@@ -7903,6 +7972,34 @@
                 createBOMFromPDF();
             }, 500);
         }
+
+        // ========== PAGE INITIALIZATION ==========
+        // Try to restore from sessionStorage on page load
+        (function initializePage() {
+            // Check if returning from another page with restore parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const shouldRestore = urlParams.get('restore') === '1';
+
+            if (shouldRestore) {
+                // Try to restore from sessionStorage
+                if (loadFromSessionStorage()) {
+                    console.log('Restored working data from sessionStorage');
+                    // Show the data section
+                    document.getElementById('uploadSection').classList.add('hidden');
+                    document.getElementById('dataSection').classList.add('active');
+                    // Re-render the views
+                    try {
+                        loadData();
+                        calculateOriginalSizeTotals();
+                        showMsg('Previous work restored. You can continue editing or create a new BOM.', 'success');
+                    } catch (e) {
+                        console.error('Error restoring data:', e);
+                        // Fall back to showing upload section
+                        resetApp();
+                    }
+                }
+            }
+        })();
     </script>
 </body>
 </html>
