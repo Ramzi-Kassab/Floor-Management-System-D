@@ -173,6 +173,11 @@ class DrillBit(models.Model):
     design = models.ForeignKey(
         "technology.Design", on_delete=models.SET_NULL, null=True, blank=True, related_name="drill_bits"
     )
+    bom = models.ForeignKey(
+        "technology.BOM", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="drill_bits",
+        help_text="L5 BOM used to manufacture this drill bit"
+    )
     size = models.DecimalField(max_digits=6, decimal_places=3, help_text="Size in inches")
     iadc_code = models.CharField(max_length=20, blank=True)
 
@@ -278,6 +283,32 @@ class DrillBit(models.Model):
 
     def __str__(self):
         return f"{self.serial_number} ({self.bit_type})"
+
+    def sync_from_design(self):
+        """
+        Auto-populate fields from linked Design and BOM.
+        Call this when design or bom changes.
+        """
+        if self.bom and self.bom.design:
+            # If BOM is set, use its design
+            self.design = self.bom.design
+
+        if self.design:
+            # Sync from Design
+            if self.design.size:
+                self.bit_size_ref = self.design.size
+                self.size = self.design.size.size_decimal if hasattr(self.design.size, 'size_decimal') else self.design.size.size
+            if self.design.category:
+                self.bit_type = self.design.category
+            if self.design.iadc_code:
+                self.iadc_code = self.design.iadc_code
+            if hasattr(self.design, 'product_type') and self.design.product_type:
+                self.product_type = self.design.product_type
+
+        if self.bom:
+            # Sync MAT number from BOM
+            if self.bom.code:
+                self.mat_number = self.bom.code
 
     def save(self, *args, **kwargs):
         if not self.qr_code:

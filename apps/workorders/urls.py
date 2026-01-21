@@ -98,11 +98,12 @@ urlpatterns = [
     path("<int:pk>/row/", views.workorder_row_htmx, name="row_htmx"),
     # Exports
     path("export/csv/", views.export_work_orders_csv, name="export_csv"),
-    # Drill Bits
-    path("drill-bits/", views.DrillBitListView.as_view(), name="drillbit_list"),
-    path("drill-bits/register/", views.DrillBitCreateView.as_view(), name="drillbit_create"),
-    path("drill-bits/<int:pk>/", views.DrillBitDetailView.as_view(), name="drillbit_detail"),
-    path("drill-bits/<int:pk>/edit/", views.DrillBitUpdateView.as_view(), name="drillbit_update"),
+    # Drill Bits (Legacy views - kept for backward compatibility)
+    # NOTE: Use enhanced views instead: drillbit_list_enhanced, drillbit_create, drillbit_detail
+    path("drill-bits/legacy/", views.DrillBitListView.as_view(), name="drillbit_list_legacy"),
+    path("drill-bits/register/", views.DrillBitCreateView.as_view(), name="drillbit_register_legacy"),
+    path("drill-bits/<int:pk>/legacy/", views.DrillBitDetailView.as_view(), name="drillbit_detail_legacy"),
+    path("drill-bits/<int:pk>/edit-legacy/", views.DrillBitUpdateView.as_view(), name="drillbit_update_legacy"),
     path("drill-bits/<int:pk>/qr/", views.drillbit_qr_view, name="drillbit_qr"),
     path("drill-bits/export/csv/", views.export_drill_bits_csv, name="drillbit_export_csv"),
     # Alias for template compatibility (workorder_detail -> detail, workorder_edit -> update)

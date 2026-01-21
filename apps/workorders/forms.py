@@ -285,6 +285,103 @@ class DrillBitFilterForm(forms.Form):
     )
 
 
+class DrillBitCreateForm(forms.ModelForm):
+    """
+    Form for creating new drill bits with BOM/Design selection.
+    Auto-populates size, type, etc. from the selected BOM's Design.
+    """
+    INPUT_CLASS = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+
+    class Meta:
+        model = DrillBit
+        fields = [
+            "bom",
+            "serial_number",
+            "customer",
+            "bit_location",
+            "received_date",
+            "original_cost",
+        ]
+        widgets = {
+            "bom": forms.Select(attrs={
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+                "id": "id_bom",
+            }),
+            "serial_number": forms.TextInput(attrs={
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono",
+                "placeholder": "Enter 6-8 digit serial number",
+            }),
+            "customer": forms.Select(attrs={
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+            }),
+            "bit_location": forms.Select(attrs={
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+            }),
+            "received_date": forms.DateInput(attrs={
+                "type": "date",
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+            }),
+            "original_cost": forms.NumberInput(attrs={
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+                "step": "0.01",
+                "placeholder": "0.00",
+            }),
+        }
+        labels = {
+            "bom": "Select BOM (L5)",
+            "serial_number": "Serial Number",
+            "customer": "Customer (Optional)",
+            "bit_location": "Initial Location",
+            "received_date": "Received Date",
+            "original_cost": "Original Cost ($)",
+        }
+        help_texts = {
+            "bom": "Select the L5 BOM - this will auto-populate design details",
+            "serial_number": "6-8 digit serial number (not auto-generated)",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Import here to avoid circular imports
+        from apps.technology.models import BOM
+        from apps.workorders.models import Location
+
+        # Only show active BOMs with designs
+        self.fields["bom"].queryset = BOM.objects.filter(
+            status="ACTIVE",
+            design__isnull=False
+        ).select_related("design", "design__size").order_by("design__mat_no", "code")
+        self.fields["bom"].label_from_instance = lambda obj: f"{obj.code} - {obj.design.mat_no} ({obj.design.size})" if obj.design else obj.code
+
+        # Only active locations
+        self.fields["bit_location"].queryset = Location.objects.filter(is_active=True)
+        self.fields["bit_location"].required = True
+
+        # Make bom required
+        self.fields["bom"].required = True
+
+    def clean_serial_number(self):
+        serial_number = self.cleaned_data.get("serial_number")
+        if serial_number:
+            serial_number = serial_number.upper().strip()
+            if DrillBit.objects.filter(serial_number=serial_number).exists():
+                raise ValidationError("A drill bit with this serial number already exists.")
+            # Validate format: 6-8 digits
+            if not serial_number.isdigit() or len(serial_number) < 6 or len(serial_number) > 8:
+                raise ValidationError("Serial number must be 6-8 digits.")
+        return serial_number
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Sync fields from Design/BOM
+        instance.sync_from_design()
+        instance.status = DrillBit.Status.NEW
+        instance.lifecycle_status = DrillBit.LifecycleStatus.NEW
+        if commit:
+            instance.save()
+        return instance
+
+
 class WorkOrderFilterForm(forms.Form):
     """
     Form for filtering work order list.

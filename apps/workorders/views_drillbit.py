@@ -167,54 +167,57 @@ class DrillBitInventoryDashboardView(LoginRequiredMixin, TemplateView):
 class DrillBitCreateView(LoginRequiredMixin, CreateView):
     """
     Register a new drill bit in the system.
+    Uses BOM selection to auto-populate design details.
     """
 
     model = DrillBit
     template_name = "workorders/drillbit_form.html"
-    fields = [
-        "serial_number",
-        "bit_type",
-        "size",
-        "mat_number",
-        "iadc_code",
-        "design",
-        "customer",
-        "bit_location",
-        "physical_status",
-        "accounting_status",
-        "lifecycle_status",
-        "received_date",
-        "original_cost",
-    ]
+
+    def get_form_class(self):
+        from .forms import DrillBitCreateForm
+        return DrillBitCreateForm
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Register New Drill Bit"
         context["action"] = "create"
         context["locations"] = Location.objects.filter(is_active=True)
+
+        # Get BOMs with design info for JavaScript
+        from apps.technology.models import BOM
+        boms_data = []
+        for bom in BOM.objects.filter(status="ACTIVE", design__isnull=False).select_related("design", "design__size"):
+            boms_data.append({
+                "id": bom.id,
+                "code": bom.code,
+                "design_mat_no": bom.design.mat_no if bom.design else "",
+                "design_name": str(bom.design) if bom.design else "",
+                "size": str(bom.design.size) if bom.design and bom.design.size else "",
+                "category": bom.design.category if bom.design else "",
+                "hdbs_type": bom.design.hdbs_type if bom.design else "",
+            })
+        context["boms_json"] = boms_data
         return context
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-        form.instance.status = DrillBit.Status.NEW
 
         response = super().form_valid(form)
 
         # Create initial event
-        default_location = Location.objects.filter(is_active=True).first()
-        if default_location or form.instance.bit_location:
+        if form.instance.bit_location:
             BitEvent.objects.create(
                 bit=self.object,
                 event_type=BitEvent.EventType.RECEIVED,
                 event_date=timezone.now(),
-                location=form.instance.bit_location or default_location,
-                notes=f"Registered in system. Serial: {self.object.serial_number}",
+                location=form.instance.bit_location,
+                notes=f"Registered in system. Serial: {self.object.serial_number}. BOM: {self.object.bom.code if self.object.bom else 'N/A'}",
                 performed_by=self.request.user,
             )
 
         messages.success(
             self.request,
-            f'Drill bit "{self.object.serial_number}" registered successfully.',
+            f'Drill bit "{self.object.serial_number}" registered successfully from BOM {self.object.bom.code if self.object.bom else "N/A"}.',
         )
         return response
 

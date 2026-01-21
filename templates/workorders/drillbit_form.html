@@ -17,183 +17,109 @@
             </ol>
         </nav>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        {% if action == 'create' %}
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Select a BOM (L5) to auto-populate design specifications, then enter the serial number and location.
+        </p>
+        {% endif %}
     </div>
 
     <!-- Form -->
     <form method="post" class="space-y-6">
         {% csrf_token %}
 
-        <!-- Serial Number & Type -->
+        {% if action == 'create' %}
+        <!-- Step 1: BOM Selection -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Serial Number -->
-                <div>
-                    <label for="id_serial_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Serial Number <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" name="serial_number" id="id_serial_number"
-                           value="{{ form.serial_number.value|default:'' }}"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                           placeholder="e.g., 12345678"
-                           {% if action == 'edit' %}readonly{% endif %}
-                           required>
-                    {% if form.serial_number.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.serial_number.errors.0 }}</p>
-                    {% endif %}
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">8 digits for PDC, 6-8 for Tri-cone</p>
-                </div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white text-sm rounded-full mr-2">1</span>
+                Select BOM (L5)
+            </h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Choose the Bill of Materials that this drill bit will be manufactured from.
+                This will auto-populate the design specifications.
+            </p>
+            <div>
+                <label for="id_bom" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    BOM <span class="text-red-500">*</span>
+                </label>
+                {{ form.bom }}
+                {% if form.bom.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.bom.errors.0 }}</p>
+                {% endif %}
+            </div>
 
-                <!-- Bit Type -->
-                <div>
-                    <label for="id_bit_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Bit Type <span class="text-red-500">*</span>
-                    </label>
-                    <select name="bit_type" id="id_bit_type"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                            required>
-                        <option value="">Select type...</option>
-                        <option value="FC" {% if form.bit_type.value == 'FC' %}selected{% endif %}>Fixed Cutter (PDC)</option>
-                        <option value="RC" {% if form.bit_type.value == 'RC' %}selected{% endif %}>Roller Cone</option>
-                    </select>
-                    {% if form.bit_type.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.bit_type.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <!-- Size -->
-                <div>
-                    <label for="id_size" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Size (inches) <span class="text-red-500">*</span>
-                    </label>
-                    <input type="number" name="size" id="id_size" step="0.125"
-                           value="{{ form.size.value|default:'' }}"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                           placeholder="e.g., 8.5"
-                           required>
-                    {% if form.size.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.size.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <!-- MAT Number -->
-                <div>
-                    <label for="id_mat_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        MAT Number
-                    </label>
-                    <input type="text" name="mat_number" id="id_mat_number"
-                           value="{{ form.mat_number.value|default:'' }}"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                           placeholder="e.g., 1283567M1">
-                    {% if form.mat_number.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.mat_number.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <!-- IADC Code -->
-                <div>
-                    <label for="id_iadc_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        IADC Code
-                    </label>
-                    <input type="text" name="iadc_code" id="id_iadc_code"
-                           value="{{ form.iadc_code.value|default:'' }}"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                           placeholder="e.g., M223">
-                </div>
-
-                <!-- Design -->
-                <div>
-                    <label for="id_design" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Design (L3/L4)
-                    </label>
-                    {{ form.design }}
+            <!-- Design Preview (populated by JavaScript) -->
+            <div id="design-preview" class="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hidden">
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Design Specifications (Auto-populated)</h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-500 dark:text-gray-400">Design MAT#:</span>
+                        <p id="preview-mat-no" class="font-medium text-gray-900 dark:text-white">-</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 dark:text-gray-400">Size:</span>
+                        <p id="preview-size" class="font-medium text-gray-900 dark:text-white">-</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 dark:text-gray-400">Category:</span>
+                        <p id="preview-category" class="font-medium text-gray-900 dark:text-white">-</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 dark:text-gray-400">HDBS Type:</span>
+                        <p id="preview-hdbs" class="font-medium text-gray-900 dark:text-white">-</p>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Status & Location -->
+        <!-- Step 2: Serial Number -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Status & Location</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white text-sm rounded-full mr-2">2</span>
+                Enter Serial Number
+            </h3>
+            <div class="max-w-md">
+                <label for="id_serial_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Serial Number <span class="text-red-500">*</span>
+                </label>
+                {{ form.serial_number }}
+                {% if form.serial_number.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.serial_number.errors.0 }}</p>
+                {% endif %}
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Enter 6-8 digit serial number (not auto-generated)
+                </p>
+            </div>
+        </div>
+
+        <!-- Step 3: Location & Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <span class="flex items-center justify-center w-6 h-6 bg-blue-600 text-white text-sm rounded-full mr-2">3</span>
+                Location & Details
+            </h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Physical Status -->
-                <div>
-                    <label for="id_physical_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Physical Status
-                    </label>
-                    <select name="physical_status" id="id_physical_status"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
-                        <option value="AT_ARDT" {% if form.physical_status.value == 'AT_ARDT' %}selected{% endif %}>At ARDT Facility</option>
-                        <option value="AT_CUSTOMER" {% if form.physical_status.value == 'AT_CUSTOMER' %}selected{% endif %}>At Customer Site</option>
-                        <option value="IN_TRANSIT" {% if form.physical_status.value == 'IN_TRANSIT' %}selected{% endif %}>In Transit</option>
-                        <option value="AT_RIG" {% if form.physical_status.value == 'AT_RIG' %}selected{% endif %}>At Rig Site</option>
-                        <option value="SCRAPPED" {% if form.physical_status.value == 'SCRAPPED' %}selected{% endif %}>Scrapped</option>
-                    </select>
-                </div>
-
-                <!-- Accounting Status -->
-                <div>
-                    <label for="id_accounting_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Accounting Status
-                    </label>
-                    <select name="accounting_status" id="id_accounting_status"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
-                        <option value="ARDT_OWNED" {% if form.accounting_status.value == 'ARDT_OWNED' %}selected{% endif %}>ARDT Owned</option>
-                        <option value="CUSTOMER_OWNED" {% if form.accounting_status.value == 'CUSTOMER_OWNED' %}selected{% endif %}>Customer Owned</option>
-                        <option value="ON_CONSIGNMENT" {% if form.accounting_status.value == 'ON_CONSIGNMENT' %}selected{% endif %}>On Consignment</option>
-                        <option value="SOLD" {% if form.accounting_status.value == 'SOLD' %}selected{% endif %}>Sold</option>
-                        <option value="WRITTEN_OFF" {% if form.accounting_status.value == 'WRITTEN_OFF' %}selected{% endif %}>Written Off</option>
-                    </select>
-                </div>
-
-                <!-- Lifecycle Status -->
-                <div>
-                    <label for="id_lifecycle_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Lifecycle Status
-                    </label>
-                    <select name="lifecycle_status" id="id_lifecycle_status"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
-                        <option value="NEW" {% if form.lifecycle_status.value == 'NEW' %}selected{% endif %}>New</option>
-                        <option value="DEPLOYED" {% if form.lifecycle_status.value == 'DEPLOYED' %}selected{% endif %}>Deployed</option>
-                        <option value="BACKLOADED" {% if form.lifecycle_status.value == 'BACKLOADED' %}selected{% endif %}>Backloaded</option>
-                        <option value="EVALUATION" {% if form.lifecycle_status.value == 'EVALUATION' %}selected{% endif %}>In Evaluation</option>
-                        <option value="HOLD" {% if form.lifecycle_status.value == 'HOLD' %}selected{% endif %}>On Hold</option>
-                        <option value="IN_REPAIR" {% if form.lifecycle_status.value == 'IN_REPAIR' %}selected{% endif %}>In Repair</option>
-                        <option value="REPAIRED" {% if form.lifecycle_status.value == 'REPAIRED' %}selected{% endif %}>Repaired</option>
-                        <option value="USA_REPAIR" {% if form.lifecycle_status.value == 'USA_REPAIR' %}selected{% endif %}>USA Repair</option>
-                        <option value="RERUN" {% if form.lifecycle_status.value == 'RERUN' %}selected{% endif %}>Rerun Ready</option>
-                        <option value="SCRAP" {% if form.lifecycle_status.value == 'SCRAP' %}selected{% endif %}>Scrapped</option>
-                        <option value="SAVED_BODY" {% if form.lifecycle_status.value == 'SAVED_BODY' %}selected{% endif %}>Saved Body</option>
-                    </select>
-                </div>
-
                 <!-- Location -->
                 <div>
                     <label for="id_bit_location" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Current Location
+                        Initial Location <span class="text-red-500">*</span>
                     </label>
-                    <select name="bit_location" id="id_bit_location"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
-                        <option value="">Select location...</option>
-                        {% for location in locations %}
-                        <option value="{{ location.pk }}" {% if form.bit_location.value|stringformat:"s" == location.pk|stringformat:"s" %}selected{% endif %}>
-                            {{ location.name }} ({{ location.get_location_type_display }})
-                        </option>
-                        {% endfor %}
-                    </select>
+                    {{ form.bit_location }}
+                    {% if form.bit_location.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.bit_location.errors.0 }}</p>
+                    {% endif %}
                 </div>
-            </div>
-        </div>
 
-        <!-- Customer & Dates -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Customer & Dates</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Customer -->
                 <div>
                     <label for="id_customer" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Customer
+                        Customer (Optional)
                     </label>
                     {{ form.customer }}
+                    {% if form.customer.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.customer.errors.0 }}</p>
+                    {% endif %}
                 </div>
 
                 <!-- Received Date -->
@@ -201,9 +127,10 @@
                     <label for="id_received_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Received Date
                     </label>
-                    <input type="date" name="received_date" id="id_received_date"
-                           value="{{ form.received_date.value|date:'Y-m-d'|default:'' }}"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    {{ form.received_date }}
+                    {% if form.received_date.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.received_date.errors.0 }}</p>
+                    {% endif %}
                 </div>
 
                 <!-- Original Cost -->
@@ -211,25 +138,36 @@
                     <label for="id_original_cost" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Original Cost (USD)
                     </label>
-                    <input type="number" name="original_cost" id="id_original_cost" step="0.01"
-                           value="{{ form.original_cost.value|default:'0' }}"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    {{ form.original_cost }}
+                    {% if form.original_cost.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.original_cost.errors.0 }}</p>
+                    {% endif %}
                 </div>
             </div>
         </div>
 
-        <!-- Notes -->
+        {% else %}
+        <!-- Edit Mode - Show all fields -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notes</h3>
-            <div>
-                <label for="id_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Additional Notes
-                </label>
-                <textarea name="notes" id="id_notes" rows="3"
-                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                          placeholder="Any additional information...">{{ form.notes.value|default:'' }}</textarea>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Drill Bit Details</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {% for field in form %}
+                <div>
+                    <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ field.label }}{% if field.field.required %} <span class="text-red-500">*</span>{% endif %}
+                    </label>
+                    {{ field }}
+                    {% if field.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ field.errors.0 }}</p>
+                    {% endif %}
+                    {% if field.help_text %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ field.help_text }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
             </div>
         </div>
+        {% endif %}
 
         <!-- Form errors -->
         {% if form.non_field_errors %}
@@ -260,4 +198,38 @@
         </div>
     </form>
 </div>
+
+{% if action == 'create' %}
+<script>
+// BOM data for preview
+const bomsData = {{ boms_json|safe }};
+
+document.addEventListener('DOMContentLoaded', function() {
+    const bomSelect = document.getElementById('id_bom');
+    const designPreview = document.getElementById('design-preview');
+
+    if (bomSelect) {
+        bomSelect.addEventListener('change', function() {
+            const selectedId = parseInt(this.value);
+            const bom = bomsData.find(b => b.id === selectedId);
+
+            if (bom) {
+                document.getElementById('preview-mat-no').textContent = bom.design_mat_no || '-';
+                document.getElementById('preview-size').textContent = bom.size || '-';
+                document.getElementById('preview-category').textContent = bom.category || '-';
+                document.getElementById('preview-hdbs').textContent = bom.hdbs_type || '-';
+                designPreview.classList.remove('hidden');
+            } else {
+                designPreview.classList.add('hidden');
+            }
+        });
+
+        // Trigger on load if value exists
+        if (bomSelect.value) {
+            bomSelect.dispatchEvent(new Event('change'));
+        }
+    }
+});
+</script>
+{% endif %}
 {% endblock %}
