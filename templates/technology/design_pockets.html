@@ -498,7 +498,7 @@
                 </div>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
                     <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
-                    Click a zone, then click cells to assign. Sequence must follow: Cone → Nose → Taper → Shoulder → Gage (cannot reverse order within a row)
+                    Click a zone, then click cells to assign. Sequence must follow: Cone → Nose → Shoulder → Gage → Pad (cannot reverse order within a row)
                 </p>
             </div>
         </div>
@@ -890,17 +890,17 @@ function pocketsLayout() {
         isSaving: false, // Track save operation
 
         // Location assignment features
-        locationData: {}, // {blade_col: 'C'/'N'/'T'/'S'/'G'}
+        locationData: {}, // {blade_col: 'C'/'N'/'S'/'G'/'P'}
         selectedLocation: null, // Currently selected location zone
         isSavingLocations: false,
         locationZones: [
             { code: 'C', name: 'Cone', color: '#ef4444' },      // Red
             { code: 'N', name: 'Nose', color: '#f97316' },      // Orange
-            { code: 'T', name: 'Taper', color: '#eab308' },     // Yellow
             { code: 'S', name: 'Shoulder', color: '#22c55e' },  // Green
-            { code: 'G', name: 'Gage', color: '#3b82f6' }       // Blue
+            { code: 'G', name: 'Gage', color: '#3b82f6' },      // Blue
+            { code: 'P', name: 'Pad', color: '#a855f7' }        // Purple
         ],
-        locationOrder: { 'C': 1, 'N': 2, 'T': 3, 'S': 4, 'G': 5 },
+        locationOrder: { 'C': 1, 'N': 2, 'S': 3, 'G': 4, 'P': 5 },
 
         // Engagement features
         engagementData: {}, // {blade_col: orderNumber}
