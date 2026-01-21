@@ -8280,6 +8280,8 @@
             })
             .then(r => r.json())
             .then(response => {
+                console.log('Re-upload full response:', JSON.stringify(response, null, 2));
+
                 if (response.error) {
                     showReuploadStatus('Error: ' + response.error, 'error');
                     return;
@@ -8287,6 +8289,11 @@
 
                 // Response structure: { success: true, data: {...}, document_id, filename }
                 const newData = response.data;
+                console.log('Extracted newData blades:', newData?.blades?.length || 0);
+                console.log('Extracted newData summary:', newData?.summary?.length || 0);
+                console.log('Original blades:', originalData?.blades?.length || 0);
+                console.log('Original summary:', originalData?.summary?.length || 0);
+
                 if (!newData) {
                     showReuploadStatus('Error: No data extracted from PDF', 'error');
                     return;
