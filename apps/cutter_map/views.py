@@ -832,6 +832,8 @@ def api_sync_to_erp(request):
                             blade_location = DesignPocket.BladeLocation.SHOULDER
                         elif 'GAGE' in pos_name or 'GAUGE' in pos_name:
                             blade_location = DesignPocket.BladeLocation.GAGE
+                        elif 'PAD' in pos_name:
+                            blade_location = DesignPocket.BladeLocation.PAD
 
                         # Use get_or_create to handle any remaining duplicates
                         pocket, created = DesignPocket.objects.get_or_create(

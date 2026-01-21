@@ -1391,6 +1391,7 @@ class DesignPocket(models.Model):
         TAPER = "T", "Taper"
         SHOULDER = "S", "Shoulder"
         GAGE = "G", "Gage"
+        PAD = "P", "Pad"
 
     design = models.ForeignKey(
         Design,
