@@ -34,6 +34,12 @@ from django.views.generic import (
 
 from .models import BitEvent, DrillBit, Location, WorkOrder
 
+# Import Customer model for First Event Wizard
+try:
+    from apps.sales.models import Customer
+except ImportError:
+    Customer = None
+
 # Try to import openpyxl for Excel export
 try:
     from openpyxl import Workbook
@@ -256,7 +262,10 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
         bit = get_object_or_404(DrillBit, pk=self.kwargs['pk'])
         context['bit'] = bit
         context['locations'] = Location.objects.filter(is_active=True).order_by('name')
-        context['customers'] = Customer.objects.filter(is_active=True).order_by('name') if hasattr(Customer, 'is_active') else Customer.objects.all().order_by('name')
+        if Customer:
+            context['customers'] = Customer.objects.filter(is_active=True).order_by('name') if hasattr(Customer, 'is_active') else Customer.objects.all().order_by('name')
+        else:
+            context['customers'] = []
         return context
 
     def post(self, request, *args, **kwargs):
@@ -295,7 +304,7 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
             bit.lifecycle_status = DrillBit.LifecycleStatus.EVALUATION
             bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
             bit.accounting_status = DrillBit.AccountingStatus.CUSTOMER_OWNED
-            if customer_id:
+            if customer_id and Customer:
                 bit.customer = get_object_or_404(Customer, pk=customer_id)
             event_type_choice = BitEvent.EventType.BACKLOADED  # Using BACKLOADED for customer intake
             event_notes = f"Customer intake at {location.name}. Customer: {bit.customer.name if bit.customer else 'Not specified'}. {notes}".strip()
