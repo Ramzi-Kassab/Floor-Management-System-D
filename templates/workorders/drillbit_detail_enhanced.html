@@ -23,7 +23,7 @@
             </div>
             <p class="text-gray-600 dark:text-gray-400 mt-1">
                 {{ drill_bit.get_bit_type_display }}
-                {% if drill_bit.bit_size %} - {{ drill_bit.bit_size }}"{% endif %}
+                {% if drill_bit.design.size %} - {{ drill_bit.design.size.size_display }}{% endif %}
             </p>
         </div>
     </div>
@@ -53,8 +53,8 @@
                     <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.serial_number }}</p>
                 </div>
                 <div>
-                    <p class="text-gray-500 dark:text-gray-400">MAT Number</p>
-                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.mat_number|default:"--" }}</p>
+                    <p class="text-gray-500 dark:text-gray-400">Design (L3/L4)</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.design.mat_no|default:"--" }}</p>
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Type</p>
@@ -62,23 +62,23 @@
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Size</p>
-                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.bit_size|default:"--" }}"</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.size.size_display|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">BOM (L5)</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.bom.code|default:"--" }}</p>
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Customer</p>
                     <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.customer.name|default:"--" }}</p>
                 </div>
                 <div>
-                    <p class="text-gray-500 dark:text-gray-400">Rig</p>
-                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.rig.name|default:"--" }}</p>
-                </div>
-                <div>
-                    <p class="text-gray-500 dark:text-gray-400">Well</p>
-                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.well.name|default:"--" }}</p>
-                </div>
-                <div>
                     <p class="text-gray-500 dark:text-gray-400">Location</p>
-                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.current_location.name|default:"--" }}</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.bit_location.name|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Status</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_lifecycle_status_display|default:drill_bit.get_status_display }}</p>
                 </div>
             </div>
         </div>

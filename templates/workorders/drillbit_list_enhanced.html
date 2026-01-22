@@ -112,7 +112,7 @@
             <thead>
                 <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
                     <th class="px-4 py-3 font-medium">Serial #</th>
-                    <th class="px-4 py-3 font-medium">MAT #</th>
+                    <th class="px-4 py-3 font-medium">Design</th>
                     <th class="px-4 py-3 font-medium">Type</th>
                     <th class="px-4 py-3 font-medium">Size</th>
                     <th class="px-4 py-3 font-medium">Customer</th>
@@ -131,11 +131,11 @@
                             {{ bit.serial_number }}
                         </a>
                     </td>
-                    <td class="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">{{ bit.mat_number|default:"--" }}</td>
+                    <td class="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">{{ bit.design.mat_no|default:"--" }}</td>
                     <td class="px-4 py-3 text-gray-900 dark:text-white">{{ bit.get_bit_type_display }}</td>
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ bit.bit_size|default:"--" }}"</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ bit.design.size.size_display|default:"--" }}</td>
                     <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ bit.customer.name|default:"--"|truncatechars:20 }}</td>
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ bit.current_location.name|default:"--" }}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ bit.bit_location.name|default:"--" }}</td>
                     <td class="px-4 py-3">
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                             {% if bit.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200

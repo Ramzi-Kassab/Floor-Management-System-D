@@ -145,12 +145,12 @@
                                 <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.serial_number }}</p>
                             </div>
                             <div>
-                                <p class="text-gray-500 dark:text-gray-400">MAT#</p>
-                                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.mat_number|default:"--" }}</p>
+                                <p class="text-gray-500 dark:text-gray-400">Design</p>
+                                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.design.mat_no|default:"--" }}</p>
                             </div>
                             <div>
                                 <p class="text-gray-500 dark:text-gray-400">Size</p>
-                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.drill_bit.bit_size|default:"--" }}"</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.drill_bit.design.size.size_display|default:"--" }}</p>
                             </div>
                             <div>
                                 <p class="text-gray-500 dark:text-gray-400">Type</p>
