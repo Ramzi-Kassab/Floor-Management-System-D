@@ -834,7 +834,9 @@ class BOMListView(LoginRequiredMixin, ListView):
             "design", "design__size", "design__iadc_code_ref", "created_by",
             "smi_type", "smi_type__hdbs_type"
         ).prefetch_related(
-            "lines__inventory_item"
+            "lines__inventory_item",
+            "drillbits_brazing",  # Drill bits linked via brazing_bom
+            "drillbits_system",   # Drill bits linked via system_bom
         ).order_by("-created_at")
 
         # Apply django-filter
@@ -868,10 +870,18 @@ class BOMListView(LoginRequiredMixin, ListView):
                     # No inventory item linked - can't check availability
                     all_available = False
 
+            # Collect linked drill bits (both brazing and system)
+            linked_drillbits = set()
+            for db in bom.drillbits_brazing.all():
+                linked_drillbits.add(db.serial_number)
+            for db in bom.drillbits_system.all():
+                linked_drillbits.add(db.serial_number)
+
             boms_with_status.append({
                 'bom': bom,
                 'materials_ready': all_available if line_count > 0 else None,
                 'line_count': line_count,
+                'linked_sns': list(linked_drillbits),
             })
 
         context["boms_with_status"] = boms_with_status

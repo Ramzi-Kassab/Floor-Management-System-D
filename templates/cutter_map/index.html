@@ -7853,6 +7853,17 @@
                 if (singleId) drillbitIds = [singleId];
             }
 
+            // Get serial numbers for display
+            let serialNumbers = [];
+            const serialNumbersEl = document.getElementById('serialNumbers');
+            if (serialNumbersEl && serialNumbersEl.value) {
+                try {
+                    serialNumbers = JSON.parse(serialNumbersEl.value) || [];
+                } catch (e) {
+                    serialNumbers = [];
+                }
+            }
+
             const payload = {
                 design_id: designId || null,
                 parent_design_mat: designMat || '',
@@ -7872,6 +7883,127 @@
                 },
                 create_missing_items: false  // Can be made configurable
             };
+
+            // Show preview dialog before creating BOM
+            showBOMPreviewDialog(payload, designMat, serialNumbers);
+        }
+
+        // Show preview dialog before BOM creation
+        function showBOMPreviewDialog(payload, designMat, serialNumbers) {
+            const dialog = document.createElement('div');
+            dialog.className = 'mat-dialog';
+            dialog.id = 'bomPreviewDialog';
+
+            // Count BOM items from summary
+            const bomItemCount = payload.data.summary ? payload.data.summary.length : 0;
+
+            // Serial numbers display
+            let serialNumbersHtml = '';
+            if (serialNumbers && serialNumbers.length > 0) {
+                serialNumbersHtml = `
+                    <div style="margin-top: 15px; padding: 10px; background: #e8f5e9; border-radius: 6px; border-left: 3px solid #4caf50;">
+                        <span style="color: #2e7d32; font-size: 11px; font-weight: bold;">🔗 Will be linked to ${serialNumbers.length} Drill Bit${serialNumbers.length > 1 ? 's' : ''}:</span>
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+                            ${serialNumbers.map(sn => `
+                                <span style="font-family: monospace; font-size: 11px; background: #c8e6c9; padding: 2px 6px; border-radius: 3px; color: #1b5e20;">
+                                    SN: ${sn}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else {
+                serialNumbersHtml = `
+                    <div style="margin-top: 15px; padding: 10px; background: #fff3e0; border-radius: 6px; border-left: 3px solid #ff9800;">
+                        <span style="color: #e65100; font-size: 11px;">⚠️ No serial numbers selected - BOM will not be linked to any drill bits</span>
+                    </div>
+                `;
+            }
+
+            dialog.innerHTML = `
+                <div class="mat-dialog-box" style="max-width: 550px; max-height: 90vh; overflow-y: auto;">
+                    <div class="mat-dialog-title" style="color: #1565c0; background: #e3f2fd; padding: 12px 15px; margin: -15px -15px 15px -15px; border-radius: 4px 4px 0 0; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 24px;">📋</span>
+                        <span>Review BOM Before Creating</span>
+                    </div>
+
+                    <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
+                        Please review and confirm the BOM details below. You can edit the MAT numbers before saving.
+                    </p>
+
+                    <!-- Editable BOM Details -->
+                    <div style="background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+                            <!-- Brazing MAT (editable) -->
+                            <div style="padding: 8px; background: #fff3e0; border-radius: 4px; border-left: 3px solid #e65100;">
+                                <label style="color: #666; font-size: 11px; display: block;">🔧 Brazing MAT:</label>
+                                <input type="text" id="previewBrazingMat" value="${payload.brazing_mat}"
+                                       style="width: 100%; font-family: monospace; font-weight: bold; font-size: 13px; padding: 4px 6px; border: 1px solid #ddd; border-radius: 3px; color: #e65100; background: white; margin-top: 4px;">
+                            </div>
+                            <!-- System MAT (editable) -->
+                            <div style="padding: 8px; background: #e3f2fd; border-radius: 4px; border-left: 3px solid #1565c0;">
+                                <label style="color: #666; font-size: 11px; display: block;">📋 System MAT:</label>
+                                <input type="text" id="previewSystemMat" value="${payload.system_mat}"
+                                       style="width: 100%; font-family: monospace; font-weight: bold; font-size: 13px; padding: 4px 6px; border: 1px solid #ddd; border-radius: 3px; color: #1565c0; background: white; margin-top: 4px;">
+                            </div>
+                            <!-- Design MAT (read-only) -->
+                            <div>
+                                <span style="color: #666; font-size: 11px;">Design MAT:</span>
+                                <strong style="display: block; font-family: monospace;">${designMat}</strong>
+                            </div>
+                            <!-- BOM Items -->
+                            <div>
+                                <span style="color: #666; font-size: 11px;">BOM Lines:</span>
+                                <strong style="display: block;">${bomItemCount} items</strong>
+                            </div>
+                        </div>
+
+                        ${serialNumbersHtml}
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button onclick="document.getElementById('bomPreviewDialog').remove();"
+                                style="flex: 1; padding: 12px; background: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                            ✕ Cancel
+                        </button>
+                        <button onclick="confirmAndCreateBOM();"
+                                style="flex: 1; padding: 12px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">
+                            ✓ Create BOM
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dialog);
+
+            // Store payload for later use
+            window._pendingBOMPayload = payload;
+        }
+
+        // Confirm and create BOM after preview
+        function confirmAndCreateBOM() {
+            const payload = window._pendingBOMPayload;
+            if (!payload) {
+                showMsg('No BOM data found. Please try again.', 'error');
+                return;
+            }
+
+            // Get updated values from preview dialog
+            const brazingMatInput = document.getElementById('previewBrazingMat');
+            const systemMatInput = document.getElementById('previewSystemMat');
+
+            if (brazingMatInput) {
+                payload.brazing_mat = brazingMatInput.value.trim();
+            }
+            if (systemMatInput) {
+                payload.system_mat = systemMatInput.value.trim();
+            }
+
+            // Close preview dialog
+            const previewDialog = document.getElementById('bomPreviewDialog');
+            if (previewDialog) {
+                previewDialog.remove();
+            }
 
             console.log('Sending payload to /cutter-map/api/sync-to-erp/', JSON.stringify(payload, null, 2));
 

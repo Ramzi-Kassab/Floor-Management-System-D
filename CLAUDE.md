@@ -96,6 +96,17 @@ InventoryItem
 - **Create new BOM**: Option to proceed with uploading a new PDF file
 - **BOM type labels**: Shows Brazing/System type labels in the existing BOMs list
 
+### BOM Creation Preview Dialog
+- **Preview before saving**: When clicking "Create BOM", shows a review dialog before actually saving
+- **Editable MAT numbers**: Brazing MAT and System MAT can be edited in the preview
+- **Serial numbers display**: Shows all selected serial numbers that will be linked
+- **Confirm/Cancel**: User must confirm to proceed with BOM creation
+
+### BOM List Page Enhancements
+- **Linked SNs column**: New column showing all drill bits linked to each BOM (via brazing_bom or system_bom)
+- **Removed "Primary" labels**: No longer shows "Primary" badge next to Brazing/System MAT
+- **Prefetch optimization**: Drill bits are prefetched for better performance
+
 ### Bug Fixes
 - **URL path fix**: Changed `/workorders/api/drill-bits/search/` to `/work-orders/api/drill-bits/search/` (matching URL conf)
 
