@@ -7512,4 +7512,3 @@ class StockExportExcelView(LoginRequiredMixin, View):
         response["Content-Disposition"] = f'attachment; filename="cutter_stock_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
         wb.save(response)
         return response
-        })
