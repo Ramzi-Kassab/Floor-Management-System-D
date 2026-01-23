@@ -7098,3 +7098,418 @@ class PriceCalculatorAPIView(LoginRequiredMixin, View):
             "variant_code": variant.code if variant else None,
             "prices": results,
         })
+
+
+# =============================================================================
+# STOCK IMPORT FROM EXCEL
+# =============================================================================
+
+
+class StockImportView(LoginRequiredMixin, TemplateView):
+    """
+    Web interface for importing stock quantities from Excel files.
+
+    Allows users to:
+    1. Upload an Excel file or select from docs folder
+    2. Preview the data before importing
+    3. Execute the import
+    4. See the results
+    """
+
+    template_name = "inventory/stock_import.html"
+
+    # Excel column mapping (0-indexed)
+    COLUMN_MAP = {
+        'hdbs_code': 1,      # Column B - MN (HDBS MAT Number)
+        'product_name': 2,   # Column C - Product name
+        'cutter_type': 3,    # Column D - Cutter type
+        'size': 4,           # Column E - Size
+        'chamfer': 5,        # Column F - Chamfer
+        'family': 6,         # Column G - Family
+        'NEW-EO': 7,         # Column H - ENO As New Cutter
+        'USED-GRD': 8,       # Column I - ENO Ground Cutter
+        'USED-RCL': 9,       # Column J - ARDT Reclaim Cutter
+        'NEW-CLI': 10,       # Column K - LSTK Reclaim Cutter
+        'NEW-PUR': 11,       # Column L - New Stock
+    }
+
+    VARIANT_CASES = ['NEW-EO', 'USED-GRD', 'USED-RCL', 'NEW-CLI', 'NEW-PUR']
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Import Stock from Excel"
+
+        # Get available Excel files in docs folder
+        import os
+        docs_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'docs')
+        excel_files = []
+        if os.path.exists(docs_path):
+            for f in os.listdir(docs_path):
+                if f.endswith('.xlsx'):
+                    excel_files.append(f)
+        context["excel_files"] = sorted(excel_files)
+
+        # Get default location
+        default_location = InventoryLocation.objects.filter(is_default=True).first()
+        if not default_location:
+            default_location = InventoryLocation.objects.first()
+        context["default_location"] = default_location
+
+        # Get variant cases
+        context["variant_cases"] = VariantCase.objects.all()
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        """Handle file upload, preview, and import."""
+        import json
+        import os
+        from decimal import Decimal
+        from django.db import transaction
+
+        try:
+            import openpyxl
+        except ImportError:
+            return JsonResponse({'success': False, 'error': 'openpyxl is required'}, status=500)
+
+        action = request.POST.get('action', 'preview')
+
+        # Determine file source
+        uploaded_file = request.FILES.get('excel_file')
+        selected_file = request.POST.get('selected_file', '')
+
+        if uploaded_file:
+            # Handle uploaded file
+            wb = openpyxl.load_workbook(uploaded_file, data_only=True)
+            file_name = uploaded_file.name
+        elif selected_file:
+            # Use file from docs folder
+            docs_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'docs')
+            file_path = os.path.join(docs_path, selected_file)
+            if not os.path.exists(file_path):
+                return JsonResponse({'success': False, 'error': f'File not found: {selected_file}'}, status=400)
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            file_name = selected_file
+        else:
+            return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
+
+        # Auto-detect sheet
+        ws = None
+        sheet_name = request.POST.get('sheet_name', '')
+        if sheet_name and sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+        else:
+            for name in wb.sheetnames:
+                if 'cutters inventory' in name.lower():
+                    ws = wb[name]
+                    sheet_name = name
+                    break
+            if not ws:
+                ws = wb.active
+                sheet_name = ws.title
+
+        # Get default location
+        default_location = InventoryLocation.objects.filter(is_default=True).first()
+        if not default_location:
+            default_location = InventoryLocation.objects.first()
+
+        if not default_location:
+            return JsonResponse({'success': False, 'error': 'No inventory location found'}, status=400)
+
+        # Build HDBS code to item mapping
+        hdbs_to_item = {}
+        for item in InventoryItem.objects.filter(mat_number__isnull=False).exclude(mat_number=''):
+            hdbs_to_item[item.mat_number] = item
+
+        for attr_val in ItemAttributeValue.objects.filter(
+            attribute__attribute__code__in=['hdbs_code', 'hdbs', 'hdbs_mat'],
+            text_value__isnull=False
+        ).exclude(text_value='').select_related('item'):
+            if attr_val.text_value not in hdbs_to_item:
+                hdbs_to_item[attr_val.text_value] = attr_val.item
+
+        # Get variant cases
+        variant_cases = {vc.code: vc for vc in VariantCase.objects.all()}
+
+        # Process rows
+        rows = list(ws.iter_rows(min_row=2, values_only=True))  # Skip header row
+        preview_data = []
+        stats = {
+            'rows_processed': 0,
+            'items_matched': 0,
+            'items_not_found': 0,
+            'total_quantity': Decimal('0'),
+        }
+        not_found = []
+
+        for row_idx, row in enumerate(rows, start=2):
+            if not row or not row[self.COLUMN_MAP['hdbs_code']]:
+                continue
+
+            hdbs_code = str(row[self.COLUMN_MAP['hdbs_code']]).strip()
+            product_name = str(row[self.COLUMN_MAP['product_name']] or '').strip()
+            cutter_type = str(row[self.COLUMN_MAP['cutter_type']] or '').strip()
+            size = str(row[self.COLUMN_MAP['size']] or '').strip()
+            chamfer = str(row[self.COLUMN_MAP['chamfer']] or '').strip()
+
+            stats['rows_processed'] += 1
+
+            # Find matching inventory item
+            item = hdbs_to_item.get(hdbs_code)
+            if not item:
+                stats['items_not_found'] += 1
+                not_found.append({
+                    'row': row_idx,
+                    'hdbs_code': hdbs_code,
+                    'product_name': product_name,
+                })
+                continue
+
+            stats['items_matched'] += 1
+
+            # Build row data for preview
+            row_data = {
+                'row': row_idx,
+                'hdbs_code': hdbs_code,
+                'product_name': product_name,
+                'cutter_type': cutter_type,
+                'size': size,
+                'chamfer': chamfer,
+                'item_code': item.code,
+                'item_name': item.name,
+                'matched': True,
+                'quantities': {},
+            }
+
+            # Get quantities for each variant case
+            for case_code in self.VARIANT_CASES:
+                col_idx = self.COLUMN_MAP.get(case_code)
+                if col_idx is None:
+                    continue
+
+                qty_raw = row[col_idx]
+                if qty_raw is None or qty_raw == '':
+                    continue
+
+                try:
+                    qty = Decimal(str(qty_raw))
+                    if qty > 0:
+                        row_data['quantities'][case_code] = float(qty)
+                        stats['total_quantity'] += qty
+                except:
+                    continue
+
+            if row_data['quantities']:
+                preview_data.append(row_data)
+
+        if action == 'preview':
+            return JsonResponse({
+                'success': True,
+                'file_name': file_name,
+                'sheet_name': sheet_name,
+                'sheets': wb.sheetnames,
+                'stats': {
+                    'rows_processed': stats['rows_processed'],
+                    'items_matched': stats['items_matched'],
+                    'items_not_found': stats['items_not_found'],
+                    'total_quantity': float(stats['total_quantity']),
+                },
+                'preview': preview_data[:100],  # First 100 rows
+                'not_found': not_found[:20],
+            })
+
+        elif action == 'import':
+            # Actually import the data
+            import_stats = {
+                'variants_created': 0,
+                'variants_updated': 0,
+                'stock_records_created': 0,
+                'stock_records_updated': 0,
+            }
+
+            with transaction.atomic():
+                for row_data in preview_data:
+                    item = hdbs_to_item.get(row_data['hdbs_code'])
+                    if not item:
+                        continue
+
+                    for case_code, qty in row_data['quantities'].items():
+                        variant_case = variant_cases.get(case_code)
+                        if not variant_case:
+                            continue
+
+                        qty_decimal = Decimal(str(qty))
+
+                        # Find or create variant
+                        variant, variant_created = ItemVariant.objects.get_or_create(
+                            base_item=item,
+                            variant_case=variant_case,
+                            defaults={'code': f'{item.code}-{case_code}'}
+                        )
+                        if variant_created:
+                            import_stats['variants_created'] += 1
+                        else:
+                            import_stats['variants_updated'] += 1
+
+                        # For NEW-CLI, set LSTK account
+                        if case_code == 'NEW-CLI' and not variant.account:
+                            variant.account = 'LSTK'
+                            variant.save(update_fields=['account'])
+
+                        # Find or create stock record
+                        stock, stock_created = VariantStock.objects.get_or_create(
+                            variant=variant,
+                            location=default_location,
+                            defaults={
+                                'quantity_on_hand': qty_decimal,
+                                'quantity_available': qty_decimal,
+                            }
+                        )
+                        if stock_created:
+                            import_stats['stock_records_created'] += 1
+                        else:
+                            stock.quantity_on_hand = qty_decimal
+                            stock.quantity_available = qty_decimal
+                            stock.last_movement_date = timezone.now()
+                            stock.save()
+                            import_stats['stock_records_updated'] += 1
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Import completed successfully',
+                'stats': {
+                    **{k: v for k, v in stats.items() if k != 'total_quantity'},
+                    'total_quantity': float(stats['total_quantity']),
+                    **import_stats,
+                },
+            })
+
+        return JsonResponse({'success': False, 'error': 'Invalid action'}, status=400)
+
+
+class StockExportExcelView(LoginRequiredMixin, View):
+    """
+    Export current stock data to Excel for reconciliation.
+    """
+
+    def get(self, request, *args, **kwargs):
+        from django.http import HttpResponse
+
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
+        except ImportError:
+            messages.error(request, 'openpyxl is required for Excel export.')
+            return redirect('inventory:cutter_dashboard')
+
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Cutter Stock"
+
+        # Styles
+        header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True)
+        thin_border = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin")
+        )
+
+        # Headers
+        headers = [
+            '#', 'HDBS Code', 'Product Name', 'Cutter Type', 'Size', 'Chamfer', 'Family',
+            'NEW-EO', 'USED-GRD', 'USED-RCL', 'NEW-CLI', 'NEW-PUR', 'Total'
+        ]
+
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal="center")
+
+        # Get items with stock
+        items_with_stock = InventoryItem.objects.filter(
+            category__code='CUT-PDC'
+        ).prefetch_related(
+            'variants__variant_case',
+            'variants__stock_records'
+        ).order_by('code')
+
+        row_num = 2
+        for idx, item in enumerate(items_with_stock, 1):
+            # Get HDBS code
+            hdbs_code = item.mat_number
+            if not hdbs_code:
+                hdbs_attr = item.attribute_values.filter(
+                    attribute__attribute__code__in=['hdbs_code', 'hdbs', 'hdbs_mat']
+                ).first()
+                if hdbs_attr:
+                    hdbs_code = hdbs_attr.text_value
+
+            # Get variant stock
+            variant_stock = {}
+            total = Decimal('0')
+            for variant in item.variants.all():
+                if variant.variant_case:
+                    for stock in variant.stock_records.all():
+                        qty = stock.quantity_on_hand
+                        variant_stock[variant.variant_case.code] = float(qty)
+                        total += qty
+
+            if not variant_stock:
+                continue
+
+            # Get cutter attributes
+            cutter_type = ''
+            size = ''
+            chamfer = ''
+            family = ''
+            for attr_val in item.attribute_values.select_related('attribute__attribute').all():
+                attr_code = attr_val.attribute.attribute.code
+                if attr_code == 'cutter_type':
+                    cutter_type = attr_val.text_value or ''
+                elif attr_code in ['cutter_size', 'diameter']:
+                    size = attr_val.text_value or ''
+                elif attr_code == 'chamfer':
+                    chamfer = attr_val.text_value or ''
+                elif attr_code == 'family':
+                    family = attr_val.text_value or ''
+
+            # Write row
+            ws.cell(row=row_num, column=1, value=idx)
+            ws.cell(row=row_num, column=2, value=hdbs_code or '')
+            ws.cell(row=row_num, column=3, value=item.name)
+            ws.cell(row=row_num, column=4, value=cutter_type)
+            ws.cell(row=row_num, column=5, value=size)
+            ws.cell(row=row_num, column=6, value=chamfer)
+            ws.cell(row=row_num, column=7, value=family)
+            ws.cell(row=row_num, column=8, value=variant_stock.get('NEW-EO', ''))
+            ws.cell(row=row_num, column=9, value=variant_stock.get('USED-GRD', ''))
+            ws.cell(row=row_num, column=10, value=variant_stock.get('USED-RCL', ''))
+            ws.cell(row=row_num, column=11, value=variant_stock.get('NEW-CLI', ''))
+            ws.cell(row=row_num, column=12, value=variant_stock.get('NEW-PUR', ''))
+            ws.cell(row=row_num, column=13, value=float(total))
+
+            for col in range(1, len(headers) + 1):
+                ws.cell(row=row_num, column=col).border = thin_border
+
+            row_num += 1
+
+        # Auto-width columns
+        for col in range(1, len(headers) + 1):
+            ws.column_dimensions[get_column_letter(col)].width = 12
+        ws.column_dimensions['C'].width = 25  # Product name wider
+
+        # Freeze header row
+        ws.freeze_panes = 'A2'
+
+        # Response
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = f'attachment; filename="cutter_stock_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+        wb.save(response)
+        return response
+        })

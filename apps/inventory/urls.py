@@ -81,6 +81,9 @@ urlpatterns = [
     path("cutters/", views.CutterInventoryListView.as_view(), name="cutter_inventory_list"),
     path("cutters/export/", views.CutterInventoryExportView.as_view(), name="cutter_inventory_export"),
     path("cutters/orders/", views.CutterOrderListView.as_view(), name="cutter_order_list"),
+    # Stock Import from Excel
+    path("stock/import/", views.StockImportView.as_view(), name="stock_import"),
+    path("stock/export/excel/", views.StockExportExcelView.as_view(), name="stock_export_excel"),
     # Item Planning (per-warehouse)
     path("items/<int:item_pk>/planning/create/", views.ItemPlanningCreateView.as_view(), name="item_planning_create"),
     path("items/<int:item_pk>/planning/<int:pk>/edit/", views.ItemPlanningUpdateView.as_view(), name="item_planning_update"),
