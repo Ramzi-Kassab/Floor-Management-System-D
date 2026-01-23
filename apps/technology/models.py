@@ -1067,6 +1067,11 @@ class BOM(models.Model):
         blank=True,
         help_text="Complete extracted/edited data from PDF (header, summary, blades)"
     )
+    original_source_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Original baseline source data (set on first creation, never modified)"
+    )
 
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1236,6 +1241,92 @@ class BOMLine(models.Model):
         if not self.color_code or self.color_code == "#4A4A4A":
             self.set_default_color()
         super().save(*args, **kwargs)
+
+
+class BOMVersion(models.Model):
+    """
+    Track version history for BOMs.
+
+    Stores a snapshot of source_data every time a BOM is updated,
+    allowing users to view and compare changes over time.
+    """
+
+    class ChangeType(models.TextChoices):
+        CREATED = "CREATED", "Initial Creation"
+        UPDATED = "UPDATED", "Updated"
+        CUTTER_ADDED = "CUTTER_ADDED", "Cutter Added"
+        CUTTER_REMOVED = "CUTTER_REMOVED", "Cutter Removed"
+        CUTTER_CHANGED = "CUTTER_CHANGED", "Cutter Changed"
+        LAYOUT_CHANGED = "LAYOUT_CHANGED", "Layout Changed"
+        ACTIVATED = "ACTIVATED", "Activated"
+        OBSOLETED = "OBSOLETED", "Made Obsolete"
+
+    bom = models.ForeignKey(
+        BOM,
+        on_delete=models.CASCADE,
+        related_name="versions"
+    )
+    version_number = models.PositiveIntegerField()
+    change_type = models.CharField(
+        max_length=20,
+        choices=ChangeType.choices,
+        default=ChangeType.UPDATED
+    )
+    change_summary = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Brief description of changes"
+    )
+
+    # Snapshot of BOM data at this version
+    source_data_snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Complete source_data at the time of this version"
+    )
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_bom_versions"
+    )
+
+    class Meta:
+        db_table = "bom_versions"
+        ordering = ["bom", "-version_number"]
+        unique_together = ["bom", "version_number"]
+        verbose_name = "BOM Version"
+        verbose_name_plural = "BOM Versions"
+
+    def __str__(self):
+        return f"{self.bom.code} v{self.version_number}"
+
+    @classmethod
+    def create_version(cls, bom, change_type=None, change_summary="", user=None):
+        """
+        Create a new version snapshot for a BOM.
+
+        Args:
+            bom: The BOM instance
+            change_type: Type of change (default: UPDATED)
+            change_summary: Brief description of changes
+            user: User who made the change
+        """
+        # Get next version number
+        last_version = cls.objects.filter(bom=bom).order_by('-version_number').first()
+        next_version = (last_version.version_number + 1) if last_version else 1
+
+        return cls.objects.create(
+            bom=bom,
+            version_number=next_version,
+            change_type=change_type or cls.ChangeType.UPDATED,
+            change_summary=change_summary,
+            source_data_snapshot=bom.source_data or {},
+            created_by=user
+        )
 
 
 class DesignCutterLayout(models.Model):

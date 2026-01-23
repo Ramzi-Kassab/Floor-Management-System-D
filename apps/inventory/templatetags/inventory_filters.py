@@ -81,4 +81,36 @@ def get_item(dictionary, key):
     """
     if dictionary is None:
         return None
+    if isinstance(key, str):
+        # Try int conversion for numeric keys
+        try:
+            return dictionary.get(int(key), dictionary.get(key, None))
+        except (ValueError, TypeError):
+            pass
     return dictionary.get(key, None)
+
+
+@register.filter
+def items(dictionary):
+    """
+    Return dictionary items for iteration.
+
+    Usage: {% for key, value in my_dict|items %}
+    """
+    if dictionary is None:
+        return []
+    if hasattr(dictionary, 'items'):
+        return dictionary.items()
+    return []
+
+
+@register.filter
+def split(value, delimiter=','):
+    """
+    Split a string by delimiter.
+
+    Usage: {% for item in "a,b,c"|split:"," %}
+    """
+    if value is None:
+        return []
+    return value.split(delimiter)

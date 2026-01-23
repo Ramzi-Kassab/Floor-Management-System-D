@@ -163,6 +163,50 @@ def bom_view(request, bom_id):
 
 
 @login_required
+def bom_readonly(request, bom_id):
+    """
+    Read-only BOM view for work orders and job cards.
+
+    Simple, print-friendly layout showing BOM details without editing capabilities.
+    Used for internal/external work order documentation.
+    """
+    from apps.technology.models import BOM
+    from apps.workorders.models import DrillBit
+
+    bom = get_object_or_404(BOM, pk=bom_id)
+
+    # Get linked drill bits
+    brazing_linked = list(DrillBit.objects.filter(brazing_bom=bom))
+    system_linked = list(DrillBit.objects.filter(system_bom=bom))
+    linked_drillbits = list({db.pk: db for db in brazing_linked + system_linked}.values())
+
+    # Parse source_data for template
+    source_data = bom.source_data or {}
+    cutter_shapes = {}
+    if source_data.get('cutter_shapes'):
+        for key, shape in source_data['cutter_shapes'].items():
+            if isinstance(shape, dict) and shape.get('data'):
+                cutter_shapes[int(key)] = shape['data']
+
+    # Check where the user came from
+    from_workorder = request.GET.get('from') == 'workorder'
+    from_drillbit = request.GET.get('from') == 'drillbit'
+    workorder_id = request.GET.get('wo_id')
+    drillbit_id = request.GET.get('db_id')
+
+    return render(request, 'cutter_map/bom_readonly.html', {
+        'bom': bom,
+        'source_data': source_data,
+        'cutter_shapes': cutter_shapes,
+        'linked_drillbits': linked_drillbits,
+        'from_workorder': from_workorder,
+        'from_drillbit': from_drillbit,
+        'workorder_id': workorder_id,
+        'drillbit_id': drillbit_id,
+    })
+
+
+@login_required
 @require_http_methods(['POST'])
 def upload(request):
     """Handle PDF upload and extract data."""
@@ -804,7 +848,7 @@ def api_sync_to_erp(request):
             )
 
         # Save complete source data for PDF Generator reconstruction
-        bom.source_data = {
+        new_source_data = {
             'header': header,
             'summary': summary,
             'blades': blades,
@@ -812,6 +856,34 @@ def api_sync_to_erp(request):
             'groups': groups,  # Cutter groups with shapes
             'cutter_shapes': cutter_shapes  # Individual cutter shapes by BOM index
         }
+
+        # Create version history before updating
+        from apps.technology.models import BOMVersion
+
+        if bom_was_updated:
+            # Save version snapshot before changes
+            change_summary = f"Updated via PDF import. Previous lines: {previous_lines_count}"
+            BOMVersion.create_version(
+                bom=bom,
+                change_type=BOMVersion.ChangeType.UPDATED,
+                change_summary=change_summary,
+                user=request.user
+            )
+        else:
+            # New BOM - set original_source_data (baseline that never changes)
+            bom.original_source_data = new_source_data
+            # Create initial version
+            bom.source_data = new_source_data
+            bom.save()
+            BOMVersion.create_version(
+                bom=bom,
+                change_type=BOMVersion.ChangeType.CREATED,
+                change_summary="Initial BOM creation via PDF import",
+                user=request.user
+            )
+
+        # Update source_data
+        bom.source_data = new_source_data
         bom.source_mat_number = brazing_mat or header.get('mat_number', '')  # Store brazing MAT
         bom.source_sn_number = serial_number or header.get('sn_number', '')  # Store serial number
         bom.source_revision_level = header.get('revision_level', '')

@@ -60,6 +60,28 @@
 {% endblock %}
 
 {% block content %}
+{% if preselect_drillbit %}
+<div class="mb-6 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4">
+    <div class="flex items-center gap-3">
+        <div class="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
+            <i data-lucide="hash" class="w-5 h-5 text-purple-600"></i>
+        </div>
+        <div>
+            <p class="text-sm text-purple-800 dark:text-purple-300">
+                Creating BOM for Drill Bit <span class="font-mono font-bold">SN: {{ preselect_drillbit.serial_number }}</span>
+            </p>
+            <p class="text-xs text-purple-600 dark:text-purple-400">
+                Design {{ preselect_drillbit.design.mat_no }} is pre-selected. Upload a PDF to create the BOM.
+            </p>
+        </div>
+        <a href="{% url 'workorders:drillbit_detail_enhanced' preselect_drillbit.pk %}"
+           class="ml-auto text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400">
+            ← Back to Drill Bit
+        </a>
+    </div>
+</div>
+{% endif %}
+
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Main Column: Design Selection -->
     <div class="lg:col-span-2">
@@ -580,6 +602,8 @@
         // Check for new_design query parameter (coming back from design create)
         const urlParams = new URLSearchParams(window.location.search);
         const newDesignId = urlParams.get('new_design');
+        const preselectDesignId = '{{ preselect_design_id|default:"" }}';
+        const preselectDrillbitId = '{{ preselect_drillbit_id|default:"" }}';
 
         if (newDesignId) {
             // Find and click the row with this design ID
@@ -596,6 +620,25 @@
             }
             // Clean up URL
             window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (preselectDesignId) {
+            // Coming from drill bit detail page - auto-select design
+            const row = document.querySelector(`.design-row[data-design-id="${preselectDesignId}"]`);
+            if (row) {
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => {
+                    selectDesign(row);
+                    // If drillbit_id was also passed, auto-check that drillbit after SN list loads
+                    if (preselectDrillbitId) {
+                        setTimeout(() => {
+                            const checkbox = document.querySelector(`.sn-checkbox[value="${preselectDrillbitId}"]`);
+                            if (checkbox) {
+                                checkbox.checked = true;
+                                updateSelectedSNCount();
+                            }
+                        }, 800); // Wait for drill bits to load
+                    }
+                }, 300);
+            }
         }
     });
 

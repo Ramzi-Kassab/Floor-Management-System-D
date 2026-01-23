@@ -1,0 +1,473 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% load inventory_filters %}
+
+{% block title %}BOM Layout - {{ bom.code }} - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Print-friendly layout */
+    @media print {
+        .no-print { display: none !important; }
+        .print-only { display: block !important; }
+        body { background: white !important; }
+        .bom-layout-container { padding: 0 !important; }
+    }
+
+    .bom-layout-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    /* Header Section */
+    .bom-header {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 24px;
+        padding: 20px;
+        background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+        color: white;
+        border-radius: 12px;
+        margin-bottom: 24px;
+    }
+
+    .bom-header-logo {
+        width: 120px;
+        background: white;
+        padding: 10px;
+        border-radius: 8px;
+    }
+
+    .bom-header-info {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+    }
+
+    .bom-header-item {
+        background: rgba(255,255,255,0.1);
+        padding: 12px;
+        border-radius: 8px;
+    }
+
+    .bom-header-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        opacity: 0.8;
+        margin-bottom: 4px;
+    }
+
+    .bom-header-value {
+        font-size: 16px;
+        font-weight: 600;
+        font-family: monospace;
+    }
+
+    /* Identity Cards */
+    .identity-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .identity-card {
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border-left: 4px solid #3b82f6;
+    }
+
+    .identity-card.brazing { border-left-color: #ea580c; }
+    .identity-card.system { border-left-color: #2563eb; }
+    .identity-card.serial { border-left-color: #059669; }
+
+    .identity-card-label {
+        font-size: 12px;
+        color: #6b7280;
+        margin-bottom: 4px;
+    }
+
+    .identity-card-value {
+        font-size: 18px;
+        font-weight: 700;
+        font-family: monospace;
+    }
+
+    /* BOM Table */
+    .bom-table-section {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        margin-bottom: 24px;
+    }
+
+    .bom-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .bom-table th {
+        background: #f3f4f6;
+        padding: 12px 16px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #6b7280;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .bom-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid #f3f4f6;
+        font-size: 14px;
+    }
+
+    .bom-table tr:hover {
+        background: #f9fafb;
+    }
+
+    .bom-index {
+        width: 40px;
+        height: 40px;
+        background: #3b82f6;
+        color: white;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+    }
+
+    .bom-cutter-shape {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        background: #f3f4f6;
+        border-radius: 4px;
+        padding: 2px;
+    }
+
+    /* Blade Layout Section */
+    .blade-layout-section {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        margin-bottom: 24px;
+    }
+
+    .blade-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 16px;
+    }
+
+    .blade-card {
+        background: #f9fafb;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+    }
+
+    .blade-name {
+        font-weight: 700;
+        font-size: 14px;
+        color: #1f2937;
+        margin-bottom: 8px;
+    }
+
+    .blade-positions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        justify-content: center;
+    }
+
+    .position-cell {
+        width: 28px;
+        height: 28px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 600;
+        color: white;
+    }
+
+    /* Linked Serial Numbers */
+    .linked-serials {
+        background: #ecfdf5;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 24px;
+    }
+
+    .linked-serials-title {
+        font-weight: 600;
+        color: #065f46;
+        margin-bottom: 12px;
+    }
+
+    .serial-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: white;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-family: monospace;
+        font-size: 14px;
+        margin: 4px;
+        border: 1px solid #d1fae5;
+    }
+
+    /* Dark mode */
+    .dark .identity-card,
+    .dark .bom-table-section,
+    .dark .blade-layout-section {
+        background: #1f2937;
+    }
+
+    .dark .bom-table th {
+        background: #374151;
+        color: #9ca3af;
+        border-bottom-color: #4b5563;
+    }
+
+    .dark .bom-table td {
+        border-bottom-color: #374151;
+    }
+
+    .dark .bom-table tr:hover {
+        background: #374151;
+    }
+
+    .dark .blade-card {
+        background: #374151;
+    }
+
+    .dark .blade-name {
+        color: #f3f4f6;
+    }
+
+    .dark .linked-serials {
+        background: #064e3b;
+    }
+
+    .dark .serial-tag {
+        background: #065f46;
+        color: white;
+        border-color: #047857;
+    }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 no-print">
+    <div class="flex items-center gap-3">
+        {% if from_workorder %}
+        <a href="{% url 'workorders:workorder_detail_enhanced' workorder_id %}"
+           class="inline-flex items-center px-2 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg"
+           title="Back to Work Order">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        {% elif from_drillbit %}
+        <a href="{% url 'workorders:drillbit_detail_enhanced' drillbit_id %}"
+           class="inline-flex items-center px-2 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg"
+           title="Back to Drill Bit">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        {% else %}
+        <a href="{% url 'technology:bom_list' %}"
+           class="inline-flex items-center px-2 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg"
+           title="Back to BOMs">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        {% endif %}
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">BOM Layout</h1>
+            <p class="text-gray-600 dark:text-gray-400">Read-only view for {{ bom.code }}</p>
+        </div>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <button onclick="window.print()"
+                class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 text-sm">
+            <i data-lucide="printer" class="w-4 h-4 mr-2"></i>Print
+        </button>
+        <a href="{% url 'cutter_map:bom_view' bom.pk %}?edit=1"
+           class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit Layout
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bom-layout-container">
+
+    <!-- Identity Cards -->
+    <div class="identity-cards">
+        <div class="identity-card">
+            <div class="identity-card-label">Design (L3/L4)</div>
+            <div class="identity-card-value">{{ bom.design.mat_no }}</div>
+            <div class="text-xs text-gray-500 mt-1">{{ bom.design.hdbs_type }}</div>
+        </div>
+        <div class="identity-card brazing">
+            <div class="identity-card-label">Brazing MAT (L5)</div>
+            <div class="identity-card-value" style="color: #ea580c;">{{ bom.code }}</div>
+        </div>
+        <div class="identity-card system">
+            <div class="identity-card-label">System MAT (L5)</div>
+            <div class="identity-card-value" style="color: #2563eb;">{{ bom.system_mat_no|default:bom.code }}</div>
+        </div>
+        {% if linked_drillbits %}
+        <div class="identity-card serial">
+            <div class="identity-card-label">Linked Serial Numbers</div>
+            <div class="identity-card-value" style="color: #059669;">{{ linked_drillbits|length }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Linked Serial Numbers -->
+    {% if linked_drillbits %}
+    <div class="linked-serials">
+        <div class="linked-serials-title">
+            <i data-lucide="link" class="w-4 h-4 inline mr-1"></i>
+            Linked Drill Bits
+        </div>
+        <div>
+            {% for db in linked_drillbits %}
+            <a href="{% url 'workorders:drillbit_detail_enhanced' db.pk %}" class="serial-tag hover:bg-green-100">
+                <i data-lucide="hash" class="w-3 h-3"></i>
+                {{ db.serial_number }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- BOM Table -->
+    <div class="bom-table-section">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="list" class="w-5 h-5 inline mr-2 text-blue-600"></i>
+            Cutter Bill of Materials
+        </h3>
+        {% if source_data and source_data.summary %}
+        <table class="bom-table">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">#</th>
+                    <th>Shape</th>
+                    <th>Size</th>
+                    <th>Chamfer</th>
+                    <th>Type</th>
+                    <th>MAT #</th>
+                    <th style="text-align: center;">Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in source_data.summary %}
+                <tr>
+                    <td>
+                        <div class="bom-index" style="background: {{ item.fill_color|default:'#3b82f6' }};">{{ item.index }}</div>
+                    </td>
+                    <td>
+                        {% if cutter_shapes and item.index in cutter_shapes %}
+                        <img src="{{ cutter_shapes|get_item:item.index }}" class="bom-cutter-shape" alt="Shape">
+                        {% else %}
+                        <div class="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">--</div>
+                        {% endif %}
+                    </td>
+                    <td class="font-mono">{{ item.size }}</td>
+                    <td>{{ item.chamfer|default:"--" }}</td>
+                    <td class="font-medium">{{ item.type }}</td>
+                    <td class="font-mono text-blue-600">{{ item.mat_number|default:"--" }}</td>
+                    <td style="text-align: center;" class="font-bold text-lg">{{ item.count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-center py-8 text-gray-500">
+            <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-3 text-gray-400"></i>
+            <p>No BOM data available</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Blade Layout -->
+    {% if source_data and source_data.blades %}
+    <div class="blade-layout-section">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="layout-grid" class="w-5 h-5 inline mr-2 text-purple-600"></i>
+            Blade Cutter Layout
+        </h3>
+        <div class="blade-grid">
+            {% for blade in source_data.blades %}
+            <div class="blade-card">
+                <div class="blade-name">{{ blade.name }}</div>
+                <div class="blade-positions">
+                    <!-- Simplified display - show cutter counts per blade -->
+                    {% with total_cutters=0 %}
+                    {% for row_key in 'r1,r2,r3,r4'|split:',' %}
+                    {% if blade|get_item:row_key %}
+                    {% for pos, cells in blade|get_item:row_key|items %}
+                    {% for cell in cells %}
+                    {% if cell.group %}
+                    <div class="position-cell" style="background: {{ cell.fill_color|default:'#6b7280' }};" title="{{ pos }}">
+                        {{ cell.group }}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                    {% endfor %}
+                    {% endif %}
+                    {% endfor %}
+                    {% endwith %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- BOM Info Footer -->
+    <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-sm text-gray-600 dark:text-gray-400">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+                <span class="font-medium">Status:</span>
+                <span class="ml-2 px-2 py-0.5 rounded text-xs font-medium
+                    {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ bom.get_status_display }}
+                </span>
+            </div>
+            <div>
+                <span class="font-medium">BOM Type:</span>
+                <span class="ml-2">{{ bom.get_bom_type_display|default:"--" }}</span>
+            </div>
+            <div>
+                <span class="font-medium">Created:</span>
+                <span class="ml-2">{{ bom.created_at|date:"M d, Y" }}</span>
+            </div>
+            <div>
+                <span class="font-medium">Items:</span>
+                <span class="ml-2">{{ bom.lines.count }} lines</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+</script>
+{% endblock %}

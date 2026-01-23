@@ -2739,6 +2739,22 @@ class BOMCreateWithBuilderView(LoginRequiredMixin, TemplateView):
             "boms"
         ).order_by("-created_at")
 
+        # Handle pre-selection from drill bit detail page
+        design_id = self.request.GET.get('design_id')
+        drillbit_id = self.request.GET.get('drillbit_id')
+
+        if design_id:
+            context["preselect_design_id"] = design_id
+        if drillbit_id:
+            context["preselect_drillbit_id"] = drillbit_id
+            # Get drill bit details for display
+            try:
+                from apps.workorders.models import DrillBit
+                drillbit = DrillBit.objects.select_related('design').get(pk=drillbit_id)
+                context["preselect_drillbit"] = drillbit
+            except (DrillBit.DoesNotExist, ValueError):
+                pass
+
         return context
 
 

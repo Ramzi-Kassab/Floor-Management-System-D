@@ -14,6 +14,9 @@ urlpatterns = [
     # BOM view/edit (opens PDF Generator with BOM data)
     path('bom/<int:bom_id>/', views.bom_view, name='bom_view'),
 
+    # Read-only BOM view (for work orders and job cards)
+    path('bom/<int:bom_id>/readonly/', views.bom_readonly, name='bom_readonly'),
+
     # Document editor
     path('editor/<int:document_id>/', views.editor, name='editor'),
 

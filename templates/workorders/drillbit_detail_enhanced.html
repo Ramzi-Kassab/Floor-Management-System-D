@@ -105,6 +105,68 @@
             </div>
         </div>
 
+        <!-- BOM Actions -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    <i data-lucide="file-text" class="w-5 h-5 inline mr-2 text-purple-600"></i>
+                    Bill of Materials
+                </h3>
+            </div>
+
+            {% if drill_bit.brazing_bom or drill_bit.system_bom %}
+            <!-- Has BOM - Show view options -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% if drill_bit.brazing_bom %}
+                <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                    <p class="text-xs text-orange-600 dark:text-orange-400 font-medium uppercase mb-1">Brazing BOM</p>
+                    <p class="font-mono font-bold text-lg text-orange-700 dark:text-orange-300 mb-3">{{ drill_bit.brazing_bom.code }}</p>
+                    <div class="flex gap-2">
+                        <a href="{% url 'cutter_map:bom_readonly' drill_bit.brazing_bom.pk %}?from=drillbit&db_id={{ drill_bit.pk }}"
+                           class="inline-flex items-center px-3 py-1.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded text-sm hover:bg-orange-200">
+                            <i data-lucide="eye" class="w-3.5 h-3.5 mr-1"></i>View Layout
+                        </a>
+                        <a href="{% url 'cutter_map:bom_view' drill_bit.brazing_bom.pk %}?edit=1"
+                           class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded text-sm hover:bg-gray-50">
+                            <i data-lucide="edit" class="w-3.5 h-3.5 mr-1"></i>Edit
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+                {% if drill_bit.system_bom %}
+                <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                    <p class="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase mb-1">System BOM</p>
+                    <p class="font-mono font-bold text-lg text-blue-700 dark:text-blue-300 mb-3">{{ drill_bit.system_bom.code }}</p>
+                    <div class="flex gap-2">
+                        <a href="{% url 'cutter_map:bom_readonly' drill_bit.system_bom.pk %}?from=drillbit&db_id={{ drill_bit.pk }}"
+                           class="inline-flex items-center px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-sm hover:bg-blue-200">
+                            <i data-lucide="eye" class="w-3.5 h-3.5 mr-1"></i>View Layout
+                        </a>
+                        <a href="{% url 'cutter_map:bom_view' drill_bit.system_bom.pk %}?edit=1"
+                           class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded text-sm hover:bg-gray-50">
+                            <i data-lucide="edit" class="w-3.5 h-3.5 mr-1"></i>Edit
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <!-- No BOM - Show create option -->
+            <div class="text-center py-6 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                <i data-lucide="file-plus" class="w-12 h-12 mx-auto text-gray-400 mb-3"></i>
+                <p class="text-gray-600 dark:text-gray-400 mb-4">No BOM linked to this drill bit</p>
+                {% if drill_bit.design %}
+                <a href="{% url 'technology:bom_create' %}?design_id={{ drill_bit.design.pk }}&drillbit_id={{ drill_bit.pk }}"
+                   class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create BOM for this Design
+                </a>
+                {% else %}
+                <p class="text-sm text-gray-500">Assign a design first to create a BOM</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
         <!-- Work Orders -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <div class="flex items-center justify-between mb-4">
