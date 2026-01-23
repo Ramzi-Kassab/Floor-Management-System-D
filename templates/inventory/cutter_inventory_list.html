@@ -239,8 +239,8 @@
 
 <!-- HEADER SECTION - Always visible -->
 <div class="cutter-header-section">
-    <!-- Compact Stats Bar (always visible, expandable) -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm mb-3" x-data="{ statsExpanded: false }">
+    <!-- Compact Stats Bar (hidden in full page mode) -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm mb-3" x-data="{ statsExpanded: false }" x-show="!fullPageView" x-transition>
         <!-- Collapsed View - Single row with key stats and expand button -->
         <div class="flex items-center justify-between px-4 py-2">
             <!-- Toggle Button -->
