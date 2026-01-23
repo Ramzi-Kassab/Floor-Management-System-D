@@ -239,127 +239,128 @@
 
 <!-- HEADER SECTION - Always visible -->
 <div class="cutter-header-section">
-    <!-- Summary Cards (collapsible in full page view) -->
-    <div id="summarySection" x-show="!fullPageView" x-transition>
-        <!-- Row 1: Main Overview Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-3">
-            <!-- Total Cutters -->
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Items</p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">{{ total_cutters }}</p>
-            </div>
-            <!-- Total Stock -->
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Stock</p>
-                <p class="text-xl font-bold text-gray-700 dark:text-gray-200">{{ total_stock|floatformat:0 }}</p>
-            </div>
-            <!-- Total New -->
-            <div class="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg shadow-sm p-4 border border-emerald-100 dark:border-emerald-800">
-                <p class="text-xs text-emerald-600 dark:text-emerald-400 uppercase tracking-wide font-medium">Total New</p>
-                <p class="text-xl font-bold text-emerald-700 dark:text-emerald-300">{{ total_new_stock|floatformat:0 }}</p>
-            </div>
-            <!-- On Order -->
-            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow-sm p-4 border border-blue-100 dark:border-blue-800">
-                <p class="text-xs text-blue-600 dark:text-blue-400 uppercase tracking-wide font-medium">On Order</p>
-                <p class="text-xl font-bold text-blue-700 dark:text-blue-300">{{ total_on_order|floatformat:0 }}</p>
-            </div>
-            <!-- Forecast -->
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Forecast</p>
-                <p class="text-xl font-bold {% if total_forecast >= 0 %}text-green-600 dark:text-green-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ total_forecast|floatformat:0 }}</p>
-            </div>
-            <!-- Below Safety -->
-            <div class="{% if below_safety_count > 0 %}bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800{% else %}bg-white dark:bg-gray-800{% endif %} rounded-lg shadow-sm p-4">
-                <p class="text-xs {% if below_safety_count > 0 %}text-red-600 dark:text-red-400 font-medium{% else %}text-gray-500 dark:text-gray-400{% endif %} uppercase tracking-wide">Below Safety</p>
-                <p class="text-xl font-bold {% if below_safety_count > 0 %}text-red-700 dark:text-red-300{% else %}text-gray-900 dark:text-white{% endif %}">{{ below_safety_count }}</p>
+    <!-- Compact Stats Bar (always visible, expandable) -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm mb-3" x-data="{ statsExpanded: false }">
+        <!-- Collapsed View - Single row with key stats and expand button -->
+        <div class="flex items-center justify-between px-4 py-2">
+            <!-- Toggle Button -->
+            <button @click="statsExpanded = !statsExpanded"
+                    class="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+                <svg class="w-4 h-4 transition-transform duration-200" :class="statsExpanded ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+                <span class="text-sm font-medium">Statistics</span>
+            </button>
+
+            <!-- Key Stats (always visible) -->
+            <div class="flex items-center gap-4 text-xs">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-gray-500 dark:text-gray-400">Items:</span>
+                    <span class="font-bold text-gray-900 dark:text-white">{{ total_cutters }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-gray-500 dark:text-gray-400">Stock:</span>
+                    <span class="font-bold text-gray-700 dark:text-gray-200">{{ total_stock|floatformat:0 }}</span>
+                </div>
+                <div class="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 rounded">
+                    <span class="text-emerald-600 dark:text-emerald-400">New:</span>
+                    <span class="font-bold text-emerald-700 dark:text-emerald-300">{{ total_new_stock|floatformat:0 }}</span>
+                </div>
+                <div class="flex items-center gap-1.5 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded">
+                    <span class="text-blue-600 dark:text-blue-400">Order:</span>
+                    <span class="font-bold text-blue-700 dark:text-blue-300">{{ total_on_order|floatformat:0 }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-gray-500 dark:text-gray-400">Forecast:</span>
+                    <span class="font-bold {% if total_forecast >= 0 %}text-green-600 dark:text-green-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ total_forecast|floatformat:0 }}</span>
+                </div>
+                {% if below_safety_count > 0 %}
+                <div class="flex items-center gap-1.5 px-2 py-0.5 bg-red-100 dark:bg-red-900/30 rounded">
+                    <span class="text-red-600 dark:text-red-400">⚠ Below Safety:</span>
+                    <span class="font-bold text-red-700 dark:text-red-300">{{ below_safety_count }}</span>
+                </div>
+                {% endif %}
             </div>
         </div>
 
-        <!-- Row 2: Stock by Variant -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-3">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Stock by Variant</h3>
-                <span class="text-xs text-gray-500">Quantities across all cutter types</span>
-            </div>
-            <div class="grid grid-cols-3 md:grid-cols-7 gap-3">
-                <!-- New Stock (NEW-PUR) -->
-                <div class="text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <p class="text-xs text-blue-600 dark:text-blue-400 font-medium">New Stock</p>
-                    <p class="text-lg font-bold text-blue-700 dark:text-blue-300">{{ total_new_pur|floatformat:0 }}</p>
-                    <p class="text-[10px] text-blue-500 dark:text-blue-400">NEW-PUR</p>
+        <!-- Expanded View - Detailed stats -->
+        <div x-show="statsExpanded" x-collapse class="border-t border-gray-200 dark:border-gray-700">
+            <div class="p-4">
+                <!-- Stock by Variant - Compact horizontal layout -->
+                <div class="mb-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Stock by Variant</h4>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded text-xs">
+                            <span class="text-blue-600 dark:text-blue-400">New Stock:</span>
+                            <span class="font-bold text-blue-700 dark:text-blue-300">{{ total_new_pur|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-50 dark:bg-green-900/20 rounded text-xs">
+                            <span class="text-green-600 dark:text-green-400">ENO New:</span>
+                            <span class="font-bold text-green-700 dark:text-green-300">{{ total_eno_new|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-50 dark:bg-green-900/20 rounded text-xs">
+                            <span class="text-green-600 dark:text-green-400">ENO Grd:</span>
+                            <span class="font-bold text-green-700 dark:text-green-300">{{ total_eno_grd|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-50 dark:bg-green-900/20 rounded text-xs">
+                            <span class="text-green-600 dark:text-green-400">ARDT Rcl:</span>
+                            <span class="font-bold text-green-700 dark:text-green-300">{{ total_ardt_rcl|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-50 dark:bg-green-900/20 rounded text-xs">
+                            <span class="text-green-600 dark:text-green-400">LSTK Rcl:</span>
+                            <span class="font-bold text-green-700 dark:text-green-300">{{ total_lstk_rcl|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-50 dark:bg-purple-900/20 rounded text-xs">
+                            <span class="text-purple-600 dark:text-purple-400">Retrofit:</span>
+                            <span class="font-bold text-purple-700 dark:text-purple-300">{{ total_retrofit|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-900/20 rounded text-xs">
+                            <span class="text-orange-600 dark:text-orange-400">BOM Req:</span>
+                            <span class="font-bold text-orange-700 dark:text-orange-300">{{ total_bom_req|floatformat:0 }}</span>
+                        </div>
+                    </div>
                 </div>
-                <!-- ENO New -->
-                <div class="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <p class="text-xs text-green-600 dark:text-green-400 font-medium">ENO New</p>
-                    <p class="text-lg font-bold text-green-700 dark:text-green-300">{{ total_eno_new|floatformat:0 }}</p>
-                    <p class="text-[10px] text-green-500 dark:text-green-400">NEW-EO</p>
-                </div>
-                <!-- ENO Ground -->
-                <div class="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <p class="text-xs text-green-600 dark:text-green-400 font-medium">ENO Grd</p>
-                    <p class="text-lg font-bold text-green-700 dark:text-green-300">{{ total_eno_grd|floatformat:0 }}</p>
-                    <p class="text-[10px] text-green-500 dark:text-green-400">USED-GRD</p>
-                </div>
-                <!-- ARDT Reclaim -->
-                <div class="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <p class="text-xs text-green-600 dark:text-green-400 font-medium">ARDT Rcl</p>
-                    <p class="text-lg font-bold text-green-700 dark:text-green-300">{{ total_ardt_rcl|floatformat:0 }}</p>
-                    <p class="text-[10px] text-green-500 dark:text-green-400">USED-RCL</p>
-                </div>
-                <!-- LSTK Reclaim -->
-                <div class="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <p class="text-xs text-green-600 dark:text-green-400 font-medium">LSTK Rcl</p>
-                    <p class="text-lg font-bold text-green-700 dark:text-green-300">{{ total_lstk_rcl|floatformat:0 }}</p>
-                    <p class="text-[10px] text-green-500 dark:text-green-400">CLI+LSTK</p>
-                </div>
-                <!-- Retrofit -->
-                <div class="text-center p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                    <p class="text-xs text-purple-600 dark:text-purple-400 font-medium">Retrofit</p>
-                    <p class="text-lg font-bold text-purple-700 dark:text-purple-300">{{ total_retrofit|floatformat:0 }}</p>
-                    <p class="text-[10px] text-purple-500 dark:text-purple-400">NEW-RET</p>
-                </div>
-                <!-- BOM Required -->
-                <div class="text-center p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                    <p class="text-xs text-orange-600 dark:text-orange-400 font-medium">BOM Req</p>
-                    <p class="text-lg font-bold text-orange-700 dark:text-orange-300">{{ total_bom_req|floatformat:0 }}</p>
-                    <p class="text-[10px] text-orange-500 dark:text-orange-400">Required</p>
-                </div>
-            </div>
-        </div>
 
-        <!-- Row 3: Consumption Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Consumption Trends</h3>
-                <div class="grid grid-cols-3 gap-3">
-                    <div class="text-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
-                        <p class="text-xs text-yellow-600 dark:text-yellow-400">6 Months</p>
-                        <p class="text-lg font-bold text-yellow-700 dark:text-yellow-300">{{ total_consumption_6m|floatformat:0 }}</p>
+                <!-- Consumption & Health - Side by side -->
+                <div class="flex flex-wrap gap-4">
+                    <!-- Consumption -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Consumption:</span>
+                        <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-1 px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs">
+                                <span class="text-yellow-600 dark:text-yellow-400">6M:</span>
+                                <span class="font-bold text-yellow-700 dark:text-yellow-300">{{ total_consumption_6m|floatformat:0 }}</span>
+                            </div>
+                            <div class="flex items-center gap-1 px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs">
+                                <span class="text-yellow-600 dark:text-yellow-400">3M:</span>
+                                <span class="font-bold text-yellow-700 dark:text-yellow-300">{{ total_consumption_3m|floatformat:0 }}</span>
+                            </div>
+                            <div class="flex items-center gap-1 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 rounded text-xs">
+                                <span class="text-yellow-700 dark:text-yellow-300">2M:</span>
+                                <span class="font-bold text-yellow-800 dark:text-yellow-200">{{ total_consumption_2m|floatformat:0 }}</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="text-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
-                        <p class="text-xs text-yellow-600 dark:text-yellow-400">3 Months</p>
-                        <p class="text-lg font-bold text-yellow-700 dark:text-yellow-300">{{ total_consumption_3m|floatformat:0 }}</p>
-                    </div>
-                    <div class="text-center p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded">
-                        <p class="text-xs text-yellow-700 dark:text-yellow-300 font-medium">2 Months</p>
-                        <p class="text-lg font-bold text-yellow-800 dark:text-yellow-200">{{ total_consumption_2m|floatformat:0 }}</p>
-                    </div>
-                </div>
-            </div>
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Stock Health</h3>
-                <div class="grid grid-cols-3 gap-3">
-                    <div class="text-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Avg/Item</p>
-                        <p class="text-lg font-bold text-gray-700 dark:text-gray-200">{{ avg_stock_per_item|floatformat:0|default:"0" }}</p>
-                    </div>
-                    <div class="text-center p-2 {% if below_safety_count > 0 %}bg-red-50 dark:bg-red-900/20{% else %}bg-green-50 dark:bg-green-900/20{% endif %} rounded">
-                        <p class="text-xs {% if below_safety_count > 0 %}text-red-600 dark:text-red-400{% else %}text-green-600 dark:text-green-400{% endif %}">Health</p>
-                        <p class="text-lg font-bold {% if below_safety_count > 0 %}text-red-700 dark:text-red-300{% else %}text-green-700 dark:text-green-300{% endif %}">{{ health_percent|floatformat:0 }}%</p>
-                    </div>
-                    <div class="text-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Coverage</p>
-                        <p class="text-lg font-bold text-gray-700 dark:text-gray-200">{{ coverage_months }}</p>
+
+                    <!-- Health -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Health:</span>
+                        <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-1 px-2 py-1 bg-gray-50 dark:bg-gray-700 rounded text-xs">
+                                <span class="text-gray-500 dark:text-gray-400">Avg:</span>
+                                <span class="font-bold text-gray-700 dark:text-gray-200">{{ avg_stock_per_item|floatformat:0|default:"0" }}/item</span>
+                            </div>
+                            <div class="flex items-center gap-1 px-2 py-1 {% if below_safety_count > 0 %}bg-red-50 dark:bg-red-900/20{% else %}bg-green-50 dark:bg-green-900/20{% endif %} rounded text-xs">
+                                <span class="{% if below_safety_count > 0 %}text-red-600 dark:text-red-400{% else %}text-green-600 dark:text-green-400{% endif %}">Health:</span>
+                                <span class="font-bold {% if below_safety_count > 0 %}text-red-700 dark:text-red-300{% else %}text-green-700 dark:text-green-300{% endif %}">{{ health_percent|floatformat:0 }}%</span>
+                            </div>
+                            <div class="flex items-center gap-1 px-2 py-1 bg-gray-50 dark:bg-gray-700 rounded text-xs">
+                                <span class="text-gray-500 dark:text-gray-400">Coverage:</span>
+                                <span class="font-bold text-gray-700 dark:text-gray-200">{{ coverage_months }}</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
