@@ -1206,13 +1206,22 @@
 
         const colIndex = Array.from(th.parentNode.children).indexOf(th);
         const valuesSet = new Set();
+        let hasBlankInVisible = false;
 
+        // Only collect values from VISIBLE rows (cascading filter behavior)
+        // This means when other filters are applied, we only show values that exist
+        // in the currently filtered result set
         rows.forEach(row => {
+            // Skip hidden rows (filtered out by other columns)
+            if (row.style.display === 'none') return;
+
             const cell = row.children[colIndex];
             if (cell) {
                 const value = cell.dataset.value || cell.textContent.trim();
                 if (value && value !== '--' && value !== '-') {
                     valuesSet.add(value);
+                } else {
+                    hasBlankInVisible = true;
                 }
             }
         });
@@ -1228,13 +1237,26 @@
 
         // Check if there's an existing filter for this column
         if (activeFilters.has(column)) {
-            // Restore previous filter selections
-            selectedValues = new Set(activeFilters.get(column));
+            // Restore previous filter selections, but only for values that still exist
+            const previousSelection = activeFilters.get(column);
+            selectedValues = new Set();
+            for (const val of previousSelection) {
+                if (val === '__blank__' && hasBlankInVisible) {
+                    selectedValues.add(val);
+                } else if (columnValues.includes(val)) {
+                    selectedValues.add(val);
+                }
+            }
         } else {
-            // No filter - select all values by default
+            // No filter - select all visible values by default
             selectedValues = new Set(columnValues);
-            selectedValues.add('__blank__'); // Include blank values by default
+            if (hasBlankInVisible) {
+                selectedValues.add('__blank__'); // Include blank values if they exist
+            }
         }
+
+        // Store whether we have blanks for rendering
+        window.hasBlankInVisible = hasBlankInVisible;
         renderValuesList();
     }
 
@@ -1252,11 +1274,12 @@
             </label>
         `).join('');
 
-        if (!filter) {
+        // Only show "(Blank)" option if there are blank values in the visible rows
+        if (!filter && window.hasBlankInVisible) {
             container.innerHTML = `
                 <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
                     <input type="checkbox" class="value-checkbox rounded border-gray-300 dark:border-gray-600 text-blue-600"
-                           value="__blank__" checked onchange="toggleValue('__blank__')">
+                           value="__blank__" ${selectedValues.has('__blank__') ? 'checked' : ''} onchange="toggleValue('__blank__')">
                     <span class="text-sm text-gray-500 dark:text-gray-400 italic">(Blank)</span>
                 </label>
             ` + container.innerHTML;
@@ -1277,7 +1300,9 @@
 
     function selectAllValues() {
         selectedValues = new Set(columnValues);
-        selectedValues.add('__blank__');
+        if (window.hasBlankInVisible) {
+            selectedValues.add('__blank__');
+        }
         renderValuesList();
     }
 
