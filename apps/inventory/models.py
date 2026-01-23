@@ -746,12 +746,24 @@ class InventoryCategory(models.Model):
         return f"{self.code} - {self.name}"
 
     def generate_next_code(self):
-        """Generate the next item code for this category."""
+        """Generate the next available item code for this category."""
         prefix = self.code_prefix or self.code[:3].upper()
-        code = f"{prefix}-{str(self.next_sequence).zfill(4)}"
-        self.next_sequence += 1
-        self.save(update_fields=["next_sequence"])
-        return code
+
+        # Keep incrementing until we find a code that doesn't exist
+        max_attempts = 1000  # Safety limit
+        for _ in range(max_attempts):
+            code = f"{prefix}-{str(self.next_sequence).zfill(4)}"
+            self.next_sequence += 1
+
+            # Check if this code already exists
+            if not InventoryItem.objects.filter(code=code).exists():
+                self.save(update_fields=["next_sequence"])
+                return code
+
+        # Fallback: use timestamp-based code if sequence is exhausted
+        import time
+        fallback_code = f"{prefix}-{int(time.time())}"
+        return fallback_code
 
     def regenerate_item_names(self):
         """
