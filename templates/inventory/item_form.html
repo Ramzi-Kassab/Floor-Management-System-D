@@ -40,8 +40,33 @@
 </div>
 {% endif %}
 
+<!-- Form Errors Display -->
+{% if form.errors %}
+<div class="mb-4 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg">
+    <div class="flex items-start gap-2">
+        <i data-lucide="alert-circle" class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5"></i>
+        <div class="text-sm text-red-700 dark:text-red-300">
+            <p class="font-medium mb-2">Please fix the following errors:</p>
+            <ul class="list-disc list-inside space-y-1">
+            {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <li>{% if field != '__all__' %}<strong>{{ field }}:</strong> {% endif %}{{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Debug Info (remove in production) -->
+<script>
+    console.log('[DEBUG] Form loaded');
+    console.log('[DEBUG] Form errors:', '{{ form.errors|escapejs }}');
+</script>
+
 <div x-data="itemForm()" x-init="init()">
-    <form method="post" enctype="multipart/form-data">
+    <form method="post" enctype="multipart/form-data" @submit="console.log('Form submitted', $event); return true;">
         {% csrf_token %}
         <input type="hidden" name="name_manually_set" x-model="nameManuallySet">
 
