@@ -429,6 +429,125 @@ class DrillBitCreateForm(forms.ModelForm):
         return instance
 
 
+class DrillBitUpdateForm(forms.ModelForm):
+    """
+    Form for editing drill bit identity - Design and BOMs only.
+
+    Only allows editing:
+    - Serial Number (unique identifier)
+    - Design (L3/L4 - changing this clears BOMs and requires re-selection)
+    - Brazing BOM (L5 - filtered by selected design)
+    - System BOM (L5 - filtered by selected design, often same as Brazing)
+
+    Fields derived from design (size, type, etc.) are NOT editable here -
+    they auto-update when design changes.
+    """
+    INPUT_CLASS = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+
+    class Meta:
+        model = DrillBit
+        fields = [
+            "serial_number",
+            "design",
+            "brazing_bom",
+            "system_bom",
+        ]
+        widgets = {
+            "serial_number": forms.TextInput(attrs={
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono",
+            }),
+            "design": forms.Select(attrs={
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+                "id": "id_design",
+            }),
+            "brazing_bom": forms.Select(attrs={
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+                "id": "id_brazing_bom",
+            }),
+            "system_bom": forms.Select(attrs={
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+                "id": "id_system_bom",
+            }),
+        }
+        labels = {
+            "serial_number": "Serial Number",
+            "design": "Design (L3/L4)",
+            "brazing_bom": "Brazing BOM (L5)",
+            "system_bom": "System BOM (L5)",
+        }
+        help_texts = {
+            "serial_number": "Unique serial number",
+            "design": "Changing design will clear BOM selections",
+            "brazing_bom": "Internal/production BOM",
+            "system_bom": "Client-facing BOM",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from apps.technology.models import BOM, Design
+
+        # Design queryset
+        self.fields["design"].queryset = Design.objects.select_related("size").order_by("mat_no")
+        self.fields["design"].required = True
+        self.fields["design"].label_from_instance = lambda obj: f"{obj.mat_no} - {obj.hdbs_type or ''} ({obj.size})" if obj.size else obj.mat_no
+
+        # BOM querysets - filtered by design if instance exists
+        instance = kwargs.get('instance')
+        if instance and instance.design_id:
+            design_boms = BOM.objects.filter(design_id=instance.design_id).order_by("code")
+        else:
+            design_boms = BOM.objects.none()
+
+        # Brazing BOM
+        self.fields["brazing_bom"].queryset = design_boms
+        self.fields["brazing_bom"].required = False
+        self.fields["brazing_bom"].empty_label = "-- No Brazing BOM --"
+        self.fields["brazing_bom"].label_from_instance = lambda obj: f"🔧 {obj.code}" + (f" ({obj.system_mat_no})" if obj.system_mat_no else "")
+
+        # System BOM
+        self.fields["system_bom"].queryset = design_boms
+        self.fields["system_bom"].required = False
+        self.fields["system_bom"].empty_label = "-- No System BOM --"
+        self.fields["system_bom"].label_from_instance = lambda obj: f"📋 {obj.code}" + (f" → {obj.system_mat_no}" if obj.system_mat_no else "")
+
+    def clean_serial_number(self):
+        serial = self.cleaned_data.get("serial_number", "").strip()
+        if not serial:
+            raise forms.ValidationError("Serial number is required.")
+        # Check uniqueness excluding current instance
+        existing = DrillBit.objects.filter(serial_number=serial).exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise forms.ValidationError("A drill bit with this serial number already exists.")
+        return serial
+
+    def clean(self):
+        cleaned_data = super().clean()
+        design = cleaned_data.get("design")
+        brazing_bom = cleaned_data.get("brazing_bom")
+        system_bom = cleaned_data.get("system_bom")
+
+        # Validate BOMs belong to selected design
+        if brazing_bom and design and brazing_bom.design != design:
+            raise forms.ValidationError({
+                "brazing_bom": "Brazing BOM does not belong to the selected design."
+            })
+        if system_bom and design and system_bom.design != design:
+            raise forms.ValidationError({
+                "system_bom": "System BOM does not belong to the selected design."
+            })
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Sync derived fields from Design
+        if instance.design:
+            instance.sync_from_design()
+        if commit:
+            instance.save()
+        return instance
+
+
 class WorkOrderFilterForm(forms.Form):
     """
     Form for filtering work order list.

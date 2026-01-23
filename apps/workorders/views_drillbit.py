@@ -33,6 +33,7 @@ from django.views.generic import (
 )
 
 from .models import BitEvent, DrillBit, Location, WorkOrder
+from .forms import DrillBitUpdateForm
 
 # Import Customer model for First Event Wizard
 try:
@@ -345,31 +346,45 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
 
 class DrillBitUpdateView(LoginRequiredMixin, UpdateView):
     """
-    Edit drill bit details.
+    Edit drill bit identity - Design and BOMs only.
+
+    Only allows editing identity fields:
+    - Serial Number
+    - Design (L3/L4)
+    - Brazing BOM (L5)
+    - System BOM (L5)
+
+    Derived fields (size, type, etc.) auto-update when design changes.
     """
 
     model = DrillBit
     template_name = "workorders/drillbit_form.html"
-    fields = [
-        "serial_number",
-        "bit_type",
-        "size",
-        "mat_number",
-        "iadc_code",
-        "design",
-        "customer",
-        "bit_location",
-        "physical_status",
-        "accounting_status",
-        "lifecycle_status",
-        "original_cost",
-    ]
+    form_class = DrillBitUpdateForm
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Edit Drill Bit - {self.object.serial_number}"
         context["action"] = "edit"
-        context["locations"] = Location.objects.filter(is_active=True)
+
+        # Provide design and BOM data for JavaScript filtering
+        from apps.technology.models import Design, BOM
+        import json
+
+        designs = list(Design.objects.select_related("size").values(
+            "id", "mat_no", "hdbs_type", "category"
+        ))
+        for d in designs:
+            design_obj = Design.objects.select_related("size").get(pk=d["id"])
+            d["size"] = str(design_obj.size) if design_obj.size else None
+
+        boms = list(BOM.objects.select_related("design").values(
+            "id", "code", "name", "design_id", "bom_type", "system_mat_no"
+        ))
+
+        context["designs_json"] = json.dumps(designs)
+        context["boms_json"] = json.dumps(boms)
+        context["current_design_id"] = self.object.design_id
+
         return context
 
     def form_valid(self, form):
@@ -381,7 +396,7 @@ class DrillBitUpdateView(LoginRequiredMixin, UpdateView):
         return response
 
     def get_success_url(self):
-        return reverse("workorders:drillbit_detail", kwargs={"pk": self.object.pk})
+        return reverse("workorders:drillbit_detail_enhanced", kwargs={"pk": self.object.pk})
 
 
 class DrillBitDeleteView(LoginRequiredMixin, DeleteView):

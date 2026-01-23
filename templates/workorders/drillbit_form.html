@@ -116,24 +116,105 @@
         </div>
 
         {% else %}
-        <!-- Edit Mode - Show all fields -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Drill Bit Details</h3>
+        <!-- Edit Mode - Identity fields only (Design + BOMs) -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="fingerprint" class="w-5 h-5 mr-2 text-blue-600"></i>
+                Drill Bit Identity
+            </h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Edit the serial number, design, and BOM assignments. Other fields (size, type) are derived from the design.
+            </p>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {% for field in form %}
+                <!-- Serial Number -->
                 <div>
-                    <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        {{ field.label }}{% if field.field.required %} <span class="text-red-500">*</span>{% endif %}
+                    <label for="id_serial_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Serial Number <span class="text-red-500">*</span>
                     </label>
-                    {{ field }}
-                    {% if field.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ field.errors.0 }}</p>
-                    {% endif %}
-                    {% if field.help_text %}
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ field.help_text }}</p>
+                    {{ form.serial_number }}
+                    {% if form.serial_number.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.serial_number.errors.0 }}</p>
                     {% endif %}
                 </div>
-                {% endfor %}
+
+                <!-- Design (L3/L4) -->
+                <div>
+                    <label for="id_design" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Design (L3/L4) <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.design }}
+                    {% if form.design.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.design.errors.0 }}</p>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        ⚠️ Changing design will clear BOM selections
+                    </p>
+                </div>
+            </div>
+
+            <!-- Design Info Preview (read-only) -->
+            <div id="design-preview" class="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Design Info (derived from selection)</h4>
+                <div class="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-500 dark:text-gray-400">Size:</span>
+                        <p id="preview-size" class="font-medium text-gray-900 dark:text-white">{{ object.design.size|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 dark:text-gray-400">Category:</span>
+                        <p id="preview-category" class="font-medium text-gray-900 dark:text-white">{{ object.design.category|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 dark:text-gray-400">HDBS Type:</span>
+                        <p id="preview-hdbs" class="font-medium text-gray-900 dark:text-white">{{ object.design.hdbs_type|default:"-" }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOM Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="layers" class="w-5 h-5 mr-2 text-green-600"></i>
+                BOM Assignments (L5)
+            </h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Assign Brazing (internal) and System (client-facing) BOMs. A System BOM may have multiple Brazing BOMs.
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Brazing BOM -->
+                <div>
+                    <label for="id_brazing_bom" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        🔧 Brazing BOM (L5)
+                    </label>
+                    {{ form.brazing_bom }}
+                    {% if form.brazing_bom.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.brazing_bom.errors.0 }}</p>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Internal/production BOM (may include cutter suffix)
+                    </p>
+                </div>
+
+                <!-- System BOM -->
+                <div>
+                    <label for="id_system_bom" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        📋 System BOM (L5)
+                    </label>
+                    {{ form.system_bom }}
+                    {% if form.system_bom.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.system_bom.errors.0 }}</p>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Client-facing BOM (fixed MAT#)
+                    </p>
+                </div>
+            </div>
+
+            <div id="bom-hint" class="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                <span id="bom-count">{{ form.brazing_bom.field.queryset.count }}</span> BOM(s) available for this design
             </div>
         </div>
         {% endif %}
@@ -248,6 +329,95 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+});
+</script>
+{% else %}
+<script>
+// Edit Mode: Data for JavaScript filtering
+const designsData = {{ designs_json|safe }};
+const bomsData = {{ boms_json|safe }};
+let currentDesignId = {{ current_design_id|default:'null' }};
+
+document.addEventListener('DOMContentLoaded', function() {
+    const designSelect = document.getElementById('id_design');
+    const brazingBomSelect = document.getElementById('id_brazing_bom');
+    const systemBomSelect = document.getElementById('id_system_bom');
+    const bomHint = document.getElementById('bom-hint');
+    const bomCount = document.getElementById('bom-count');
+
+    function updateDesignPreview(designId) {
+        const design = designsData.find(d => d.id === parseInt(designId));
+        if (design) {
+            document.getElementById('preview-size').textContent = design.size || '-';
+            document.getElementById('preview-category').textContent = design.category || '-';
+            document.getElementById('preview-hdbs').textContent = design.hdbs_type || '-';
+        }
+    }
+
+    function filterBomsByDesign(designId, preserveValues = false) {
+        const currentBrazingBom = brazingBomSelect.value;
+        const currentSystemBom = systemBomSelect.value;
+
+        // Clear current options
+        brazingBomSelect.innerHTML = '<option value="">-- No Brazing BOM --</option>';
+        systemBomSelect.innerHTML = '<option value="">-- No System BOM --</option>';
+
+        if (!designId) {
+            bomCount.textContent = '0';
+            return;
+        }
+
+        // Filter BOMs by selected design
+        const filteredBoms = bomsData.filter(b => b.design_id === parseInt(designId));
+        bomCount.textContent = filteredBoms.length.toString();
+
+        filteredBoms.forEach(bom => {
+            // Brazing BOM option
+            const brazingOption = document.createElement('option');
+            brazingOption.value = bom.id;
+            brazingOption.textContent = `🔧 ${bom.code}` + (bom.system_mat_no ? ` (${bom.system_mat_no})` : '');
+            brazingBomSelect.appendChild(brazingOption);
+
+            // System BOM option
+            const systemOption = document.createElement('option');
+            systemOption.value = bom.id;
+            systemOption.textContent = `📋 ${bom.code}` + (bom.system_mat_no ? ` → ${bom.system_mat_no}` : '');
+            systemBomSelect.appendChild(systemOption);
+        });
+
+        // Restore values if preserving and they exist in filtered list
+        if (preserveValues) {
+            if (currentBrazingBom && filteredBoms.some(b => b.id === parseInt(currentBrazingBom))) {
+                brazingBomSelect.value = currentBrazingBom;
+            }
+            if (currentSystemBom && filteredBoms.some(b => b.id === parseInt(currentSystemBom))) {
+                systemBomSelect.value = currentSystemBom;
+            }
+        }
+    }
+
+    // When design changes
+    if (designSelect) {
+        designSelect.addEventListener('change', function() {
+            const designId = parseInt(this.value);
+            updateDesignPreview(designId);
+
+            // Design changed - clear BOMs and refresh options
+            if (designId !== currentDesignId) {
+                filterBomsByDesign(designId, false);  // Don't preserve values
+                currentDesignId = designId;
+            }
+        });
+
+        // Initialize on load
+        if (designSelect.value) {
+            updateDesignPreview(designSelect.value);
+            filterBomsByDesign(designSelect.value, true);  // Preserve existing values
+        }
+    }
+
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 });
 </script>
 {% endif %}
