@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cutter Inventory Management</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #c8102e 0%, #a00d26 100%);
+            padding: 20px 60px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+        
+        .logo {
+            height: 80px;
+            width: auto;
+        }
+        
+        .header-text {
+            flex: 1;
+        }
+        
+        .header h1 {
+            color: #ffffff;
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            color: #f0f0f0;
+            font-size: 16px;
+        }
+        
+        .container {
+            padding: 40px 60px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        
+        .upload-section {
+            text-align: center;
+            padding: 80px 40px;
+        }
+        
+        .upload-area {
+            background: rgba(30, 41, 59, 0.5);
+            border: 3px dashed #475569;
+            border-radius: 12px;
+            padding: 60px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .upload-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        .upload-area h2 {
+            color: #d4af37;
+            font-size: 28px;
+            margin-bottom: 15px;
+        }
+        
+        .upload-area p {
+            color: #94a3b8;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        .file-inputs {
+            margin-bottom: 30px;
+        }
+        
+        .file-input-wrapper {
+            margin: 15px 0;
+        }
+        
+        .file-input-wrapper input[type="file"] {
+            display: none;
+        }
+        
+        .file-label {
+            display: inline-block;
+            background: #334155;
+            color: #e2e8f0;
+            padding: 12px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid #475569;
+        }
+        
+        .file-label:hover {
+            background: #475569;
+            border-color: #d4af37;
+        }
+        
+        .file-label.selected {
+            background: #8b7228;
+            border-color: #d4af37;
+        }
+        
+        .upload-btn {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            padding: 16px 50px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+        }
+        
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6);
+        }
+        
+        .upload-btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        .search-box input {
+            width: 100%;
+            background: rgba(30, 41, 59, 0.6);
+            border: 2px solid #334155;
+            color: #e2e8f0;
+            padding: 14px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: #d4af37;
+            background: rgba(30, 41, 59, 0.9);
+        }
+        
+        .search-box input::placeholder {
+            color: #64748b;
+        }
+        
+        .filter-select {
+            background: rgba(30, 41, 59, 0.6);
+            border: 2px solid #334155;
+            color: #e2e8f0;
+            padding: 14px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            min-width: 180px;
+            transition: all 0.3s;
+        }
+        
+        .filter-select:focus {
+            outline: none;
+            border-color: #d4af37;
+        }
+        
+        .filter-select option {
+            background: #1e293b;
+            color: #e2e8f0;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-gold {
+            background: #d4af37;
+            color: #1a1a1a;
+        }
+        
+        .btn-gold:hover {
+            background: #b8941f;
+            transform: translateY(-2px);
+        }
+        
+        .btn-yellow {
+            background: #fbbf24;
+            color: #0f172a;
+        }
+        
+        .btn-yellow:hover {
+            background: #f59e0b;
+            transform: translateY(-2px);
+        }
+        
+        .btn-red {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-red:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+        
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .card {
+            background: rgba(30, 41, 59, 0.6);
+            border-radius: 12px;
+            padding: 30px;
+            border-top: 4px solid #d4af37;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        
+        .card h3 {
+            color: #94a3b8;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+        }
+        
+        .card .value {
+            color: #d4af37;
+            font-size: 48px;
+            font-weight: 700;
+        }
+        
+        .card-low-stock {
+            border-top-color: #ef4444;
+        }
+        
+        .card-low-stock .value {
+            color: #ef4444;
+        }
+        
+        .card-in-stock {
+            border-top-color: #10b981;
+        }
+        
+        .card-in-stock .value {
+            color: #10b981;
+        }
+        
+        .table-container {
+            background: rgba(30, 41, 59, 0.6);
+            border-radius: 12px;
+            overflow-x: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background: rgba(15, 23, 42, 0.8);
+        }
+        
+        th {
+            color: #94a3b8;
+            padding: 18px 20px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #334155;
+        }
+        
+        tbody tr {
+            border-bottom: 1px solid #334155;
+            transition: all 0.2s;
+        }
+        
+        tbody tr:hover {
+            background: rgba(51, 65, 85, 0.3);
+        }
+        
+        td {
+            padding: 18px 20px;
+            color: #e2e8f0;
+            font-size: 15px;
+        }
+        
+        .cutter-number {
+            color: #d4af37;
+            font-weight: 600;
+        }
+        
+        .material-number {
+            color: #fbbf24;
+            font-weight: 600;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-ok {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border: 1px solid #10b981;
+        }
+        
+        .status-low {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid #ef4444;
+        }
+        
+        .status-out {
+            background: rgba(148, 163, 184, 0.2);
+            color: #94a3b8;
+            border: 1px solid #94a3b8;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px;
+            font-size: 24px;
+            color: #d4af37;
+        }
+        
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        
+        .error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 2px solid #ef4444;
+            color: #fca5a5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .header {
+                padding: 30px 20px;
+            }
+            
+            .header h1 {
+                font-size: 32px;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .filter-select, .search-box input {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <div class="header-text">
+                <h1>Cutter Inventory Management</h1>
+                <p>Drill Bits & Services - Real-time tracking • Low stock alerts • All CT items</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div id="uploadSection" class="upload-section">
+            <div class="upload-area">
+                <div class="upload-icon">📊</div>
+                <h2>Upload Your ERP Excel Files</h2>
+                <p>Select all three files to generate your inventory report</p>
+                
+                <div class="file-inputs">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="onHandFile" accept=".xlsx,.xls">
+                        <label for="onHandFile" class="file-label" id="onHandLabel">📊 On-Hand Inventory</label>
+                    </div>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="purchaseOrderFile" accept=".xlsx,.xls">
+                        <label for="purchaseOrderFile" class="file-label" id="poLabel">📋 Purchase Order Lines</label>
+                    </div>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="transactionsFile" accept=".xlsx,.xls">
+                        <label for="transactionsFile" class="file-label" id="transLabel">📈 Inventory Transactions</label>
+                    </div>
+                </div>
+                
+                <button class="upload-btn" onclick="processFiles()" id="processBtn" disabled>Generate Report</button>
+            </div>
+        </div>
+        
+        <div id="errorMessage" class="error hidden"></div>
+        <div id="loading" class="loading hidden">Processing files</div>
+        
+        <div id="reportSection" class="hidden">
+            <div class="controls">
+                <div class="search-box">
+                    <input type="text" id="searchFilter" placeholder="Search by Seq. No, Material Number, Product Name..." onkeyup="applyFilters()">
+                </div>
+                <select class="filter-select" id="familyFilter" onchange="applyFilters()">
+                    <option value="">All Families</option>
+                </select>
+                <select class="filter-select" id="categoryFilter" onchange="applyFilters()">
+                    <option value="">All Categories</option>
+                </select>
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn btn-gold" onclick="exportToExcel()">Export to Excel</button>
+                <button class="btn btn-yellow" onclick="clearFilters()">Clear Filters</button>
+                <button class="btn btn-red" onclick="resetApp()">Upload New Files</button>
+            </div>
+            
+            <div class="summary-cards">
+                <div class="card">
+                    <h3>Total Items</h3>
+                    <div class="value" id="totalItems">0</div>
+                </div>
+                <div class="card card-in-stock">
+                    <h3>Total On Orders</h3>
+                    <div class="value" id="totalOnOrders">0</div>
+                </div>
+                <div class="card">
+                    <h3>Total Stock</h3>
+                    <div class="value" id="totalStock">0</div>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table id="reportTable">
+                    <thead>
+                        <tr>
+                            <th>Seq. No</th>
+                            <th>Material Number</th>
+                            <th>Product Name</th>
+                            <th>Cutter</th>
+                            <th>Size</th>
+                            <th>Chamfer</th>
+                            <th>Family</th>
+                            <th>Type</th>
+                            <th>Category</th>
+                            <th>ENO As New Cutter</th>
+                            <th>ENO Ground Cutter</th>
+                            <th>ARDT Reclaim Cutter</th>
+                            <th>LSTK Reclaim Cutter</th>
+                            <th>New Stock</th>
+                            <th>Retrofitted</th>
+                            <th>Total New</th>
+                            <th>6 Months Consumption</th>
+                            <th>3 Months Consumption</th>
+                            <th>2 Months Consumption</th>
+                            <th>Safety Stock</th>
+                            <th>On Order</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const TEMPLATE_DATA = [{"seqNo": 1,"materialNumber": 802065,"productName": "1313 CT97 10C","cutter": "CT97","size": "1313","chamfer": "10C","family": "P - Premium","typeCol": "Round","cutterSize": "1313","type": "CT97","chamfer1": "10C","moreDescription": "","category": "P - Premium"},{"seqNo": 2,"materialNumber": 179692,"productName": "1313 OBS ERC 18C","cutter": "OBS ERC","size": "1313","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1313","type": "OBS ERC","chamfer1": "18C","moreDescription": "","category": "O - Other"},{"seqNo": 3,"materialNumber": 179694,"productName": "1308 OBS ERC 18C","cutter": "OBS ERC","size": "1308","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1308","type": "OBS ERC","chamfer1": "18C","moreDescription": "","category": "O - Other"},{"seqNo": 4,"materialNumber": 179734,"productName": "13MM WC-MAT400 LONG M1 IA-STL","cutter": "M1 IA-STL","size": "13MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "LONG M1 IA-STL","cutterSize": "13MM","type": "WC-MAT400","chamfer1": "","moreDescription": "","category": "D - Depth of Cut Control Elements"},{"seqNo": 5,"materialNumber": 179790,"productName": "1613 OBS ERC 18C","cutter": "OBS ERC","size": "1613","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1613","type": "OBS ERC","chamfer1": "18C","moreDescription": "","category": "O - Other"},{"seqNo": 6,"materialNumber": 375538,"productName": "13MM R1 .012R LG BVL","cutter": "R1 0.012R","size": "13MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Shyfter - R1","cutterSize": "13MM","type": "","chamfer1": "","moreDescription": "R1 .012R LG BVL","category": "D - Depth of Cut Control Elements"},{"seqNo": 7,"materialNumber": 399930,"productName": "19MMS SHORT BULLET CT27 18C","cutter": "CT27","size": "19MMS","chamfer": "18C","family": "P - Premium","typeCol": "Short Bullet","cutterSize": "19MMS","type": "CT27","chamfer1": "18C","moreDescription": "BL","category": "P - Premium"},{"seqNo": 8,"materialNumber": 584832,"productName": "1913 CT62 10C","cutter": "CT62","size": "1913","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1913","type": "CT62","chamfer1": "10C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 9,"materialNumber": 467367,"productName": "1613 CT36 18C","cutter": "CT36","size": "1613","chamfer": "18C","family": "S - Super Premium","typeCol": "Round","cutterSize": "1613","type": "CT36","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 10,"materialNumber": 535656,"productName": "1608 CT36 10C","cutter": "CT36","size": "1608","chamfer": "10C","family": "S - Super Premium","typeCol": "Round","cutterSize": "1608","type": "CT36","chamfer1": "10C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 11,"materialNumber": 471108,"productName": "1313 CT36 10C","cutter": "CT36","size": "1313","chamfer": "10C","family": "S - Super Premium","typeCol": "Round","cutterSize": "1313","type": "CT36","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 12,"materialNumber": 471109,"productName": "1613 CT36 10C","cutter": "CT36","size": "1613","chamfer": "10C","family": "S - Super Premium","typeCol": "Round","cutterSize": "1613","type": "CT36","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 13,"materialNumber": 587493,"productName": "1908 CT62 18C","cutter": "CT62","size": "1908","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1908","type": "CT62","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 14,"materialNumber": 565884,"productName": "1313 CT61 18C","cutter": "CT61","size": "1313","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1313","type": "CT61","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 15,"materialNumber": 703670,"productName": "1313 CT200 10C","cutter": "CT200","size": "1313","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1313","type": "CT200","chamfer1": "10C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 16,"materialNumber": 708305,"productName": "1913 CT200 10C","cutter": "CT200","size": "1913","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1913","type": "CT200","chamfer1": "10C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 17,"materialNumber": 717749,"productName": "1308 CT200 10C","cutter": "CT200","size": "1308","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1308","type": "CT200","chamfer1": "10C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 18,"materialNumber": 745171,"productName": "1308 CT80 10C","cutter": "CT80","size": "1308","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1308","type": "CT80","chamfer1": "10C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 19,"materialNumber": 376826,"productName": "","cutter": "","size": "","chamfer": "","family": "","typeCol": "LG BVL DISP","cutterSize": "13mm x 0.9","type": "RHINO","chamfer1": "","moreDescription": "","category": " - "},{"seqNo": 20,"materialNumber": 621152,"productName": "13MM MDR 1318 M2 PDC","cutter": "M2 MDR","size": "13MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "MDR","cutterSize": "13MM","type": "","chamfer1": "","moreDescription": "M2 Non Leach","category": "D - Depth of Cut Control Elements"},{"seqNo": 21,"materialNumber": 643435,"productName": "1913 CT70 18C","cutter": "CT70","size": "1913","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT70","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 22,"materialNumber": 638561,"productName": "1613 CT70 18C","cutter": "CT70","size": "1613","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT70","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 23,"materialNumber": 745576,"productName": "1913 CT82 18C","cutter": "CT82","size": "1913","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT82","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 24,"materialNumber": 729688,"productName": "1308 CT82 18C","cutter": "CT82","size": "1308","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT82","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 25,"materialNumber": 729691,"productName": "1613 CT82 18C","cutter": "CT82","size": "1613","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT82","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 26,"materialNumber": 643433,"productName": "1913 CT70 10C","cutter": "CT70","size": "1913","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT70","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 27,"materialNumber": 729687,"productName": "1613 CT82 10C","cutter": "CT82","size": "1613","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT82","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 28,"materialNumber": 177778,"productName": " 1303 CT200NL DROPIN","cutter": "CT200","size": "1303","chamfer": "","family": "B - Standard ( Base )","typeCol": "Drop In","cutterSize": "1303","type": "CT200","chamfer1": "","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 29,"materialNumber": 638560,"productName": "1313 CT70 18C","cutter": "CT70","size": "1313","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT70","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 30,"materialNumber": 578502,"productName": "1010 CT61 18C","cutter": "CT61","size": "1010","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1010","type": "CT61","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 31,"materialNumber": 781580,"productName": "1010 CT80 18C","cutter": "CT80","size": "1010","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1010","type": "CT80","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 32,"materialNumber": 646938,"productName": "1308 CT66 10C","cutter": "CT66","size": "1308","chamfer": "10C","family": "P - Premium","typeCol": "Round","cutterSize": "1308","type": "CT66","chamfer1": "10C","moreDescription": "","category": "P - Premium"},{"seqNo": 33,"materialNumber": 780654,"productName": "1010 CT80 10C","cutter": "CT80","size": "1010","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1010","type": "CT80","chamfer1": "10C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 34,"materialNumber": 729434,"productName": "1308 CT82 10C","cutter": "CT82","size": "1308","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT82","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 35,"materialNumber": 802064,"productName": "1308 CT97 10C","cutter": "CT97","size": "1308","chamfer": "10C","family": "P - Premium","typeCol": "Round","cutterSize": "1308","type": "CT97","chamfer1": "10C","moreDescription": "","category": "P - Premium"},{"seqNo": 36,"materialNumber": 717748,"productName": "1010 CT200 18C","cutter": "CT200","size": "1010","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1010","type": "CT200","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 37,"materialNumber": 752294,"productName": "1010 CT82 18C","cutter": "CT82","size": "1010","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1010","type": "CT82","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 38,"materialNumber": 761304,"productName": "13MMS SHORT BULLET CT80NL 10C","cutter": "CT80","size": "13MMS","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Short Bullet","cutterSize": "13MMS","type": "CT80","chamfer1": "10C","moreDescription": "NL SBL","category": "B - Standard ( Base )"},{"seqNo": 39,"materialNumber": 770450,"productName": "16MMS SHORT BULLET CT80NL 18C","cutter": "CT80","size": "16MMS","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Short Bullet","cutterSize": "16MMS","type": "CT80","chamfer1": "18C","moreDescription": "NL SBL","category": "B - Standard ( Base )"},{"seqNo": 40,"materialNumber": 761246,"productName": "16MML LONG BULLET CT80NL 18C","cutter": "CT80","size": "16MML","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Long Bullet","cutterSize": "16MML","type": "CT80","chamfer1": "18C","moreDescription": "NL LBL","category": "B - Standard ( Base )"},{"seqNo": 41,"materialNumber": 745573,"productName": "1913 CT82 10C","cutter": "CT82","size": "1913","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT82","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 42,"materialNumber": 418525,"productName": "1308 CT31NL Drop In","cutter": "CT31","size": "1308","chamfer": "","family": "B - Standard ( Base )","typeCol": "Drop In","cutterSize": "1308","type": "CT31","chamfer1": "","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 43,"materialNumber": 717751,"productName": "1308 CT200 18C","cutter": "CT200","size": "1308","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1308","type": "CT200","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 44,"materialNumber": 729435,"productName": "1313 CT82 10C","cutter": "CT82","size": "1313","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT82","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 45,"materialNumber": 729689,"productName": "1313 CT82 18C","cutter": "CT82","size": "1313","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT82","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 46,"materialNumber": 742473,"productName": "1308 CT91 10C","cutter": "CT91","size": "1308","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1308","type": "CT91","chamfer1": "10C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 47,"materialNumber": 742617,"productName": "1308 CT91 18C","cutter": "CT91","size": "1308","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1308","type": "CT91","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 48,"materialNumber": 882800,"productName": "0808 CT80 18C","cutter": "CT80","size": "0808","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "0808","type": "CT80","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 49,"materialNumber": 729690,"productName": "1608 CT82 18C","cutter": "CT82","size": "1608","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1608","type": "CT82","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 50,"materialNumber": 1010264,"productName": "1005 CT109 10C","cutter": "CT109","size": "1005","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1005","type": "CT109","chamfer1": "10C","moreDescription": "TSPV","category": "S - Super Premium"},{"seqNo": 51,"materialNumber": 930925,"productName": "1010 CT109 10C","cutter": "CT109","size": "1010","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1010","type": "CT109","chamfer1": "10C","moreDescription": "TSPV","category": "S - Super Premium"},{"seqNo": 52,"materialNumber": 752563,"productName": "1010 CT81 18C","cutter": "CT81","size": "1010","chamfer": "18C","family": "P - Premium","typeCol": "Round","cutterSize": "1010","type": "CT81","chamfer1": "18C","moreDescription": "","category": "P - Premium"},{"seqNo": 53,"materialNumber": 708306,"productName": "1913 CT200 18C","cutter": "CT200","size": "1913","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1913","type": "CT200","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 54,"materialNumber": 744015,"productName": "1613 CT81 18C","cutter": "CT81","size": "1613","chamfer": "18C","family": "P - Premium","typeCol": "Round","cutterSize": "1613","type": "CT81","chamfer1": "18C","moreDescription": "","category": "P - Premium"},{"seqNo": 55,"materialNumber": 932725,"productName": "1313 CT405 10C","cutter": "CT405","size": "1313","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1313","type": "CT405","chamfer1": "10C","moreDescription": "","category": "P - Premium"},{"seqNo": 56,"materialNumber": 983094,"productName": "1308 CT216 18C","cutter": "CT216","size": "1308","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT216","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 57,"materialNumber": 752555,"productName": "1313 CT81 18C","cutter": "CT81","size": "1313","chamfer": "18C","family": "P - Premium","typeCol": "Round","cutterSize": "1313","type": "CT81","chamfer1": "18C","moreDescription": "","category": "P - Premium"},{"seqNo": 58,"materialNumber": 647436,"productName": "1613 CT200 18C","cutter": "CT200","size": "1613","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1613","type": "CT200","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 59,"materialNumber": 871781,"productName": "1313 CT200 18C","cutter": "CT200","size": "1313","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1313","type": "CT200","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 60,"materialNumber": 625854,"productName": "13MM WC-MAT400 1318 M1 Carbide IA","cutter": "M1 Carbide IA","size": "13MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Carbide IA","cutterSize": "13MM","type": "WC-MAT400","chamfer1": "","moreDescription": "M1","category": "D - Depth of Cut Control Elements"},{"seqNo": 61,"materialNumber": 770451,"productName": "19MMS SHORT BULLET CT80NL 18C","cutter": "CT80","size": "19MMS","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Short Bullet","cutterSize": "19MMS","type": "CT80","chamfer1": "18C","moreDescription": "NL SBL","category": "B - Standard ( Base )"},{"seqNo": 62,"materialNumber": 755975,"productName": "1913 CT80 18C","cutter": "CT80","size": "1913","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1913","type": "CT80","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 63,"materialNumber": 745338,"productName": "1613 CT80 18C","cutter": "CT80","size": "1613","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1613","type": "CT80","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 64,"materialNumber": 642299,"productName": "1308 CT66 18C","cutter": "CT66","size": "1308","chamfer": "18C","family": "P - Premium","typeCol": "Round","cutterSize": "1308","type": "CT66","chamfer1": "18C","moreDescription": "","category": "P - Premium"},{"seqNo": 65,"materialNumber": 661065,"productName": "1313 CT150 18C","cutter": "CT150","size": "1313","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT150","chamfer1": "18C","moreDescription": "","category": "TEST for Abrasion - S - Super Premium"},{"seqNo": 66,"materialNumber": 738227,"productName": "1308 CR31 18C","cutter": "CR31","size": "1308","chamfer": "18C","family": "","typeCol": "Round","cutterSize": "1308","type": "CR31","chamfer1": "18C","moreDescription": "","category": "TEST for Abrasion - S - Super Premium"},{"seqNo": 67,"materialNumber": 886466,"productName": "1308 CT109 18C","cutter": "CT109","size": "1308","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT109","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 68,"materialNumber": 887028,"productName": "1313 CT109 18C","cutter": "CT109","size": "1313","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT109","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 69,"materialNumber": 773384,"productName": "1005 CT200 18C","cutter": "CT200","size": "1005","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1005","type": "CT200","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 70,"materialNumber": 971055,"productName": "10.5MMM MEDIUM BULLET CT217NL 18C","cutter": "CT217","size": "10.5MM","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "MED Bullet","cutterSize": "10.5MM","type": "CT217","chamfer1": "18C","moreDescription": "NL MBL","category": "B - Standard ( Base )"},{"seqNo": 71,"materialNumber": 1039036,"productName": "1313 CT138 18C","cutter": "CT138","size": "1313","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT138","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 72,"materialNumber": 1039034,"productName": "1308 CT138 18C","cutter": "CT138","size": "1308","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT138","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 73,"materialNumber": 1017002,"productName": "1313 CT200NL Triple Diamond Element","cutter": "","size": "1313","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Triple Diamond Element","cutterSize": "1313","type": "","chamfer1": "","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 74,"materialNumber": 1039060,"productName": "1613 CT138 18C","cutter": "CT138","size": "1613","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT138","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 75,"materialNumber": 1039058,"productName": "1608 CT138 18C","cutter": "CT138","size": "1608","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1608","type": "CT138","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 76,"materialNumber": 1014885,"productName": "1308 CT133 18C","cutter": "CT133","size": "1308","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT133","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 77,"materialNumber": 1014939,"productName": "1608 CT133 18C","cutter": "CT133","size": "1608","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1608","type": "CT133","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 78,"materialNumber": 646941,"productName": "1613 CT66 10C","cutter": "CT66","size": "1613","chamfer": "10C","family": "P - Premium","typeCol": "Round","cutterSize": "1613","type": "CT66","chamfer1": "10C","moreDescription": "","category": "P - Premium"},{"seqNo": 79,"materialNumber": 647464,"productName": "16MMS CT66 SHORT BULLET 18C","cutter": "CT66","size": "16MMS","chamfer": "18C","family": "P - Premium","typeCol": "Short Bullet","cutterSize": "16MMS","type": "CT66","chamfer1": "18C","moreDescription": "SBL","category": "P - Premium"},{"seqNo": 80,"materialNumber": 647467,"productName": "16MML LONLG BULLET CT66 18C","cutter": "CT66","size": "16MML","chamfer": "18C","family": "P - Premium","typeCol": "Long Bullet","cutterSize": "16MML","type": "CT66","chamfer1": "18C","moreDescription": "LBL","category": "P - Premium"},{"seqNo": 81,"materialNumber": 907609,"productName": "1313 CT125 10C","cutter": "CT125","size": "1313","chamfer": "10C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1313","type": "CT125","chamfer1": "10C","moreDescription": "GEDB","category": "S - Super Premium"},{"seqNo": 82,"materialNumber": 638559,"productName": "1308 CT70 18C","cutter": "CT70","size": "1308","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT70","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 83,"materialNumber": 773383,"productName": "1005 CT200 10C","cutter": "CT200","size": "1005","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1005","type": "CT200","chamfer1": "10C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 84,"materialNumber": 1027339,"productName": "1608 CT182M 10C","cutter": "CT182M","size": "1608","chamfer": "10C","family": "S - Super Premium - PNT PMT","typeCol": "Machete","cutterSize": "1608","type": "CT142M","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 85,"materialNumber": 853552,"productName": "1913 CT125 18C","cutter": "CT125","size": "1913","chamfer": "18C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1913","type": "CT125","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 86,"materialNumber": 1039064,"productName": "1913 CT138 18C","cutter": "CT138","size": "1913","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT138","chamfer1": "18C","moreDescription": "TSP V","category": "S - Super Premium"},{"seqNo": 87,"materialNumber": 983150,"productName": "1613 CT216 18C","cutter": "CT216","size": "1613","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT216","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 88,"materialNumber": 983096,"productName": "1313 CT216 18C","cutter": "CT216","size": "1313","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT216","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 89,"materialNumber": 983152,"productName": "1913 CT216 18C","cutter": "CT216","size": "1913","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT216","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 90,"materialNumber": 853551,"productName": "1613 CT125 18C","cutter": "CT125","size": "1613","chamfer": "18C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT125","chamfer1": "18C","moreDescription": "GEDB","category": "S - Super Premium"},{"seqNo": 91,"materialNumber": 717747,"productName": "1010 CT200 10C","cutter": "CT200","size": "1010","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1010","type": "CT200","chamfer1": "10C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 92,"materialNumber": 768848,"productName": "0808 CT82 10C","cutter": "CT82","size": "0808","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "0808","type": "CT82","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 93,"materialNumber": 785001,"productName": "1313 CT97 18C","cutter": "CT97","size": "1313","chamfer": "18C","family": "P - Premium","typeCol": "Round","cutterSize": "1313","type": "CT97","chamfer1": "18C","moreDescription": "TBO-Cutter","category": "S - Super Premium"},{"seqNo": 94,"materialNumber": 932807,"productName": "1313 CT404 10C","cutter": "CT404","size": "1313","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1313","type": "CT404","chamfer1": "10C","moreDescription": "GEDB","category": "B - Standard ( Base )"},{"seqNo": 95,"materialNumber": 703671,"productName": "1613 CT200 10C","cutter": "CT200","size": "1613","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1613","type": "CT200","chamfer1": "10C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 96,"materialNumber": 932811,"productName": "1613 CT404 10C","cutter": "CT404","size": "1613","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1613","type": "CT404","chamfer1": "10C","moreDescription": "GEDB","category": "B - Standard ( Base )"},{"seqNo": 97,"materialNumber": 410851,"productName": "1308 CT31NL DOME PDC","cutter": "CT31","size": "1308","chamfer": "","family": "B - Standard ( Base )","typeCol": "PDC Dome","cutterSize": "1308","type": "CT31","chamfer1": "","moreDescription": "NL","category": "B - Standard ( Base )"},{"seqNo": 98,"materialNumber": 802063,"productName": "1613 CT97 10C","cutter": "CT97","size": "1613","chamfer": "10C","family": "P - Premium","typeCol": "Round","cutterSize": "1613","type": "CT97","chamfer1": "10C","moreDescription": "TBO-Cutter","category": "S - Super Premium"},{"seqNo": 99,"materialNumber": 794672,"productName": "1913 CT97 18C","cutter": "CT97","size": "1913","chamfer": "18C","family": "P - Premium","typeCol": "Round","cutterSize": "1913","type": "CT97","chamfer1": "18C","moreDescription": "TBO-Cutter","category": "S - Super Premium"},{"seqNo": 100,"materialNumber": 755889,"productName": "16MML LONG BULLET CT80NL 10C","cutter": "CT80","size": "16MML","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Long Bullet","cutterSize": "16MML","type": "CT80","chamfer1": "10C","moreDescription": "NL LBL","category": "B - Standard ( Base )"},{"seqNo": 101,"materialNumber": 853550,"productName": "1313 CT125 18C","cutter": "CT125","size": "1313","chamfer": "18C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1313","type": "CT125","chamfer1": "18C","moreDescription": "GEDB","category": "S - Super Premium"},{"seqNo": 102,"materialNumber": 933120,"productName": "1613 CT405 18C","cutter": "CT405","size": "1613","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1613","type": "CT405","chamfer1": "18C","moreDescription": "GEDB","category": "P - Premium"},{"seqNo": 103,"materialNumber": 971093,"productName": "16MML LONG BULLET CT217NL 18C","cutter": "CT217","size": "16MML","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Long Bullet","cutterSize": "16MML","type": "CT217","chamfer1": "18C","moreDescription": "NL LBL","category": "B - Standard ( Base )"},{"seqNo": 104,"materialNumber": 1086351,"productName": "1316 CT220NL SHORT M2-STL","cutter": "CT220","size": "1316","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Round","cutterSize": "1316","type": "CT220","chamfer1": "","moreDescription": "NL Short M2 Steel PDC","category": "B - Standard ( Base )"},{"seqNo": 105,"materialNumber": 632948,"productName": "1313","cutter": "","size": "","chamfer": "","family": "","typeCol": "Carbide Dummy Cutter","cutterSize": "1313","type": "","chamfer1": "","moreDescription": "","category": " - "},{"seqNo": 106,"materialNumber": 647435,"productName": "1608 CT200 18C","cutter": "CT200","size": "1608","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1608","type": "CT200","chamfer1": "18C","moreDescription": "","category": "B - Standard ( Base )"},{"seqNo": 107,"materialNumber": 983148,"productName": "1608 CT216 18C","cutter": "CT216","size": "1608","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1608","type": "CT216","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 108,"materialNumber": 738228,"productName": "1608 CT150 18C","cutter": "CT150","size": "1608","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1608","type": "CT150","chamfer1": "18C","moreDescription": "","category": "TEST for Abrasion - S - Super Premium"},{"seqNo": 109,"materialNumber": 661066,"productName": "1613 CT155 18C","cutter": "CT155","size": "1613","chamfer": "18C","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1613","type": "CT155","chamfer1": "18C","moreDescription": "CUTTER 1613 TEST USS DL .018 PDC","category": "TEST For Abrasion - S - Super Premium"},{"seqNo": 110,"materialNumber": 1104743,"productName": "1308 CR45/CT155 U","cutter": "CT155","size": "1308","chamfer": "U","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1308","type": "CR45/CT155","chamfer1": "U","moreDescription": "CUTTER 1308 TEST USS DL U PDC","category": "TEST For Abrasion - S - Super Premium"},{"seqNo": 111,"materialNumber": 1100696,"productName": "1313 CT418 10C","cutter": "CT418","size": "1313","chamfer": "10C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1313","type": "CT418","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 112,"materialNumber": 1100745,"productName": "1913 CT418 18C","cutter": "CT418","size": "1913","chamfer": "18C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1913","type": "CT418","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 113,"materialNumber": 1130198,"productName": "1613 CT182 18C","cutter": "CT182","size": "1613","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT182","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 114,"materialNumber": 1130196,"productName": "1313 CT182 18C","cutter": "CT182","size": "1313","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT182","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 115,"materialNumber": 752583,"productName": "1913 CT81 18C","cutter": "CT81","size": "1913","chamfer": "18C","family": "P - Premium","typeCol": "Round","cutterSize": "1913","type": "CT81","chamfer1": "18C","moreDescription": "","category": "P - Premium"},{"seqNo": 116,"materialNumber": 1100741,"productName": "1613 CT418 18C","cutter": "CT418","size": "1613","chamfer": "18C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT418","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 117,"materialNumber": 1014941,"productName": "1613 CT133 18C","cutter": "CT133","size": "1613","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT133","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 118,"materialNumber": 1130200,"productName": "1913 CT182 18C","cutter": "CT182","size": "1913","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT182","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 119,"materialNumber": 1144821,"productName": "1613 CT153 18C","cutter": "CT153","size": "1613","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT153","chamfer1": "18C","moreDescription": "Test Cutter","category": "TEST For Abrasion - S - Super Premium"},{"seqNo": 120,"materialNumber": 1134752,"productName": "1308 CT182 18C","cutter": "CT182","size": "1308","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT182","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 121,"materialNumber": 1130197,"productName": "1608 CT182 18C","cutter": "CT182","size": "1608","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1608","type": "CT182","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 122,"materialNumber": 1130204,"productName": "16MMS CT182 SHORT 18C","cutter": "CT182","size": "16MMS","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Short Bullet","cutterSize": "16MMS","type": "CT182","chamfer1": "18C","moreDescription": "SBL","category": "S - Super Premium"},{"seqNo": 123,"materialNumber": 971088,"productName": "13MMS SHORT BULLET CT217 18C","cutter": "CT217","size": "13MMS","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Short Bullet","cutterSize": "13MMS","type": "CT217","chamfer1": "18C","moreDescription": "SBL","category": "B - Standard ( Base )"},{"seqNo": 124,"materialNumber": 1039033,"productName": "1308 CT138 10C","cutter": "CT138","size": "1308","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT138","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 125,"materialNumber": 1144818,"productName": "1308 CT153 18C","cutter": "CT153","size": "1308","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT153","chamfer1": "18C","moreDescription": "Test Cutter","category": "TEST For Abrasion - S - Super Premium"},{"seqNo": 126,"materialNumber": 1144820,"productName": "1608 CT153 18C","cutter": "CT153","size": "1608","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1608","type": "CT153","chamfer1": "18C","moreDescription": "Test Cutter","category": "TEST For Abrasion - S - Super Premium"},{"seqNo": 127,"materialNumber": 1144689,"productName": "1308 CT153/CR42 10C","cutter": "CT153","size": "1308","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT153/CR42","chamfer1": "10C","moreDescription": "Test Cutter","category": "TEST For Abrasion - S - Super Premium"},{"seqNo": 128,"materialNumber": 1039035,"productName": "1313 CT138  10C","cutter": "CT138","size": "1313","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT138","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 129,"materialNumber": 1104083,"productName": "1313 CT144H 10C","cutter": "CT144H","size": "1313","chamfer": "10C","family": "S - Super Premium - HATCHET","typeCol": "2SEAM/HATCHET","cutterSize": "1313","type": "CT144H","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 130,"materialNumber": 1136984,"productName": "1313 CT182DM 10C","cutter": "CT182DM","size": "1313","chamfer": "10C","family": "S - Super Premium - PNT PMT","typeCol": "DBL MCHT","cutterSize": "1313","type": "CT182DM","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 131,"materialNumber": 1039029,"productName": "1010 CT138 10C","cutter": "CT138","size": "1010","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1010","type": "CT138","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 132,"materialNumber": 976348,"productName": "1308 CT150 10C","cutter": "CT150","size": "1308","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT150","chamfer1": "10C","moreDescription": "CUTTER 1308 TEST USS DL .010 PDC","category": "TEST for Abrasion - S - Super Premium"},{"seqNo": 133,"materialNumber": 409593,"productName": "1608 CT27 10C","cutter": "CT27","size": "1608","chamfer": "10C","family": "P - Premium","typeCol": "Round","cutterSize": "1608","type": "CT27","chamfer1": "10C","moreDescription": "OBS","category": "P - Premium"},{"seqNo": 134,"materialNumber": 397470,"productName": "1608 OBS ERC 10C","cutter": "OBS ERC","size": "1608","chamfer": "10C","family": "B - Standard ( Base )","typeCol": "Round","cutterSize": "1608","type": "OBS ERC","chamfer1": "10C","moreDescription": "","category": "O - Other"},{"seqNo": 135,"materialNumber": 1145493,"productName": "1313 CT427 10C","cutter": "CT427","size": "1313","chamfer": "10C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1313","type": "CT427","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 136,"materialNumber": 1050785,"productName": "1005 CT138 10C","cutter": "CT138","size": "1005","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1005","type": "CT138","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 137,"materialNumber": 874583,"productName": "1313 CT81 10C","cutter": "CT81","size": "1313","chamfer": "10C","family": "P - Premium","typeCol": "Round","cutterSize": "1313","type": "CT81","chamfer1": "10C","moreDescription": "RCL PDC","category": "P - Premium"},{"seqNo": 138,"materialNumber": 1014950,"productName": "1313 CT133 10C","cutter": "CT133","size": "1313","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT133","chamfer1": "10C","moreDescription": "RCL PDC","category": "S - Super Premium"},{"seqNo": 139,"materialNumber": 1118470,"productName": "1313 CT182Cs 10C","cutter": "CT182CS","size": "1313","chamfer": "10C","family": "S - Super Premium","typeCol": "Round","cutterSize": "1313","type": "CT182CS","chamfer1": "10C","moreDescription": "RCL PDC","category": "S - Super Premium"},{"seqNo": 140,"materialNumber": 1118517,"productName": "1313 CT421 10C","cutter": "CT421","size": "1313","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT421","chamfer1": "10C","moreDescription": "RCL PDC","category": "S - Super Premium"},{"seqNo": 141,"materialNumber": 1123324,"productName": "1313 CT144 10C RCL","cutter": "CT144","size": "1313","chamfer": "10C","family": "S - Super Premium - HATCHET","typeCol": "2SEAM/HATCHET","cutterSize": "1313","type": "CT144","chamfer1": "10C","moreDescription": "RCL PDC","category": "S - Super Premium"},{"seqNo": 142,"materialNumber": 1137793,"productName": "1313 CT144H  10C RCL","cutter": "CT144H","size": "1313","chamfer": "10C","family": "S - Super Premium - HATCHET","typeCol": "2SEAM/HATCHET","cutterSize": "1313","type": "CT144H","chamfer1": "10C","moreDescription": "RCL PDC","category": "S - Super Premium"},{"seqNo": 143,"materialNumber": 1104744,"productName": "1608 CR45/CT155 U","cutter": "CT155","size": "1608","chamfer": "U","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1608","type": "CR45","chamfer1": "U","moreDescription": "CUTTER 1608 TEST USS DL U PDC","category": "TEST for Abrasion - S - Super Premium"},{"seqNo": 144,"materialNumber": 643738,"productName": "1608 CT70 18C","cutter": "CT70","size": "1608","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1608","type": "CT70","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 145,"materialNumber": 1130219,"productName": "1313 CT182 10C","cutter": "CT182","size": "1313","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT182","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 146,"materialNumber": 1101509,"productName": "8MM WC-MAT404 SHORT M1 SOFT CARBIDE IA","cutter": "M1","size": "8MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "SFT Carbide IA","cutterSize": "8MM SHORT","type": "M1","chamfer1": "","moreDescription": "","category": "D - Depth of Cut Control Elements"},{"seqNo": 147,"materialNumber": 1100755,"productName": "1613 CT421 18C","cutter": "CT421","size": "1613","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT421","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 148,"materialNumber": 1146740,"productName": "1313 CT418 10-60","cutter": "CT418","size": "1313","chamfer": "10-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1313","type": "CT418","chamfer1": "10-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 149,"materialNumber": 1130217,"productName": "1010 CT182 10C","cutter": "CT182","size": "1010","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1010","type": "CT182","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 150,"materialNumber": 179733,"productName": "13MM WC-MAT400 M1 SHORT IA-STL","cutter": "M1 SHORT IA-STL","size": "13MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "IA-STL","cutterSize": "13MM","type": "WC-MAT400","chamfer1": "","moreDescription": "","category": "D - Depth of Cut Control Elements"},{"seqNo": 151,"materialNumber": 649901,"productName": "8MM WC-MAT 400 SHORT M1 CARBIDE IA","cutter": "M1","size": "8MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Carbide IA","cutterSize": "8MM SHORT","type": "M1","chamfer1": "","moreDescription": "","category": "D - Depth of Cut Control Elements"},{"seqNo": 152,"materialNumber": 1129936,"productName": "1005 CT182 10C","cutter": "CT182","size": "1005","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1005","type": "CT182","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 153,"materialNumber": 774371,"productName": "13MMS SHORT BULLET CT80 18C","cutter": "CT80","size": "13MMS","chamfer": "18C","family": "B - Standard ( Base )","typeCol": "Short Bullet","cutterSize": "13MM","type": "CT80","chamfer1": "18C","moreDescription": "SBL","category": "B - Standard ( Base )"},{"seqNo": 154,"materialNumber": 1078371,"productName": "13MM CT143 R3-STL","cutter": "R3-STL","size": "13MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Shyfter - R3","cutterSize": "13MM","type": "CT143","chamfer1": "","moreDescription": "STL","category": "D - Depth of Cut Control Elements"},{"seqNo": 155,"materialNumber": 1181761,"productName": "1608 CT155 18C","cutter": "CT155","size": "1608","chamfer": "18C","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1608","type": "CT155","chamfer1": "18C","moreDescription": "","category": "S - Super Premium - Abrasion"},{"seqNo": 156,"materialNumber": 1176639,"productName": "1308 CT155 18C","cutter": "CT155","size": "1308","chamfer": "18C","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1308","type": "CT155","chamfer1": "18C","moreDescription": "","category": "S - Super Premium - Abrasion"},{"seqNo": 157,"materialNumber": 1039057,"productName": "1608 CT138 10C","cutter": "CT138","size": "1608","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1608","type": "CT138","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 158,"materialNumber": 976360,"productName": "1608 TEST USS DL 10C","cutter": "TEST USS DL","size": "1608","chamfer": "10C","family": "S - Super Premium","typeCol": "Round","cutterSize": "1608","type": "TEST USS DL","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 159,"materialNumber": 1130193,"productName": "1005 CT182 18C","cutter": "CT182","size": "1005","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1005","type": "CT182","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 160,"materialNumber": 1130223,"productName": "1913 CT182 10C","cutter": "CT182","size": "1913","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT182","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 161,"materialNumber": 1130221,"productName": "1613 CT182 10C","cutter": "CT182","size": "1613","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT182","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 162,"materialNumber": 1130206,"productName": "19MMS  CT182 SHORT 18C","cutter": "CT182","size": "19MMS","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Short Bullet","cutterSize": "19MMS","type": "CT182","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 163,"materialNumber": 1104086,"productName": "1613 CT144H 18C","cutter": "CT144H","size": "1613","chamfer": "18C","family": "S - Super Premium - HATCHET","typeCol": "2SEAM/HATCHET","cutterSize": "1613","type": "CT144H","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 164,"materialNumber": 1022971,"productName": "1613 CT182M 10C","cutter": "CT182M","size": "1613","chamfer": "10C","family": "S - Super Premium - PNT PMT","typeCol": "Machete","cutterSize": "1613","type": "CT182M","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 165,"materialNumber": 1134751,"productName": "1308 CT182 10C","cutter": "CT182","size": "1308","chamfer": "10C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT182","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 166,"materialNumber": 1078348,"productName": "13MM CT221NL R3-STL","cutter": "R3-STL","size": "13MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Shyfter - R3","cutterSize": "13MM","type": "CT221","chamfer1": "","moreDescription": "NL","category": "D - Depth of Cut Control Elements"},{"seqNo": 167,"materialNumber": 562195,"productName": "13MMS SHORT R1 .012R","cutter": "SHORT R1","size": "13MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Shyfter - SHORT R1","cutterSize": "13MM SHORT","type": "R1","chamfer1": "0.012R","moreDescription": "Rep: 1078377","category": "D - Depth of Cut Control Elements"},{"seqNo": 168,"materialNumber": 1078377,"productName": "13MM CT221 1318 R1","cutter": "R1","size": "1318","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Shyfter - R1","cutterSize": "13MM","type": "CT221","chamfer1": "","moreDescription": "STL","category": "D - Depth of Cut Control Elements"},{"seqNo": 169,"materialNumber": 1176641,"productName": "1613 CT155 18C","cutter": "CT155","size": "1613","chamfer": "18C","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1613","type": "CT155","chamfer1": "18C","moreDescription": "","category": "S - Super Premium - Abrasion"},{"seqNo": 170,"materialNumber": 1162516,"productName": "1308 CT154 18C","cutter": "CT154","size": "1308","chamfer": "18C","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1308","type": "CT154","chamfer1": "18C","moreDescription": "RCL PDC","category": "S - Super Premium - Abrasion"},{"seqNo": 171,"materialNumber": 1162518,"productName": "1608 CT154 18C","cutter": "CT154","size": "1608","chamfer": "18C","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1608","type": "CT154","chamfer1": "18C","moreDescription": "RCL PDC","category": "S - Super Premium - Abrasion"},{"seqNo": 172,"materialNumber": 1100759,"productName": "1913 CT421 18C","cutter": "CT421","size": "1913","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT421","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 173,"materialNumber": 1163820,"productName": "1613 CT156 18C","cutter": "CT156","size": "1613","chamfer": "18C","family": "S - Super Premium","typeCol": "Round","cutterSize": "1613","type": "CT156","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 174,"materialNumber": 1162508,"productName": "1308 CT154 18C","cutter": "CT154","size": "1308","chamfer": "18C","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1308","type": "CT154","chamfer1": "18C","moreDescription": "","category": "S - Super Premium - Abrasion"},{"seqNo": 175,"materialNumber": 1100751,"productName": "1313 CT421 18C","cutter": "CT421","size": "1313","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT421","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 176,"materialNumber": 1162510,"productName": "1608 CT154 18C","cutter": "CT154","size": "1608","chamfer": "18C","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1608","type": "CT154","chamfer1": "18C","moreDescription": "","category": "S - Super Premium - Abrasion"},{"seqNo": 177,"materialNumber": 1161587,"productName": "13MM CT228 1318 R1","cutter": "R1","size": "1318","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Shyfter - R1","cutterSize": "13MM ","type": "CT228","chamfer1": "R1","moreDescription": "Rep: 1078377","category": "D - Depth of Cut Control Elements"},{"seqNo": 178,"materialNumber": 1209410,"productName": "1613 CT430Mv3 U","cutter": "CT430Mv3","size": "1613","chamfer": "U","family": "S - Super Premium - PNT MT","typeCol": "Machete","cutterSize": "1613","type": "CT430Mv3","chamfer1": "U","moreDescription": "","category": "S - Super Premium"},{"seqNo": 179,"materialNumber": 1177229,"productName": "1010 CT182 U","cutter": "CT182","size": "1010","chamfer": "U","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1010","type": "CT182","chamfer1": "U","moreDescription": "","category": "S - Super Premium"},{"seqNo": 180,"materialNumber": 1209332,"productName": "1313 CT147G U","cutter": "CT147G","size": "1313","chamfer": "U","family": "S- Super Premium - SCP MT","typeCol": "Gladius","cutterSize": "1313","type": "CT147G","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 181,"materialNumber": 1100694,"productName": "1308 CT418 10C","cutter": "CT418","size": "1308","chamfer": "10C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1308","type": "CT418","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 182,"materialNumber": 1199265,"productName": "1613 CT158 18C","cutter": "CT158","size": "1613","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT158","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 183,"materialNumber": 1199266,"productName": "1913 CT158 18C","cutter": "CT158","size": "1913","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT158 ","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 184,"materialNumber": 1145491,"productName": "1308 CT427 10C","cutter": "CT427","size": "1308","chamfer": "10C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1308","type": "CT427","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 185,"materialNumber": 1100740,"productName": "1613 CT418 10C","cutter": "CT418","size": "1613","chamfer": "10C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT418","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 186,"materialNumber": 1165840,"productName": "1613 MT U","cutter": "MT","size": "1613","chamfer": "U","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "MT","chamfer1": "U","moreDescription": "Rep: 1133896","category": "S - Super Premium"},{"seqNo": 187,"materialNumber": 1133896,"productName": "1613 CT418 U","cutter": "CT418","size": "1613","chamfer": "U","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT418","chamfer1": "U","moreDescription": "","category": "S - Super Premium"},{"seqNo": 188,"materialNumber": 1130194,"productName": "1010 CT182 18C","cutter": "CT182","size": "1010","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1010","type": "CT182","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 189,"materialNumber": 1217988,"productName": "1313 CT158DM 10C","cutter": "CT158DM","size": "1313","chamfer": "10C","family": "S - Super Premium - PNT PMT","typeCol": "DBL MCHT","cutterSize": "1313","type": "CT158DM","chamfer1": "10C","moreDescription": "Rep: 1136984","category": "S - Super Premium"},{"seqNo": 190,"materialNumber": 1209333,"productName": "1613 CT147G U","cutter": "CT147G","size": "1613","chamfer": "U","family": "S- Super Premium - SCP MT","typeCol": "Gladius","cutterSize": "1613","type": "CT147G","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 191,"materialNumber": 1050703,"productName": "13MM CT221NL 1318 R1","cutter": "R1","size": "1318","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Shyfter - R1","cutterSize": "13MM","type": "CT221","chamfer1": "","moreDescription": "STL","category": "D - Depth of Cut Control Elements"},{"seqNo": 192,"materialNumber": 1233855,"productName": "1613 CT162 U","cutter": "CT162","size": "1613","chamfer": "U","family": "S - Super Premium - WH","typeCol": "Round","cutterSize": "1613","type": "CT162","chamfer1": "U","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 193,"materialNumber": 1208601,"productName": "1613 CT418 U-60","cutter": "CT418","size": "1613","chamfer": "U-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT418","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 194,"materialNumber": 1235963,"productName": "1613 CT162R U","cutter": "CT162R","size": "1613","chamfer": "U","family": "S - Super Premium - PLW WH","typeCol": "Razor","cutterSize": "1613","type": "CT162R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 195,"materialNumber": 1152018,"productName": "1313 CT418 U-60","cutter": "CT418","size": "1313","chamfer": "U-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1313","type": "CT418","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 196,"materialNumber": 1219562,"productName": "1613 CT147R U","cutter": "CT147R","size": "1613","chamfer": "U","family": "S - Super Premium - PLW MT","typeCol": "Razor","cutterSize": "1613","type": "CT147R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 197,"materialNumber": 1219561,"productName": "1313 CT147R U","cutter": "CT147R","size": "1313","chamfer": "U","family": "S - Super Premium - PLW MT","typeCol": "Razor","cutterSize": "1313","type": "CT147R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 198,"materialNumber": 1223172,"productName": "1913 CT147R U","cutter": "CT147R","size": "1913","chamfer": "U","family": "S - Super Premium - PLW MT","typeCol": "Razor","cutterSize": "1913","type": "CT147R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 199,"materialNumber": 1234679,"productName": "1613 CT164R U","cutter": "CT164R","size": "1613","chamfer": "U","family": "S - Super Premium - PLW PMT","typeCol": "Razor","cutterSize": "1613","type": "CT164R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 200,"materialNumber": 1226868,"productName": "1010 CT147G U","cutter": "CT147G","size": "1010","chamfer": "U","family": "S- Super Premium - SCP MT","typeCol": "Gladius","cutterSize": "1010","type": "CT147G","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 201,"materialNumber": 1146737,"productName": "1613 CT418 18-60","cutter": "CT418","size": "1613","chamfer": "18-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT418","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 205,"materialNumber": 1141583,"productName": "1613 CT147 U","cutter": "CT147","size": "1613","chamfer": "U","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT147","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 206,"materialNumber": 1146742,"productName": "1913 CT418 U-60","cutter": "CT418","size": "1913","chamfer": "U-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1913","type": "CT418","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 207,"materialNumber": 1244299,"productName": "1313 CT147GV4 U","cutter": "CT147GV4","size": "1313","chamfer": "U","family": "S - Super Premium - SCP MT","typeCol": "Trifex","cutterSize": "1313","type": "CT147GV4","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 208,"materialNumber": 1112229,"productName": "1613 CT147 18C","cutter": "CT147","size": "1613","chamfer": "18C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT147","chamfer1": "18C","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 209,"materialNumber": 1228501,"productName": "1618 Carbide Stator","cutter": "Carbide St","size": "1618","chamfer": "","family": "O - Other","typeCol": "Dynamic Cutter: Carbide Stator","cutterSize": "1618","type": "Carbide St","chamfer1": "","moreDescription": "Dynamic Cutter","category": "S - Super Premium"},{"seqNo": 210,"materialNumber": 1228502,"productName": "1618 CT167 Rotor U","cutter": "CT182","size": "1618","chamfer": "U","family": "S- Super Premium - PMT","typeCol": "Dynamic Cutter: Rotor","cutterSize": "1618","type": "CT182","chamfer1": "U","moreDescription": "Dynamic Cutter","category": "S - Super Premium"},{"seqNo": 211,"materialNumber": 1261319,"productName": "1308 CT155 U-60","cutter": "CT155","size": "1308","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1308","type": "CT155","chamfer1": "U-60","moreDescription": "Dynamic Cutter","category": "S - Super Premium - Abrasion"},{"seqNo": 212,"materialNumber": 1238831,"productName": "1313 CT418 25-75","cutter": "CT418","size": "1313","chamfer": "25-75","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1313","type": "CT418","chamfer1": "25-75","moreDescription": "","category": "S - Super Premium"},{"seqNo": 213,"materialNumber": 1261320,"productName": "1313 CT155 U-60","cutter": "CT155","size": "1313","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1313","type": "CT155","chamfer1": "U-60","moreDescription": "Dynamic Cutter","category": "S - Super Premium - Abrasion"},{"seqNo": 214,"materialNumber": 1175118,"productName": "1613 CT147 18-60","cutter": "CT147","size": "1613","chamfer": "18-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT147","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 215,"materialNumber": 1238832,"productName": "1613 CT418 25-75","cutter": "CT418","size": "1613","chamfer": "25-75","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT418","chamfer1": "25-75","moreDescription": "","category": "S - Super Premium"},{"seqNo": 216,"materialNumber": 1261321,"productName": "1613 CT155 U-60","cutter": "CT155","size": "1613","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1613","type": "CT155","chamfer1": "U-60","moreDescription": "Dynamic Cutter","category": "S - Super Premium - Abrasion"},{"seqNo": 217,"materialNumber": 1228503,"productName": "Dynamic Cutter: 3/8\u201d OD Retaining Ring","cutter": "","size": "","chamfer": "","family": "O - Other","typeCol": "Dynamic Cutter: 3/8\u201d OD Retaining Ring","cutterSize": "1618","type": "CT182","chamfer1": "U-60","moreDescription": "Dynamic Cutter","category": "Other"},{"seqNo": 218,"materialNumber": 1220554,"productName": "Dynamic Cutter: Graphite Bore Plug","cutter": "","size": "","chamfer": "","family": "O - Other","typeCol": "Dynamic Cutter: Graphite Bore Plug","cutterSize": "1618","type": "CT182","chamfer1": "U-60","moreDescription": "Dynamic Cutter","category": "Other"},{"seqNo": 219,"materialNumber": 1234189,"productName": "13MM WC-MAT400 M1 FLAT CARBIDE IA","cutter": "M1 FLATE CARBIDE IA","size": "1318","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Carbide IA","cutterSize": "13MM","type": "WC-MAT400","chamfer1": "","moreDescription": "M1 FLAT","category": "D - Depth of Cut Control Elements"},{"seqNo": 220,"materialNumber": 1231982,"productName": "1613 CT164 U","cutter": "CT164","size": "1613","chamfer": "U","family": "S- Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT164","chamfer1": "U","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 221,"materialNumber": 1142711,"productName": "1613 CT421 U","cutter": "CT421","size": "1613","chamfer": "U","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT421","chamfer1": "U","moreDescription": "","category": "S - Super Premium"},{"seqNo": 222,"materialNumber": 1263281,"productName": "1613 CT147 U-60","cutter": "CT147","size": "1613","chamfer": "U-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT147","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 223,"materialNumber": 1200972,"productName": "8MM WC-MAT400 SHORT M1 FLAT CARBIDE IA","cutter": "M1","size": "8MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Carbide IA","cutterSize": "8MM","type": "WC-MAT400","chamfer1": "","moreDescription": "SHORT M1 FLAT","category": "D - Depth of Cut Control Elements"},{"seqNo": 225,"materialNumber": 1146346,"productName": "1313 CT418 18-60","cutter": "CT418","size": "1313","chamfer": "18-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1313","type": "CT418","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 226,"materialNumber": 1271790,"productName": "1613 CT170 18-60","cutter": "CT170","size": "1613","chamfer": "18-60","family": "S - Super Premium - IMP","typeCol": "Round","cutterSize": "1613","type": "CT170","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 227,"materialNumber": 1220688,"productName": "1005 CT155 U-60","cutter": "CT155","size": "1005","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1005","type": "CT155","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Abrasion"},{"seqNo": 228,"materialNumber": 1244957,"productName": "1613 CT418 DER","cutter": "CT418","size": "1613","chamfer": "DER","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT418","chamfer1": "DER","moreDescription": "","category": "S - Super Premium"},{"seqNo": 229,"materialNumber": 1126402,"productName": "1613 CT421 18-60","cutter": "CT421","size": "1613","chamfer": "18-60","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT421","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 230,"materialNumber": 1250971,"productName": "1913 CT164R U","cutter": "CT164R","size": "1913","chamfer": "U","family": "S - Super Premium - PLW PMT","typeCol": "Razor","cutterSize": "1913","type": "CT164R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 231,"materialNumber": 1266910,"productName": "1313 CT436CLV U","cutter": "CT436CLV","size": "1313","chamfer": "U","family": "S - Super Premium - PLW IMP","typeCol": "Clover","cutterSize": "1313","type": "CT436CLV","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 232,"materialNumber": 1255773,"productName": "1613 CT154 U-60","cutter": "CT154","size": "1613","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1613","type": "CT154","chamfer1": "U-60","moreDescription": "Dynamic Cutter","category": "S - Super Premium - Abrasion"},{"seqNo": 233,"materialNumber": 653400,"productName": "13MM WC-MAT404 1318 M1 SOFT CARBIDE IA","cutter": "M1 SOFT CARBIDE IA","size": "1318","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Carbide IA","cutterSize": "13MM","type": "WC-MAT404","chamfer1": "","moreDescription": "M1 SOFT","category": "D - Depth of Cut Control Elements"},{"seqNo": 234,"materialNumber": 1201518,"productName": "12MM WC-MAT404 1218 UNI M1 SOFT CARBIDE IA","cutter": "WC-MAT404","size": "12MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Carbide IA","cutterSize": "12MM","type": "WC-MAT404","chamfer1": "","moreDescription": "M1 SOFT","category": "D - Depth of Cut Control Elements"},{"seqNo": 236,"materialNumber": 1261615,"productName": "1613 CT172R U","cutter": "CT172R","size": "1613","chamfer": "U","family": "S - Super Premium - PLW PMT","typeCol": "Razor","cutterSize": "1613","type": "CT172R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 237,"materialNumber": 1100739,"productName": "1608 CT418 18C","cutter": "CT418","size": "1608","chamfer": "18C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1608","type": "CT418","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 238,"materialNumber": 1180935,"productName": "1313 RDOC","cutter": "","size": "","chamfer": "","family": "O - Other","typeCol": "Cruzer","cutterSize": "1313","type": "RDOC","chamfer1": "","moreDescription": "","category": "D - Depth of Cut Control Elements"},{"seqNo": 239,"materialNumber": 1199247,"productName": "1010 CT158 10C","cutter": "CT158","size": "1010","chamfer": "10C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1010","type": "CT158","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 240,"materialNumber": 1187118,"productName": "1613 CT182H 18C","cutter": "CT182H","size": "1613","chamfer": "18C","family": "S - Super Premium - HATCHET PMT","typeCol": "2SEAM/HATCHET","cutterSize": "1613","type": "CT182H","chamfer1": "18C","moreDescription": "Rep: 1104086","category": "S - Super Premium"},{"seqNo": 241,"materialNumber": 1100753,"productName": "1608 CT421 18C","cutter": "CT421","size": "1608","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1608","type": "CT421","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 242,"materialNumber": 1282370,"productName": "1613 CT436MV3 U-60","cutter": "CT436MV3","size": "1613","chamfer": "U-60","family": "S - Super Premium - PNT IMP","typeCol": "Machete","cutterSize": "1613","type": "CT436Mv3","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 243,"materialNumber": 1272309,"productName": "1313 CT170T U","cutter": "CT170T","size": "1313","chamfer": "U","family": "S - Super Premium - SCP IMP","typeCol": "Trifex","cutterSize": "1313","type": "CT170T","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 244,"materialNumber": 1263823,"productName": "1613 CT170R U","cutter": "CT170R","size": "1613","chamfer": "U","family": "S - Super Premium - PLW IMP","typeCol": "Razor","cutterSize": "1613","type": "CT170R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 245,"materialNumber": 1199261,"productName": "1010 CT158 18C","cutter": "CT158","size": "1010","chamfer": "18C","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1010","type": "CT158","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 246,"materialNumber": 1230916,"productName": "1005 CT158 18C","cutter": "CT158","size": "1005","chamfer": "18C","family": "S- Super Premium - PMT","typeCol": "Round","cutterSize": "1005","type": "CT158","chamfer1": "18C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 247,"materialNumber": 1288721,"productName": "1613 CT176 18-60","cutter": "CT176","size": "1613","chamfer": "18-60","family": "S - Super Premium MT","typeCol": "Round","cutterSize": "1613","type": "CT176","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 248,"materialNumber": 1282746,"productName": "1913 CT172R U","cutter": "CT172R","size": "1913","chamfer": "U","family": "S - Super Premium - PLW PMT","typeCol": "Razor","cutterSize": "1913","type": "CT172R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 249,"materialNumber": 1263929,"productName": "1613 CT437 18-60","cutter": "CT437","size": "1613","chamfer": "18-60","family": "S - Super Premium - WH","typeCol": "Round","cutterSize": "1613","type": "CT437","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 250,"materialNumber": 1186963,"productName": "1313 CT182H 10C","cutter": "CT182H","size": "1313","chamfer": "10C","family": "S - Super Premium - HATCHET PMT","typeCol": "2SEAM/HATCHET","cutterSize": "1313","type": "CT182H","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 251,"materialNumber": 1288783,"productName": "1613 CT179 18-60","cutter": "CT179","size": "1613","chamfer": "18-60","family": "S - Super Premium - IMP","typeCol": "Round","cutterSize": "1613","type": "CT179","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 252,"materialNumber": 2002243,"productName": "1308 CT188 U-60","cutter": "CT188","size": "1308","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1308","type": "CT188","chamfer1": "U-60","moreDescription": "Dynamic Cutter","category": "S - Super Premium - Abrasion"},{"seqNo": 253,"materialNumber": 1266417,"productName": "1313 CT170W U","cutter": "CT170W","size": "1313","chamfer": "U","family": "S - Super Premium - PLW IMP","typeCol": "Swagger","cutterSize": "1313","type": "CT170W","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 254,"materialNumber": 1296685,"productName": "1613 CT179R U","cutter": "CT179R","size": "1613","chamfer": "U","family": "S - Super Premium - PLW IMP","typeCol": "Razor","cutterSize": "1613","type": "CT179R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 255,"materialNumber": 1290837,"productName": "1613 CT184R U","cutter": "CT184R","size": "1613","chamfer": "U","family": "S - Super Premium - PLW PMT","typeCol": "Razor","cutterSize": "1613","type": "CT184R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 256,"materialNumber": 2002235,"productName": "1613 CT189 18-60","cutter": "CT189","size": "1613","chamfer": "18-60","family": "","typeCol": "Round","cutterSize": "1613","type": "CT189","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 257,"materialNumber": 1272937,"productName": "1313 CT436 18-60","cutter": "CT436","size": "1313","chamfer": "18-60","family": "S - Super Premium - IMP","typeCol": "Round","cutterSize": "1313","type": "CT436","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 258,"materialNumber": 1282369,"productName": "1313 CT436Mv3 U-60","cutter": "CT436MV3","size": "1313","chamfer": "U-60","family": "S - Super Premium - PNT IMP","typeCol": "Machete","cutterSize": "1313","type": "CT436Mv3","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 259,"materialNumber": 1162285,"productName": "1313 CT154 U","cutter": "CT154","size": "1313","chamfer": "U","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1313","type": "CT154","chamfer1": "U","moreDescription": "","category": "S - Super Premium - Abrasion"},{"seqNo": 260,"materialNumber": 1255772,"productName": "1313 CT154 U-60","cutter": "CT154","size": "1313","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1313","type": "CT154","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Abrasion"},{"seqNo": 261,"materialNumber": 1136983,"productName": "1308 CT182DM 10C","cutter": "CT182DM","size": "1308","chamfer": "10C","family": "S - Super Premium - PNT PMT","typeCol": "DBL MCHT","cutterSize": "1308","type": "CT182DM","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 262,"materialNumber": 2004484,"productName": "1308 CT187 U-60","cutter": "CT187","size": "1308","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1308","type": "CT187","chamfer1": "U-60","moreDescription": "Dynamic Cutter","category": "S - Super Premium - Abrasion"},{"seqNo": 263,"materialNumber": 2000450,"productName": "1313 CT154Mv3 U-60","cutter": "CT154Mv3","size": "1313","chamfer": "U-60","family": "S - Super Premium - PNT ABR","typeCol": "Machete","cutterSize": "1313","type": "CT154Mv3","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Abrasion"},{"seqNo": 264,"materialNumber": 2007571,"productName": "1913 CT189 18-60","cutter": "CT189","size": "1913","chamfer": "18-60","family": "","typeCol": "Round","cutterSize": "1913","type": "CT189","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 265,"materialNumber": 2002299,"productName": "1613 CT187 U-60","cutter": "CT187","size": "1613","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1613","type": "CT187","chamfer1": "U-60","moreDescription": "Dynamic Cutter","category": "S - Super Premium - Abrasion"},{"seqNo": 267,"materialNumber": 2001155,"productName": "1313 CT179T U-60","cutter": "CT179T","size": "1313","chamfer": "U-60","family": "S - Super Premium - SCP IMP","typeCol": "Trifex","cutterSize": "1313","type": "CT179T","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 268,"materialNumber": 2001060,"productName": "1613 CT179T U-60","cutter": "CT179T","size": "1613","chamfer": "U-60","family": "S - Super Premium - SCP IMP","typeCol": "Trifex","cutterSize": "1613","type": "CT179T","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 269,"materialNumber": 2013726,"productName": "1913 CT172 18-60","cutter": "CT172","size": "1913","chamfer": "18-60","family": "S- Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT172","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 270,"materialNumber": 1274176,"productName": "1613 CT172 18-60","cutter": "CT172","size": "1613","chamfer": "18-60","family": "S- Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT172","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 271,"materialNumber": 1293118,"productName": "0808 CT158NL 18C","cutter": "CT158NL","size": "0808","chamfer": "18C","family": "P - Premium","typeCol": "Round","cutterSize": "0808","type": "CT158NL","chamfer1": "18C","moreDescription": "BackReam","category": "S - Super Premium"},{"seqNo": 272,"materialNumber": 1192901,"productName": "12MM WC-MAT400 1218 UNI M1 CARBIDE IA","cutter": "WC-MAT400","size": "12MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Carbide IA","cutterSize": "12MM","type": "WC-MAT400","chamfer1": "","moreDescription": "UNI M1","category": "D - Depth of Cut Control Elements"},{"seqNo": 273,"materialNumber": 2002244,"productName": "1313 CT188 U-60","cutter": "CT188","size": "1313","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1313","type": "CT188","chamfer1": "Uc-60","moreDescription": "Dynamic Cutter","category": "S - Super Premium - Abrasion"},{"seqNo": 274,"materialNumber": 1146345,"productName": "1308 CT418 18-60","cutter": "CT418","size": "1308","chamfer": "18-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1308","type": "CT418","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 275,"materialNumber": 2002245,"productName": "1613 CT188 U-60","cutter": "CT188","size": "1613","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1613","type": "CT188","chamfer1": "U-60","moreDescription": "Dynamic Cutter","category": "S - Super Premium - Abrasion"},{"seqNo": 276,"materialNumber": 2002126,"productName": "1613 CT186 U-60","cutter": "CT186","size": "1613","chamfer": "U-60","family": "S - Super Premium - WH","typeCol": "Round","cutterSize": "1613","type": "CT186","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 277,"materialNumber": 1291852,"productName": "1613 CT186R U","cutter": "CT186R","size": "1613","chamfer": "U","family": "S - Super Premium - PLW WH","typeCol": "Razor","cutterSize": "1613","type": "CT186R","chamfer1": "U","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 278,"materialNumber": 1291870,"productName": "1613 CT186 18-60","cutter": "CT186","size": "1613","chamfer": "18-60","family": "S - Super Premium - WH","typeCol": "Round","cutterSize": "1613","type": "CT186","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 279,"materialNumber": 2008253,"productName": "1313 CT187 U","cutter": "CT187","size": "1313","chamfer": "U","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1313","type": "CT187","chamfer1": "U","moreDescription": "Dynamic Cutter","category": "S - Super Premium - Abrasion"},{"seqNo": 280,"materialNumber": 1292498,"productName": "1613 CT186Mv3 U-60","cutter": "CT186Mv3","size": "1613","chamfer": "U-60","family": "S - Super Premium - PNT WH","typeCol": "Machete","cutterSize": "1613","type": "CT186Mv3","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 281,"materialNumber": 1247589,"productName": "1313 CT418Mv3 U","cutter": "CT418Mv3","size": "1313","chamfer": "U","family": "S - Super Premium - PNT MT","typeCol": "Machete","cutterSize": "1313","type": "CT418Mv3","chamfer1": "U","moreDescription": "","category": "S - Super Premium"},{"seqNo": 282,"materialNumber": 2002186,"productName": "1313 CT187 U-60","cutter": "CT187","size": "1313","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1313","type": "CT187","chamfer1": "U-60","moreDescription": "Dynamic Cutter","category": "S - Super Premium - Abrasion"},{"seqNo": 283,"materialNumber": 2020817,"productName": "1913 CT186 18-60","cutter": "CT186","size": "1913","chamfer": "18-60","family": "S - Super Premium - WH","typeCol": "Round","cutterSize": "1913","type": "CT186","chamfer1": "18-60","moreDescription": "NFP cutter","category": "S - Super Premium - WH"},{"seqNo": 284,"materialNumber": 1146738,"productName": "1913 CT418 18-60","cutter": "CT418","size": "1913","chamfer": "18-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1913","type": "CT418","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 285,"materialNumber": 1192902,"productName": "1218 M2 C220NL","cutter": "CT220NL","size": "1218","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Arrestor","cutterSize": "1218","type": "CT220NL","chamfer1": "","moreDescription": "M2","category": "D - Depth of Cut Control Elements"},{"seqNo": 286,"materialNumber": 1126400,"productName": "1313 CT421 18-60","cutter": "CT421","size": "1313","chamfer": "18-60","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1313","type": "CT421","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 287,"materialNumber": 2017131,"productName": "1313 CT179SP U-60","cutter": "CT179SP","size": "1313","chamfer": "U-60","family": "S - Super Premium - SCP IMP","typeCol": "Round","cutterSize": "1313","type": "CT179SP","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 288,"materialNumber": 1126398,"productName": "1308 CT421 18-60","cutter": "CT421","size": "1308","chamfer": "18-60","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT421","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 289,"materialNumber": 1220479,"productName": "1613 CT158H 18C","cutter": "CT158H","size": "1613","chamfer": "18C","family": "S - Super Premium - HATCHET PMT","typeCol": "2SEAM/HATCHET","cutterSize": "1613","type": "CT158H","chamfer1": "18C","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 290,"materialNumber": 1172481,"productName": "13MM WC-MAT404 M1 SOFT SHORT IA-STL","cutter": "M1 SOFT SHORT IA_STL","size": "13MM","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Carbide IA","cutterSize": "13mm","type": "WC-MAT404","chamfer1": "","moreDescription": "M1 SOFT SHORT","category": "D - Depth of Cut Control Elements"},{"seqNo": 291,"materialNumber": 2022731,"productName": "1613 CT179R U-60","cutter": "CT179R","size": "1613","chamfer": "U-60","family": "S - Super Premium - PLW IMP","typeCol": "Razor","cutterSize": "1613","type": "CT179R","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 292,"materialNumber": 1100749,"productName": "1308 CT421 18C","cutter": "CT421","size": "1308","chamfer": "18C","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1308","type": "CT421","chamfer1": "18C","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 293,"materialNumber": 2024742,"productName": "1608 CT421 U-60","cutter": "CT421","size": "1608","chamfer": "U-60","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1608","type": "CT421","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 294,"materialNumber": 2013427,"productName": "12MM WC-MAT400 1218 UNI M3 CARBIDE","cutter": "WC-MAT400","size": "1218","chamfer": "","family": "D - Depth of Cut Control Elements","typeCol": "Carbide IA","cutterSize": "1218","type": "WC-MAT400","chamfer1": "","moreDescription": "UNI M3 ","category": "D - Depth of Cut Control Elements"},{"seqNo": 295,"materialNumber": 2023242,"productName": "1613 CT421 U-60","cutter": "CT421","size": "1613","chamfer": "U-60","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1613","type": "CT421","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 296,"materialNumber": 1126404,"productName": "1913 CT421 18-60","cutter": "CT421","size": "1913","chamfer": "18-60","family": "S - Super Premium - PMT","typeCol": "Round","cutterSize": "1913","type": "CT421","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 297,"materialNumber": 1220334,"productName": "1313 CT158H 10C","cutter": "CT158H","size": "1313","chamfer": "10C","family": "S - Super Premium - HATCHET PMT","typeCol": "2SEAM/HATCHET","cutterSize": "1313","type": "CT158H","chamfer1": "10C","moreDescription": "","category": "S - Super Premium"},{"seqNo": 298,"materialNumber": 2024642,"productName": "1613 CT179P 18-60","cutter": "CT179P","size": "1613","chamfer": "18-60","family": "S - Super Premium - IMP","typeCol": "Round","cutterSize": "1613","type": "CT179P","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium - Impact"},{"seqNo": 299,"materialNumber": 1244960,"productName": "1613 CT418P U-60","cutter": "CT418P","size": "1613","chamfer": "U-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1613","type": "CT418P","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 300,"materialNumber": 2028302,"productName": "1313 CT187P U-60","cutter": "CT187P","size": "1313","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1313","type": "CT187P","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Abrasion"},{"seqNo": 301,"materialNumber": 2028303,"productName": "1613 CT187P U-60","cutter": "CT187P","size": "1613","chamfer": "U-60","family": "S - Super Premium - ABS","typeCol": "Round","cutterSize": "1613","type": "CT187P","chamfer1": "U-60","moreDescription": "","category": "S - Super Premium - Abrasion"},{"seqNo": 302,"materialNumber": 2023674,"productName": "1313 CT418P 18-60","cutter": "CT418P","size": "1313","chamfer": "18-60","family": "S - Super Premium - MT","typeCol": "Round","cutterSize": "1313","type": "CT418P","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 303,"materialNumber": 2029244,"productName": "1313 CT176P 18-60","cutter": "CT176P","size": "1313","chamfer": "18-60","family": "S - Super Premium MT","typeCol": "Round","cutterSize": "1313","type": "CT176P","chamfer1": "18-60","moreDescription": "","category": "S - Super Premium"},{"seqNo": 304,"materialNumber": 1187117,"productName": "1313 CT182H 18C","cutter": "CT182H","size": "1313","chamfer": "18C","family": "S - Super Premium - HATCHET PMT","typeCol": "2SEAM/HATCHET","cutterSize": "1313","type": "CT182H","chamfer1": "18C","moreDescription": "","category": "S - Super Premium - WH"},{"seqNo": 305,"materialNumber": 2024640,"productName": "1613 CT186P 18-60","cutter": "CT186P","size": "1613","chamfer": "18-60","family": "S - Super Premium - WH","typeCol": "Round","cutterSize": "1613","type": "CT186P","chamfer1": "18-60","moreDescription": "","category": ""},{"seqNo": 306,"materialNumber": 2001657,"productName": "1613 CT179T U","cutter": "CT179T","size": "1613","chamfer": "U","family": "S - Super Premium - SCP IMP","typeCol": "","cutterSize": "1613","type": "CT179T","chamfer1": "U","moreDescription": "","category": ""},{"seqNo": 307,"materialNumber": 1142710,"productName": "1608 CT421 U","cutter": "CT421","size": "1608","chamfer": "U","family": "S - Super Premium - PMT","typeCol": "","cutterSize": "1608","type": "CT421","chamfer1": "U","moreDescription": "","category": ""},{"seqNo": 308,"materialNumber": 1232092,"productName": "1218 M2 C220NL","cutter": "M2 C220NL","size": "1218","chamfer": "N/A","family": "D - Depth of Cut Control Elements","typeCol": "Carbide","cutterSize": "1218","type": "M2 C220NL","chamfer1": "N/A","moreDescription": "","category": "D - Depth of Cut Control Elements"}];
+        
+        let allData = [];
+        let filteredData = [];
+        
+        document.getElementById('onHandFile').addEventListener('change', function(e) {
+            updateFileLabel('onHandLabel', e.target.files[0]);
+            checkAllFilesSelected();
+        });
+        
+        document.getElementById('purchaseOrderFile').addEventListener('change', function(e) {
+            updateFileLabel('poLabel', e.target.files[0]);
+            checkAllFilesSelected();
+        });
+        
+        document.getElementById('transactionsFile').addEventListener('change', function(e) {
+            updateFileLabel('transLabel', e.target.files[0]);
+            checkAllFilesSelected();
+        });
+        
+        function updateFileLabel(labelId, file) {
+            const label = document.getElementById(labelId);
+            if (file) {
+                label.classList.add('selected');
+                label.textContent = '✓ ' + file.name.substring(0, 25) + (file.name.length > 25 ? '...' : '');
+            }
+        }
+        
+        function checkAllFilesSelected() {
+            const onHand = document.getElementById('onHandFile').files[0];
+            const po = document.getElementById('purchaseOrderFile').files[0];
+            const trans = document.getElementById('transactionsFile').files[0];
+            
+            document.getElementById('processBtn').disabled = !(onHand && po && trans);
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.classList.remove('hidden');
+            setTimeout(() => errorDiv.classList.add('hidden'), 5000);
+        }
+        
+        function calculateConsumption(materialNumber, transactions, months) {
+            if (!transactions || transactions.length === 0) return 0;
+            
+            const materialNumStr = String(materialNumber).trim();
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const cutoffDate = new Date(today.getFullYear(), today.getMonth() - months, today.getDate(), 0, 0, 0, 0);
+            
+            let totalConsumption = 0;
+            
+            transactions.forEach(t => {
+                // Try different possible field names for Color/Material Number
+                let transColor = String(t['Color'] || t['Search name'] || '').trim();
+                
+                if (transColor === materialNumStr) {
+                    const reference = String(t['Reference'] || '').toUpperCase();
+                    const issue = String(t['Issue'] || '').toLowerCase();
+                    const number = String(t['Number'] || '').toUpperCase();
+                    
+                    // Two types of consumption:
+                    // 1. Reference = "Production line" AND Issue = "sold"
+                    // 2. Reference = "Transaction" AND Number starts with "MJ-" AND Issue = "sold"
+                    const isProductionLine = reference.includes('PRODUCTION LINE') && issue.includes('sold');
+                    const isMovementJournal = reference.includes('TRANSACTION') && number.startsWith('MJ-') && issue.includes('sold');
+                    
+                    if (isProductionLine || isMovementJournal) {
+                        const transDate = new Date(t['Physical date']);
+                        if (!isNaN(transDate.getTime()) && transDate >= cutoffDate && transDate <= today) {
+                            const qty = parseFloat(t['Quantity']) || 0;
+                            totalConsumption += Math.abs(qty);
+                        }
+                    }
+                }
+            });
+            
+            return totalConsumption;
+        }
+        
+        async function processFiles() {
+            const onHandFile = document.getElementById('onHandFile').files[0];
+            const purchaseOrderFile = document.getElementById('purchaseOrderFile').files[0];
+            const transactionsFile = document.getElementById('transactionsFile').files[0];
+            
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('uploadSection').classList.add('hidden');
+            
+            try {
+                console.log('Reading Excel files...');
+                const onHandData = await readExcelFile(onHandFile);
+                const purchaseOrderData = await readExcelFile(purchaseOrderFile);
+                const transactionsData = await readExcelFile(transactionsFile);
+                
+                console.log('On-Hand records:', onHandData.length);
+                console.log('Purchase Order records:', purchaseOrderData.length);
+                console.log('Transaction records:', transactionsData.length);
+                
+                if (onHandData.length > 0) {
+                    console.log('Sample On-Hand record:', onHandData[0]);
+                }
+                if (transactionsData.length > 0) {
+                    console.log('Sample Transaction record:', transactionsData[0]);
+                }
+                
+                allData = processInventoryData(onHandData, purchaseOrderData, transactionsData);
+                
+                console.log('Processed items:', allData.length);
+                if (allData.length > 0) {
+                    console.log('Sample processed item:', allData[0]);
+                }
+                
+                populateFilters();
+                filteredData = [...allData];
+                displayData();
+                updateSummary();
+                
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('reportSection').classList.remove('hidden');
+                
+            } catch (error) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('uploadSection').classList.remove('hidden');
+                showError('Error processing files: ' + error.message);
+                console.error('Full error:', error);
+            }
+        }
+        
+        function readExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { raw: false, dateNF: 'yyyy-mm-dd' });
+                        resolve(jsonData);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        function processInventoryData(onHand, purchaseOrders, transactions) {
+            const result = [];
+            
+            console.log('Processing inventory data...');
+            
+            TEMPLATE_DATA.forEach((template, index) => {
+                const materialNumber = String(template.materialNumber);
+                
+                // Check order matters - most specific first!
+                
+                // ENO As New Cutter = Items starting with ENO-CT-
+                const enoAsNew = onHand
+                    .filter(item => {
+                        const itemNum = String(item['Item number'] || '').trim().toUpperCase();
+                        const color = String(item['Color'] || '').trim();
+                        return itemNum.startsWith('ENO-CT') && color === materialNumber;
+                    })
+                    .reduce((sum, item) => sum + (parseFloat(item['Available physical']) || 0), 0);
+                
+                // ENO Ground Cutter = Keep as 0 for now
+                const enoGround = 0;
+                
+                // ARDT Reclaim Cutter = Items starting with RCLM-ARDT (check this BEFORE general RCLM)
+                const ardtReclaim = onHand
+                    .filter(item => {
+                        const itemNum = String(item['Item number'] || '').trim().toUpperCase();
+                        const color = String(item['Color'] || '').trim();
+                        return itemNum.startsWith('RCLM-ARDT') && color === materialNumber;
+                    })
+                    .reduce((sum, item) => sum + (parseFloat(item['Available physical']) || 0), 0);
+                
+                // LSTK Reclaim Cutter = Items starting with RCLM- (but NOT RCLM-ARDT-)
+                const lstkReclaim = onHand
+                    .filter(item => {
+                        const itemNum = String(item['Item number'] || '').trim().toUpperCase();
+                        const color = String(item['Color'] || '').trim();
+                        return itemNum.startsWith('RCLM-') && !itemNum.startsWith('RCLM-ARDT') && color === materialNumber;
+                    })
+                    .reduce((sum, item) => sum + (parseFloat(item['Available physical']) || 0), 0);
+                
+                // New Stock = Items starting with CT- (but NOT CT-R)
+                const newStock = onHand
+                    .filter(item => {
+                        const itemNum = String(item['Item number'] || '').trim().toUpperCase();
+                        const color = String(item['Color'] || '').trim();
+                        return itemNum.startsWith('CT-') && !itemNum.startsWith('CT-R') && color === materialNumber;
+                    })
+                    .reduce((sum, item) => sum + (parseFloat(item['Available physical']) || 0), 0);
+                
+                // Retrofitted = Items containing RTRO
+                const retrofitted = onHand
+                    .filter(item => {
+                        const itemNum = String(item['Item number'] || '').trim().toUpperCase();
+                        const color = String(item['Color'] || '').trim();
+                        return itemNum.includes('RTRO') && color === materialNumber;
+                    })
+                    .reduce((sum, item) => sum + (parseFloat(item['Available physical']) || 0), 0);
+                
+                // Total New = ENO As New + New Stock
+                const totalNew = enoAsNew + newStock;
+                
+                // Calculate consumption
+                const consumption6M = calculateConsumption(materialNumber, transactions, 6);
+                const consumption3M = calculateConsumption(materialNumber, transactions, 3);
+                const consumption2M = calculateConsumption(materialNumber, transactions, 2);
+                
+                // Safety Stock = 2 months consumption
+                const safetyStock = consumption2M;
+                
+                // Get on order from Purchase Orders
+                const onOrder = purchaseOrders
+                    .filter(po => {
+                        const color = String(po['Color'] || '').trim();
+                        return color === materialNumber;
+                    })
+                    .reduce((sum, po) => sum + (parseFloat(po['Deliver remainder']) || 0), 0);
+                
+                if (index < 3) {
+                    console.log(`Item ${index + 1}: Mat# ${materialNumber}`);
+                    console.log(`  ENO: ${enoAsNew}, New: ${newStock}, ARDT: ${ardtReclaim}, LSTK: ${lstkReclaim}, Retro: ${retrofitted}`);
+                    console.log(`  Total New: ${totalNew}`);
+                    console.log(`  Consumption 3M: ${consumption3M}, 6M: ${consumption6M}`);
+                    console.log(`  On Order: ${onOrder}`);
+                }
+                
+                result.push({
+                    seqNo: template.seqNo,
+                    materialNumber: template.materialNumber,
+                    productName: template.productName,
+                    cutter: template.cutter,
+                    size: template.size,
+                    chamfer: template.chamfer,
+                    family: template.family,
+                    typeCol: template.typeCol,
+                    category: template.category,
+                    enoAsNew: enoAsNew,
+                    enoGround: enoGround,
+                    ardtReclaim: ardtReclaim,
+                    lstkReclaim: lstkReclaim,
+                    newStock: newStock,
+                    retrofitted: retrofitted,
+                    totalNew: totalNew,
+                    consumption6M: consumption6M,
+                    consumption3M: consumption3M,
+                    consumption2M: consumption2M,
+                    safetyStock: safetyStock,
+                    onOrder: onOrder
+                });
+            });
+            
+            result.sort((a, b) => a.seqNo - b.seqNo);
+            return result;
+        }
+        
+        function populateFilters() {
+            const families = [...new Set(allData.map(d => d.family))].filter(s => s).sort();
+            const categories = [...new Set(allData.map(d => d.category))].filter(s => s).sort();
+            
+            populateSelect('familyFilter', families);
+            populateSelect('categoryFilter', categories);
+        }
+        
+        function populateSelect(selectId, options) {
+            const select = document.getElementById(selectId);
+            const firstOption = select.options[0];
+            select.innerHTML = '';
+            select.appendChild(firstOption);
+            
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt;
+                select.appendChild(option);
+            });
+        }
+        
+        function applyFilters() {
+            const searchText = document.getElementById('searchFilter').value.toLowerCase();
+            const familyFilter = document.getElementById('familyFilter').value;
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            
+            filteredData = allData.filter(item => {
+                if (searchText && !(
+                    String(item.seqNo).includes(searchText) ||
+                    String(item.materialNumber).includes(searchText) ||
+                    item.productName.toLowerCase().includes(searchText)
+                )) return false;
+                
+                if (familyFilter && item.family !== familyFilter) return false;
+                if (categoryFilter && item.category !== categoryFilter) return false;
+                
+                return true;
+            });
+            
+            displayData();
+        }
+        
+        function clearFilters() {
+            document.getElementById('searchFilter').value = '';
+            document.getElementById('familyFilter').value = '';
+            document.getElementById('categoryFilter').value = '';
+            
+            filteredData = [...allData];
+            displayData();
+        }
+        
+        function displayData() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            filteredData.forEach(item => {
+                const row = tbody.insertRow();
+                
+                row.innerHTML = `
+                    <td>${item.seqNo}</td>
+                    <td class="material-number">${item.materialNumber}</td>
+                    <td>${item.productName}</td>
+                    <td>${item.cutter}</td>
+                    <td>${item.size}</td>
+                    <td>${item.chamfer}</td>
+                    <td>${item.family}</td>
+                    <td>${item.typeCol}</td>
+                    <td>${item.category}</td>
+                    <td>${item.enoAsNew.toFixed(2)}</td>
+                    <td>${item.enoGround.toFixed(2)}</td>
+                    <td>${item.ardtReclaim.toFixed(2)}</td>
+                    <td>${item.lstkReclaim.toFixed(2)}</td>
+                    <td>${item.newStock.toFixed(2)}</td>
+                    <td>${item.retrofitted.toFixed(2)}</td>
+                    <td class="cutter-number">${item.totalNew.toFixed(2)}</td>
+                    <td>${item.consumption6M.toFixed(2)}</td>
+                    <td>${item.consumption3M.toFixed(2)}</td>
+                    <td>${item.consumption2M.toFixed(2)}</td>
+                    <td>${item.safetyStock.toFixed(2)}</td>
+                    <td class="cutter-number">${item.onOrder.toFixed(2)}</td>
+                `;
+            });
+        }
+        
+        function updateSummary() {
+            const totalItems = allData.length;
+            const totalOnOrders = allData.reduce((sum, d) => sum + d.onOrder, 0);
+            const totalStock = allData.reduce((sum, d) => sum + d.totalNew, 0);
+            
+            document.getElementById('totalItems').textContent = totalItems;
+            document.getElementById('totalOnOrders').textContent = totalOnOrders.toFixed(2);
+            document.getElementById('totalStock').textContent = totalStock.toFixed(2);
+        }
+        
+        function exportToExcel() {
+            const exportData = filteredData.map(item => ({
+                'Seq. No': item.seqNo,
+                'Material Number': item.materialNumber,
+                'Product Name': item.productName,
+                'Cutter': item.cutter,
+                'Size': item.size,
+                'Chamfer': item.chamfer,
+                'Family': item.family,
+                'Type': item.typeCol,
+                'Category': item.category,
+                'ENO As New Cutter': item.enoAsNew,
+                'ENO Ground Cutter': item.enoGround,
+                'ARDT Reclaim Cutter': item.ardtReclaim,
+                'LSTK Reclaim Cutter': item.lstkReclaim,
+                'New Stock': item.newStock,
+                'Retrofitted': item.retrofitted,
+                'Total New': item.totalNew,
+                '6 Months Consumption': item.consumption6M,
+                '3 Months Consumption': item.consumption3M,
+                '2 Months Consumption': item.consumption2M,
+                'Safety Stock': item.safetyStock,
+                'On Order': item.onOrder
+            }));
+            
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Cutters Inventory');
+            
+            const date = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(wb, `Cutters_Inventory_Report_${date}.xlsx`);
+        }
+        
+        function resetApp() {
+            document.getElementById('reportSection').classList.add('hidden');
+            document.getElementById('uploadSection').classList.remove('hidden');
+            
+            document.getElementById('onHandFile').value = '';
+            document.getElementById('purchaseOrderFile').value = '';
+            document.getElementById('transactionsFile').value = '';
+            
+            document.getElementById('onHandLabel').textContent = '📊 On-Hand Inventory';
+            document.getElementById('poLabel').textContent = '📋 Purchase Order Lines';
+            document.getElementById('transLabel').textContent = '📈 Inventory Transactions';
+            
+            document.getElementById('onHandLabel').classList.remove('selected');
+            document.getElementById('poLabel').classList.remove('selected');
+            document.getElementById('transLabel').classList.remove('selected');
+            
+            document.getElementById('processBtn').disabled = true;
+            
+            allData = [];
+            filteredData = [];
+        }
+    </script>
+</body>
+</html>
