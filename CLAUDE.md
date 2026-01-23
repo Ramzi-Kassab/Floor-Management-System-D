@@ -70,6 +70,35 @@ InventoryItem
 └── attribute_values (ItemAttributeValue - cutter specs)
 ```
 
+## Recent Changes (Jan 23, 2026)
+
+### Multiple Serial Number Selection for BOM
+- **Multi-select SNs**: When creating a BOM, user can select multiple drill bits (serial numbers) to link
+- **Checkbox UI**: Added checkboxes for each available drill bit with "Select All" option
+- **Bulk linking**: BOM created once, linked to all selected serial numbers
+- **Post-creation linking**: "Link to More Serial Numbers" button on success dialog allows adding more SNs later
+- **New endpoint**: `api_link_bom_to_drillbits` for linking existing BOM to additional drill bits
+
+### Drill Bit Edit Form Improvements
+- **Identity-only editing**: Only `serial_number`, `design`, `brazing_bom`, `system_bom` fields editable
+- **BOM dropdowns**: Brazing BOM and System BOM shown as dropdowns filtered by selected design
+- **Design change handling**: Changing design clears BOM selections and reloads available BOMs
+- **New form**: `DrillBitUpdateForm` in `apps/workorders/forms.py`
+
+### Drill Bits List Page Enhancements
+- **Freeze mode**: Toggle to freeze first columns while scrolling horizontally
+- **Full page mode**: Toggle to expand table to full viewport
+- **Styling**: Matches Cutter Inventory page layout
+
+### Existing BOM Detection on BOM Create
+- **Dialog on existing BOMs**: When selecting a design that already has BOMs, shows dialog with options
+- **View existing BOM**: Click any existing BOM to open it in Cutter Map (edit mode)
+- **Create new BOM**: Option to proceed with uploading a new PDF file
+- **BOM type labels**: Shows Brazing/System type labels in the existing BOMs list
+
+### Bug Fixes
+- **URL path fix**: Changed `/workorders/api/drill-bits/search/` to `/work-orders/api/drill-bits/search/` (matching URL conf)
+
 ## Recent Changes (Jan 21, 2026)
 
 ### Blade Location Zones Update
