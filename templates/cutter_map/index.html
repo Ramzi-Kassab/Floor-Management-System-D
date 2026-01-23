@@ -1087,6 +1087,9 @@
     <input type="hidden" id="designHdbs" value="{{ design_context.design_hdbs }}">
     <input type="hidden" id="designSize" value="{{ design_context.design_size }}">
     <input type="hidden" id="designLevel" value="{{ design_context.design_level }}">
+    <!-- Serial number context -->
+    <input type="hidden" id="drillbitId" value="{{ design_context.drillbit_id|default:'' }}">
+    <input type="hidden" id="serialNumber" value="{{ design_context.serial_number|default:'' }}">
     <!-- Design specs for conflict detection -->
     <input type="hidden" id="designBladeCount" value="{{ design_context.blade_count|default:'' }}">
     <input type="hidden" id="designRowsCount" value="{{ design_context.pocket_rows_count|default:'' }}">
@@ -1098,6 +1101,8 @@
     <input type="hidden" id="designHdbs" value="">
     <input type="hidden" id="designSize" value="">
     <input type="hidden" id="standaloneMode" value="true">
+    <input type="hidden" id="drillbitId" value="">
+    <input type="hidden" id="serialNumber" value="">
     <input type="hidden" id="designBladeCount" value="">
     <input type="hidden" id="designRowsCount" value="">
     <input type="hidden" id="designCutterCount" value="">
@@ -1393,42 +1398,64 @@
 
     <!-- MAT Number Dialog -->
     <div class="mat-dialog hidden" id="matDialog">
-        <div class="mat-dialog-box">
-            <div class="mat-dialog-title">Set New MAT Identifier</div>
-            <p style="font-size:11px; color:#666; margin-bottom:10px;">
-                Enter a suffix for the modified file (e.g., M, M1, M2, or custom text).<br>
-                Original: <strong id="matDialogOriginal"></strong>
+        <div class="mat-dialog-box" style="min-width: 450px;">
+            <div class="mat-dialog-title">Set BOM MAT Identifiers</div>
+            <p style="font-size:11px; color:#666; margin-bottom:12px;">
+                Configure the MAT numbers for this BOM. Original extracted: <strong id="matDialogOriginal"></strong>
             </p>
 
             <!-- BOM Type Selection -->
             <div style="margin-bottom:12px; padding:10px; background:#f0f8ff; border-radius:4px; border:1px solid #b8daff;">
-                <label style="font-size:11px; font-weight:bold; display:block; margin-bottom:6px; color:#004085;">BOM Type</label>
+                <label style="font-size:11px; font-weight:bold; display:block; margin-bottom:6px; color:#004085;">BOM Type (Default)</label>
                 <div style="display:flex; gap:15px;">
                     <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
                         <input type="radio" name="matDialogBomType" value="BRAZING" checked>
-                        <span style="font-size:12px; color:#e65100; font-weight:500;">🔧 Brazing BOM</span>
-                        <span style="font-size:10px; color:#666;">(internal/production)</span>
+                        <span style="font-size:12px; color:#e65100; font-weight:500;">🔧 Brazing</span>
                     </label>
                     <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
                         <input type="radio" name="matDialogBomType" value="SYSTEM">
-                        <span style="font-size:12px; color:#1565c0; font-weight:500;">📋 System BOM</span>
-                        <span style="font-size:10px; color:#666;">(client-facing)</span>
+                        <span style="font-size:12px; color:#1565c0; font-weight:500;">📋 System</span>
                     </label>
                 </div>
             </div>
 
-            <input type="text" class="mat-dialog-input" id="matDialogInput" placeholder="e.g., M1">
-            <div style="margin-bottom:10px;">
-                <label style="font-size:11px; display:flex; align-items:center; gap:5px;">
-                    <input type="checkbox" id="matDialogAddSN"> Also set Serial Number:
-                    <input type="text" id="matDialogSN" style="width:100px; padding:4px;" placeholder="SN">
-                </label>
+            <!-- Dual MAT Inputs -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+                <div style="padding:10px; background:#fff3e0; border-radius:4px; border:1px solid #ffcc80;">
+                    <label style="font-size:11px; font-weight:bold; display:block; margin-bottom:6px; color:#e65100;">
+                        🔧 Brazing MAT (Internal)
+                    </label>
+                    <input type="text" id="matDialogBrazing" style="width:100%; padding:8px; border:1px solid #ffcc80; border-radius:4px; font-family:monospace; font-size:12px;" placeholder="e.g., 2008912M1">
+                </div>
+                <div style="padding:10px; background:#e3f2fd; border-radius:4px; border:1px solid #90caf9;">
+                    <label style="font-size:11px; font-weight:bold; display:block; margin-bottom:6px; color:#1565c0;">
+                        📋 System MAT (Client)
+                    </label>
+                    <input type="text" id="matDialogSystem" style="width:100%; padding:8px; border:1px solid #90caf9; border-radius:4px; font-family:monospace; font-size:12px;" placeholder="e.g., 2008912M1">
+                </div>
             </div>
-            <div style="margin-bottom:10px; padding:8px; background:#fff3cd; border-radius:4px; border:1px solid #ffc107;">
-                <label style="font-size:11px; display:flex; align-items:center; gap:5px; color:#856404;">
-                    <input type="checkbox" id="matDialogNoSuffix"> Generate as correction (no suffix required)
+
+            <!-- Serial Number -->
+            <div style="margin-bottom:12px; padding:10px; background:#f5f5f5; border-radius:4px; border:1px solid #ddd;">
+                <label style="font-size:11px; font-weight:bold; display:block; margin-bottom:6px; color:#333;">
+                    Serial Number (Optional)
                 </label>
+                <input type="text" id="matDialogSN" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-family:monospace; font-size:12px;" placeholder="Enter serial number if applicable">
             </div>
+
+            <!-- Quick Actions -->
+            <div style="margin-bottom:12px; padding:8px; background:#f8f9fa; border-radius:4px; display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="btn btn-sm" onclick="copyBrazingToSystem()" style="font-size:10px; padding:4px 8px;">
+                    📋 Copy Brazing → System
+                </button>
+                <button type="button" class="btn btn-sm" onclick="addSuffixToBoth('M')" style="font-size:10px; padding:4px 8px;">
+                    +M suffix
+                </button>
+                <button type="button" class="btn btn-sm" onclick="addSuffixToBoth('M1')" style="font-size:10px; padding:4px 8px;">
+                    +M1 suffix
+                </button>
+            </div>
+
             <div class="mat-dialog-buttons">
                 <button class="btn btn-gray" onclick="closeMatDialog()">Cancel</button>
                 <button class="btn btn-green" onclick="saveMatDialog()">Apply</button>
@@ -1648,6 +1675,8 @@
             selectedBomIndex: null,
             newMatSuffix: '',
             newSerialNumber: '',
+            brazingMat: '',  // Brazing MAT (internal/production)
+            systemMat: '',   // System MAT (client-facing)
             splitCallback: null,
             clDrivenMode: false, // When true, CL clicks update BOM quantities
             originalSizeTotals: {}, // Tracks original total qty per size (e.g., {'16': 24, '13': 18})
@@ -6461,14 +6490,38 @@
 
         // MAT Dialog functions
         function showMatDialog() {
-            document.getElementById('matDialogOriginal').textContent = currentData.header.mat_number || '';
-            document.getElementById('matDialogInput').value = editState.newMatSuffix || 'M';
-            document.getElementById('matDialogSN').value = editState.newSerialNumber || '';
-            document.getElementById('matDialogNoSuffix').checked = false;
+            const originalMat = currentData.header.mat_number || '';
+            document.getElementById('matDialogOriginal').textContent = originalMat;
+
+            // Pre-fill both MAT fields from extracted data or existing state
+            const brazingMat = editState.brazingMat || originalMat;
+            const systemMat = editState.systemMat || originalMat;
+            document.getElementById('matDialogBrazing').value = brazingMat;
+            document.getElementById('matDialogSystem').value = systemMat;
+
+            // Set serial number - check context first, then state, then extracted data
+            const contextSN = document.getElementById('serialNumber')?.value;
+            const snValue = editState.newSerialNumber || contextSN || currentData.header.sn_number || '';
+            document.getElementById('matDialogSN').value = snValue;
+
             // Set BOM type radio button
             const bomType = editState.bomType || 'BRAZING';
             document.querySelector(`input[name="matDialogBomType"][value="${bomType}"]`).checked = true;
+
             document.getElementById('matDialog').classList.remove('hidden');
+        }
+
+        // Helper: Copy Brazing MAT to System MAT
+        function copyBrazingToSystem() {
+            const brazingVal = document.getElementById('matDialogBrazing').value;
+            document.getElementById('matDialogSystem').value = brazingVal;
+        }
+
+        // Helper: Add suffix to both MAT fields
+        function addSuffixToBoth(suffix) {
+            const originalMat = currentData.header.mat_number || '';
+            document.getElementById('matDialogBrazing').value = originalMat + suffix;
+            document.getElementById('matDialogSystem').value = originalMat + suffix;
         }
 
         function closeMatDialog() {
@@ -6478,42 +6531,35 @@
         }
 
         function saveMatDialog() {
-            editState.newMatSuffix = document.getElementById('matDialogInput').value;
-
             // Save selected BOM type
             const selectedBomType = document.querySelector('input[name="matDialogBomType"]:checked');
             editState.bomType = selectedBomType ? selectedBomType.value : 'BRAZING';
 
+            // Save both MAT values
+            editState.brazingMat = document.getElementById('matDialogBrazing').value.trim();
+            editState.systemMat = document.getElementById('matDialogSystem').value.trim();
+            editState.newSerialNumber = document.getElementById('matDialogSN').value.trim();
+
             // Get original values for comparison
             const originalMat = originalData?.header?.mat_number || currentData.header.mat_number || '';
-            const originalSn = originalData?.header?.sn_number || '0';
+            const originalSn = originalData?.header?.sn_number || '';
 
-            // Check if SN was changed
-            let snWasChanged = false;
-            if (document.getElementById('matDialogAddSN').checked) {
-                editState.newSerialNumber = document.getElementById('matDialogSN').value;
+            // Check if anything was changed
+            const matChanged = editState.brazingMat !== originalMat || editState.systemMat !== originalMat;
+            const snChanged = editState.newSerialNumber && editState.newSerialNumber !== originalSn;
+            editState.matIdExplicitlySet = matChanged || snChanged;
+
+            // Update the display MAT number (use brazing MAT as primary for display)
+            const displayMat = editState.brazingMat || originalMat;
+            document.getElementById('matNumber').value = displayMat;
+            currentData.header.mat_number = displayMat;
+            currentData.original_filename = displayMat;
+
+            // Update serial number in header
+            if (editState.newSerialNumber) {
                 document.getElementById('snNumber').value = editState.newSerialNumber;
-                // SN is changed if it's different from original and not empty/zero
-                snWasChanged = editState.newSerialNumber &&
-                               editState.newSerialNumber !== '' &&
-                               editState.newSerialNumber !== '0' &&
-                               editState.newSerialNumber !== originalSn;
+                currentData.header.sn_number = editState.newSerialNumber;
             }
-
-            // Check if suffix was added (any non-empty suffix counts as a change)
-            const suffixWasAdded = editState.newMatSuffix && editState.newMatSuffix !== '';
-
-            // Check if correction mode (no suffix) is enabled
-            const noSuffixMode = document.getElementById('matDialogNoSuffix').checked;
-
-            // Only mark as explicitly set if actual changes were made OR correction mode enabled
-            editState.matIdExplicitlySet = suffixWasAdded || snWasChanged || noSuffixMode;
-
-            // Update the MAT number (use original mat number as base)
-            const newMat = originalMat + editState.newMatSuffix;
-            document.getElementById('matNumber').value = newMat;
-            currentData.header.mat_number = newMat;
-            currentData.original_filename = newMat;
 
             // Update date_created to current date/time for modified BOM (only if changes were made)
             if (editState.matIdExplicitlySet) {
@@ -6522,11 +6568,27 @@
                 currentData.header.date_created = dateStr;
             }
 
+            // Update display to show both MAT values
+            updateMatDisplay();
+
             closeMatDialog();
             renderEditLayout();
             // Also refresh Full Page view if it's visible
             if (document.getElementById('tab-fullpage').style.display !== 'none') {
                 renderFullPage();
+            }
+        }
+
+        function updateMatDisplay() {
+            const displayEl = document.getElementById('newMatDisplay');
+            if (displayEl) {
+                if (editState.brazingMat || editState.systemMat) {
+                    const brazing = editState.brazingMat || '-';
+                    const system = editState.systemMat || '-';
+                    displayEl.innerHTML = `<span style="color:#e65100;">🔧${brazing}</span> / <span style="color:#1565c0;">📋${system}</span>`;
+                } else {
+                    displayEl.textContent = 'Not set';
+                }
             }
         }
 
@@ -7718,11 +7780,17 @@
 
             // Build payload for sync-to-erp API
             // IMPORTANT: Include images and shapes for PDF Generator reconstruction
+            const drillbitIdEl = document.getElementById('drillbitId');
+            const drillbitId = drillbitIdEl ? drillbitIdEl.value : null;
             const payload = {
                 design_id: designId || null,
                 parent_design_mat: designMat || '',
                 document_id: currentData.document_id || null,
+                drillbit_id: drillbitId || null,  // Link to specific drill bit if selected
                 bom_type: editState.bomType || 'BRAZING',  // BRAZING (internal) or SYSTEM (client-facing)
+                brazing_mat: editState.brazingMat || formData.header.mat_number || '',
+                system_mat: editState.systemMat || formData.header.mat_number || '',
+                serial_number: editState.newSerialNumber || formData.header.sn_number || '',
                 data: {
                     header: formData.header,
                     summary: formData.summary,
@@ -7837,19 +7905,21 @@
                     <!-- BOM Summary -->
                     <div style="background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
-                            <div>
-                                <span style="color: #666;">BOM Code:</span>
-                                <strong style="display: block; font-family: monospace;">${result.bom_code}</strong>
+                            <div style="padding: 8px; background: #fff3e0; border-radius: 4px; border-left: 3px solid #e65100;">
+                                <span style="color: #666; font-size: 11px;">🔧 Brazing MAT:</span>
+                                <strong style="display: block; font-family: monospace; color: #e65100;">${result.brazing_mat || result.bom_code}</strong>
                             </div>
-                            <div>
-                                <span style="color: #666;">BOM Type:</span>
-                                <strong style="display: block; color: ${result.bom_type === 'BRAZING' ? '#e65100' : '#1565c0'};">
-                                    ${result.bom_type === 'BRAZING' ? '🔧 Brazing' : '📋 System'}
-                                </strong>
+                            <div style="padding: 8px; background: #e3f2fd; border-radius: 4px; border-left: 3px solid #1565c0;">
+                                <span style="color: #666; font-size: 11px;">📋 System MAT:</span>
+                                <strong style="display: block; font-family: monospace; color: #1565c0;">${result.system_mat || result.brazing_mat || result.bom_code}</strong>
                             </div>
                             <div>
                                 <span style="color: #666;">Design MAT:</span>
                                 <strong style="display: block; font-family: monospace;">${result.design_mat}</strong>
+                            </div>
+                            <div>
+                                <span style="color: #666;">Serial Number:</span>
+                                <strong style="display: block; font-family: monospace;">${result.serial_number || '-'}</strong>
                             </div>
                             <div>
                                 <span style="color: #666;">BOM Lines:</span>
@@ -7859,39 +7929,14 @@
                                 <span style="color: #666;">Pocket Configs:</span>
                                 <strong style="display: block;">${result.pocket_configs_created} groups</strong>
                             </div>
-                            <div>
-                                <span style="color: #666;">Pockets Created:</span>
-                                <strong style="display: block; ${pocketsCreated > 0 ? 'color: #155724' : 'color: #856404'}">${pocketsCreated} positions</strong>
-                            </div>
                         </div>
-                    </div>
-
-                    ${result.bom_type === 'BRAZING' ? `
-                    <!-- System MAT Option for Brazing BOMs -->
-                    <div style="background: #e3f2fd; border: 1px solid #90caf9; border-radius: 8px; padding: 12px 15px; margin-bottom: 15px;">
-                        <div style="display: flex; align-items: flex-start; gap: 10px;">
-                            <span style="font-size: 18px;">📋</span>
-                            <div style="flex: 1;">
-                                <strong style="color: #1565c0; display: block; margin-bottom: 8px;">Set System MAT (Optional)</strong>
-                                <p style="font-size: 11px; color: #666; margin-bottom: 10px;">
-                                    Optionally set a fixed System MAT number for client-facing documents.
-                                    This is separate from the Brazing MAT used internally.
-                                </p>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="text" id="systemMatInput" placeholder="e.g., 1283567M1-SYS"
-                                           style="flex: 1; padding: 8px 12px; border: 1px solid #90caf9; border-radius: 4px; font-size: 12px; font-family: monospace;">
-                                    <button onclick="saveSystemMat(${result.bom_id})"
-                                            style="padding: 8px 15px; background: #1565c0; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap;">
-                                        Save System MAT
-                                    </button>
-                                </div>
-                                <p style="font-size: 10px; color: #888; margin-top: 6px;">
-                                    You can also set this later from the BOM detail page.
-                                </p>
-                            </div>
+                        ${result.linked_drillbit ? `
+                        <div style="margin-top: 10px; padding: 8px; background: #e8f5e9; border-radius: 4px; border-left: 3px solid #4caf50;">
+                            <span style="color: #2e7d32; font-size: 11px; font-weight: bold;">🔗 Linked to Drill Bit:</span>
+                            <strong style="display: block; font-family: monospace; color: #2e7d32;">SN: ${result.linked_drillbit.serial_number}</strong>
                         </div>
+                        ` : ''}
                     </div>
-                    ` : ''}
 
                     ${hasMissingPockets ? `
                     <!-- Missing Pockets Warning -->

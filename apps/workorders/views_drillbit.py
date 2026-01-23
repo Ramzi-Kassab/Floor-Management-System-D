@@ -1096,16 +1096,25 @@ class DrillBitExportExcelView(LoginRequiredMixin, View):
 class DrillBitSearchAPIView(LoginRequiredMixin, View):
     """
     API endpoint for drill bit search (for autocomplete).
+    Supports filtering by design_id for BOM creation.
     """
 
     def get(self, request, *args, **kwargs):
         query = request.GET.get("q", "")
-        if len(query) < 2:
-            return JsonResponse({"results": []})
+        design_id = request.GET.get("design_id", "")
 
-        bits = DrillBit.objects.filter(
-            Q(serial_number__icontains=query) | Q(mat_number__icontains=query)
-        ).select_related("customer", "bit_location")[:20]
+        # If design_id is provided, filter by design (for BOM creation)
+        if design_id:
+            bits = DrillBit.objects.filter(design_id=design_id).select_related(
+                "customer", "bit_location", "design"
+            ).order_by("-created_at")[:50]
+        elif len(query) >= 2:
+            # Standard text search
+            bits = DrillBit.objects.filter(
+                Q(serial_number__icontains=query) | Q(mat_number__icontains=query)
+            ).select_related("customer", "bit_location")[:20]
+        else:
+            return JsonResponse({"results": []})
 
         results = [
             {
@@ -1114,6 +1123,7 @@ class DrillBitSearchAPIView(LoginRequiredMixin, View):
                 "mat_number": bit.mat_number,
                 "type": bit.get_bit_type_display(),
                 "status": bit.get_status_display(),
+                "lifecycle_status": bit.get_lifecycle_status_display() if hasattr(bit, 'lifecycle_status') else None,
                 "location": bit.bit_location.name if bit.bit_location else None,
                 "customer": bit.customer.name if bit.customer else None,
             }

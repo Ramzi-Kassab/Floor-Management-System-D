@@ -42,6 +42,9 @@ def index(request):
             'design_size': request.GET.get('design_size', ''),
             'design_level': request.GET.get('design_level', ''),  # L3 or L4
             'from_bom_create': True,
+            # Serial number / Drill bit context
+            'drillbit_id': request.GET.get('drillbit_id', ''),
+            'serial_number': request.GET.get('serial_number', ''),
             # Fields for conflict detection
             'blade_count': None,
             'pocket_rows_count': None,
@@ -619,8 +622,12 @@ def api_sync_to_erp(request):
 
     document_id = payload.get('document_id')
     design_id = payload.get('design_id')  # Direct design ID from BOM create workflow
+    drillbit_id = payload.get('drillbit_id')  # Optional drill bit to link this BOM to
     parent_design_mat = payload.get('parent_design_mat', '').strip()
     bom_type = payload.get('bom_type', 'BRAZING')  # BRAZING (internal) or SYSTEM (client-facing)
+    brazing_mat = payload.get('brazing_mat', '').strip()  # Brazing MAT (internal/production)
+    system_mat = payload.get('system_mat', '').strip()    # System MAT (client-facing)
+    serial_number = payload.get('serial_number', '').strip()  # Optional serial number
     data = payload.get('data', {})
 
     # Require either design_id or parent_design_mat
@@ -682,7 +689,8 @@ def api_sync_to_erp(request):
             parent_design.save()
 
         # 2. Create L5 BOM
-        l5_mat = header.get('mat_number', f'L5-{parent_design_mat}')
+        # Use brazing_mat as the primary BOM code (fallback to header mat_number)
+        l5_mat = brazing_mat or header.get('mat_number', f'L5-{parent_design_mat}')
         bom_code = l5_mat
 
         # Check if BOM already exists
@@ -694,6 +702,7 @@ def api_sync_to_erp(request):
             previous_lines_count = existing_bom.lines.count()
             existing_bom.lines.all().delete()
             existing_bom.bom_type = bom_type  # Update BOM type on existing BOM
+            existing_bom.system_mat_no = system_mat  # Update System MAT
             bom = existing_bom
             bom_was_updated = True
         else:
@@ -704,6 +713,7 @@ def api_sync_to_erp(request):
                 revision=header.get('revision_level', 'A'),
                 status=BOM.Status.DRAFT,
                 bom_type=bom_type,  # BRAZING or SYSTEM
+                system_mat_no=system_mat,  # Client-facing MAT
                 created_by=request.user
             )
 
@@ -716,8 +726,8 @@ def api_sync_to_erp(request):
             'groups': groups,  # Cutter groups with shapes
             'cutter_shapes': cutter_shapes  # Individual cutter shapes by BOM index
         }
-        bom.source_mat_number = header.get('mat_number', '')
-        bom.source_sn_number = header.get('sn_number', '')
+        bom.source_mat_number = brazing_mat or header.get('mat_number', '')  # Store brazing MAT
+        bom.source_sn_number = serial_number or header.get('sn_number', '')  # Store serial number
         bom.source_revision_level = header.get('revision_level', '')
         bom.source_software_version = header.get('software_version', '')
         bom.save()
@@ -986,6 +996,26 @@ def api_sync_to_erp(request):
                     }
                 )
 
+        # Link BOM to DrillBit if drillbit_id was provided
+        linked_drillbit = None
+        if drillbit_id:
+            try:
+                from apps.workorders.models import DrillBit
+                drillbit = DrillBit.objects.get(pk=drillbit_id)
+                # Link as brazing or system BOM based on bom_type
+                if bom_type == 'BRAZING':
+                    drillbit.brazing_bom = bom
+                else:
+                    drillbit.system_bom = bom
+                drillbit.save(update_fields=['brazing_bom' if bom_type == 'BRAZING' else 'system_bom'])
+                linked_drillbit = {
+                    'id': drillbit.pk,
+                    'serial_number': drillbit.serial_number
+                }
+            except Exception as e:
+                # Don't fail the whole operation if linking fails
+                print(f"Warning: Failed to link BOM to drill bit: {e}")
+
         return JsonResponse({
             'success': True,
             'design_id': parent_design.id,
@@ -993,6 +1023,10 @@ def api_sync_to_erp(request):
             'bom_id': bom.id,
             'bom_code': bom.code,
             'bom_type': bom.bom_type,  # BRAZING or SYSTEM
+            'brazing_mat': bom.code,  # Brazing MAT (same as bom_code)
+            'system_mat': bom.system_mat_no or '',  # System MAT (client-facing)
+            'serial_number': bom.source_sn_number or '',
+            'linked_drillbit': linked_drillbit,  # Drill bit this BOM was linked to
             'bom_lines_created': bom_lines_created,
             'pocket_configs_created': pocket_configs_created,
             'pockets_created': pockets_created,

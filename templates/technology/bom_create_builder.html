@@ -192,7 +192,19 @@
                     </div>
                 </div>
 
-                <hr class="border-gray-200 dark:border-gray-700 mb-6">
+                <hr class="border-gray-200 dark:border-gray-700 mb-4">
+
+                <!-- Serial Number Selection (Optional) -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <i data-lucide="hash" class="w-4 h-4 inline mr-1"></i>
+                        Link to Serial Number (Optional)
+                    </label>
+                    <select id="serial-number-select" class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm">
+                        <option value="">-- No specific serial --</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Select a drill bit to create a BOM tailored for it</p>
+                </div>
 
                 <!-- Action Button -->
                 <button type="button" onclick="openCutterMap()"
@@ -284,8 +296,35 @@
         document.getElementById('selected-hdbs').textContent = selectedDesign.hdbs;
         document.getElementById('selected-size').textContent = selectedDesign.size || '-';
 
+        // Load drill bits for this design
+        loadDrillBitsForDesign(selectedDesign.id);
+
         // Re-render lucide icons
         if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function loadDrillBitsForDesign(designId) {
+        const select = document.getElementById('serial-number-select');
+        select.innerHTML = '<option value="">Loading...</option>';
+
+        fetch(`/workorders/api/drill-bits/search/?design_id=${designId}`)
+            .then(r => r.json())
+            .then(data => {
+                select.innerHTML = '<option value="">-- No specific serial --</option>';
+                if (data.results && data.results.length > 0) {
+                    data.results.forEach(bit => {
+                        const option = document.createElement('option');
+                        option.value = bit.id;
+                        option.dataset.serialNumber = bit.serial_number;
+                        option.textContent = `SN: ${bit.serial_number} - ${bit.lifecycle_status || 'Unknown'}`;
+                        select.appendChild(option);
+                    });
+                }
+            })
+            .catch(err => {
+                console.error('Error loading drill bits:', err);
+                select.innerHTML = '<option value="">-- No specific serial --</option>';
+            });
     }
 
     // Clear selection
@@ -342,6 +381,14 @@
             design_level: selectedDesign.level,  // Include L3/L4 level
             from: 'bom_create'
         });
+
+        // Include serial number if selected
+        const serialSelect = document.getElementById('serial-number-select');
+        if (serialSelect && serialSelect.value) {
+            const selectedOption = serialSelect.options[serialSelect.selectedIndex];
+            params.set('drillbit_id', serialSelect.value);
+            params.set('serial_number', selectedOption.dataset.serialNumber || '');
+        }
 
         window.location.href = `/cutter-map/?${params.toString()}`;
     }
