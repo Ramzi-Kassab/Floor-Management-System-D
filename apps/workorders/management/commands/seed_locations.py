@@ -44,9 +44,9 @@ class Command(BaseCommand):
             },
             {
                 "code": "USA-HAL",
-                "name": "Halliburton USA",
+                "name": "Woodlands, Texas (USA)",
                 "location_type": Location.LocationType.USA,
-                "address": "Halliburton USA Facility",
+                "address": "Halliburton, 3000 N Sam Houston Pkwy E, Houston, TX 77032",
             },
             {
                 "code": "TRANSIT",

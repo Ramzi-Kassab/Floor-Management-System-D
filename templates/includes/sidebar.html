@@ -151,33 +151,6 @@
                 <a href="{% url 'workorders:list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                     <i data-lucide="clipboard-list" class="w-4 h-4 mr-2 text-orange-400"></i><span class="truncate">Work Orders</span>
                 </a>
-                <a href="{% url 'workorders:drillbit_list_enhanced' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="disc" class="w-4 h-4 mr-2 text-orange-400"></i><span class="truncate">Drill Bits</span>
-                </a>
-                <!-- Drill Bit Inventory Tools -->
-                <div class="pt-1">
-                    <button @click="toggle('prod_db')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
-                        <span>Drill Bit Inventory</span>
-                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('prod_db') ? 'rotate-90' : ''"></i>
-                    </button>
-                    <div x-show="isOpen('prod_db')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
-                        <a href="{% url 'workorders:drillbit_inventory_dashboard' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="bar-chart-3" class="w-3 h-3 mr-2 text-orange-400"></i>Inventory Dashboard
-                        </a>
-                        <a href="{% url 'workorders:drillbit_create' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="plus-circle" class="w-3 h-3 mr-2 text-orange-400"></i>Register New Bit
-                        </a>
-                        <a href="{% url 'workorders:location_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="map-pin" class="w-3 h-3 mr-2 text-orange-400"></i>Locations
-                        </a>
-                        <a href="{% url 'workorders:bitevent_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="history" class="w-3 h-3 mr-2 text-orange-400"></i>Bit Events
-                        </a>
-                        <a href="{% url 'workorders:drillbit_export_excel' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i data-lucide="download" class="w-3 h-3 mr-2 text-orange-400"></i>Export Excel
-                        </a>
-                    </div>
-                </div>
                 <a href="{% url 'execution:list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                     <i data-lucide="play-circle" class="w-4 h-4 mr-2 text-orange-400"></i><span class="truncate">WIP</span>
                 </a>
@@ -420,6 +393,33 @@
                         </a>
                         <a href="{% url 'inventory:cutter_order_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
                             <i data-lucide="shopping-cart" class="w-3 h-3 mr-2 text-cyan-400"></i>Cutter Orders
+                        </a>
+                    </div>
+                </div>
+                <!-- Drill Bit Inventory -->
+                <div class="pt-1">
+                    <button @click="toggle('log_drillbits')" class="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200">
+                        <span>Drill Bit Inventory</span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 transition-transform duration-200" :class="isOpen('log_drillbits') ? 'rotate-90' : ''"></i>
+                    </button>
+                    <div x-show="isOpen('log_drillbits')" x-collapse class="ml-3 pl-2 border-l border-gray-200 dark:border-gray-600 space-y-0.5 mt-1">
+                        <a href="{% url 'workorders:drillbit_inventory_dashboard' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="layout-dashboard" class="w-3 h-3 mr-2 text-blue-400"></i>Inventory Dashboard
+                        </a>
+                        <a href="{% url 'workorders:drillbit_list_enhanced' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="list" class="w-3 h-3 mr-2 text-blue-400"></i>Drill Bits
+                        </a>
+                        <a href="{% url 'workorders:drillbit_create' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="plus-circle" class="w-3 h-3 mr-2 text-green-400"></i>Register New Bit
+                        </a>
+                        <a href="{% url 'workorders:location_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="map-pin" class="w-3 h-3 mr-2 text-purple-400"></i>Locations
+                        </a>
+                        <a href="{% url 'workorders:bitevent_list' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="activity" class="w-3 h-3 mr-2 text-cyan-400"></i>Bit Events
+                        </a>
+                        <a href="{% url 'workorders:drillbit_export_excel' %}" class="flex items-center px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i data-lucide="file-spreadsheet" class="w-3 h-3 mr-2 text-green-400"></i>Export Excel
                         </a>
                     </div>
                 </div>

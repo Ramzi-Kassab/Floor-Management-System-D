@@ -266,6 +266,10 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
             context['customers'] = Customer.objects.filter(is_active=True).order_by('name') if hasattr(Customer, 'is_active') else Customer.objects.all().order_by('name')
         else:
             context['customers'] = []
+        # Default USA location for "In Production" option (Woodlands, Texas)
+        context['usa_location'] = Location.objects.filter(
+            location_type=Location.LocationType.USA, is_active=True
+        ).first()
         return context
 
     def post(self, request, *args, **kwargs):

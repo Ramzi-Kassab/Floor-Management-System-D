@@ -139,13 +139,12 @@
                     <div class="mt-4 pl-8 hidden event-details" id="details-in_production">
                         <div class="grid grid-cols-1 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Destination Location <span class="text-red-500">*</span></label>
-                                <select name="location_production" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white location-field">
-                                    <option value="">Where will it be delivered?</option>
-                                    {% for loc in locations %}
-                                    <option value="{{ loc.id }}">{{ loc.name }}</option>
-                                    {% endfor %}
-                                </select>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Production Location</label>
+                                <div class="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300">
+                                    <span class="font-medium">{{ usa_location.name|default:"Woodlands, Texas (USA)" }}</span>
+                                    <input type="hidden" name="location_production" value="{{ usa_location.id }}">
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500">Bit is being manufactured at Halliburton USA facility</p>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
