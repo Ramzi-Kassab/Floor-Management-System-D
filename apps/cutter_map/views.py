@@ -620,6 +620,7 @@ def api_sync_to_erp(request):
     document_id = payload.get('document_id')
     design_id = payload.get('design_id')  # Direct design ID from BOM create workflow
     parent_design_mat = payload.get('parent_design_mat', '').strip()
+    bom_type = payload.get('bom_type', 'BRAZING')  # BRAZING (internal) or SYSTEM (client-facing)
     data = payload.get('data', {})
 
     # Require either design_id or parent_design_mat
@@ -692,6 +693,7 @@ def api_sync_to_erp(request):
         if existing_bom:
             previous_lines_count = existing_bom.lines.count()
             existing_bom.lines.all().delete()
+            existing_bom.bom_type = bom_type  # Update BOM type on existing BOM
             bom = existing_bom
             bom_was_updated = True
         else:
@@ -701,6 +703,7 @@ def api_sync_to_erp(request):
                 name=f"L5 BOM for {parent_design_mat}",
                 revision=header.get('revision_level', 'A'),
                 status=BOM.Status.DRAFT,
+                bom_type=bom_type,  # BRAZING or SYSTEM
                 created_by=request.user
             )
 
@@ -989,6 +992,7 @@ def api_sync_to_erp(request):
             'design_mat': parent_design.mat_no,
             'bom_id': bom.id,
             'bom_code': bom.code,
+            'bom_type': bom.bom_type,  # BRAZING or SYSTEM
             'bom_lines_created': bom_lines_created,
             'pocket_configs_created': pocket_configs_created,
             'pockets_created': pockets_created,
@@ -1091,6 +1095,44 @@ def api_activate_bom(request, bom_id):
         'message': f'BOM {bom.code} activated successfully',
         'status': bom.status,
         'lines_count': lines_count
+    })
+
+
+@login_required
+@require_POST
+def api_set_system_mat(request, bom_id):
+    """
+    API: Set the system_mat_no for a BOM.
+
+    Used when a Brazing BOM needs a separate client-facing MAT number.
+    """
+    from apps.technology.models import BOM
+
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    system_mat_no = payload.get('system_mat_no', '').strip()
+
+    try:
+        bom = BOM.objects.get(pk=bom_id)
+    except BOM.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': f'BOM with ID {bom_id} not found'
+        }, status=404)
+
+    # Save the system MAT number
+    bom.system_mat_no = system_mat_no
+    bom.save(update_fields=['system_mat_no'])
+
+    return JsonResponse({
+        'success': True,
+        'message': f'System MAT set to {system_mat_no}' if system_mat_no else 'System MAT cleared',
+        'bom_id': bom.id,
+        'bom_code': bom.code,
+        'system_mat_no': bom.system_mat_no
     })
 
 

@@ -1399,6 +1399,24 @@
                 Enter a suffix for the modified file (e.g., M, M1, M2, or custom text).<br>
                 Original: <strong id="matDialogOriginal"></strong>
             </p>
+
+            <!-- BOM Type Selection -->
+            <div style="margin-bottom:12px; padding:10px; background:#f0f8ff; border-radius:4px; border:1px solid #b8daff;">
+                <label style="font-size:11px; font-weight:bold; display:block; margin-bottom:6px; color:#004085;">BOM Type</label>
+                <div style="display:flex; gap:15px;">
+                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                        <input type="radio" name="matDialogBomType" value="BRAZING" checked>
+                        <span style="font-size:12px; color:#e65100; font-weight:500;">🔧 Brazing BOM</span>
+                        <span style="font-size:10px; color:#666;">(internal/production)</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                        <input type="radio" name="matDialogBomType" value="SYSTEM">
+                        <span style="font-size:12px; color:#1565c0; font-weight:500;">📋 System BOM</span>
+                        <span style="font-size:10px; color:#666;">(client-facing)</span>
+                    </label>
+                </div>
+            </div>
+
             <input type="text" class="mat-dialog-input" id="matDialogInput" placeholder="e.g., M1">
             <div style="margin-bottom:10px;">
                 <label style="font-size:11px; display:flex; align-items:center; gap:5px;">
@@ -1634,7 +1652,8 @@
             clDrivenMode: false, // When true, CL clicks update BOM quantities
             originalSizeTotals: {}, // Tracks original total qty per size (e.g., {'16': 24, '13': 18})
             bomFolded: false, // When true, only show BOM items with same size as selected
-            matIdExplicitlySet: false // Tracks if user explicitly set a new MAT ID
+            matIdExplicitlySet: false, // Tracks if user explicitly set a new MAT ID
+            bomType: 'BRAZING' // 'BRAZING' (internal/production) or 'SYSTEM' (client-facing)
         };
 
         // Calculate original totals per size from BOM
@@ -6446,6 +6465,9 @@
             document.getElementById('matDialogInput').value = editState.newMatSuffix || 'M';
             document.getElementById('matDialogSN').value = editState.newSerialNumber || '';
             document.getElementById('matDialogNoSuffix').checked = false;
+            // Set BOM type radio button
+            const bomType = editState.bomType || 'BRAZING';
+            document.querySelector(`input[name="matDialogBomType"][value="${bomType}"]`).checked = true;
             document.getElementById('matDialog').classList.remove('hidden');
         }
 
@@ -6457,6 +6479,10 @@
 
         function saveMatDialog() {
             editState.newMatSuffix = document.getElementById('matDialogInput').value;
+
+            // Save selected BOM type
+            const selectedBomType = document.querySelector('input[name="matDialogBomType"]:checked');
+            editState.bomType = selectedBomType ? selectedBomType.value : 'BRAZING';
 
             // Get original values for comparison
             const originalMat = originalData?.header?.mat_number || currentData.header.mat_number || '';
@@ -7696,6 +7722,7 @@
                 design_id: designId || null,
                 parent_design_mat: designMat || '',
                 document_id: currentData.document_id || null,
+                bom_type: editState.bomType || 'BRAZING',  // BRAZING (internal) or SYSTEM (client-facing)
                 data: {
                     header: formData.header,
                     summary: formData.summary,
@@ -7815,6 +7842,12 @@
                                 <strong style="display: block; font-family: monospace;">${result.bom_code}</strong>
                             </div>
                             <div>
+                                <span style="color: #666;">BOM Type:</span>
+                                <strong style="display: block; color: ${result.bom_type === 'BRAZING' ? '#e65100' : '#1565c0'};">
+                                    ${result.bom_type === 'BRAZING' ? '🔧 Brazing' : '📋 System'}
+                                </strong>
+                            </div>
+                            <div>
                                 <span style="color: #666;">Design MAT:</span>
                                 <strong style="display: block; font-family: monospace;">${result.design_mat}</strong>
                             </div>
@@ -7832,6 +7865,33 @@
                             </div>
                         </div>
                     </div>
+
+                    ${result.bom_type === 'BRAZING' ? `
+                    <!-- System MAT Option for Brazing BOMs -->
+                    <div style="background: #e3f2fd; border: 1px solid #90caf9; border-radius: 8px; padding: 12px 15px; margin-bottom: 15px;">
+                        <div style="display: flex; align-items: flex-start; gap: 10px;">
+                            <span style="font-size: 18px;">📋</span>
+                            <div style="flex: 1;">
+                                <strong style="color: #1565c0; display: block; margin-bottom: 8px;">Set System MAT (Optional)</strong>
+                                <p style="font-size: 11px; color: #666; margin-bottom: 10px;">
+                                    Optionally set a fixed System MAT number for client-facing documents.
+                                    This is separate from the Brazing MAT used internally.
+                                </p>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="text" id="systemMatInput" placeholder="e.g., 1283567M1-SYS"
+                                           style="flex: 1; padding: 8px 12px; border: 1px solid #90caf9; border-radius: 4px; font-size: 12px; font-family: monospace;">
+                                    <button onclick="saveSystemMat(${result.bom_id})"
+                                            style="padding: 8px 15px; background: #1565c0; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap;">
+                                        Save System MAT
+                                    </button>
+                                </div>
+                                <p style="font-size: 10px; color: #888; margin-top: 6px;">
+                                    You can also set this later from the BOM detail page.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
 
                     ${hasMissingPockets ? `
                     <!-- Missing Pockets Warning -->
@@ -7952,6 +8012,44 @@
 
             // Save working data to sessionStorage so user can return
             saveToSessionStorage();
+        }
+
+        function saveSystemMat(bomId) {
+            const systemMatInput = document.getElementById('systemMatInput');
+            const systemMatNo = systemMatInput ? systemMatInput.value.trim() : '';
+
+            if (!systemMatNo) {
+                showMsg('Please enter a System MAT number', 'error');
+                return;
+            }
+
+            fetch(`/cutter-map/api/bom/${bomId}/system-mat/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify({ system_mat_no: systemMatNo })
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    showMsg(`✓ System MAT saved: ${systemMatNo}`, 'success');
+                    // Update the UI to show success
+                    const inputContainer = systemMatInput.parentElement;
+                    inputContainer.innerHTML = `
+                        <span style="color: #155724; font-weight: bold; font-size: 12px;">
+                            ✓ System MAT set: <span style="font-family: monospace;">${systemMatNo}</span>
+                        </span>
+                    `;
+                } else {
+                    showMsg(result.error || 'Failed to save System MAT', 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Save System MAT error:', err);
+                showMsg('Error saving System MAT: ' + err.message, 'error');
+            });
         }
 
         function addUnmatchedCutters(items, designId, bomId) {

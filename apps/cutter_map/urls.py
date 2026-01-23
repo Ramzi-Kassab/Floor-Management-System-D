@@ -51,6 +51,7 @@ urlpatterns = [
     path('api/sync-to-erp/', views.api_sync_to_erp, name='api_sync_to_erp'),
     path('api/create-cutters/', views.api_create_cutters, name='api_create_cutters'),
     path('api/activate-bom/<int:bom_id>/', views.api_activate_bom, name='api_activate_bom'),
+    path('api/bom/<int:bom_id>/system-mat/', views.api_set_system_mat, name='api_set_system_mat'),
 
     # Wizard
     path('add-cutter-wizard/', views.add_cutter_wizard, name='add_cutter_wizard'),

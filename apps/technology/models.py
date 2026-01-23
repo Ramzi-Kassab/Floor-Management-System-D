@@ -996,9 +996,15 @@ class BOM(models.Model):
     bom_type = models.CharField(
         max_length=20,
         choices=BOMType.choices,
-        default=BOMType.SYSTEM,
+        default=BOMType.BRAZING,  # Default to BRAZING for production use
         verbose_name='BOM Type',
         help_text='Brazing BOM (internal/production) or System BOM (client-facing)'
+    )
+    system_mat_no = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='System MAT#',
+        help_text='Client-facing MAT number (for Brazing BOMs with alternate client reference)'
     )
     smi_type = models.ForeignKey(
         'SMIType',
