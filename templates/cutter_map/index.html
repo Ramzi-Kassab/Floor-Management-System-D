@@ -8242,7 +8242,7 @@
         function loadDrillBitsForLinking(designId, bomId, bomType) {
             const container = document.getElementById('linkSNsContainer');
 
-            fetch(`/workorders/api/drill-bits/search/?design_id=${designId}`)
+            fetch(`/work-orders/api/drill-bits/search/?design_id=${designId}`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.results && data.results.length > 0) {

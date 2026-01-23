@@ -311,7 +311,7 @@
         const container = document.getElementById('serial-number-container');
         container.innerHTML = '<div class="p-3 text-sm text-gray-500 dark:text-gray-400">Loading...</div>';
 
-        fetch(`/workorders/api/drill-bits/search/?design_id=${designId}`)
+        fetch(`/work-orders/api/drill-bits/search/?design_id=${designId}`)
             .then(r => r.json())
             .then(data => {
                 if (data.results && data.results.length > 0) {
