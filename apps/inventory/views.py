@@ -3508,6 +3508,36 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
                 cell = ws.cell(row=excel_row, column=col_num, value=value)
                 cell.border = thin_border
 
+            # Add formulas if requested
+            if include_formulas:
+                # Build column index map for formula references
+                col_index_map = {key: idx + 1 for idx, key in enumerate(column_keys)}
+
+                # Total New formula: sum of new variant columns
+                if "total_new" in col_index_map:
+                    new_cols = ["new_stock", "eno_new", "retrofit"]
+                    formula_parts = []
+                    for nc in new_cols:
+                        if nc in col_index_map:
+                            formula_parts.append(f"{get_column_letter(col_index_map[nc])}{excel_row}")
+                    if formula_parts:
+                        total_new_col = col_index_map["total_new"]
+                        ws.cell(row=excel_row, column=total_new_col).value = f"={'+'.join(formula_parts)}"
+
+                # Forecast formula: total_new + on_order - bom_req
+                if "forecast" in col_index_map:
+                    formula_parts = []
+                    if "total_new" in col_index_map:
+                        formula_parts.append(f"{get_column_letter(col_index_map['total_new'])}{excel_row}")
+                    if "on_order" in col_index_map:
+                        formula_parts.append(f"{get_column_letter(col_index_map['on_order'])}{excel_row}")
+                    if formula_parts:
+                        formula = "+".join(formula_parts)
+                        if "bom_req" in col_index_map:
+                            formula += f"-{get_column_letter(col_index_map['bom_req'])}{excel_row}"
+                        forecast_col = col_index_map["forecast"]
+                        ws.cell(row=excel_row, column=forecast_col).value = f"={formula}"
+
         # Add summary row if requested
         if include_summary and row_num > 0:
             summary_row_num = row_num + 2  # Skip one row after data
@@ -3515,11 +3545,24 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
             summary_data.update(summary_totals)
             summary_row = [summary_data.get(key, "") for key in column_keys]
 
+            # Build column index map for summary formulas
+            col_index_map = {key: idx + 1 for idx, key in enumerate(column_keys)}
+            numeric_keys = ["eno_new", "eno_grd", "ardt_rcl", "lstk_rcl", "retrofit",
+                           "new_stock", "total_new", "cons_6m", "cons_3m", "cons_2m",
+                           "safety", "bom_req", "on_order", "forecast"]
+
             for col_num, value in enumerate(summary_row, 1):
                 cell = ws.cell(row=summary_row_num, column=col_num, value=value)
                 cell.border = thin_border
                 cell.font = Font(bold=True)
-                if isinstance(value, (int, float)) and value != 0:
+
+                # Add SUM formulas for numeric columns if formulas enabled
+                key = column_keys[col_num - 1] if col_num <= len(column_keys) else None
+                if include_formulas and key in numeric_keys and key in col_index_map:
+                    col_letter = get_column_letter(col_num)
+                    cell.value = f"=SUM({col_letter}2:{col_letter}{row_num + 1})"
+                    cell.fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+                elif isinstance(value, (int, float)) and value != 0:
                     cell.fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
 
         # Auto-size columns

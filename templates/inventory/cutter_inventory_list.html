@@ -1634,15 +1634,26 @@
         // Get visible columns if needed
         let visibleColumns = [];
         if (columnsOption === 'visible') {
-            // Get the Alpine data to check which columns are visible
-            const container = document.querySelector('[x-data]');
+            // Get the Alpine data from the MAIN container (not the stats bar)
+            const container = document.querySelector('.cutter-page-container');
             if (container && container._x_dataStack) {
                 const alpineData = container._x_dataStack[0];
                 if (alpineData && alpineData.columns) {
                     visibleColumns = Object.entries(alpineData.columns)
                         .filter(([key, visible]) => visible)
                         .map(([key]) => key);
+                    console.log('Visible columns:', visibleColumns);
                 }
+            }
+            // Fallback: check table headers for visible columns
+            if (visibleColumns.length === 0) {
+                const table = document.getElementById('cutterTable');
+                table.querySelectorAll('thead th[data-column]').forEach(th => {
+                    if (th.offsetParent !== null) { // Check if visible
+                        visibleColumns.push(th.dataset.column);
+                    }
+                });
+                console.log('Visible columns (fallback):', visibleColumns);
             }
         }
 
