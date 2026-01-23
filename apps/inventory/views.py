@@ -763,8 +763,6 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
 
     def post(self, request, *args, **kwargs):
         """Override post to preserve attribute values if form fails validation."""
-        print(f"[DEBUG] ItemCreateView.post() called")
-        print(f"[DEBUG] POST data: {dict(request.POST)}")
         self.object = None
         form = self.get_form()
 
@@ -772,16 +770,13 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         self._attr_values = {k: v for k, v in request.POST.items() if k.startswith('attr_')}
 
         if form.is_valid():
-            print(f"[DEBUG] Form is VALID")
             return self.form_valid(form)
         else:
-            print(f"[DEBUG] Form is INVALID: {form.errors}")
             return self.form_invalid(form)
 
     def form_invalid(self, form):
         """Preserve attribute values when form is invalid."""
         import json
-        print(f"[DEBUG] form_invalid() called. Errors: {form.errors}")
         context = self.get_context_data(form=form)
         # Pass preserved attribute values to context so JavaScript can repopulate them
         if hasattr(self, '_attr_values'):
@@ -790,12 +785,10 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         from django.db import IntegrityError
-        print(f"[DEBUG] form_valid() called")
 
         # Validate unique attributes before saving
         errors = self.validate_unique_attributes(form)
         if errors:
-            print(f"[DEBUG] Attribute validation errors: {errors}")
             for error in errors:
                 messages.error(self.request, error)
             return self.form_invalid(form)
@@ -805,7 +798,6 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         # Auto-generate code if not provided
         if not form.instance.code and form.instance.category:
             form.instance.code = form.instance.category.generate_next_code()
-            print(f"[DEBUG] Auto-generated code: {form.instance.code}")
 
         # Check if code already exists before saving
         if form.instance.code:
