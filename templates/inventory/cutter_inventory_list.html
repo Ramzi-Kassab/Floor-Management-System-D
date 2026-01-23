@@ -193,6 +193,24 @@
         max-width: none !important;
         display: inline !important;
     }
+
+    /* Filter active indicator for column headers */
+    th.has-filter {
+        background: linear-gradient(to bottom, #dbeafe, #e0f2fe) !important;
+    }
+    .dark th.has-filter {
+        background: linear-gradient(to bottom, #1e3a5f, #1e40af) !important;
+    }
+    th.has-filter .column-header span {
+        color: #2563eb;
+        font-weight: 600;
+    }
+    .dark th.has-filter .column-header span {
+        color: #93c5fd;
+    }
+    .filter-active-icon {
+        flex-shrink: 0;
+    }
 </style>
 {% endblock %}
 
@@ -418,6 +436,18 @@
             </div>
         </div>
     </form>
+</div>
+
+<!-- Active Filters Bar (shown when any column filters are active) -->
+<div id="activeFiltersBar" class="hidden mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg flex items-center justify-between">
+    <div class="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+        <i data-lucide="filter" class="w-4 h-4"></i>
+        <span id="activeFiltersText">Filters active</span>
+    </div>
+    <button type="button" onclick="clearAllFilters()" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium flex items-center gap-1">
+        <i data-lucide="x" class="w-3 h-3"></i>
+        Clear All Filters
+    </button>
 </div>
 
 <!-- Filter Notification (shown when filtered data may exist outside visible rows) -->
@@ -933,6 +963,9 @@
     let columnValues = [];
     let selectedValues = new Set();
 
+    // Multi-column filter storage: Map of column -> Set of selected values
+    const activeFilters = new Map();
+
     // Toggle column menu
     function toggleColumnMenu(event, column) {
         event.stopPropagation();
@@ -1007,7 +1040,16 @@
             }
             return a.localeCompare(b);
         });
-        selectedValues = new Set(columnValues);
+
+        // Check if there's an existing filter for this column
+        if (activeFilters.has(column)) {
+            // Restore previous filter selections
+            selectedValues = new Set(activeFilters.get(column));
+        } else {
+            // No filter - select all values by default
+            selectedValues = new Set(columnValues);
+            selectedValues.add('__blank__'); // Include blank values by default
+        }
         renderValuesList();
     }
 
@@ -1089,10 +1131,36 @@
     }
 
     function clearColumnFilter() {
-        const table = document.getElementById('cutterTable');
-        table.querySelectorAll('tbody tr').forEach(row => row.style.display = '');
+        // Remove filter for current column
+        activeFilters.delete(currentColumn);
+
+        // Re-apply remaining filters
+        applyAllFilters();
+
+        // Update visual indicator
+        updateFilterIndicator(currentColumn);
+
+        // Update active filters bar
+        updateActiveFiltersBar();
+
         hideFilterNotification();
         closeColumnMenu();
+        checkFilterResults();
+    }
+
+    function clearAllFilters() {
+        // Clear all filters
+        activeFilters.clear();
+
+        // Show all rows
+        const table = document.getElementById('cutterTable');
+        table.querySelectorAll('tbody tr').forEach(row => row.style.display = '');
+
+        // Update all indicators
+        updateAllFilterIndicators();
+
+        hideFilterNotification();
+        checkFilterResults();
     }
 
     // Whether we're in paginated mode (server passes this info)
@@ -1165,27 +1233,128 @@
         const th = table.querySelector(`th[data-column="${currentColumn}"]`);
         if (!th) return;
 
-        const colIndex = Array.from(th.parentNode.children).indexOf(th);
+        // Store the filter for current column
+        // Check if this is a "select all" scenario (all values selected)
+        const allSelected = columnValues.every(v => selectedValues.has(v)) && selectedValues.has('__blank__');
+        if (allSelected) {
+            // Remove filter if all values are selected
+            activeFilters.delete(currentColumn);
+        } else {
+            // Store the filter
+            activeFilters.set(currentColumn, new Set(selectedValues));
+        }
 
-        rows.forEach(row => {
-            const cell = row.children[colIndex];
-            if (!cell) return;
+        // Apply all active filters
+        applyAllFilters();
 
-            const cellValue = cell.dataset.value || cell.textContent.trim();
-            const isBlank = !cellValue || cellValue === '--' || cellValue === '-';
+        // Update visual indicator for this column
+        updateFilterIndicator(currentColumn);
 
-            let show = false;
-            if (isBlank && selectedValues.has('__blank__')) {
-                show = true;
-            } else if (selectedValues.has(cellValue)) {
-                show = true;
-            }
-
-            row.style.display = show ? '' : 'none';
-        });
+        // Update active filters bar
+        updateActiveFiltersBar();
 
         closeColumnMenu();
         checkFilterResults();
+    }
+
+    function applyAllFilters() {
+        const table = document.getElementById('cutterTable');
+        const rows = table.querySelectorAll('tbody tr');
+
+        // If no filters active, show all rows
+        if (activeFilters.size === 0) {
+            rows.forEach(row => row.style.display = '');
+            return;
+        }
+
+        // For each row, check all active filters
+        rows.forEach(row => {
+            let showRow = true;
+
+            for (const [column, filterValues] of activeFilters) {
+                const th = table.querySelector(`th[data-column="${column}"]`);
+                if (!th) continue;
+
+                const colIndex = Array.from(th.parentNode.children).indexOf(th);
+                const cell = row.children[colIndex];
+                if (!cell) {
+                    showRow = false;
+                    break;
+                }
+
+                const cellValue = cell.dataset.value || cell.textContent.trim();
+                const isBlank = !cellValue || cellValue === '--' || cellValue === '-';
+
+                let matchesFilter = false;
+                if (isBlank && filterValues.has('__blank__')) {
+                    matchesFilter = true;
+                } else if (filterValues.has(cellValue)) {
+                    matchesFilter = true;
+                }
+
+                if (!matchesFilter) {
+                    showRow = false;
+                    break;
+                }
+            }
+
+            row.style.display = showRow ? '' : 'none';
+        });
+    }
+
+    function updateFilterIndicator(column) {
+        const th = document.querySelector(`th[data-column="${column}"]`);
+        if (!th) return;
+
+        const icon = th.querySelector('.filter-active-icon');
+        if (activeFilters.has(column)) {
+            // Add filter indicator
+            if (!icon) {
+                const indicator = document.createElement('i');
+                indicator.setAttribute('data-lucide', 'filter');
+                indicator.className = 'filter-active-icon w-3 h-3 text-blue-500 ml-1';
+                th.querySelector('.column-header').appendChild(indicator);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+            th.classList.add('has-filter');
+        } else {
+            // Remove filter indicator
+            if (icon) icon.remove();
+            th.classList.remove('has-filter');
+        }
+    }
+
+    function updateAllFilterIndicators() {
+        // Update all column indicators
+        document.querySelectorAll('th[data-column]').forEach(th => {
+            const column = th.dataset.column;
+            updateFilterIndicator(column);
+        });
+
+        // Update active filters bar
+        updateActiveFiltersBar();
+    }
+
+    function updateActiveFiltersBar() {
+        const bar = document.getElementById('activeFiltersBar');
+        const text = document.getElementById('activeFiltersText');
+
+        if (activeFilters.size > 0) {
+            // Get column names for active filters
+            const filterNames = [];
+            for (const column of activeFilters.keys()) {
+                const th = document.querySelector(`th[data-column="${column}"]`);
+                if (th) {
+                    const name = th.querySelector('.column-header span')?.textContent || column;
+                    filterNames.push(name);
+                }
+            }
+            text.textContent = `${activeFilters.size} filter${activeFilters.size > 1 ? 's' : ''} active: ${filterNames.join(', ')}`;
+            bar.classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            bar.classList.add('hidden');
+        }
     }
 
     function closeColumnMenu() {

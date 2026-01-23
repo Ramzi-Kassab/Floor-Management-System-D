@@ -3364,19 +3364,19 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
                 item=cutter,
                 transaction_type="ISSUE",
                 transaction_date__gte=six_months_ago
-            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
+            ).aggregate(total=Sum("qty_delta"))["total"] or Decimal("0")
 
             consumption_3m = StockLedger.objects.filter(
                 item=cutter,
                 transaction_type="ISSUE",
                 transaction_date__gte=three_months_ago
-            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
+            ).aggregate(total=Sum("qty_delta"))["total"] or Decimal("0")
 
             consumption_2m = StockLedger.objects.filter(
                 item=cutter,
                 transaction_type="ISSUE",
                 transaction_date__gte=two_months_ago
-            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
+            ).aggregate(total=Sum("qty_delta"))["total"] or Decimal("0")
 
             # Calculate safety stock
             safety_stock = self._calculate_safety_stock(abs(consumption_2m))
@@ -3385,12 +3385,12 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
             bom_requirement = Decimal("0")
 
             # Get on order quantity
-            from .models import PurchaseOrderLine
+            from apps.supplychain.models import PurchaseOrderLine
             on_order = PurchaseOrderLine.objects.filter(
-                item=cutter,
+                inventory_item=cutter,
                 purchase_order__status__in=["DRAFT", "SUBMITTED", "APPROVED"]
             ).aggregate(
-                total=Sum("quantity") - Sum("received_quantity")
+                total=Sum("quantity_ordered") - Sum("quantity_received")
             )["total"] or Decimal("0")
             on_order = max(on_order, Decimal("0"))
 
