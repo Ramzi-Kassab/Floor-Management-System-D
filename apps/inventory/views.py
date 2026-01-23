@@ -385,7 +385,20 @@ class ItemListView(LoginRequiredMixin, ListView):
     model = InventoryItem
     template_name = "inventory/item_list.html"
     context_object_name = "items"
-    paginate_by = 50
+    paginate_by = 50  # Default, can be overridden via query param
+
+    def get_paginate_by(self, queryset):
+        """Allow page size to be changed via query parameter."""
+        page_size = self.request.GET.get('page_size', '50')
+        if page_size == 'all':
+            return None  # Disable pagination - show all records
+        try:
+            page_size = int(page_size)
+            if page_size in [25, 50, 100, 200, 500]:
+                return page_size
+        except (ValueError, TypeError):
+            pass
+        return 50  # Default
 
     def _get_common_attributes(self):
         """Get common attributes that appear across multiple categories."""
@@ -559,6 +572,10 @@ class ItemListView(LoginRequiredMixin, ListView):
         context["current_active"] = self.request.GET.get("active", "")
         context["search_query"] = self.request.GET.get("q", "")
         context["low_stock_filter"] = self.request.GET.get("low_stock", "")
+
+        # Page size for pagination controls
+        page_size = self.request.GET.get('page_size', '50')
+        context["page_size"] = page_size if page_size == 'all' else int(page_size) if page_size.isdigit() else 50
 
         # Summary stats
         all_items = InventoryItem.objects.all()
@@ -1059,6 +1076,15 @@ class ItemDeleteView(LoginRequiredMixin, DeleteView):
         item = self.object
         usage = {}
 
+        # Check GRN lines (goods receipts)
+        try:
+            from .models import GRNLine
+            grn_count = GRNLine.objects.filter(item=item).count()
+            if grn_count > 0:
+                usage['grn_lines'] = grn_count
+        except:
+            pass
+
         # Check BOM lines (technology app)
         try:
             from apps.technology.models import BOMLine
@@ -1121,6 +1147,8 @@ class ItemDeleteView(LoginRequiredMixin, DeleteView):
         return super().get(request, *args, **kwargs)
 
     def form_valid(self, form):
+        from django.db.models import ProtectedError
+
         # Double-check usage before deletion
         usage = self.get_usage_info()
         if usage:
@@ -1136,8 +1164,25 @@ class ItemDeleteView(LoginRequiredMixin, DeleteView):
         if hasattr(self.object, 'bit_spec'):
             self.object.bit_spec.delete()
 
-        messages.success(self.request, f"Item '{self.object.code}' deleted successfully.")
-        return super().form_valid(form)
+        try:
+            item_code = self.object.code
+            response = super().form_valid(form)
+            messages.success(self.request, f"Item '{item_code}' deleted successfully.")
+            return response
+        except ProtectedError as e:
+            # Extract the protected objects from the exception
+            protected_objects = e.args[1] if len(e.args) > 1 else set()
+            model_names = set()
+            for obj in protected_objects:
+                model_names.add(obj._meta.verbose_name)
+
+            model_list = ", ".join(sorted(model_names)) if model_names else "related records"
+            messages.error(
+                self.request,
+                f"Cannot delete '{self.object.code}' - it is referenced by protected {model_list}. "
+                f"Consider blocking the item instead of deleting."
+            )
+            return redirect('inventory:item_detail', pk=self.object.pk)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
