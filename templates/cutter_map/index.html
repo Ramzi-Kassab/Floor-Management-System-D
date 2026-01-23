@@ -1087,6 +1087,10 @@
     <input type="hidden" id="designHdbs" value="{{ design_context.design_hdbs }}">
     <input type="hidden" id="designSize" value="{{ design_context.design_size }}">
     <input type="hidden" id="designLevel" value="{{ design_context.design_level }}">
+    <!-- Design specs for conflict detection -->
+    <input type="hidden" id="designBladeCount" value="{{ design_context.blade_count|default:'' }}">
+    <input type="hidden" id="designRowsCount" value="{{ design_context.pocket_rows_count|default:'' }}">
+    <input type="hidden" id="designCutterCount" value="{{ design_context.total_pockets_count|default:'' }}">
     {% else %}
     <!-- Standalone Mode - Hidden inputs for context -->
     <input type="hidden" id="designId" value="">
@@ -1094,6 +1098,9 @@
     <input type="hidden" id="designHdbs" value="">
     <input type="hidden" id="designSize" value="">
     <input type="hidden" id="standaloneMode" value="true">
+    <input type="hidden" id="designBladeCount" value="">
+    <input type="hidden" id="designRowsCount" value="">
+    <input type="hidden" id="designCutterCount" value="">
     {% endif %}
 
     <div class="container">
@@ -2067,6 +2074,9 @@
 
                         console.log('Step 8: Showing data section');
                         document.getElementById('dataSection').classList.add('active');
+
+                        console.log('Step 9: Checking for Design vs PDF conflicts');
+                        checkDesignPdfConflicts();
 
                         console.log('Upload and processing complete!');
                     } catch (err) {
@@ -7459,14 +7469,205 @@
         
         function resetApp() {
             currentData = null;
+            designConflicts = [];  // Clear conflicts on reset
             document.getElementById('dataSection').classList.remove('active');
             document.getElementById('uploadSection').classList.remove('hidden');
             document.getElementById('fileInput').value = '';
         }
 
+        // ========== DESIGN vs PDF CONFLICT DETECTION ==========
+        // Tracks conflicts between Design specs and extracted PDF data
+        let designConflicts = [];
+        let conflictsAcknowledged = false;
+
+        function checkDesignPdfConflicts() {
+            designConflicts = [];
+            conflictsAcknowledged = false;
+
+            // Get design specs from hidden inputs
+            const designBladeCount = document.getElementById('designBladeCount')?.value;
+            const designRowsCount = document.getElementById('designRowsCount')?.value;
+            const designCutterCount = document.getElementById('designCutterCount')?.value;
+            const designMat = document.getElementById('designMat')?.value;
+
+            // If no design context or no data, skip conflict check
+            if (!designMat || !currentData) {
+                console.log('No design context or data for conflict check');
+                return;
+            }
+
+            // Count extracted values
+            const extractedBladeCount = currentData.blades?.length || 0;
+            let extractedCutterCount = 0;
+            let extractedMaxRows = 0;
+
+            // Count cutters and determine max rows from blades
+            if (currentData.blades) {
+                currentData.blades.forEach(blade => {
+                    ['r1', 'r2', 'r3', 'r4'].forEach((rowKey, rowIdx) => {
+                        if (blade[rowKey]) {
+                            const rowHasCutters = Object.keys(blade[rowKey]).some(pos => {
+                                const cells = blade[rowKey][pos];
+                                return cells && cells.length > 0;
+                            });
+                            if (rowHasCutters) {
+                                extractedMaxRows = Math.max(extractedMaxRows, rowIdx + 1);
+                                Object.values(blade[rowKey]).forEach(cells => {
+                                    extractedCutterCount += cells.length;
+                                });
+                            }
+                        }
+                    });
+                });
+            }
+
+            console.log('Conflict check:', {
+                designBladeCount, extractedBladeCount,
+                designRowsCount, extractedMaxRows,
+                designCutterCount, extractedCutterCount
+            });
+
+            // Check blade count conflict
+            if (designBladeCount && parseInt(designBladeCount) !== extractedBladeCount) {
+                designConflicts.push({
+                    field: 'Blade Count',
+                    designValue: parseInt(designBladeCount),
+                    extractedValue: extractedBladeCount,
+                    critical: true
+                });
+            }
+
+            // Check pocket rows count conflict (only if design has this data)
+            if (designRowsCount && parseInt(designRowsCount) !== extractedMaxRows) {
+                designConflicts.push({
+                    field: 'Pocket Rows',
+                    designValue: parseInt(designRowsCount),
+                    extractedValue: extractedMaxRows,
+                    critical: false
+                });
+            }
+
+            // Check total cutter count conflict (only if design has this data)
+            if (designCutterCount && parseInt(designCutterCount) !== extractedCutterCount) {
+                designConflicts.push({
+                    field: 'Total Cutters',
+                    designValue: parseInt(designCutterCount),
+                    extractedValue: extractedCutterCount,
+                    critical: true
+                });
+            }
+
+            // Show conflict dialog if conflicts found
+            if (designConflicts.length > 0) {
+                showConflictDialog();
+            }
+        }
+
+        function showConflictDialog() {
+            const designMat = document.getElementById('designMat')?.value || '';
+            const hasCritical = designConflicts.some(c => c.critical);
+
+            const conflictRows = designConflicts.map(c => `
+                <tr style="background: ${c.critical ? '#fff5f5' : '#fffbeb'};">
+                    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">
+                        ${c.field}
+                        ${c.critical ? '<span style="color: #dc2626; font-size: 10px;">(CRITICAL)</span>' : ''}
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center; color: #2563eb;">${c.designValue}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center; color: #dc2626;">${c.extractedValue}</td>
+                </tr>
+            `).join('');
+
+            const dialog = document.createElement('div');
+            dialog.className = 'mat-dialog';
+            dialog.id = 'conflictDialog';
+            dialog.innerHTML = `
+                <div class="mat-dialog-box" style="max-width: 550px;">
+                    <div class="mat-dialog-title" style="color: #92400e; background: #fef3c7; padding: 12px 15px; margin: -15px -15px 15px -15px; border-radius: 4px 4px 0 0; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 24px;">⚠️</span>
+                        <span>Design vs PDF Data Conflict</span>
+                    </div>
+
+                    <p style="font-size: 13px; color: #333; margin-bottom: 15px; line-height: 1.5;">
+                        The extracted PDF data does not match the Design <strong>${designMat}</strong> specifications:
+                    </p>
+
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px;">
+                        <thead>
+                            <tr style="background: #f3f4f6;">
+                                <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Field</th>
+                                <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Design Value</th>
+                                <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">PDF Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${conflictRows}
+                        </tbody>
+                    </table>
+
+                    ${hasCritical ? `
+                    <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 10px 12px; margin-bottom: 15px;">
+                        <p style="font-size: 12px; color: #991b1b; margin: 0;">
+                            <strong>⛔ Critical conflicts detected.</strong> You will NOT be able to save this BOM until the conflict is resolved.
+                            Please fix the Design data or select a different PDF.
+                        </p>
+                    </div>
+                    ` : `
+                    <div style="background: #fefce8; border: 1px solid #fde68a; border-radius: 6px; padding: 10px 12px; margin-bottom: 15px;">
+                        <p style="font-size: 12px; color: #92400e; margin: 0;">
+                            Non-critical conflicts detected. You can proceed, but please verify the data is correct.
+                        </p>
+                    </div>
+                    `}
+
+                    <div class="mat-dialog-buttons" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end;">
+                        <button class="btn btn-gray" onclick="cancelConflictAndReset()">
+                            🔄 Upload Different PDF
+                        </button>
+                        <a href="/technology/designs/${document.getElementById('designId')?.value}/edit/" class="btn" style="background: #2563eb; text-decoration: none;">
+                            ✏️ Fix Design Data
+                        </a>
+                        ${!hasCritical ? `
+                        <button class="btn btn-green" onclick="acknowledgeConflicts()">
+                            ✓ Continue Anyway
+                        </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dialog);
+        }
+
+        function cancelConflictAndReset() {
+            document.getElementById('conflictDialog')?.remove();
+            resetApp();
+        }
+
+        function acknowledgeConflicts() {
+            conflictsAcknowledged = true;
+            document.getElementById('conflictDialog')?.remove();
+            showMsg('Conflicts acknowledged. You can now create the BOM.', 'success');
+        }
+
+        // ========== END CONFLICT DETECTION ==========
+
         // Create BOM from PDF data (when coming from BOM create workflow)
         function createBOMFromPDF() {
             console.log('createBOMFromPDF called');
+
+            // Check for unresolved critical conflicts
+            const hasCriticalConflicts = designConflicts.some(c => c.critical);
+            if (hasCriticalConflicts && !conflictsAcknowledged) {
+                showMsg('⛔ Cannot create BOM: Critical conflicts between Design and PDF data must be resolved first.', 'error');
+                showConflictDialog();  // Re-show conflict dialog
+                return;
+            }
+
+            // Warn about non-critical conflicts if not acknowledged
+            if (designConflicts.length > 0 && !conflictsAcknowledged) {
+                showConflictDialog();
+                return;
+            }
 
             const formData = collectFormData();
             console.log('formData:', formData);

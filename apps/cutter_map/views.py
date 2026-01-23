@@ -23,6 +23,8 @@ from .utils.ppt_generator import HalliburtonPPTGenerator
 @login_required
 def index(request):
     """Main cutter map page - list documents or show editor."""
+    from apps.technology.models import Design
+
     documents = CutterMapDocument.objects.filter(
         created_by=request.user
     ).order_by('-created_at')[:20]
@@ -32,14 +34,28 @@ def index(request):
     # Check if coming from BOM create page with design info
     design_context = None
     if request.GET.get('from') in ['bom_create', 'design_create']:
+        design_id = request.GET.get('design_id')
         design_context = {
-            'design_id': request.GET.get('design_id'),
+            'design_id': design_id,
             'design_mat': request.GET.get('design_mat', ''),
             'design_hdbs': request.GET.get('design_hdbs', ''),
             'design_size': request.GET.get('design_size', ''),
             'design_level': request.GET.get('design_level', ''),  # L3 or L4
-            'from_bom_create': True
+            'from_bom_create': True,
+            # Fields for conflict detection
+            'blade_count': None,
+            'pocket_rows_count': None,
+            'total_pockets_count': None,
         }
+        # Fetch additional design data for conflict detection
+        if design_id:
+            try:
+                design = Design.objects.get(pk=design_id)
+                design_context['blade_count'] = design.no_of_blades
+                design_context['pocket_rows_count'] = design.pocket_rows_count
+                design_context['total_pockets_count'] = design.total_pockets_count
+            except Design.DoesNotExist:
+                pass
 
     return render(request, 'cutter_map/index.html', {
         'documents': documents,
@@ -95,7 +111,12 @@ def bom_view(request, bom_id):
             'design_id': bom.design.pk if bom.design else None,
             'design_mat': bom.design.mat_no if bom.design else '',
             'design_hdbs': bom.design.hdbs_type if bom.design else '',
-            'from_bom_create': False
+            'design_size': str(bom.design.size) if bom.design and bom.design.size else '',
+            'from_bom_create': False,
+            # Fields for conflict detection
+            'blade_count': bom.design.no_of_blades if bom.design else None,
+            'pocket_rows_count': bom.design.pocket_rows_count if bom.design else None,
+            'total_pockets_count': bom.design.total_pockets_count if bom.design else None,
         },
         'bom_context': bom_context
     })
