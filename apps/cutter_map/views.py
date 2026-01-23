@@ -635,6 +635,7 @@ def api_sync_to_erp(request):
         blades = data.get('blades', [])
         images = data.get('images', {})  # Drill bit face photo, etc.
         groups = data.get('groups', [])  # Cutter groups with shapes
+        cutter_shapes = data.get('cutter_shapes', {})  # Individual cutter shapes by BOM index
 
         # 1. Find or create parent Design (L3/L4)
         parent_design = None
@@ -709,7 +710,8 @@ def api_sync_to_erp(request):
             'summary': summary,
             'blades': blades,
             'images': images,  # Drill bit face photo (base64)
-            'groups': groups   # Cutter groups with shapes
+            'groups': groups,  # Cutter groups with shapes
+            'cutter_shapes': cutter_shapes  # Individual cutter shapes by BOM index
         }
         bom.source_mat_number = header.get('mat_number', '')
         bom.source_sn_number = header.get('sn_number', '')

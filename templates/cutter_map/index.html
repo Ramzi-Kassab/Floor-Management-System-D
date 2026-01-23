@@ -7691,6 +7691,7 @@
             }
 
             // Build payload for sync-to-erp API
+            // IMPORTANT: Include images and shapes for PDF Generator reconstruction
             const payload = {
                 design_id: designId || null,
                 parent_design_mat: designMat || '',
@@ -7698,7 +7699,10 @@
                 data: {
                     header: formData.header,
                     summary: formData.summary,
-                    blades: formData.blades
+                    blades: formData.blades,
+                    images: formData.images || currentData.images || {},  // Drill bit face photo (base64)
+                    groups: formData.groups || currentData.groups || [],  // Cutter group data
+                    cutter_shapes: currentData.cutter_shapes || {}  // Individual cutter shapes (base64)
                 },
                 create_missing_items: false  // Can be made configurable
             };
