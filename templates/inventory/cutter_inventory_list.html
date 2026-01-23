@@ -301,7 +301,7 @@
         <!-- Page size selector -->
         <div class="flex items-center gap-2">
             <label class="text-sm text-gray-500">Show:</label>
-            <select name="page_size" onchange="this.form.submit()" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700">
+            <select name="page_size" id="pageSizeSelect" onchange="saveCutterPageSize(this.value); this.form.submit()" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700">
                 <option value="all" {% if page_size == 'all' %}selected{% endif %}>All</option>
                 <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
                 <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
@@ -779,6 +779,31 @@
 </div>
 
 <script>
+    // Page size persistence
+    const CUTTER_PAGE_SIZE_KEY = 'cutterInventoryPageSize';
+
+    function saveCutterPageSize(size) {
+        localStorage.setItem(CUTTER_PAGE_SIZE_KEY, size);
+    }
+
+    function loadCutterPageSize() {
+        return localStorage.getItem(CUTTER_PAGE_SIZE_KEY);
+    }
+
+    // On page load, check if we should redirect to saved page size
+    (function() {
+        const savedPageSize = loadCutterPageSize();
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentPageSize = urlParams.get('page_size');
+
+        // Only redirect if we have a saved preference and it doesn't match current
+        if (savedPageSize && !currentPageSize) {
+            urlParams.set('page_size', savedPageSize);
+            urlParams.delete('page'); // Reset to page 1 when changing page size
+            window.location.search = urlParams.toString();
+        }
+    })();
+
     // Default column visibility (matching Excel)
     const defaultColumns = {
         // Attributes - Excel visible ones

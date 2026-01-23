@@ -502,7 +502,7 @@ class ItemListView(LoginRequiredMixin, ListView):
                 Q(description__icontains=search)
             )
 
-        return qs.order_by("code")
+        return qs.order_by("-created_at", "-id")
 
     def _build_item_data(self, items):
         """Build enhanced item data with attributes."""
@@ -1630,7 +1630,7 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                 "attribute_values",
                 queryset=ItemAttributeValue.objects.select_related("attribute")
             )
-        ).order_by("code")
+        ).order_by("-created_at", "-id")
 
         # Filter by search
         search = self.request.GET.get("search", "").strip()
