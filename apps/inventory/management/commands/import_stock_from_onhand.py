@@ -4,12 +4,14 @@ Import cutter stock quantities from ERP On-hand Excel file.
 This command reads stock quantities from the ERP On-hand.xlsx file and updates
 the VariantStock model with the current quantities.
 
-On-hand.xlsx Column Mapping (headers in row 6):
-- Column A (1): Item number (e.g., CT-0001, ENO-CT-0005, RCLM-ARDT-0001)
-- Column E (5): Color - HDBS MAT Number used to match our InventoryItem
-- Column H (8): Warehouse (Store, R Warehous, Shopfloor, Transit)
-- Column I (9): Location
-- Column J (10): Available physical (quantity)
+The command automatically detects the header row by searching for "Item number"
+column, making it flexible for files with varying metadata rows.
+
+On-hand.xlsx Expected Columns (auto-detected):
+- Item number: ERP Item Number (e.g., CT-0001, ENO-CT-0005, RCLM-ARDT-0001)
+- Color: HDBS MAT Number used to match our InventoryItem
+- Warehouse: Store, R Warehous, Shopfloor, Transit
+- Available physical: Quantity
 
 ERP Item Prefix → Variant Case Mapping:
 - CT-*         → NEW-PUR  (New Purchased)
@@ -41,18 +43,13 @@ except ImportError:
 class Command(BaseCommand):
     help = 'Import cutter stock quantities from ERP On-hand Excel file'
 
-    # On-hand.xlsx column mapping (1-indexed as used by openpyxl)
-    COLUMN_MAP = {
-        'item_number': 1,    # Column A - ERP Item Number (CT-0001, etc.)
-        'item_group': 2,     # Column B - Item group
-        'configuration': 3,  # Column C - Configuration
-        'size': 4,           # Column D - Size
-        'color': 5,          # Column E - Color (HDBS MAT Number!)
-        'style': 6,          # Column F - Style
-        'site': 7,           # Column G - Site
-        'warehouse': 8,      # Column H - Warehouse
-        'location': 9,       # Column I - Location
-        'qty': 10,           # Column J - Available physical
+    # Expected header names (case-insensitive matching)
+    HEADER_PATTERNS = {
+        'item_number': ['item number', 'item no', 'item_number', 'itemno'],
+        'color': ['color', 'colour', 'hdbs', 'mat number'],
+        'warehouse': ['warehouse', 'wh', 'store'],
+        'location': ['location', 'loc'],
+        'qty': ['available physical', 'qty', 'quantity', 'on hand', 'onhand', 'available'],
     }
 
     # ERP Item Prefix → Variant Case mapping
@@ -80,12 +77,6 @@ class Command(BaseCommand):
             help='Actually apply changes (default is preview mode)'
         )
         parser.add_argument(
-            '--header-row',
-            type=int,
-            default=6,
-            help='Row number containing headers (default: 6 for On-hand.xlsx)'
-        )
-        parser.add_argument(
             '--include-transit',
             action='store_true',
             help='Include Transit warehouse quantities (default: exclude)'
@@ -95,6 +86,47 @@ class Command(BaseCommand):
             action='store_true',
             help='Show detailed per-item import info'
         )
+
+    def find_header_row(self, ws):
+        """
+        Auto-detect the header row by searching for 'Item number' column.
+        Returns (header_row, column_map) or (None, None) if not found.
+        """
+        max_search_rows = 20  # Search first 20 rows for headers
+
+        for row_idx in range(1, min(max_search_rows + 1, ws.max_row + 1)):
+            # Check each cell in the row
+            for col_idx in range(1, min(20, ws.max_column + 1)):
+                cell_value = ws.cell(row=row_idx, column=col_idx).value
+                if cell_value:
+                    cell_str = str(cell_value).strip().lower()
+                    # Check if this looks like 'item number' header
+                    if cell_str in self.HEADER_PATTERNS['item_number']:
+                        # Found header row - now map all columns
+                        column_map = self._map_columns(ws, row_idx)
+                        return row_idx, column_map
+
+        return None, None
+
+    def _map_columns(self, ws, header_row):
+        """Map column names to their positions based on header row."""
+        column_map = {}
+
+        for col_idx in range(1, ws.max_column + 1):
+            cell_value = ws.cell(row=header_row, column=col_idx).value
+            if not cell_value:
+                continue
+
+            cell_str = str(cell_value).strip().lower()
+
+            # Check against each expected header pattern
+            for field_name, patterns in self.HEADER_PATTERNS.items():
+                if cell_str in patterns or any(p in cell_str for p in patterns):
+                    if field_name not in column_map:  # Don't overwrite if already found
+                        column_map[field_name] = col_idx
+                        break
+
+        return column_map
 
     def get_variant_case_for_item(self, item_number):
         """Determine variant case based on ERP item number prefix."""
@@ -120,7 +152,6 @@ class Command(BaseCommand):
 
         file_path = options['file']
         confirm = options['confirm']
-        header_row = options['header_row']
         include_transit = options['include_transit']
         verbose = options['verbose']
 
@@ -136,7 +167,29 @@ class Command(BaseCommand):
         sheet_name = ws.title
 
         self.stdout.write(f'Processing sheet: {sheet_name}')
-        self.stdout.write(f'Header row: {header_row}, Data starts at row: {header_row + 1}')
+
+        # Auto-detect header row and column mapping
+        header_row, column_map = self.find_header_row(ws)
+
+        if header_row is None:
+            self.stderr.write(self.style.ERROR(
+                'Could not find header row. Looking for "Item number" column in first 20 rows.'
+            ))
+            return
+
+        self.stdout.write(self.style.SUCCESS(f'Found headers at row {header_row}'))
+        self.stdout.write(f'Column mapping: {column_map}')
+
+        # Validate required columns
+        required_columns = ['item_number', 'color', 'qty']
+        missing = [c for c in required_columns if c not in column_map]
+        if missing:
+            self.stderr.write(self.style.ERROR(f'Missing required columns: {missing}'))
+            self.stderr.write('Expected columns: Item number, Color, Available physical')
+            return
+
+        data_start_row = header_row + 1
+        self.stdout.write(f'Data starts at row: {data_start_row}')
 
         # Import models
         from apps.inventory.models import (
@@ -201,8 +254,8 @@ class Command(BaseCommand):
 
         # Process rows (data starts after header row)
         self.stdout.write(f'Reading data rows...')
-        for row_idx in range(header_row + 1, ws.max_row + 1):
-            item_number = ws.cell(row=row_idx, column=self.COLUMN_MAP['item_number']).value
+        for row_idx in range(data_start_row, ws.max_row + 1):
+            item_number = ws.cell(row=row_idx, column=column_map['item_number']).value
             if not item_number:
                 skipped['no_item_number'] += 1
                 continue
@@ -217,22 +270,24 @@ class Command(BaseCommand):
                 continue
 
             # Get HDBS code from Color column
-            hdbs_code = ws.cell(row=row_idx, column=self.COLUMN_MAP['color']).value
+            hdbs_code = ws.cell(row=row_idx, column=column_map['color']).value
             if not hdbs_code:
                 skipped['no_hdbs_code'] += 1
                 continue
             hdbs_code = str(hdbs_code).strip()
 
-            # Get warehouse
-            warehouse = ws.cell(row=row_idx, column=self.COLUMN_MAP['warehouse']).value or ''
-            warehouse = str(warehouse).strip()
+            # Get warehouse (optional column)
+            warehouse = ''
+            if 'warehouse' in column_map:
+                warehouse = ws.cell(row=row_idx, column=column_map['warehouse']).value or ''
+                warehouse = str(warehouse).strip()
 
             if warehouse and warehouse not in warehouses_to_include:
                 skipped['excluded_warehouse'] += 1
                 continue
 
             # Get quantity
-            qty_raw = ws.cell(row=row_idx, column=self.COLUMN_MAP['qty']).value
+            qty_raw = ws.cell(row=row_idx, column=column_map['qty']).value
             try:
                 qty = Decimal(str(qty_raw or 0))
             except:
