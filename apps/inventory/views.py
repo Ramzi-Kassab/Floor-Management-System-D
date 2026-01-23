@@ -3505,7 +3505,28 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
             # Write row to Excel
             excel_row = row_num + 1  # +1 for header
             for col_num, value in enumerate(row, 1):
-                cell = ws.cell(row=excel_row, column=col_num, value=value)
+                # Convert values to proper Excel types
+                cell_value = value
+                if isinstance(value, str) and value.strip():
+                    # Try to convert string to number
+                    try:
+                        if '.' in value:
+                            num_val = float(value)
+                            # Keep as integer if it's a whole number (e.g., 72.0 -> 72)
+                            if num_val == int(num_val):
+                                cell_value = int(num_val)
+                            else:
+                                cell_value = num_val
+                        else:
+                            cell_value = int(value)
+                    except (ValueError, TypeError):
+                        # Keep as string if not a valid number
+                        pass
+                elif isinstance(value, float):
+                    # Convert float to int if it's a whole number (e.g., 72.0 -> 72)
+                    if value == int(value):
+                        cell_value = int(value)
+                cell = ws.cell(row=excel_row, column=col_num, value=cell_value)
                 cell.border = thin_border
 
             # Add formulas if requested
