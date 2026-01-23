@@ -70,14 +70,21 @@
 
             <!-- Info -->
             <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Column Mapping</h3>
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ERP On-hand.xlsx Format</h3>
+                <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">Auto-detects header row by finding "Item number" column</p>
                 <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                    <li><strong>B:</strong> HDBS MAT# (lookup key)</li>
-                    <li><strong>H:</strong> ENO As New (NEW-EO)</li>
-                    <li><strong>I:</strong> ENO Ground (USED-GRD)</li>
-                    <li><strong>J:</strong> ARDT Reclaim (USED-RCL)</li>
-                    <li><strong>K:</strong> LSTK Reclaim (NEW-CLI)</li>
-                    <li><strong>L:</strong> New Stock (NEW-PUR)</li>
+                    <li><strong>Item number:</strong> ERP item (prefix determines variant)</li>
+                    <li><strong>Color:</strong> HDBS MAT# (lookup key)</li>
+                    <li><strong>Available physical:</strong> Quantity</li>
+                </ul>
+                <hr class="my-2 border-gray-200 dark:border-gray-600">
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Prefix → Variant:</p>
+                <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-0.5 mt-1">
+                    <li>CT-* → NEW-PUR</li>
+                    <li>ENO-CT-* → NEW-EO</li>
+                    <li>RCLM-ARDT-* → USED-RCL</li>
+                    <li>RCLM-* → NEW-CLI</li>
+                    <li>RTRO-* → NEW-RET</li>
                 </ul>
             </div>
 
@@ -149,15 +156,12 @@
                     <table class="w-full text-sm">
                         <thead class="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
                             <tr>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Row</th>
                                 <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">HDBS#</th>
                                 <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item Code</th>
                                 <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase bg-green-50 dark:bg-green-900/30">NEW-EO</th>
-                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase bg-yellow-50 dark:bg-yellow-900/30">USED-GRD</th>
-                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase bg-orange-50 dark:bg-orange-900/30">USED-RCL</th>
-                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase bg-purple-50 dark:bg-purple-900/30">NEW-CLI</th>
-                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase bg-blue-50 dark:bg-blue-900/30">NEW-PUR</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Variant</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">ERP Items</th>
                             </tr>
                         </thead>
                         <tbody id="preview-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -172,13 +176,15 @@
                     <i data-lucide="alert-triangle" class="w-5 h-5 inline mr-2"></i>
                     Items Not Found in System
                 </h3>
+                <p class="text-sm text-gray-500 mb-3">These HDBS codes from the Excel file don't match any inventory items.</p>
                 <div class="overflow-x-auto max-h-48 overflow-y-auto">
                     <table class="w-full text-sm">
                         <thead class="bg-red-50 dark:bg-red-900/30 sticky top-0">
                             <tr>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-red-700">Row</th>
                                 <th class="px-3 py-2 text-left text-xs font-medium text-red-700">HDBS Code</th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-red-700">Product Name</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-red-700">Variant</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-red-700">Quantity</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-red-700">ERP Items</th>
                             </tr>
                         </thead>
                         <tbody id="not-found-table-body" class="divide-y divide-red-100 dark:divide-red-800">
@@ -296,8 +302,20 @@ function renderPreview(data) {
     document.getElementById('stat-not-found').textContent = data.stats.items_not_found.toLocaleString();
     document.getElementById('stat-qty').textContent = data.stats.total_quantity.toLocaleString();
 
-    document.getElementById('preview-file-name').textContent = `(${data.file_name} - ${data.sheet_name})`;
+    // Show header detection info
+    const headerInfo = data.header_row ? `Headers at row ${data.header_row}` : '';
+    document.getElementById('preview-file-name').textContent = `(${data.file_name} - ${data.sheet_name}) ${headerInfo}`;
     document.getElementById('preview-count').textContent = `Showing ${Math.min(100, data.preview.length)} of ${data.stats.items_matched} items`;
+
+    // Variant color mapping
+    const variantColors = {
+        'NEW-PUR': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+        'NEW-EO': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+        'NEW-CLI': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+        'NEW-RET': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
+        'USED-RCL': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+        'USED-GRD': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    };
 
     // Render preview table
     const tbody = document.getElementById('preview-table-body');
@@ -306,16 +324,15 @@ function renderPreview(data) {
     data.preview.forEach(row => {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-gray-50 dark:hover:bg-gray-700/30';
+        const variantClass = variantColors[row.variant_code] || 'bg-gray-100 text-gray-800';
+        const erpItems = row.erp_items ? row.erp_items.join(', ') : '';
         tr.innerHTML = `
-            <td class="px-3 py-2 text-gray-500">${row.row}</td>
             <td class="px-3 py-2 font-mono text-gray-700 dark:text-gray-300">${row.hdbs_code}</td>
             <td class="px-3 py-2 font-mono text-blue-600 dark:text-blue-400">${row.item_code}</td>
-            <td class="px-3 py-2 text-gray-900 dark:text-white truncate max-w-xs" title="${row.product_name}">${row.product_name}</td>
-            <td class="px-3 py-2 text-center bg-green-50/50 dark:bg-green-900/10">${row.quantities['NEW-EO'] || ''}</td>
-            <td class="px-3 py-2 text-center bg-yellow-50/50 dark:bg-yellow-900/10">${row.quantities['USED-GRD'] || ''}</td>
-            <td class="px-3 py-2 text-center bg-orange-50/50 dark:bg-orange-900/10">${row.quantities['USED-RCL'] || ''}</td>
-            <td class="px-3 py-2 text-center bg-purple-50/50 dark:bg-purple-900/10">${row.quantities['NEW-CLI'] || ''}</td>
-            <td class="px-3 py-2 text-center bg-blue-50/50 dark:bg-blue-900/10">${row.quantities['NEW-PUR'] || ''}</td>
+            <td class="px-3 py-2 text-gray-900 dark:text-white truncate max-w-xs" title="${row.item_name || ''}">${row.item_name || ''}</td>
+            <td class="px-3 py-2 text-center"><span class="px-2 py-1 rounded text-xs font-medium ${variantClass}">${row.variant_code}</span></td>
+            <td class="px-3 py-2 text-right font-mono font-medium text-gray-900 dark:text-white">${row.qty.toLocaleString()}</td>
+            <td class="px-3 py-2 text-xs text-gray-500 truncate max-w-xs" title="${erpItems}">${erpItems}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -330,10 +347,12 @@ function renderPreview(data) {
 
         data.not_found.forEach(item => {
             const tr = document.createElement('tr');
+            const erpItems = item.erp_items ? item.erp_items.join(', ') : '';
             tr.innerHTML = `
-                <td class="px-3 py-2 text-red-700">${item.row}</td>
                 <td class="px-3 py-2 font-mono text-red-700">${item.hdbs_code}</td>
                 <td class="px-3 py-2 text-red-600">${item.product_name}</td>
+                <td class="px-3 py-2 text-right font-mono text-red-700">${item.qty ? item.qty.toLocaleString() : '-'}</td>
+                <td class="px-3 py-2 text-xs text-red-500">${erpItems}</td>
             `;
             notFoundBody.appendChild(tr);
         });

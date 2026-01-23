@@ -43,13 +43,13 @@ except ImportError:
 class Command(BaseCommand):
     help = 'Import cutter stock quantities from ERP On-hand Excel file'
 
-    # Expected header names (case-insensitive matching)
+    # Expected header names (exact ERP names, case-insensitive)
     HEADER_PATTERNS = {
-        'item_number': ['item number', 'item no', 'item_number', 'itemno'],
-        'color': ['color', 'colour', 'hdbs', 'mat number'],
-        'warehouse': ['warehouse', 'wh', 'store'],
-        'location': ['location', 'loc'],
-        'qty': ['available physical', 'qty', 'quantity', 'on hand', 'onhand', 'available'],
+        'item_number': ['item number'],
+        'color': ['color'],
+        'warehouse': ['warehouse'],
+        'location': ['location'],
+        'qty': ['available physical'],
     }
 
     # ERP Item Prefix → Variant Case mapping
