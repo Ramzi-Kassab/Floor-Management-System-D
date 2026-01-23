@@ -414,15 +414,18 @@ class ItemListView(LoginRequiredMixin, ListView):
                 attr_counts[code] += 1
                 attr_names[code] = cat_attr.attribute.name
 
+        # Exclude attributes that duplicate the HDBS# column (mat_number field)
+        excluded_codes = {'hdbs_code', 'hdbs', 'cutter_hdbs', 'hdbscode', 'mat_number', 'item_number'}
+
         # Return attributes that appear in at least 1 category, ordered by frequency
         common_attrs = []
         # Priority attributes (always first if they exist)
-        priority_codes = ['hdbs_code', 'hdbs', 'cutter_hdbs', 'type', 'size', 'diameter',
-                         'material', 'grade', 'family', 'category']
+        priority_codes = ['cutter_type', 'type', 'size', 'diameter', 'cutter_size',
+                         'material', 'grade', 'family', 'chamfer']
 
         seen = set()
         for code in priority_codes:
-            if code in attr_names and code not in seen:
+            if code in attr_names and code not in seen and code not in excluded_codes:
                 seen.add(code)
                 common_attrs.append({
                     'code': code,
@@ -433,7 +436,7 @@ class ItemListView(LoginRequiredMixin, ListView):
 
         # Add remaining attributes
         for code, count in attr_counts.most_common():
-            if code not in seen:
+            if code not in seen and code not in excluded_codes:
                 seen.add(code)
                 common_attrs.append({
                     'code': code,
@@ -533,7 +536,8 @@ class ItemListView(LoginRequiredMixin, ListView):
                 'row_num': row_num,
                 'item': item,
                 'code': item.code,
-                'mat_number': item.mat_number or '-',  # SAP MAT number
+                'item_number': item.item_number or '',  # ERP Item Number
+                'mat_number': item.mat_number or '-',  # HDBS MAT number
                 'name': item.name,
                 'category': item.category.name if item.category else '-',
                 'category_code': item.category.code if item.category else '',
