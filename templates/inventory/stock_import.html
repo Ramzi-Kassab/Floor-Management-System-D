@@ -13,7 +13,7 @@
            class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
             <i data-lucide="download" class="w-4 h-4 mr-2"></i>Export Current Stock
         </a>
-        <a href="{% url 'inventory:cutter_dashboard' %}"
+        <a href="{% url 'inventory:cutter_inventory_list' %}"
            class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
             <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Cutters
         </a>
@@ -214,7 +214,7 @@
                 </div>
 
                 <div class="flex justify-center gap-4">
-                    <a href="{% url 'inventory:cutter_dashboard' %}"
+                    <a href="{% url 'inventory:cutter_inventory_list' %}"
                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                         View Cutter Inventory
                     </a>
