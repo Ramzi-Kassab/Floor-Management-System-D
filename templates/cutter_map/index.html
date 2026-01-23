@@ -1087,7 +1087,10 @@
     <input type="hidden" id="designHdbs" value="{{ design_context.design_hdbs }}">
     <input type="hidden" id="designSize" value="{{ design_context.design_size }}">
     <input type="hidden" id="designLevel" value="{{ design_context.design_level }}">
-    <!-- Serial number context -->
+    <!-- Serial number context (multiple) -->
+    <input type="hidden" id="drillbitIds" value="{{ design_context.drillbit_ids|safe }}">
+    <input type="hidden" id="serialNumbers" value="{{ design_context.serial_numbers|safe }}">
+    <!-- Legacy single values for backwards compatibility -->
     <input type="hidden" id="drillbitId" value="{{ design_context.drillbit_id|default:'' }}">
     <input type="hidden" id="serialNumber" value="{{ design_context.serial_number|default:'' }}">
     <!-- Design specs for conflict detection -->
@@ -1101,6 +1104,8 @@
     <input type="hidden" id="designHdbs" value="">
     <input type="hidden" id="designSize" value="">
     <input type="hidden" id="standaloneMode" value="true">
+    <input type="hidden" id="drillbitIds" value="[]">
+    <input type="hidden" id="serialNumbers" value="[]">
     <input type="hidden" id="drillbitId" value="">
     <input type="hidden" id="serialNumber" value="">
     <input type="hidden" id="designBladeCount" value="">
@@ -1443,17 +1448,22 @@
                 <input type="text" id="matDialogSN" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-family:monospace; font-size:12px;" placeholder="Enter serial number if applicable">
             </div>
 
-            <!-- Quick Actions -->
-            <div style="margin-bottom:12px; padding:8px; background:#f8f9fa; border-radius:4px; display:flex; gap:8px; flex-wrap:wrap;">
-                <button type="button" class="btn btn-sm" onclick="copyBrazingToSystem()" style="font-size:10px; padding:4px 8px;">
-                    📋 Copy Brazing → System
-                </button>
-                <button type="button" class="btn btn-sm" onclick="addSuffixToBoth('M')" style="font-size:10px; padding:4px 8px;">
-                    +M suffix
-                </button>
-                <button type="button" class="btn btn-sm" onclick="addSuffixToBoth('M1')" style="font-size:10px; padding:4px 8px;">
-                    +M1 suffix
-                </button>
+            <!-- Suffix Tools -->
+            <div style="margin-bottom:12px; padding:10px; background:#f8f9fa; border-radius:4px; border:1px solid #e0e0e0;">
+                <label style="font-size:11px; font-weight:bold; display:block; margin-bottom:8px; color:#555;">Suffix Tools</label>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <input type="text" id="matDialogSuffix" style="width:80px; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-family:monospace; font-size:12px;" placeholder="e.g., M1">
+                    <button type="button" class="btn btn-sm" onclick="addCustomSuffix()" style="font-size:11px; padding:5px 10px; background:#4caf50; color:white;">
+                        + Add Suffix
+                    </button>
+                    <button type="button" class="btn btn-sm" onclick="autoIncrementSuffix()" style="font-size:11px; padding:5px 10px; background:#2196f3; color:white;" title="Find next available Mn suffix">
+                        🔄 Auto M(n)
+                    </button>
+                    <button type="button" class="btn btn-sm" onclick="copyBrazingToSystem()" style="font-size:11px; padding:5px 10px;">
+                        📋 Copy → System
+                    </button>
+                </div>
+                <p style="font-size:10px; color:#888; margin-top:6px;">Auto M(n) will find next available: M1, M2, M3...</p>
             </div>
 
             <div class="mat-dialog-buttons">
@@ -6517,7 +6527,53 @@
             document.getElementById('matDialogSystem').value = brazingVal;
         }
 
-        // Helper: Add suffix to both MAT fields
+        // Helper: Add custom suffix from input field to both MAT fields
+        function addCustomSuffix() {
+            const suffixInput = document.getElementById('matDialogSuffix');
+            const suffix = suffixInput ? suffixInput.value.trim() : '';
+            if (!suffix) {
+                showMsg('Please enter a suffix', 'error');
+                return;
+            }
+            const originalMat = currentData.header.mat_number || '';
+            document.getElementById('matDialogBrazing').value = originalMat + suffix;
+            document.getElementById('matDialogSystem').value = originalMat + suffix;
+        }
+
+        // Helper: Auto-increment suffix (M1, M2, M3...)
+        function autoIncrementSuffix() {
+            const originalMat = currentData.header.mat_number || '';
+            const designId = document.getElementById('designId')?.value;
+
+            // Fetch existing BOMs for this design to find next available suffix
+            fetch(`/cutter-map/api/lookup-design/?mat=${encodeURIComponent(originalMat)}&check_suffixes=1`)
+                .then(r => r.json())
+                .then(data => {
+                    // Find existing M-suffixes
+                    const existingSuffixes = data.existing_suffixes || [];
+                    let nextNum = 1;
+
+                    // Find the next available number
+                    while (existingSuffixes.includes(`M${nextNum}`)) {
+                        nextNum++;
+                    }
+
+                    const newSuffix = `M${nextNum}`;
+                    document.getElementById('matDialogSuffix').value = newSuffix;
+                    document.getElementById('matDialogBrazing').value = originalMat + newSuffix;
+                    document.getElementById('matDialogSystem').value = originalMat + newSuffix;
+                    showMsg(`Auto-assigned suffix: ${newSuffix}`, 'success');
+                })
+                .catch(err => {
+                    console.error('Error checking suffixes:', err);
+                    // Fallback: just use M1
+                    document.getElementById('matDialogSuffix').value = 'M1';
+                    document.getElementById('matDialogBrazing').value = originalMat + 'M1';
+                    document.getElementById('matDialogSystem').value = originalMat + 'M1';
+                });
+        }
+
+        // Helper: Add suffix to both MAT fields (legacy, kept for compatibility)
         function addSuffixToBoth(suffix) {
             const originalMat = currentData.header.mat_number || '';
             document.getElementById('matDialogBrazing').value = originalMat + suffix;
@@ -7780,13 +7836,28 @@
 
             // Build payload for sync-to-erp API
             // IMPORTANT: Include images and shapes for PDF Generator reconstruction
-            const drillbitIdEl = document.getElementById('drillbitId');
-            const drillbitId = drillbitIdEl ? drillbitIdEl.value : null;
+            // Get drillbit_ids (array) or fall back to single drillbit_id
+            let drillbitIds = [];
+            const drillbitIdsEl = document.getElementById('drillbitIds');
+            if (drillbitIdsEl && drillbitIdsEl.value) {
+                try {
+                    drillbitIds = JSON.parse(drillbitIdsEl.value) || [];
+                } catch (e) {
+                    drillbitIds = [];
+                }
+            }
+            // Fallback to single drillbit_id for backwards compatibility
+            if (!drillbitIds.length) {
+                const drillbitIdEl = document.getElementById('drillbitId');
+                const singleId = drillbitIdEl ? drillbitIdEl.value : null;
+                if (singleId) drillbitIds = [singleId];
+            }
+
             const payload = {
                 design_id: designId || null,
                 parent_design_mat: designMat || '',
                 document_id: currentData.document_id || null,
-                drillbit_id: drillbitId || null,  // Link to specific drill bit if selected
+                drillbit_ids: drillbitIds,  // Link to multiple drill bits
                 bom_type: editState.bomType || 'BRAZING',  // BRAZING (internal) or SYSTEM (client-facing)
                 brazing_mat: editState.brazingMat || formData.header.mat_number || '',
                 system_mat: editState.systemMat || formData.header.mat_number || '',
@@ -7930,10 +8001,16 @@
                                 <strong style="display: block;">${result.pocket_configs_created} groups</strong>
                             </div>
                         </div>
-                        ${result.linked_drillbit ? `
+                        ${(result.linked_drillbits && result.linked_drillbits.length > 0) ? `
                         <div style="margin-top: 10px; padding: 8px; background: #e8f5e9; border-radius: 4px; border-left: 3px solid #4caf50;">
-                            <span style="color: #2e7d32; font-size: 11px; font-weight: bold;">🔗 Linked to Drill Bit:</span>
-                            <strong style="display: block; font-family: monospace; color: #2e7d32;">SN: ${result.linked_drillbit.serial_number}</strong>
+                            <span style="color: #2e7d32; font-size: 11px; font-weight: bold;">🔗 Linked to ${result.linked_drillbits.length} Drill Bit${result.linked_drillbits.length > 1 ? 's' : ''}:</span>
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+                                ${result.linked_drillbits.map(db => `
+                                    <span style="font-family: monospace; font-size: 11px; background: #c8e6c9; padding: 2px 6px; border-radius: 3px; color: #1b5e20;">
+                                        SN: ${db.serial_number}
+                                    </span>
+                                `).join('')}
+                            </div>
                         </div>
                         ` : ''}
                     </div>
@@ -8026,6 +8103,15 @@
                             </div>
                         </a>
 
+                        <button onclick="showLinkMoreSNsDialog('${result.bom_id}', '${result.bom_code}', '${result.design_id}', '${result.bom_type}');"
+                                style="display: flex; align-items: center; gap: 10px; padding: 12px 15px; background: #17a2b8; color: white; border: none; border-radius: 6px; cursor: pointer; text-align: left;">
+                            <span style="font-size: 18px;">🔗</span>
+                            <div>
+                                <div style="font-weight: 500;">Link to More Serial Numbers</div>
+                                <div style="font-size: 11px; opacity: 0.8;">Assign same BOM to other drill bits</div>
+                            </div>
+                        </button>
+
                         ${hasUnmatched ? `
                         <button onclick="addUnmatchedCutters(${JSON.stringify(unmatchedItems).replace(/"/g, '&quot;')}, '${result.design_id}', '${result.bom_id}');"
                                 style="display: flex; align-items: center; gap: 10px; padding: 12px 15px; background: #ffc107; color: #333; border: none; border-radius: 6px; cursor: pointer; text-align: left;">
@@ -8106,6 +8192,200 @@
             if (bomId) params.set('bom_id', bomId);
 
             window.location.href = '/cutter-map/add-cutter-wizard/?' + params.toString();
+        }
+
+        // ========== LINK MORE SERIAL NUMBERS DIALOG ==========
+        function showLinkMoreSNsDialog(bomId, bomCode, designId, bomType) {
+            const dialog = document.createElement('div');
+            dialog.className = 'mat-dialog';
+            dialog.id = 'linkMoreSNsDialog';
+            dialog.innerHTML = `
+                <div class="mat-dialog-box" style="max-width: 500px; max-height: 90vh; overflow-y: auto;">
+                    <div class="mat-dialog-title" style="display: flex; justify-content: space-between; align-items: center; color: #17a2b8; background: #e7f7f9; padding: 12px 15px; margin: -15px -15px 15px -15px; border-radius: 4px 4px 0 0;">
+                        <span>🔗 Link BOM to More Serial Numbers</span>
+                        <button onclick="document.getElementById('linkMoreSNsDialog').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">&times;</button>
+                    </div>
+
+                    <div style="font-size: 12px; color: #666; margin-bottom: 15px;">
+                        BOM: <strong style="font-family: monospace;">${bomCode}</strong><br>
+                        Select additional drill bits to link this BOM to:
+                    </div>
+
+                    <div id="linkSNsContainer" style="border: 1px solid #ddd; border-radius: 6px; max-height: 250px; overflow-y: auto; margin-bottom: 15px;">
+                        <div style="padding: 20px; text-align: center; color: #999;">
+                            Loading drill bits...
+                        </div>
+                    </div>
+
+                    <div id="linkSNsSelectedCount" style="font-size: 12px; color: #666; margin-bottom: 15px;">
+                        0 drill bits selected
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="document.getElementById('linkMoreSNsDialog').remove()"
+                                style="flex: 1; padding: 10px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; cursor: pointer;">
+                            Cancel
+                        </button>
+                        <button id="linkSNsSubmitBtn" onclick="submitLinkMoreSNs('${bomId}', '${bomType}')"
+                                style="flex: 1; padding: 10px; background: #17a2b8; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                            Link Selected
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dialog);
+
+            // Load drill bits for this design
+            loadDrillBitsForLinking(designId, bomId, bomType);
+        }
+
+        function loadDrillBitsForLinking(designId, bomId, bomType) {
+            const container = document.getElementById('linkSNsContainer');
+
+            fetch(`/workorders/api/drill-bits/search/?design_id=${designId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.results && data.results.length > 0) {
+                        // Filter out drill bits already linked to this BOM
+                        let html = `
+                            <div style="padding: 8px; background: #f5f5f5; border-bottom: 1px solid #ddd; position: sticky; top: 0;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px;">
+                                    <input type="checkbox" id="linkSelectAll" onchange="toggleLinkAllSNs(this.checked)">
+                                    <span>Select All Available</span>
+                                </label>
+                            </div>
+                        `;
+                        let availableCount = 0;
+
+                        data.results.forEach(bit => {
+                            // Check if already linked (based on bom_type)
+                            const isLinked = bomType === 'BRAZING'
+                                ? (bit.brazing_bom_id == bomId)
+                                : (bit.system_bom_id == bomId);
+
+                            if (isLinked) {
+                                html += `
+                                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #eee; background: #f0f0f0; opacity: 0.7;">
+                                        <input type="checkbox" disabled checked>
+                                        <div>
+                                            <span style="font-family: monospace; font-weight: 500;">SN: ${bit.serial_number}</span>
+                                            <span style="font-size: 11px; color: #666; margin-left: 5px;">(already linked)</span>
+                                        </div>
+                                    </div>
+                                `;
+                            } else {
+                                availableCount++;
+                                html += `
+                                    <label style="display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;">
+                                        <input type="checkbox" class="link-sn-checkbox" value="${bit.id}" data-serial="${bit.serial_number}" onchange="updateLinkSNsCount()">
+                                        <div>
+                                            <span style="font-family: monospace; font-weight: 500;">SN: ${bit.serial_number}</span>
+                                            <span style="font-size: 11px; color: ${bit.lifecycle_status === 'ACTIVE' ? '#28a745' : '#666'}; margin-left: 5px;">
+                                                ${bit.lifecycle_status || 'Unknown'}
+                                            </span>
+                                        </div>
+                                    </label>
+                                `;
+                            }
+                        });
+
+                        container.innerHTML = html;
+                        document.getElementById('linkSNsSelectedCount').textContent = `${availableCount} available to link`;
+                    } else {
+                        container.innerHTML = `
+                            <div style="padding: 20px; text-align: center; color: #999;">
+                                No drill bits found for this design
+                            </div>
+                        `;
+                    }
+                })
+                .catch(err => {
+                    console.error('Error loading drill bits:', err);
+                    container.innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: #dc3545;">
+                            Error loading drill bits
+                        </div>
+                    `;
+                });
+        }
+
+        function toggleLinkAllSNs(checked) {
+            document.querySelectorAll('.link-sn-checkbox').forEach(cb => cb.checked = checked);
+            updateLinkSNsCount();
+        }
+
+        function updateLinkSNsCount() {
+            const checked = document.querySelectorAll('.link-sn-checkbox:checked').length;
+            const countEl = document.getElementById('linkSNsSelectedCount');
+            if (countEl) {
+                countEl.innerHTML = checked > 0
+                    ? `<span style="color: #17a2b8; font-weight: 500;">${checked} drill bit${checked > 1 ? 's' : ''} selected</span>`
+                    : '0 drill bits selected';
+            }
+        }
+
+        function submitLinkMoreSNs(bomId, bomType) {
+            const checkboxes = document.querySelectorAll('.link-sn-checkbox:checked');
+            if (checkboxes.length === 0) {
+                showMsg('Please select at least one drill bit to link', 'error');
+                return;
+            }
+
+            const drillbitIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            const submitBtn = document.getElementById('linkSNsSubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Linking...';
+
+            fetch(`/cutter-map/api/bom/${bomId}/link-drillbits/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify({
+                    drillbit_ids: drillbitIds,
+                    bom_type: bomType
+                })
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    const linkedCount = result.linked_drillbits ? result.linked_drillbits.length : 0;
+                    showMsg(`✓ BOM linked to ${linkedCount} additional drill bit${linkedCount > 1 ? 's' : ''}`, 'success');
+
+                    // Close the link dialog
+                    const linkDialog = document.getElementById('linkMoreSNsDialog');
+                    if (linkDialog) linkDialog.remove();
+
+                    // Update the success dialog to show newly linked drill bits
+                    const existingSuccessDialog = document.getElementById('bomSuccessDialog');
+                    if (existingSuccessDialog && result.linked_drillbits) {
+                        // Add to the linked drillbits display
+                        const linkedSection = existingSuccessDialog.querySelector('[style*="background: #e8f5e9"]');
+                        if (linkedSection) {
+                            const existingList = linkedSection.querySelector('div[style*="flex-wrap"]');
+                            if (existingList) {
+                                result.linked_drillbits.forEach(db => {
+                                    const span = document.createElement('span');
+                                    span.style = 'font-family: monospace; font-size: 11px; background: #c8e6c9; padding: 2px 6px; border-radius: 3px; color: #1b5e20;';
+                                    span.textContent = `SN: ${db.serial_number}`;
+                                    existingList.appendChild(span);
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    showMsg(result.error || 'Failed to link drill bits', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Link Selected';
+                }
+            })
+            .catch(err => {
+                console.error('Link error:', err);
+                showMsg('Error: ' + err.message, 'error');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Link Selected';
+            });
         }
 
         // ========== ADD CUTTER TO INVENTORY MODAL (Legacy - now uses wizard) ==========

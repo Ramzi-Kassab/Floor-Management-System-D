@@ -35,6 +35,33 @@ def index(request):
     design_context = None
     if request.GET.get('from') in ['bom_create', 'design_create']:
         design_id = request.GET.get('design_id')
+
+        # Handle multiple drillbit_ids (JSON array) or single drillbit_id
+        drillbit_ids_raw = request.GET.get('drillbit_ids', '')
+        serial_numbers_raw = request.GET.get('serial_numbers', '')
+        drillbit_ids = []
+        serial_numbers = []
+
+        if drillbit_ids_raw:
+            try:
+                drillbit_ids = json.loads(drillbit_ids_raw)
+            except json.JSONDecodeError:
+                drillbit_ids = []
+
+        if serial_numbers_raw:
+            try:
+                serial_numbers = json.loads(serial_numbers_raw)
+            except json.JSONDecodeError:
+                serial_numbers = []
+
+        # Fallback to single drillbit_id for backwards compatibility
+        if not drillbit_ids:
+            single_id = request.GET.get('drillbit_id', '')
+            single_sn = request.GET.get('serial_number', '')
+            if single_id:
+                drillbit_ids = [single_id]
+                serial_numbers = [single_sn] if single_sn else []
+
         design_context = {
             'design_id': design_id,
             'design_mat': request.GET.get('design_mat', ''),
@@ -42,9 +69,12 @@ def index(request):
             'design_size': request.GET.get('design_size', ''),
             'design_level': request.GET.get('design_level', ''),  # L3 or L4
             'from_bom_create': True,
-            # Serial number / Drill bit context
-            'drillbit_id': request.GET.get('drillbit_id', ''),
-            'serial_number': request.GET.get('serial_number', ''),
+            # Serial number / Drill bit context (multiple)
+            'drillbit_ids': drillbit_ids,  # Array of IDs
+            'serial_numbers': serial_numbers,  # Array of serial numbers
+            # Legacy single values (first one)
+            'drillbit_id': drillbit_ids[0] if drillbit_ids else '',
+            'serial_number': serial_numbers[0] if serial_numbers else '',
             # Fields for conflict detection
             'blade_count': None,
             'pocket_rows_count': None,
@@ -563,32 +593,54 @@ def editor(request, document_id):
 
 @login_required
 def api_lookup_design(request):
-    """API: Lookup Design by MAT number."""
-    from apps.technology.models import Design
+    """API: Lookup Design by MAT number and optionally check existing BOM suffixes."""
+    import re
+    from apps.technology.models import Design, BOM
 
     mat_no = request.GET.get('mat_no', '').strip()
+    mat = request.GET.get('mat', '').strip()  # Alternative param name
+    check_suffixes = request.GET.get('check_suffixes', '0') == '1'
 
-    if not mat_no:
+    base_mat = mat_no or mat
+    if not base_mat:
         return JsonResponse({'found': False, 'error': 'No MAT number provided'})
 
     try:
-        design = Design.objects.filter(mat_no=mat_no).first()
+        design = Design.objects.filter(mat_no=base_mat).first()
+
+        response = {'found': design is not None}
 
         if design:
-            return JsonResponse({
-                'found': True,
-                'design': {
-                    'id': design.id,
-                    'mat_no': design.mat_no,
-                    'hdbs_type': design.hdbs_type,
-                    'order_level': design.order_level,
-                    'category': design.category,
-                    'no_of_blades': design.no_of_blades,
-                    'status': design.status,
-                }
-            })
-        else:
-            return JsonResponse({'found': False})
+            response['design'] = {
+                'id': design.id,
+                'mat_no': design.mat_no,
+                'hdbs_type': design.hdbs_type,
+                'order_level': design.order_level,
+                'category': design.category,
+                'no_of_blades': design.no_of_blades,
+                'status': design.status,
+            }
+
+        # Check for existing BOM suffixes if requested
+        if check_suffixes:
+            # Find all BOMs that start with this base MAT
+            existing_boms = BOM.objects.filter(code__startswith=base_mat).values_list('code', flat=True)
+            existing_suffixes = []
+
+            for bom_code in existing_boms:
+                # Extract suffix (everything after the base MAT)
+                if len(bom_code) > len(base_mat):
+                    suffix = bom_code[len(base_mat):]
+                    # Check if it's an M-suffix pattern (M1, M2, etc.)
+                    if re.match(r'^M\d+$', suffix):
+                        existing_suffixes.append(suffix)
+
+            response['existing_suffixes'] = sorted(
+                existing_suffixes,
+                key=lambda x: int(x[1:]) if x[1:].isdigit() else 0
+            )
+
+        return JsonResponse(response)
 
     except Exception as e:
         return JsonResponse({'found': False, 'error': str(e)})
@@ -622,12 +674,17 @@ def api_sync_to_erp(request):
 
     document_id = payload.get('document_id')
     design_id = payload.get('design_id')  # Direct design ID from BOM create workflow
-    drillbit_id = payload.get('drillbit_id')  # Optional drill bit to link this BOM to
+    # Support both single drillbit_id and array of drillbit_ids
+    drillbit_ids = payload.get('drillbit_ids', [])  # Array of drill bit IDs to link
+    drillbit_id = payload.get('drillbit_id')  # Legacy single drill bit ID (backwards compatibility)
+    # Build drillbit_ids list from either source
+    if not drillbit_ids and drillbit_id:
+        drillbit_ids = [drillbit_id]
     parent_design_mat = payload.get('parent_design_mat', '').strip()
     bom_type = payload.get('bom_type', 'BRAZING')  # BRAZING (internal) or SYSTEM (client-facing)
     brazing_mat = payload.get('brazing_mat', '').strip()  # Brazing MAT (internal/production)
     system_mat = payload.get('system_mat', '').strip()    # System MAT (client-facing)
-    serial_number = payload.get('serial_number', '').strip()  # Optional serial number
+    serial_number = payload.get('serial_number', '').strip()  # Optional serial number (from first drill bit)
     data = payload.get('data', {})
 
     # Require either design_id or parent_design_mat
@@ -996,25 +1053,34 @@ def api_sync_to_erp(request):
                     }
                 )
 
-        # Link BOM to DrillBit if drillbit_id was provided
-        linked_drillbit = None
-        if drillbit_id:
+        # Link BOM to DrillBits if drillbit_ids were provided
+        linked_drillbits = []
+        if drillbit_ids:
             try:
                 from apps.workorders.models import DrillBit
-                drillbit = DrillBit.objects.get(pk=drillbit_id)
-                # Link as brazing or system BOM based on bom_type
-                if bom_type == 'BRAZING':
-                    drillbit.brazing_bom = bom
-                else:
-                    drillbit.system_bom = bom
-                drillbit.save(update_fields=['brazing_bom' if bom_type == 'BRAZING' else 'system_bom'])
-                linked_drillbit = {
-                    'id': drillbit.pk,
-                    'serial_number': drillbit.serial_number
-                }
+                for db_id in drillbit_ids:
+                    try:
+                        drillbit = DrillBit.objects.get(pk=db_id)
+                        # Link as brazing or system BOM based on bom_type
+                        if bom_type == 'BRAZING':
+                            drillbit.brazing_bom = bom
+                        else:
+                            drillbit.system_bom = bom
+                        drillbit.save(update_fields=['brazing_bom' if bom_type == 'BRAZING' else 'system_bom'])
+                        linked_drillbits.append({
+                            'id': drillbit.pk,
+                            'serial_number': drillbit.serial_number
+                        })
+                    except DrillBit.DoesNotExist:
+                        print(f"Warning: DrillBit with ID {db_id} not found")
+                    except Exception as e:
+                        print(f"Warning: Failed to link BOM to drill bit {db_id}: {e}")
             except Exception as e:
                 # Don't fail the whole operation if linking fails
-                print(f"Warning: Failed to link BOM to drill bit: {e}")
+                print(f"Warning: Failed to link BOM to drill bits: {e}")
+
+        # For backwards compatibility, also provide single linked_drillbit
+        linked_drillbit = linked_drillbits[0] if linked_drillbits else None
 
         return JsonResponse({
             'success': True,
@@ -1026,7 +1092,8 @@ def api_sync_to_erp(request):
             'brazing_mat': bom.code,  # Brazing MAT (same as bom_code)
             'system_mat': bom.system_mat_no or '',  # System MAT (client-facing)
             'serial_number': bom.source_sn_number or '',
-            'linked_drillbit': linked_drillbit,  # Drill bit this BOM was linked to
+            'linked_drillbit': linked_drillbit,  # First drill bit (backwards compatibility)
+            'linked_drillbits': linked_drillbits,  # All linked drill bits
             'bom_lines_created': bom_lines_created,
             'pocket_configs_created': pocket_configs_created,
             'pockets_created': pockets_created,
@@ -1167,6 +1234,75 @@ def api_set_system_mat(request, bom_id):
         'bom_id': bom.id,
         'bom_code': bom.code,
         'system_mat_no': bom.system_mat_no
+    })
+
+
+@login_required
+@require_POST
+def api_link_bom_to_drillbits(request, bom_id):
+    """
+    API: Link a BOM to additional drill bits.
+
+    Used to assign the same BOM to multiple serial numbers after initial creation.
+    Expects JSON body with:
+    {
+        "drillbit_ids": [1, 2, 3],  // Array of drill bit IDs to link
+        "bom_type": "BRAZING"  // Optional: BRAZING or SYSTEM (default: BRAZING)
+    }
+    """
+    from apps.technology.models import BOM
+    from apps.workorders.models import DrillBit
+
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    drillbit_ids = payload.get('drillbit_ids', [])
+    bom_type = payload.get('bom_type', 'BRAZING')
+
+    if not drillbit_ids:
+        return JsonResponse({
+            'success': False,
+            'error': 'No drill bit IDs provided'
+        }, status=400)
+
+    try:
+        bom = BOM.objects.get(pk=bom_id)
+    except BOM.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': f'BOM with ID {bom_id} not found'
+        }, status=404)
+
+    linked_drillbits = []
+    errors = []
+
+    for db_id in drillbit_ids:
+        try:
+            drillbit = DrillBit.objects.get(pk=db_id)
+            # Link as brazing or system BOM based on bom_type
+            if bom_type == 'BRAZING':
+                drillbit.brazing_bom = bom
+            else:
+                drillbit.system_bom = bom
+            drillbit.save(update_fields=['brazing_bom' if bom_type == 'BRAZING' else 'system_bom'])
+            linked_drillbits.append({
+                'id': drillbit.pk,
+                'serial_number': drillbit.serial_number
+            })
+        except DrillBit.DoesNotExist:
+            errors.append(f'DrillBit with ID {db_id} not found')
+        except Exception as e:
+            errors.append(f'Error linking DrillBit {db_id}: {str(e)}')
+
+    return JsonResponse({
+        'success': True,
+        'message': f'BOM linked to {len(linked_drillbits)} drill bit(s)',
+        'bom_id': bom.id,
+        'bom_code': bom.code,
+        'linked_drillbits': linked_drillbits,
+        'errors': errors if errors else None
     })
 
 

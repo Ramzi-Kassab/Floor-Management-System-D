@@ -5,6 +5,118 @@
 
 {% block extra_css %}
 <style>
+    /* CRITICAL: Prevent main content from extending under sidebar */
+    main {
+        overflow-x: hidden !important;
+        min-width: 0 !important;
+    }
+    main > div {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+    }
+
+    /* Page container */
+    .drillbit-page-container {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    /* Header section - never scrolls horizontally */
+    .drillbit-header-section {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Freeze mode - fills viewport, table gets independent scroll */
+    .drillbit-page-container.freeze-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 140px);
+    }
+    .freeze-mode .drillbit-header-section {
+        flex-shrink: 0;
+    }
+    .freeze-mode .drillbit-table-section {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Table wrapper - element with horizontal scroll */
+    .drillbit-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+    }
+    .freeze-mode .drillbit-table-wrapper {
+        height: 100%;
+    }
+
+    /* Sticky table header (always on in freeze mode) */
+    .freeze-mode .drillbit-table-wrapper thead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    /* Sticky first column */
+    .sticky-col {
+        position: sticky;
+        left: 0;
+        z-index: 16;
+        background: #f9fafb !important;
+        box-shadow: 4px 0 6px -4px rgba(0,0,0,0.15);
+    }
+    thead .sticky-col { z-index: 20; }
+    .dark .sticky-col {
+        background: #1f2937 !important;
+    }
+    tbody .sticky-col {
+        background: white !important;
+    }
+    .dark tbody .sticky-col {
+        background: #1f2937 !important;
+    }
+
+    /* Full page mode */
+    .full-page-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 80px);
+    }
+    .full-page-mode .drillbit-header-section {
+        flex-shrink: 0;
+    }
+    .full-page-mode .drillbit-table-section {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .full-page-mode .drillbit-table-wrapper {
+        height: 100%;
+    }
+    .full-page-mode #filterSection {
+        padding: 0.5rem 1rem;
+        margin-bottom: 0.5rem;
+    }
+    /* Hide page header in full page mode */
+    body:has(.full-page-mode) #pageHeader {
+        display: none !important;
+    }
+
+    /* No-wrap mode (default) - columns auto-size */
+    .no-wrap-mode #drillBitTable {
+        width: auto;
+        table-layout: auto;
+    }
+    .no-wrap-mode #drillBitTable td,
+    .no-wrap-mode #drillBitTable th {
+        white-space: nowrap !important;
+        max-width: none !important;
+    }
+
+    /* Column filter menu */
     .column-menu {
         position: fixed;
         z-index: 100;
@@ -13,18 +125,15 @@
     }
     .filter-active { color: #2563eb !important; font-weight: 600; }
     .filter-active i { color: #2563eb !important; }
-    /* Sticky first column */
-    .sticky-col { position: sticky; left: 0; z-index: 10; }
-    thead .sticky-col { z-index: 20; }
 </style>
 {% endblock %}
 
 {% block page_header %}
-<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6" id="pageHeader">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         <p class="text-gray-600 dark:text-gray-400">
-            Showing <span id="visibleCount">{{ drill_bits|length }}</span> of {{ total_count }} drill bits
+            Drill bit inventory with BOM linkage
         </p>
     </div>
     <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
@@ -39,61 +148,90 @@
 {% endblock %}
 
 {% block content %}
-<!-- Filters -->
+<div class="drillbit-page-container" id="drillbitPageContainer">
+
+<!-- HEADER SECTION -->
+<div class="drillbit-header-section">
+
+<!-- Filters & Controls -->
 <form method="get" id="filterForm">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-4">
-        <div class="flex flex-wrap gap-3 items-end">
-            <div class="flex-1 min-w-[180px]">
-                <label class="block text-xs font-medium text-gray-500 mb-1">Search</label>
-                <div class="relative">
-                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                    <input type="text" name="search" value="{{ current_search }}" placeholder="Serial#, Design..."
-                           class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-4" id="filterSection">
+        <div class="flex flex-wrap gap-3 items-center">
+            <!-- Search field -->
+            <div class="w-48">
+                <input type="text" name="search" value="{{ current_search }}" placeholder="Serial#, Design..."
+                       class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
             </div>
-            <div class="w-32">
-                <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
+            <div class="w-28">
                 <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                    <option value="">All</option>
+                    <option value="">Status: All</option>
                     {% for value, label in status_choices %}<option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                 </select>
             </div>
-            <div class="w-32">
-                <label class="block text-xs font-medium text-gray-500 mb-1">Lifecycle</label>
+            <div class="w-28">
                 <select name="lifecycle" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                    <option value="">All</option>
+                    <option value="">Lifecycle: All</option>
                     {% for value, label in lifecycle_choices %}<option value="{{ value }}" {% if current_lifecycle == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                 </select>
             </div>
-            <div class="w-28">
-                <label class="block text-xs font-medium text-gray-500 mb-1">Type</label>
+            <div class="w-24">
                 <select name="bit_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                    <option value="">All</option>
+                    <option value="">Type: All</option>
                     {% for value, label in bit_type_choices %}<option value="{{ value }}" {% if current_bit_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                 </select>
             </div>
-            <div class="w-24">
-                <label class="block text-xs font-medium text-gray-500 mb-1">Show</label>
-                <select name="page_size" onchange="this.form.submit()" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+            <button type="submit" class="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                <i data-lucide="search" class="w-4 h-4 inline"></i>
+            </button>
+            {% if current_search or current_status or current_lifecycle or current_bit_type %}
+            <a href="{% url 'workorders:drillbit_list_enhanced' %}" class="px-3 py-2 text-gray-500 hover:text-gray-700 text-sm">Clear</a>
+            {% endif %}
+
+            <!-- Divider -->
+            <div class="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+
+            <!-- Page size & count -->
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-gray-500">Show:</label>
+                <select name="page_size" onchange="this.form.submit()" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700">
                     <option value="all" {% if page_size == 'all' %}selected{% endif %}>All</option>
                     <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
                     <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                    <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
                 </select>
             </div>
-            <div class="flex gap-2">
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                    <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>Filter
-                </button>
-                {% if current_search or current_status or current_lifecycle or current_bit_type %}
-                <a href="{% url 'workorders:drillbit_list_enhanced' %}" class="px-4 py-2 text-gray-500 hover:text-gray-700 text-sm">Clear</a>
-                {% endif %}
+            <div class="text-sm">
+                <span id="visibleCount" class="text-green-600 font-medium">{{ drill_bits|length }}</span>
+                <span class="text-gray-500">of {{ total_count }} bits</span>
             </div>
+
+            <!-- Spacer -->
+            <div class="flex-1"></div>
+
+            <!-- View Toggle Buttons -->
+            <div class="flex gap-2 flex-wrap">
+                <!-- Freeze Panes Toggle -->
+                <button type="button" onclick="toggleFreezePanes()" id="freezeBtn"
+                        class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                    <span id="freezeBtnText">Freeze</span>
+                </button>
+                <!-- Full Page View Toggle -->
+                <button type="button" onclick="toggleFullPageView()" id="fullPageBtn"
+                        class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                    <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                    <span id="fullPageBtnText">Full</span>
+                </button>
+            </div>
+
             <button type="button" id="clearColumnFilters" onclick="clearAllColumnFilters()" class="hidden px-3 py-2 text-orange-600 hover:text-orange-800 text-sm font-medium">
-                <i data-lucide="x-circle" class="w-4 h-4 inline mr-1"></i>Clear Column Filters
+                <i data-lucide="x-circle" class="w-4 h-4 inline mr-1"></i>Clear Filters
             </button>
         </div>
     </div>
 </form>
+
+</div><!-- End drillbit-header-section -->
 
 <!-- Column Filter Menu -->
 <div id="columnMenu" class="column-menu hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3">
@@ -115,10 +253,10 @@
     </div>
 </div>
 
-<!-- Drill Bits Table -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+<!-- Table Section -->
+<div class="drillbit-table-section bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
     {% if drill_bits %}
-    <div class="overflow-x-auto">
+    <div class="drillbit-table-wrapper">
         <table class="w-full text-xs" id="drillBitTable">
             <thead>
                 <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
@@ -327,7 +465,65 @@
     {% endif %}
 </div>
 
+</div><!-- End drillbit-page-container -->
+
 <script>
+// View mode state
+let freezePanes = false;
+let fullPageView = false;
+
+function toggleFreezePanes() {
+    freezePanes = !freezePanes;
+    const container = document.getElementById('drillbitPageContainer');
+    const btn = document.getElementById('freezeBtn');
+    const btnText = document.getElementById('freezeBtnText');
+
+    if (freezePanes) {
+        container.classList.add('freeze-mode');
+        btn.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
+        btn.classList.add('bg-blue-600', 'text-white');
+        btnText.textContent = 'Unfreeze';
+    } else {
+        container.classList.remove('freeze-mode');
+        btn.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
+        btn.classList.remove('bg-blue-600', 'text-white');
+        btnText.textContent = 'Freeze';
+    }
+    localStorage.setItem('drillbitFreezePanes', freezePanes);
+}
+
+function toggleFullPageView() {
+    fullPageView = !fullPageView;
+    const container = document.getElementById('drillbitPageContainer');
+    const btn = document.getElementById('fullPageBtn');
+    const btnText = document.getElementById('fullPageBtnText');
+    const pageHeader = document.getElementById('pageHeader');
+
+    if (fullPageView) {
+        container.classList.add('full-page-mode');
+        btn.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
+        btn.classList.add('bg-emerald-600', 'text-white');
+        btnText.textContent = 'Exit';
+        if (pageHeader) pageHeader.style.display = 'none';
+    } else {
+        container.classList.remove('full-page-mode');
+        btn.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
+        btn.classList.remove('bg-emerald-600', 'text-white');
+        btnText.textContent = 'Full';
+        if (pageHeader) pageHeader.style.display = '';
+    }
+    localStorage.setItem('drillbitFullPageView', fullPageView);
+}
+
+// Restore preferences on load
+document.addEventListener('DOMContentLoaded', function() {
+    const savedFreeze = localStorage.getItem('drillbitFreezePanes');
+    const savedFullPage = localStorage.getItem('drillbitFullPageView');
+    if (savedFreeze === 'true') toggleFreezePanes();
+    if (savedFullPage === 'true') toggleFullPageView();
+});
+
+// Column filter state
 let currentColumn = null;
 let columnFilters = {};
 let allColumnValues = {};

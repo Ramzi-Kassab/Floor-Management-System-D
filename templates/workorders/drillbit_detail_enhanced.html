@@ -6,6 +6,12 @@
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
     <div class="flex items-start">
+        <!-- Back Link -->
+        <a href="{% url 'workorders:drillbit_list_enhanced' %}"
+           class="mr-3 inline-flex items-center px-2 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg"
+           title="Back to Drill Bits">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
         {% if qr_code %}
         <div class="hidden md:block mr-4 bg-white p-2 rounded-lg shadow-sm">
             <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code" class="w-20 h-20">
@@ -65,8 +71,24 @@
                     <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.size.size_display|default:"--" }}</p>
                 </div>
                 <div>
-                    <p class="text-gray-500 dark:text-gray-400">BOM (L5)</p>
-                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.bom.code|default:"--" }}</p>
+                    <p class="text-gray-500 dark:text-gray-400">🔧 Brazing BOM (L5)</p>
+                    {% if drill_bit.brazing_bom %}
+                    <a href="{% url 'technology:bom_detail' drill_bit.brazing_bom.pk %}"
+                       class="font-medium text-orange-600 dark:text-orange-400 font-mono hover:underline">{{ drill_bit.brazing_bom.code }}</a>
+                    {% else %}
+                    <p class="font-medium text-gray-400 dark:text-gray-500">--</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">📋 System BOM (L5)</p>
+                    {% if drill_bit.system_bom %}
+                    <a href="{% url 'technology:bom_detail' drill_bit.system_bom.pk %}"
+                       class="font-medium text-blue-600 dark:text-blue-400 font-mono hover:underline">{{ drill_bit.system_bom.code }}</a>
+                    {% elif drill_bit.brazing_bom.system_mat_no %}
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.brazing_bom.system_mat_no }}</p>
+                    {% else %}
+                    <p class="font-medium text-gray-400 dark:text-gray-500">--</p>
+                    {% endif %}
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Customer</p>

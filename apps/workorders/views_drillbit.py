@@ -1126,6 +1126,9 @@ class DrillBitSearchAPIView(LoginRequiredMixin, View):
                 "lifecycle_status": bit.get_lifecycle_status_display() if hasattr(bit, 'lifecycle_status') else None,
                 "location": bit.bit_location.name if bit.bit_location else None,
                 "customer": bit.customer.name if bit.customer else None,
+                # BOM linkage info for the linking dialog
+                "brazing_bom_id": bit.brazing_bom_id if hasattr(bit, 'brazing_bom_id') else None,
+                "system_bom_id": bit.system_bom_id if hasattr(bit, 'system_bom_id') else None,
             }
             for bit in bits
         ]

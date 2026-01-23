@@ -194,16 +194,20 @@
 
                 <hr class="border-gray-200 dark:border-gray-700 mb-4">
 
-                <!-- Serial Number Selection (Optional) -->
+                <!-- Serial Number Selection (Optional - Multi-select) -->
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         <i data-lucide="hash" class="w-4 h-4 inline mr-1"></i>
-                        Link to Serial Number (Optional)
+                        Link to Serial Numbers (Optional)
                     </label>
-                    <select id="serial-number-select" class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm">
-                        <option value="">-- No specific serial --</option>
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1">Select a drill bit to create a BOM tailored for it</p>
+                    <div id="serial-number-container" class="border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 max-h-40 overflow-y-auto">
+                        <div class="p-3 text-sm text-gray-500 dark:text-gray-400">
+                            Select a design first to see available drill bits
+                        </div>
+                    </div>
+                    <div id="selected-sn-count" class="text-xs text-gray-500 mt-1">
+                        Select drill bits to link this BOM to multiple serial numbers
+                    </div>
                 </div>
 
                 <!-- Action Button -->
@@ -304,27 +308,93 @@
     }
 
     function loadDrillBitsForDesign(designId) {
-        const select = document.getElementById('serial-number-select');
-        select.innerHTML = '<option value="">Loading...</option>';
+        const container = document.getElementById('serial-number-container');
+        container.innerHTML = '<div class="p-3 text-sm text-gray-500 dark:text-gray-400">Loading...</div>';
 
         fetch(`/workorders/api/drill-bits/search/?design_id=${designId}`)
             .then(r => r.json())
             .then(data => {
-                select.innerHTML = '<option value="">-- No specific serial --</option>';
                 if (data.results && data.results.length > 0) {
+                    let html = `
+                        <div class="p-2 bg-gray-50 dark:bg-gray-600 border-b border-gray-200 dark:border-gray-500 sticky top-0">
+                            <label class="flex items-center gap-2 cursor-pointer text-xs">
+                                <input type="checkbox" id="select-all-sns" onchange="toggleAllSerialNumbers(this.checked)"
+                                       class="rounded text-purple-600 focus:ring-purple-500">
+                                <span class="font-medium text-gray-700 dark:text-gray-300">Select All (${data.results.length})</span>
+                            </label>
+                        </div>
+                        <div class="divide-y divide-gray-100 dark:divide-gray-600">
+                    `;
                     data.results.forEach(bit => {
-                        const option = document.createElement('option');
-                        option.value = bit.id;
-                        option.dataset.serialNumber = bit.serial_number;
-                        option.textContent = `SN: ${bit.serial_number} - ${bit.lifecycle_status || 'Unknown'}`;
-                        select.appendChild(option);
+                        const statusColor = bit.lifecycle_status === 'ACTIVE' ? 'text-green-600' :
+                                           bit.lifecycle_status === 'NEW' ? 'text-blue-600' : 'text-gray-500';
+                        html += `
+                            <label class="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
+                                <input type="checkbox" name="drillbit_ids" value="${bit.id}"
+                                       data-serial-number="${bit.serial_number}"
+                                       onchange="updateSelectedSNCount()"
+                                       class="sn-checkbox rounded text-purple-600 focus:ring-purple-500">
+                                <div class="flex-1 min-w-0">
+                                    <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">
+                                        SN: ${bit.serial_number}
+                                    </span>
+                                    <span class="text-xs ${statusColor} ml-2">
+                                        ${bit.lifecycle_status || 'Unknown'}
+                                    </span>
+                                </div>
+                            </label>
+                        `;
                     });
+                    html += '</div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = `
+                        <div class="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                            <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                            No drill bits registered for this design
+                        </div>
+                    `;
                 }
+                updateSelectedSNCount();
+                if (typeof lucide !== 'undefined') lucide.createIcons();
             })
             .catch(err => {
                 console.error('Error loading drill bits:', err);
-                select.innerHTML = '<option value="">-- No specific serial --</option>';
+                container.innerHTML = `
+                    <div class="p-3 text-sm text-red-500 text-center">
+                        Error loading drill bits
+                    </div>
+                `;
             });
+    }
+
+    function toggleAllSerialNumbers(checked) {
+        document.querySelectorAll('.sn-checkbox').forEach(cb => cb.checked = checked);
+        updateSelectedSNCount();
+    }
+
+    function updateSelectedSNCount() {
+        const selected = document.querySelectorAll('.sn-checkbox:checked');
+        const countEl = document.getElementById('selected-sn-count');
+        if (selected.length === 0) {
+            countEl.innerHTML = 'Select drill bits to link this BOM to multiple serial numbers';
+            countEl.className = 'text-xs text-gray-500 mt-1';
+        } else if (selected.length === 1) {
+            const sn = selected[0].dataset.serialNumber;
+            countEl.innerHTML = `<span class="text-purple-600 font-medium">✓ 1 serial number selected: ${sn}</span>`;
+            countEl.className = 'text-xs mt-1';
+        } else {
+            countEl.innerHTML = `<span class="text-purple-600 font-medium">✓ ${selected.length} serial numbers selected</span>`;
+            countEl.className = 'text-xs mt-1';
+        }
+    }
+
+    function getSelectedDrillBitIds() {
+        const checkboxes = document.querySelectorAll('.sn-checkbox:checked');
+        return Array.from(checkboxes).map(cb => ({
+            id: cb.value,
+            serial_number: cb.dataset.serialNumber
+        }));
     }
 
     // Clear selection
@@ -382,12 +452,15 @@
             from: 'bom_create'
         });
 
-        // Include serial number if selected
-        const serialSelect = document.getElementById('serial-number-select');
-        if (serialSelect && serialSelect.value) {
-            const selectedOption = serialSelect.options[serialSelect.selectedIndex];
-            params.set('drillbit_id', serialSelect.value);
-            params.set('serial_number', selectedOption.dataset.serialNumber || '');
+        // Include selected serial numbers (multiple)
+        const selectedBits = getSelectedDrillBitIds();
+        if (selectedBits.length > 0) {
+            // Pass as JSON-encoded array
+            params.set('drillbit_ids', JSON.stringify(selectedBits.map(b => b.id)));
+            params.set('serial_numbers', JSON.stringify(selectedBits.map(b => b.serial_number)));
+            // Also pass first one for backwards compatibility
+            params.set('drillbit_id', selectedBits[0].id);
+            params.set('serial_number', selectedBits[0].serial_number);
         }
 
         window.location.href = `/cutter-map/?${params.toString()}`;
