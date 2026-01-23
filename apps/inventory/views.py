@@ -758,6 +758,8 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         return errors
 
     def form_valid(self, form):
+        from django.db import IntegrityError
+
         # Validate unique attributes before saving
         errors = self.validate_unique_attributes(form)
         if errors:
@@ -771,9 +773,23 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
         if not form.instance.code and form.instance.category:
             form.instance.code = form.instance.category.generate_next_code()
 
-        # Save the form first to get the item object
-        response = super().form_valid(form)
-        item = self.object
+        # Check if code already exists before saving
+        if form.instance.code:
+            existing = InventoryItem.objects.filter(code=form.instance.code)
+            if existing.exists():
+                form.add_error('code', f"Item code '{form.instance.code}' already exists.")
+                return self.form_invalid(form)
+
+        try:
+            # Save the form first to get the item object
+            response = super().form_valid(form)
+            item = self.object
+        except IntegrityError as e:
+            if 'code' in str(e).lower() or 'unique' in str(e).lower():
+                form.add_error('code', f"Item code '{form.instance.code}' already exists. Please use a different code.")
+            else:
+                form.add_error(None, f"Database error: {e}")
+            return self.form_invalid(form)
 
         # Process attribute values from POST data
         for key, value in self.request.POST.items():
