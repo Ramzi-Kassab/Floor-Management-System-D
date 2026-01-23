@@ -102,6 +102,13 @@ InventoryItem
 - **Serial numbers display**: Shows all selected serial numbers that will be linked
 - **Confirm/Cancel**: User must confirm to proceed with BOM creation
 
+### BOM Edit Protection (Linked Serial Numbers)
+- **Linked SN warning**: When editing a BOM that's linked to drill bits, shows warning with affected SNs
+- **Save options**: Choice between "Update existing BOM" or "Create as new BOM" when editing
+- **Auto-suffix for new BOM**: When creating as new, generates unique code with `-001`, `-002` suffix
+- **Safe default**: If BOM has linked SNs, "Create as new BOM" is pre-selected to prevent accidental overwrites
+- **API enhancement**: `force_create_new` flag in `api_sync_to_erp` to always create new BOM
+
 ### BOM List Page Enhancements
 - **Linked SNs column**: New column showing all drill bits linked to each BOM (via brazing_bom or system_bom)
 - **Removed "Primary" labels**: No longer shows "Primary" badge next to Brazing/System MAT

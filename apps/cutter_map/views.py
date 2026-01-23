@@ -106,6 +106,7 @@ def bom_view(request, bom_id):
     Otherwise, opens in view-only mode with limited controls.
     """
     from apps.technology.models import BOM
+    from apps.workorders.models import DrillBit
 
     bom = get_object_or_404(BOM, pk=bom_id)
     edit_mode = request.GET.get('edit', '0') == '1'
@@ -118,6 +119,11 @@ def bom_view(request, bom_id):
             'bom': bom,
             'message': 'This BOM does not have saved layout data. It may have been created manually.'
         })
+
+    # Check if BOM is linked to any drill bits (for warning when editing)
+    brazing_linked = list(DrillBit.objects.filter(brazing_bom=bom).values_list('serial_number', flat=True))
+    system_linked = list(DrillBit.objects.filter(system_bom=bom).values_list('serial_number', flat=True))
+    linked_serial_numbers = list(set(brazing_linked + system_linked))
 
     # Build context for template
     bom_context = {
@@ -132,7 +138,8 @@ def bom_view(request, bom_id):
         'smi_type': bom.smi_type.smi_name if bom.smi_type else (bom.design.smi_type if bom.design else ''),
         'edit_mode': edit_mode,
         'from_bom_view': True,
-        'source_data': json.dumps(bom.source_data)  # Pre-serialized for JS
+        'source_data': json.dumps(bom.source_data),  # Pre-serialized for JS
+        'linked_serial_numbers': json.dumps(linked_serial_numbers),  # SNs linked to this BOM
     }
 
     form = CutterMapUploadForm()
@@ -750,19 +757,41 @@ def api_sync_to_erp(request):
         l5_mat = brazing_mat or header.get('mat_number', f'L5-{parent_design_mat}')
         bom_code = l5_mat
 
+        # Check for force_create_new flag - always create a new BOM even if code exists
+        force_create_new = payload.get('force_create_new', False)
+
         # Check if BOM already exists
         existing_bom = BOM.objects.filter(code=bom_code).first()
         bom_was_updated = False
         previous_lines_count = 0
+        linked_drillbits_warning = []
 
         if existing_bom:
-            previous_lines_count = existing_bom.lines.count()
-            existing_bom.lines.all().delete()
-            existing_bom.bom_type = bom_type  # Update BOM type on existing BOM
-            existing_bom.system_mat_no = system_mat  # Update System MAT
-            bom = existing_bom
-            bom_was_updated = True
-        else:
+            # Check if existing BOM is linked to any drill bits
+            from apps.workorders.models import DrillBit
+            brazing_linked = DrillBit.objects.filter(brazing_bom=existing_bom).values_list('serial_number', flat=True)
+            system_linked = DrillBit.objects.filter(system_bom=existing_bom).values_list('serial_number', flat=True)
+            linked_drillbits_warning = list(set(list(brazing_linked) + list(system_linked)))
+
+            if force_create_new:
+                # Generate a new unique BOM code by appending suffix
+                suffix = 1
+                new_code = f"{bom_code}-{suffix:03d}"
+                while BOM.objects.filter(code=new_code).exists():
+                    suffix += 1
+                    new_code = f"{bom_code}-{suffix:03d}"
+                bom_code = new_code
+                existing_bom = None  # Force creation of new BOM
+            else:
+                # Update existing BOM (original behavior)
+                previous_lines_count = existing_bom.lines.count()
+                existing_bom.lines.all().delete()
+                existing_bom.bom_type = bom_type  # Update BOM type on existing BOM
+                existing_bom.system_mat_no = system_mat  # Update System MAT
+                bom = existing_bom
+                bom_was_updated = True
+
+        if not existing_bom or force_create_new:
             bom = BOM.objects.create(
                 design=parent_design,
                 code=bom_code,
@@ -1100,6 +1129,7 @@ def api_sync_to_erp(request):
             # BOM update info
             'bom_was_updated': bom_was_updated,
             'previous_lines_count': previous_lines_count if bom_was_updated else 0,
+            'linked_drillbits_warning': linked_drillbits_warning,  # SNs linked to original BOM (if any)
             # Inventory matching statistics
             'inventory_stats': {
                 'items_matched': items_matched,
