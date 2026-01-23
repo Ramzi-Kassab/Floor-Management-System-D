@@ -72,6 +72,52 @@ InventoryItem
 
 ## Recent Changes (Jan 23, 2026)
 
+### ERP Stock Import from On-hand.xlsx
+New management command to import stock quantities directly from ERP On-hand export file:
+
+```bash
+python manage.py import_stock_from_onhand           # Preview mode
+python manage.py import_stock_from_onhand --confirm # Actually import
+python manage.py import_stock_from_onhand --verbose --confirm
+```
+
+**ERP Item Prefix → Variant Case Mapping:**
+| ERP Prefix | Variant Case | Description |
+|------------|--------------|-------------|
+| `CT-*` | NEW-PUR | New Stock (Purchased) |
+| `ENO-CT-*` | NEW-EO | ENO As New Cutter |
+| `RCLM-ARDT-*` | USED-RCL | ARDT Reclaimed |
+| `RCLM-*` | NEW-CLI | LSTK/Client Reclaimed |
+| `RTRO-*` | NEW-RET | Retrofit as New |
+
+**On-hand.xlsx Structure:**
+- Headers in row 6 (rows 1-5 are metadata)
+- Column A: Item number (ERP prefix determines variant)
+- Column E: Color (HDBS MAT number for matching)
+- Column H: Warehouse (Store, R Warehous, Shopfloor)
+- Column J: Available physical (quantity)
+
+**New Files:**
+- `apps/inventory/management/commands/import_stock_from_onhand.py`
+- Sidebar link: PDC Cutters > Stock Import (ERP) → `/inventory/stock/import/`
+
+### Item List Page Pagination
+- **Page size selector**: 25, 50, 100, 200, 500, All options
+- **Record count display**: Shows "1-50 of 301" or "301 records" when showing all
+- **Updated pagination**: First/Last page buttons, preserves page_size in links
+- **URL**: `/inventory/?category=CUT-PDC&page_size=100`
+
+### Inventory Item Delete Protection
+- **GRNLine checking**: Prevents delete if item has GRN line references
+- **ProtectedError handling**: Catches Django's ProtectedError gracefully
+- **User-friendly message**: Shows which model types are blocking deletion
+- **Suggestion**: Recommends blocking item instead of deleting
+
+### Cutter Inventory Template Fix
+- **Fixed flex layout**: filterNotification div moved inside cutter-header-section
+- **Issue**: Extra `</div>` was breaking the freeze-mode flex container
+- **Result**: Page now displays correctly with all columns visible
+
 ### Multiple Serial Number Selection for BOM
 - **Multi-select SNs**: When creating a BOM, user can select multiple drill bits (serial numbers) to link
 - **Checkbox UI**: Added checkboxes for each available drill bit with "Select All" option
