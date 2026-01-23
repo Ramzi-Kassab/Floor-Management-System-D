@@ -176,7 +176,19 @@ class DrillBit(models.Model):
     bom = models.ForeignKey(
         "technology.BOM", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="drill_bits",
-        help_text="L5 BOM used to manufacture this drill bit"
+        help_text="Legacy: L5 BOM (use brazing_bom/system_bom instead)"
+    )
+    brazing_bom = models.ForeignKey(
+        "technology.BOM", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="drillbits_brazing",
+        verbose_name="Brazing BOM",
+        help_text="L5 Brazing BOM - internal/production (may have cutter suffix)"
+    )
+    system_bom = models.ForeignKey(
+        "technology.BOM", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="drillbits_system",
+        verbose_name="System BOM",
+        help_text="L5 System BOM - client-facing (fixed MAT#)"
     )
     size = models.DecimalField(max_digits=6, decimal_places=3, help_text="Size in inches")
     iadc_code = models.CharField(max_length=20, blank=True)
@@ -554,6 +566,18 @@ class WorkOrder(models.Model):
     system_mat_no = models.CharField(
         max_length=50, blank=True,
         help_text="System L5 MAT# - Fixed, shared with client/sales"
+    )
+    brazing_bom = models.ForeignKey(
+        "technology.BOM", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="workorders_brazing",
+        verbose_name="Brazing BOM",
+        help_text="L5 Brazing BOM - internal/production"
+    )
+    system_bom = models.ForeignKey(
+        "technology.BOM", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="workorders_system",
+        verbose_name="System BOM",
+        help_text="L5 System BOM - client-facing"
     )
     drss_no = models.CharField(
         max_length=50, blank=True,

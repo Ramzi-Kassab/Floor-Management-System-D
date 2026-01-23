@@ -325,8 +325,13 @@ class DrillBitListEnhancedView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = DrillBit.objects.select_related(
-            "design", "design__size", "bom",
+            "design", "design__size", "design__connection_ref",
+            "design__iadc_code_ref", "design__breaker_slot",
+            "design__application_ref", "design__formation_type_ref",
+            "bom", "brazing_bom", "system_bom",
             "customer", "rig", "well", "current_location", "bit_location"
+        ).prefetch_related(
+            "design__special_technologies"
         ).order_by("-created_at")
 
         # Filters

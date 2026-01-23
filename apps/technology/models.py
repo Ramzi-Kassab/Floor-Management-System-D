@@ -988,7 +988,18 @@ class BOM(models.Model):
         PDF_IMPORT = "PDF_IMPORT", "PDF Import"
         ERP_SYNC = "ERP_SYNC", "ERP Sync"
 
+    class BOMType(models.TextChoices):
+        BRAZING = "BRAZING", "Brazing BOM"
+        SYSTEM = "SYSTEM", "System BOM"
+
     design = models.ForeignKey(Design, on_delete=models.CASCADE, related_name="boms")
+    bom_type = models.CharField(
+        max_length=20,
+        choices=BOMType.choices,
+        default=BOMType.SYSTEM,
+        verbose_name='BOM Type',
+        help_text='Brazing BOM (internal/production) or System BOM (client-facing)'
+    )
     smi_type = models.ForeignKey(
         'SMIType',
         on_delete=models.SET_NULL,
