@@ -269,9 +269,8 @@
                             </div>
                         </div>
                         <p class="text-xs font-medium text-gray-500 mb-2">Basic</p>
-                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.erp_item_no" @change="savePreferences()"> ERP Item No.</label>
                         <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.mat_number" @change="savePreferences()"> HDBS#</label>
-                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.name" @change="savePreferences()"> Product Name</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.name" @change="savePreferences()"> Name</label>
                         <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.category" @change="savePreferences()"> Category</label>
                         <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.item_type" @change="savePreferences()"> Type</label>
                         <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.supplier" @change="savePreferences()"> Supplier</label>
@@ -306,21 +305,15 @@
                 <thead class="bg-gray-50 dark:bg-gray-700/50">
                     <tr class="text-gray-500 dark:text-gray-400">
                         <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700" :class="freezePanes ? 'freeze-col-1' : ''">#</th>
-                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700 relative" x-show="columns.erp_item_no" data-column="erp_item_no" data-type="text">
-                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white whitespace-nowrap" onclick="toggleColumnMenu(event, 'erp_item_no')">
-                                <span>ERP Item No.</span>
-                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
-                            </div>
-                        </th>
                         <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700 relative" :class="freezePanes ? 'freeze-col-2' : ''" x-show="columns.mat_number" data-column="mat_number" data-type="text">
                             <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white whitespace-nowrap" onclick="toggleColumnMenu(event, 'mat_number')">
                                 <span>HDBS#</span>
                                 <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                             </div>
                         </th>
-                        <th class="px-2 py-2 text-left font-medium relative min-w-[180px]" x-show="columns.name" data-column="name" data-type="text">
+                        <th class="px-2 py-2 text-left font-medium relative min-w-[150px]" x-show="columns.name" data-column="name" data-type="text">
                             <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white whitespace-nowrap" onclick="toggleColumnMenu(event, 'name')">
-                                <span>Product Name</span>
+                                <span>Name</span>
                                 <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
                             </div>
                         </th>
@@ -382,15 +375,13 @@
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.is_low_stock %}low-stock bg-red-50 dark:bg-red-900/10{% endif %}">
                         <td class="px-2 py-2 text-gray-400 text-center {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
                             :class="freezePanes ? 'freeze-col-1-body' : ''">{{ row.row_num }}</td>
-                        <td class="px-2 py-2 font-mono text-xs text-gray-500 {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
-                            x-show="columns.erp_item_no" data-value="{{ row.item_number }}">{{ row.item_number|default:"-" }}</td>
                         <td class="px-2 py-2 font-mono text-xs font-medium {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
                             :class="freezePanes ? 'freeze-col-2-body' : ''" x-show="columns.mat_number" data-value="{{ row.mat_number }}">
                             <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-blue-600 hover:text-blue-800 hover:underline" title="Open {{ row.name }}">
                                 {{ row.mat_number }}
                             </a>
                         </td>
-                        <td class="px-2 py-2 min-w-[180px]" x-show="columns.name" data-value="{{ row.name }}">
+                        <td class="px-2 py-2 min-w-[150px]" x-show="columns.name" data-value="{{ row.name }}">
                             <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-gray-900 dark:text-white hover:text-blue-600">{{ row.name }}</a>
                         </td>
                         <td class="px-2 py-2 text-gray-600 dark:text-gray-300" x-show="columns.category" data-value="{{ row.category }}">{{ row.category }}</td>
@@ -569,7 +560,6 @@
 
     // Default column visibility
     const defaultColumns = {
-        erp_item_no: false,    // ERP Item Number - hidden by default
         mat_number: true,      // HDBS# - shown by default
         name: true,
         category: true,

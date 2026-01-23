@@ -761,6 +761,28 @@ class ItemCreateView(LoginRequiredMixin, CreateView):
 
         return errors
 
+    def post(self, request, *args, **kwargs):
+        """Override post to preserve attribute values if form fails validation."""
+        self.object = None
+        form = self.get_form()
+
+        # Store attribute values from POST to preserve them if form fails
+        self._attr_values = {k: v for k, v in request.POST.items() if k.startswith('attr_')}
+
+        if form.is_valid():
+            return self.form_valid(form)
+        else:
+            return self.form_invalid(form)
+
+    def form_invalid(self, form):
+        """Preserve attribute values when form is invalid."""
+        import json
+        context = self.get_context_data(form=form)
+        # Pass preserved attribute values to context so JavaScript can repopulate them
+        if hasattr(self, '_attr_values'):
+            context['preserved_attribute_values'] = json.dumps(self._attr_values)
+        return self.render_to_response(context)
+
     def form_valid(self, form):
         from django.db import IntegrityError
 

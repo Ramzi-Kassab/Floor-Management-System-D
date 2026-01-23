@@ -512,6 +512,7 @@ function itemForm() {
         attributes: [],
         attributeValues: {},
         existingAttributeValues: {{ existing_attribute_values|safe|default:"{}" }},
+        preservedAttributeValues: {{ preserved_attribute_values|safe|default:"{}" }},
 
         // Cost
         standardCost: parseFloat('{{ form.standard_cost.value|default:"0" }}') || 0,
@@ -705,7 +706,12 @@ function itemForm() {
 
                 this.attributeValues = {};
                 this.attributes.forEach(attr => {
-                    if (this.existingAttributeValues[attr.code] !== undefined) {
+                    // Check preserved values from failed form submission first (uses attr_<id> format)
+                    const preservedKey = `attr_${attr.id}`;
+                    if (this.preservedAttributeValues && this.preservedAttributeValues[preservedKey] !== undefined) {
+                        this.attributeValues[attr.code] = this.preservedAttributeValues[preservedKey];
+                    } else if (this.existingAttributeValues[attr.code] !== undefined) {
+                        // Then check existing values from clone/edit (uses attr code format)
                         this.attributeValues[attr.code] = this.existingAttributeValues[attr.code];
                     } else {
                         this.attributeValues[attr.code] = attr.attribute_type === 'BOOLEAN' ? false : '';
