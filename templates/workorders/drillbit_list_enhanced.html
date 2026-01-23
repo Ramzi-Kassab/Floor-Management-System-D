@@ -552,7 +552,23 @@ function toggleColumnMenu(event, column) {
     currentColumn = column;
     const valuesList = document.getElementById('columnValuesList');
     valuesList.innerHTML = '';
-    const values = allColumnValues[column] || [];
+
+    // Collect values from VISIBLE rows only (cascading filter behavior)
+    const visibleValues = new Set();
+    const rows = document.querySelectorAll('#drillBitTable tbody tr.data-row');
+    const headers = document.querySelectorAll('#drillBitTable thead th[data-column]');
+    const colIndex = Array.from(headers).findIndex(h => h.dataset.column === column);
+
+    rows.forEach(row => {
+        // Skip hidden rows (filtered out by other columns)
+        if (row.style.display === 'none') return;
+        const td = row.querySelectorAll('td[data-value]')[colIndex];
+        if (td) {
+            visibleValues.add(td.dataset.value || '(empty)');
+        }
+    });
+
+    const values = Array.from(visibleValues).sort();
     const selectedValues = columnFilters[column] || new Set(values);
     values.forEach(value => {
         const label = document.createElement('label');
@@ -566,6 +582,8 @@ function toggleColumnMenu(event, column) {
     menu.style.top = `${rect.bottom + 5}px`;
     menu.classList.remove('hidden');
     document.getElementById('columnFilterSearch').value = '';
+    // Store current visible values for applyColumnFilter
+    window.currentVisibleValues = values;
 }
 
 function filterColumnValues(searchText) {
@@ -591,7 +609,9 @@ function clearColumnFilter() {
 function applyColumnFilter() {
     const selected = new Set();
     document.querySelectorAll('#columnValuesList input[type="checkbox"]:checked').forEach(cb => selected.add(cb.dataset.value));
-    if (selected.size === (allColumnValues[currentColumn] || []).length) {
+    // Use current visible values count instead of all column values
+    const visibleValuesCount = window.currentVisibleValues ? window.currentVisibleValues.length : (allColumnValues[currentColumn] || []).length;
+    if (selected.size === visibleValuesCount) {
         delete columnFilters[currentColumn];
     } else {
         columnFilters[currentColumn] = selected;
