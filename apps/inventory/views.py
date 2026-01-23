@@ -1831,12 +1831,44 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         context["cutter_data"] = cutter_data
         context["variant_codes"] = variant_codes
 
-        # Summary stats
+        # Summary stats - basic counts
         context["total_cutters"] = len(cutter_data)
         context["total_stock"] = sum(r["total_stock"] for r in cutter_data)
         context["total_new_stock"] = sum(r["total_new"] for r in cutter_data)
         context["total_on_order"] = sum(r["on_order"] for r in cutter_data)
         context["below_safety_count"] = sum(1 for r in cutter_data if r["below_safety"])
+
+        # Summary stats - variant totals
+        context["total_eno_new"] = sum(r["variants"].get("NEW-EO", Decimal("0")) for r in cutter_data)
+        context["total_eno_grd"] = sum(r["variants"].get("USED-GRD", Decimal("0")) for r in cutter_data)
+        context["total_ardt_rcl"] = sum(r["variants"].get("USED-RCL", Decimal("0")) for r in cutter_data)
+        context["total_lstk_rcl"] = sum(r["lstk_rcl"] for r in cutter_data)
+        context["total_retrofit"] = sum(r["variants"].get("NEW-RET", Decimal("0")) for r in cutter_data)
+        context["total_new_pur"] = sum(r["new_stock"] for r in cutter_data)
+
+        # Summary stats - consumption
+        context["total_consumption_2m"] = sum(r["consumption_2m"] for r in cutter_data)
+        context["total_consumption_3m"] = sum(r["consumption_3m"] for r in cutter_data)
+        context["total_consumption_6m"] = sum(r["consumption_6m"] for r in cutter_data)
+
+        # Summary stats - planning
+        context["total_bom_req"] = sum(r["bom_requirement"] for r in cutter_data)
+        context["total_forecast"] = sum(r["forecast"] for r in cutter_data)
+
+        # Summary stats - calculated health metrics
+        total_cutters = len(cutter_data)
+        total_stock = context["total_stock"]
+        below_safety = context["below_safety_count"]
+        total_new = context["total_new_stock"]
+        consumption_2m = context["total_consumption_2m"]
+
+        context["avg_stock_per_item"] = (total_stock / total_cutters) if total_cutters > 0 else Decimal("0")
+        context["health_percent"] = ((total_cutters - below_safety) / total_cutters * 100) if total_cutters > 0 else 100
+        if consumption_2m > 0:
+            coverage = total_new / consumption_2m
+            context["coverage_months"] = f"{coverage:.1f}mo"
+        else:
+            context["coverage_months"] = "∞"
 
         # Filters - removed supplier filter (only Halliburton supplies PDC cutters)
         context["current_search"] = self.request.GET.get("search", "")
@@ -3231,6 +3263,14 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
         from openpyxl.utils import get_column_letter
         from io import BytesIO
 
+        # Get export options from request
+        columns_option = request.GET.get('columns', 'all')  # 'all' or 'visible'
+        records_option = request.GET.get('records', 'all')  # 'all' or 'filtered'
+        include_summary = request.GET.get('summary', '') == '1'
+        include_formulas = request.GET.get('formulas', '') == '1'
+        visible_cols = request.GET.get('visible_cols', '').split(',') if request.GET.get('visible_cols') else []
+        item_ids = request.GET.get('item_ids', '').split(',') if request.GET.get('item_ids') else []
+
         # Get PDC Cutters category
         try:
             category = InventoryCategory.objects.get(code="CUT-PDC")
@@ -3275,6 +3315,10 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
             )
         ).order_by("code")
 
+        # Filter by specific item IDs if filtered export
+        if records_option == 'filtered' and item_ids:
+            cutters = cutters.filter(pk__in=[int(pk) for pk in item_ids if pk.isdigit()])
+
         # Date ranges for consumption
         today = timezone.now().date()
         two_months_ago = today - timedelta(days=60)
@@ -3302,13 +3346,45 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
             bottom=Side(style='thin')
         )
 
-        # Build header row
-        header = ["#", "Code", "Product Name"]
+        # Define all possible columns with their keys (for filtering)
+        # Key format matches the Alpine.js columns object
+        all_columns = [
+            {"key": "row_num", "name": "#", "always_visible": True},
+            {"key": "attr_hdbs_code", "name": "MN", "always_visible": False},
+            {"key": "product_name", "name": "Product Name", "always_visible": True},
+        ]
+        # Add attribute columns
         for attr in all_attributes:
-            header.append(attr["name"])
-        header.extend(["ENO New", "ENO Grd", "ARDT Rcl", "LSTK Rcl", "Retrofit", "New Stock", "Total New",
-                      "6M Cons", "3M Cons", "2M Cons",
-                      "Safety Stock", "BOM Req", "On Order", "Forecast", "Remarks"])
+            if attr["code"].lower() not in ["hdbs_code", "hdbs", "cutter_hdbs"]:  # MN is handled separately
+                all_columns.append({"key": f"attr_{attr['code']}", "name": attr["name"], "always_visible": False})
+        # Add stock and computed columns
+        all_columns.extend([
+            {"key": "eno_new", "name": "ENO New", "always_visible": False},
+            {"key": "eno_grd", "name": "ENO Grd", "always_visible": False},
+            {"key": "ardt_rcl", "name": "ARDT Rcl", "always_visible": False},
+            {"key": "lstk_rcl", "name": "LSTK Rcl", "always_visible": False},
+            {"key": "retrofit", "name": "Retrofit", "always_visible": False},
+            {"key": "new_stock", "name": "New Stock", "always_visible": False},
+            {"key": "total_new", "name": "Total New", "always_visible": False},
+            {"key": "cons_6m", "name": "6M Cons", "always_visible": False},
+            {"key": "cons_3m", "name": "3M Cons", "always_visible": False},
+            {"key": "cons_2m", "name": "2M Cons", "always_visible": False},
+            {"key": "safety", "name": "Safety Stock", "always_visible": False},
+            {"key": "bom_req", "name": "BOM Req", "always_visible": False},
+            {"key": "on_order", "name": "On Order", "always_visible": False},
+            {"key": "forecast", "name": "Forecast", "always_visible": False},
+            {"key": "remarks", "name": "Remarks", "always_visible": False},
+        ])
+
+        # Filter columns if visible_cols specified
+        if columns_option == 'visible' and visible_cols:
+            export_columns = [col for col in all_columns if col["always_visible"] or col["key"] in visible_cols]
+        else:
+            export_columns = all_columns
+
+        # Build header row from filtered columns
+        header = [col["name"] for col in export_columns]
+        column_keys = [col["key"] for col in export_columns]
 
         # Write header
         for col_num, value in enumerate(header, 1):
@@ -3389,26 +3465,42 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
             # Calculate forecast
             forecast = total_new + on_order - bom_requirement
 
-            # Build row
-            row = [row_num, cutter.code, cutter.name]
-            row.extend(attr_values)
-            row.extend([
-                float(variant_stock.get("NEW-EO", 0)),
-                float(variant_stock.get("USED-GRD", 0)),
-                float(variant_stock.get("USED-RCL", 0)),
-                float(lstk_rcl),
-                float(variant_stock.get("NEW-RET", 0)),  # Retrofit
-                float(new_stock),
-                float(total_new),
-                float(abs(consumption_6m)),
-                float(abs(consumption_3m)),
-                float(abs(consumption_2m)),
-                float(safety_stock),
-                float(bom_requirement),
-                float(on_order),
-                float(forecast),
-                cutter.notes or ""
-            ])
+            # Build all data values indexed by key
+            all_data = {
+                "row_num": row_num,
+                "attr_hdbs_code": self._get_attribute_value_by_code(cutter, "hdbs_code"),
+                "product_name": cutter.name,
+                "eno_new": float(variant_stock.get("NEW-EO", 0)),
+                "eno_grd": float(variant_stock.get("USED-GRD", 0)),
+                "ardt_rcl": float(variant_stock.get("USED-RCL", 0)),
+                "lstk_rcl": float(lstk_rcl),
+                "retrofit": float(variant_stock.get("NEW-RET", 0)),
+                "new_stock": float(new_stock),
+                "total_new": float(total_new),
+                "cons_6m": float(abs(consumption_6m)),
+                "cons_3m": float(abs(consumption_3m)),
+                "cons_2m": float(abs(consumption_2m)),
+                "safety": float(safety_stock),
+                "bom_req": float(bom_requirement),
+                "on_order": float(on_order),
+                "forecast": float(forecast),
+                "remarks": cutter.notes or "",
+            }
+            # Add attribute values
+            for attr in all_attributes:
+                all_data[f"attr_{attr['code']}"] = self._get_attribute_value_by_code(cutter, attr["code"])
+
+            # Build row using only the columns we're exporting
+            row = [all_data.get(key, "") for key in column_keys]
+
+            # Track totals for summary
+            if include_summary:
+                if row_num == 1:
+                    summary_totals = {k: 0 for k in ["eno_new", "eno_grd", "ardt_rcl", "lstk_rcl", "retrofit",
+                                                      "new_stock", "total_new", "cons_6m", "cons_3m", "cons_2m",
+                                                      "safety", "bom_req", "on_order", "forecast"]}
+                for key in summary_totals:
+                    summary_totals[key] += all_data.get(key, 0) or 0
 
             # Write row to Excel
             excel_row = row_num + 1  # +1 for header
@@ -3416,13 +3508,28 @@ class CutterInventoryExportView(LoginRequiredMixin, View):
                 cell = ws.cell(row=excel_row, column=col_num, value=value)
                 cell.border = thin_border
 
+        # Add summary row if requested
+        if include_summary and row_num > 0:
+            summary_row_num = row_num + 2  # Skip one row after data
+            summary_data = {"row_num": "", "product_name": "TOTALS"}
+            summary_data.update(summary_totals)
+            summary_row = [summary_data.get(key, "") for key in column_keys]
+
+            for col_num, value in enumerate(summary_row, 1):
+                cell = ws.cell(row=summary_row_num, column=col_num, value=value)
+                cell.border = thin_border
+                cell.font = Font(bold=True)
+                if isinstance(value, (int, float)) and value != 0:
+                    cell.fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+
         # Auto-size columns
         for col_num, _ in enumerate(header, 1):
             col_letter = get_column_letter(col_num)
             ws.column_dimensions[col_letter].width = 12
 
-        # Freeze header row and first 3 columns
-        ws.freeze_panes = 'D2'
+        # Freeze header row and first columns (adjust based on exported columns)
+        freeze_col = min(4, len(header))  # Freeze up to first 3 columns
+        ws.freeze_panes = f'{get_column_letter(freeze_col)}2'
 
         # Save to response
         output = BytesIO()

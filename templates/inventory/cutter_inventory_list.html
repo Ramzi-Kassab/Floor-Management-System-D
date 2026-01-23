@@ -221,9 +221,9 @@
         <p class="text-gray-600 dark:text-gray-400 mt-1">PDC Cutter inventory - matching Excel format</p>
     </div>
     <div class="mt-4 md:mt-0 flex gap-2">
-        <a href="{% url 'inventory:cutter_inventory_export' %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" title="Export to Excel">
+        <button type="button" onclick="openExportDialog()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" title="Export to Excel">
             <i data-lucide="file-spreadsheet" class="w-4 h-4 mr-2"></i>Export Excel
-        </a>
+        </button>
         <a href="{% url 'inventory:cutter_order_list' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <i data-lucide="shopping-cart" class="w-4 h-4 mr-2"></i>View Orders
         </a>
@@ -241,64 +241,130 @@
 <div class="cutter-header-section">
     <!-- Summary Cards (collapsible in full page view) -->
     <div id="summarySection" x-show="!fullPageView" x-transition>
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Total Cutters</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white mt-1">{{ total_cutters }}</p>
+        <!-- Row 1: Main Overview Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-3">
+            <!-- Total Cutters -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Items</p>
+                <p class="text-xl font-bold text-gray-900 dark:text-white">{{ total_cutters }}</p>
+            </div>
+            <!-- Total Stock -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Stock</p>
+                <p class="text-xl font-bold text-gray-700 dark:text-gray-200">{{ total_stock|floatformat:0 }}</p>
+            </div>
+            <!-- Total New -->
+            <div class="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg shadow-sm p-4 border border-emerald-100 dark:border-emerald-800">
+                <p class="text-xs text-emerald-600 dark:text-emerald-400 uppercase tracking-wide font-medium">Total New</p>
+                <p class="text-xl font-bold text-emerald-700 dark:text-emerald-300">{{ total_new_stock|floatformat:0 }}</p>
+            </div>
+            <!-- On Order -->
+            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow-sm p-4 border border-blue-100 dark:border-blue-800">
+                <p class="text-xs text-blue-600 dark:text-blue-400 uppercase tracking-wide font-medium">On Order</p>
+                <p class="text-xl font-bold text-blue-700 dark:text-blue-300">{{ total_on_order|floatformat:0 }}</p>
+            </div>
+            <!-- Forecast -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Forecast</p>
+                <p class="text-xl font-bold {% if total_forecast >= 0 %}text-green-600 dark:text-green-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ total_forecast|floatformat:0 }}</p>
+            </div>
+            <!-- Below Safety -->
+            <div class="{% if below_safety_count > 0 %}bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800{% else %}bg-white dark:bg-gray-800{% endif %} rounded-lg shadow-sm p-4">
+                <p class="text-xs {% if below_safety_count > 0 %}text-red-600 dark:text-red-400 font-medium{% else %}text-gray-500 dark:text-gray-400{% endif %} uppercase tracking-wide">Below Safety</p>
+                <p class="text-xl font-bold {% if below_safety_count > 0 %}text-red-700 dark:text-red-300{% else %}text-gray-900 dark:text-white{% endif %}">{{ below_safety_count }}</p>
+            </div>
+        </div>
+
+        <!-- Row 2: Stock by Variant -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-3">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Stock by Variant</h3>
+                <span class="text-xs text-gray-500">Quantities across all cutter types</span>
+            </div>
+            <div class="grid grid-cols-3 md:grid-cols-7 gap-3">
+                <!-- New Stock (NEW-PUR) -->
+                <div class="text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <p class="text-xs text-blue-600 dark:text-blue-400 font-medium">New Stock</p>
+                    <p class="text-lg font-bold text-blue-700 dark:text-blue-300">{{ total_new_pur|floatformat:0 }}</p>
+                    <p class="text-[10px] text-blue-500 dark:text-blue-400">NEW-PUR</p>
                 </div>
-                <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                    <i data-lucide="circle-dot" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                <!-- ENO New -->
+                <div class="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                    <p class="text-xs text-green-600 dark:text-green-400 font-medium">ENO New</p>
+                    <p class="text-lg font-bold text-green-700 dark:text-green-300">{{ total_eno_new|floatformat:0 }}</p>
+                    <p class="text-[10px] text-green-500 dark:text-green-400">NEW-EO</p>
+                </div>
+                <!-- ENO Ground -->
+                <div class="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                    <p class="text-xs text-green-600 dark:text-green-400 font-medium">ENO Grd</p>
+                    <p class="text-lg font-bold text-green-700 dark:text-green-300">{{ total_eno_grd|floatformat:0 }}</p>
+                    <p class="text-[10px] text-green-500 dark:text-green-400">USED-GRD</p>
+                </div>
+                <!-- ARDT Reclaim -->
+                <div class="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                    <p class="text-xs text-green-600 dark:text-green-400 font-medium">ARDT Rcl</p>
+                    <p class="text-lg font-bold text-green-700 dark:text-green-300">{{ total_ardt_rcl|floatformat:0 }}</p>
+                    <p class="text-[10px] text-green-500 dark:text-green-400">USED-RCL</p>
+                </div>
+                <!-- LSTK Reclaim -->
+                <div class="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                    <p class="text-xs text-green-600 dark:text-green-400 font-medium">LSTK Rcl</p>
+                    <p class="text-lg font-bold text-green-700 dark:text-green-300">{{ total_lstk_rcl|floatformat:0 }}</p>
+                    <p class="text-[10px] text-green-500 dark:text-green-400">CLI+LSTK</p>
+                </div>
+                <!-- Retrofit -->
+                <div class="text-center p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                    <p class="text-xs text-purple-600 dark:text-purple-400 font-medium">Retrofit</p>
+                    <p class="text-lg font-bold text-purple-700 dark:text-purple-300">{{ total_retrofit|floatformat:0 }}</p>
+                    <p class="text-[10px] text-purple-500 dark:text-purple-400">NEW-RET</p>
+                </div>
+                <!-- BOM Required -->
+                <div class="text-center p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                    <p class="text-xs text-orange-600 dark:text-orange-400 font-medium">BOM Req</p>
+                    <p class="text-lg font-bold text-orange-700 dark:text-orange-300">{{ total_bom_req|floatformat:0 }}</p>
+                    <p class="text-[10px] text-orange-500 dark:text-orange-400">Required</p>
                 </div>
             </div>
         </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Total Stock</p>
-                    <p class="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{{ total_stock|floatformat:0 }}</p>
-                </div>
-                <div class="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                    <i data-lucide="package" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
-                </div>
-            </div>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Total New</p>
-                    <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{{ total_new_stock|floatformat:0 }}</p>
-                </div>
-                <div class="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                    <i data-lucide="sparkles" class="w-6 h-6 text-emerald-600 dark:text-emerald-400"></i>
-                </div>
-            </div>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">On Order</p>
-                    <p class="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{{ total_on_order|floatformat:0 }}</p>
-                </div>
-                <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                    <i data-lucide="truck" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+
+        <!-- Row 3: Consumption Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Consumption Trends</h3>
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="text-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
+                        <p class="text-xs text-yellow-600 dark:text-yellow-400">6 Months</p>
+                        <p class="text-lg font-bold text-yellow-700 dark:text-yellow-300">{{ total_consumption_6m|floatformat:0 }}</p>
+                    </div>
+                    <div class="text-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
+                        <p class="text-xs text-yellow-600 dark:text-yellow-400">3 Months</p>
+                        <p class="text-lg font-bold text-yellow-700 dark:text-yellow-300">{{ total_consumption_3m|floatformat:0 }}</p>
+                    </div>
+                    <div class="text-center p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded">
+                        <p class="text-xs text-yellow-700 dark:text-yellow-300 font-medium">2 Months</p>
+                        <p class="text-lg font-bold text-yellow-800 dark:text-yellow-200">{{ total_consumption_2m|floatformat:0 }}</p>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Below Safety</p>
-                    <p class="text-2xl font-bold {% if below_safety_count > 0 %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %} mt-1">{{ below_safety_count }}</p>
-                </div>
-                <div class="w-12 h-12 rounded-full {% if below_safety_count > 0 %}bg-red-100 dark:bg-red-900/30{% else %}bg-gray-100 dark:bg-gray-700{% endif %} flex items-center justify-center">
-                    <i data-lucide="alert-triangle" class="w-6 h-6 {% if below_safety_count > 0 %}text-red-600 dark:text-red-400{% else %}text-gray-400{% endif %}"></i>
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Stock Health</h3>
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="text-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Avg/Item</p>
+                        <p class="text-lg font-bold text-gray-700 dark:text-gray-200">{{ avg_stock_per_item|floatformat:0|default:"0" }}</p>
+                    </div>
+                    <div class="text-center p-2 {% if below_safety_count > 0 %}bg-red-50 dark:bg-red-900/20{% else %}bg-green-50 dark:bg-green-900/20{% endif %} rounded">
+                        <p class="text-xs {% if below_safety_count > 0 %}text-red-600 dark:text-red-400{% else %}text-green-600 dark:text-green-400{% endif %}">Health</p>
+                        <p class="text-lg font-bold {% if below_safety_count > 0 %}text-red-700 dark:text-red-300{% else %}text-green-700 dark:text-green-300{% endif %}">{{ health_percent|floatformat:0 }}%</p>
+                    </div>
+                    <div class="text-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Coverage</p>
+                        <p class="text-lg font-bold text-gray-700 dark:text-gray-200">{{ coverage_months }}</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
 <!-- Filters & Controls -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-4" id="filterSection">
@@ -804,6 +870,124 @@
             <button type="button" class="w-full px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700" onclick="applyValueFilter()">
                 Apply
             </button>
+        </div>
+    </div>
+</div>
+
+<!-- Export Dialog Modal -->
+<div id="exportDialog" class="hidden fixed inset-0 z-[200] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <!-- Background overlay -->
+        <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" onclick="closeExportDialog()"></div>
+
+        <!-- Modal panel -->
+        <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <!-- Header -->
+            <div class="bg-green-600 px-4 py-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-medium text-white flex items-center gap-2">
+                        <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+                        Export to Excel
+                    </h3>
+                    <button type="button" onclick="closeExportDialog()" class="text-white hover:text-green-200">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div class="px-4 py-4">
+                <!-- Columns Option -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <i data-lucide="columns" class="w-4 h-4 inline mr-1"></i>
+                        Columns to Export
+                    </label>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="exportColumns" value="visible" checked
+                                   class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">
+                                <strong>Visible columns only</strong>
+                                <span class="text-gray-500 dark:text-gray-400 text-xs block">Export only the columns currently shown in the table</span>
+                            </span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="exportColumns" value="all"
+                                   class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">
+                                <strong>All columns</strong>
+                                <span class="text-gray-500 dark:text-gray-400 text-xs block">Export all available columns including hidden ones</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Records Option -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <i data-lucide="rows" class="w-4 h-4 inline mr-1"></i>
+                        Records to Export
+                    </label>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="exportRecords" value="all" checked
+                                   class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">
+                                <strong>All records</strong>
+                                <span class="text-gray-500 dark:text-gray-400 text-xs block">Export all {{ total_cutters }} cutter items from the database</span>
+                            </span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer" id="exportFilteredOption">
+                            <input type="radio" name="exportRecords" value="filtered"
+                                   class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">
+                                <strong>Filtered/visible rows only</strong>
+                                <span class="text-gray-500 dark:text-gray-400 text-xs block" id="filteredCountText">Export only rows currently visible after filters</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Include Options -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <i data-lucide="settings-2" class="w-4 h-4 inline mr-1"></i>
+                        Additional Options
+                    </label>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="exportIncludeSummary" checked
+                                   class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">Include summary row at bottom</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="exportIncludeFormulas"
+                                   class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">Add formulas for calculations (Safety Stock, Forecast)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Export Info -->
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-xs text-gray-600 dark:text-gray-300">
+                    <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                    The export will create an Excel file (.xlsx) with formatting, frozen headers, and conditional highlighting for below-safety items.
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 flex justify-end gap-2">
+                <button type="button" onclick="closeExportDialog()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-500">
+                    Cancel
+                </button>
+                <button type="button" onclick="executeExport()"
+                        class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    Export Now
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -1386,5 +1570,96 @@
         if (typeof lucide !== 'undefined') lucide.createIcons();
     });
     observer.observe(document.getElementById('columnMenu'), { attributes: true, attributeFilter: ['class'] });
+
+    // ========================================
+    // Export Dialog Functions
+    // ========================================
+
+    function openExportDialog() {
+        const dialog = document.getElementById('exportDialog');
+        dialog.classList.remove('hidden');
+
+        // Update filtered count text
+        const table = document.getElementById('cutterTable');
+        const visibleRows = table.querySelectorAll('tbody tr:not([style*="display: none"])').length;
+        const totalRows = table.querySelectorAll('tbody tr').length;
+        const filteredText = document.getElementById('filteredCountText');
+
+        if (activeFilters.size > 0 || visibleRows < totalRows) {
+            filteredText.textContent = `Export ${visibleRows} of ${totalRows} rows currently visible`;
+        } else {
+            filteredText.textContent = `Export only rows currently visible after filters`;
+        }
+
+        // Initialize lucide icons in dialog
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function closeExportDialog() {
+        document.getElementById('exportDialog').classList.add('hidden');
+    }
+
+    function executeExport() {
+        const columnsOption = document.querySelector('input[name="exportColumns"]:checked').value;
+        const recordsOption = document.querySelector('input[name="exportRecords"]:checked').value;
+        const includeSummary = document.getElementById('exportIncludeSummary').checked;
+        const includeFormulas = document.getElementById('exportIncludeFormulas').checked;
+
+        // Get visible columns if needed
+        let visibleColumns = [];
+        if (columnsOption === 'visible') {
+            // Get the Alpine data to check which columns are visible
+            const container = document.querySelector('[x-data]');
+            if (container && container._x_dataStack) {
+                const alpineData = container._x_dataStack[0];
+                if (alpineData && alpineData.columns) {
+                    visibleColumns = Object.entries(alpineData.columns)
+                        .filter(([key, visible]) => visible)
+                        .map(([key]) => key);
+                }
+            }
+        }
+
+        // Get visible row IDs if filtering
+        let visibleRowIds = [];
+        if (recordsOption === 'filtered') {
+            const table = document.getElementById('cutterTable');
+            const visibleRows = table.querySelectorAll('tbody tr:not([style*="display: none"])');
+            visibleRows.forEach(row => {
+                // Get item PK from the row's first link
+                const link = row.querySelector('a[href*="/inventory/items/"]');
+                if (link) {
+                    const match = link.href.match(/\/inventory\/items\/(\d+)/);
+                    if (match) {
+                        visibleRowIds.push(match[1]);
+                    }
+                }
+            });
+        }
+
+        // Build export URL with parameters
+        const params = new URLSearchParams();
+        params.set('columns', columnsOption);
+        params.set('records', recordsOption);
+        if (includeSummary) params.set('summary', '1');
+        if (includeFormulas) params.set('formulas', '1');
+        if (visibleColumns.length > 0) params.set('visible_cols', visibleColumns.join(','));
+        if (visibleRowIds.length > 0) params.set('item_ids', visibleRowIds.join(','));
+
+        // Trigger download
+        window.location.href = '{% url "inventory:cutter_inventory_export" %}?' + params.toString();
+
+        closeExportDialog();
+    }
+
+    // Close export dialog on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const dialog = document.getElementById('exportDialog');
+            if (!dialog.classList.contains('hidden')) {
+                closeExportDialog();
+            }
+        }
+    });
 </script>
 {% endblock %}
