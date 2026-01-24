@@ -937,7 +937,12 @@ class Design(models.Model):
     quantity_on_hand = models.PositiveIntegerField(
         default=0,
         verbose_name='Qty On Hand',
-        help_text='Current stock quantity from ERP On-hand'
+        help_text='Physical inventory from ERP'
+    )
+    quantity_on_order = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Qty On Order',
+        help_text='Ordered in total from ERP'
     )
     stock_last_updated = models.DateTimeField(
         null=True,

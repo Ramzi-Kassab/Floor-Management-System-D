@@ -3297,39 +3297,34 @@ class DesignImportView(LoginRequiredMixin, TemplateView):
         })
 
 
+
 # =============================================================================
-# DESIGN STOCK IMPORT FROM EXCEL (RM Items from On-hand.xlsx)
+# DESIGN STOCK IMPORT FROM EXCEL (RM Items from ERP Items file)
 # =============================================================================
 
 
 class DesignStockImportView(LoginRequiredMixin, TemplateView):
     """
-    Web interface for importing design (RM) stock quantities from ERP On-hand Excel files.
+    Web interface for importing design (RM) stock quantities from ERP Excel files.
 
-    Supports the ERP On-hand.xlsx format:
-    - Auto-detects header row by searching for "Item number" column
-    - Filters for RM-* item numbers (Raw Materials = designs/bit bodies)
-    - Uses Color column as MAT number to match Design.mat_no
-    - Uses Style column as HDBS Type (for verification)
-    - Aggregates quantities across warehouses
+    Expected columns:
+    - Item number: ERP item number (filter for RM-* items)
+    - Search name: MAT number (or extract from Product name)
+    - Product name: e.g., "8 1/2:GT65DH:1234567" - used to extract MAT if Search name empty
+    - Physical inventory: Current stock quantity
+    - Ordered in total: Quantity on order
     """
 
     template_name = "technology/design_stock_import.html"
 
-    # Header names for auto-detection
+    # Header names for auto-detection (case-insensitive)
     HEADER_PATTERNS = {
         'item_number': ['item number'],
-        'item_group': ['item group'],
-        'configuration': ['configuration'],
-        'size': ['size'],
-        'color': ['color'],  # MAT number
-        'style': ['style'],  # HDBS type
-        'warehouse': ['warehouse'],
-        'qty': ['available physical'],
+        'product_name': ['product name'],
+        'search_name': ['search name'],
+        'physical_inventory': ['physical inventory'],
+        'ordered_total': ['ordered in total'],
     }
-
-    # Warehouses to include
-    INCLUDE_WAREHOUSES = ['Store', 'Shopfloor', 'R Warehous', 'FG Warehou']
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -3356,7 +3351,7 @@ class DesignStockImportView(LoginRequiredMixin, TemplateView):
         max_search_rows = 20
 
         for row_idx in range(1, min(max_search_rows + 1, ws.max_row + 1)):
-            for col_idx in range(1, min(20, ws.max_column + 1)):
+            for col_idx in range(1, min(30, ws.max_column + 1)):
                 cell_value = ws.cell(row=row_idx, column=col_idx).value
                 if cell_value:
                     cell_str = str(cell_value).strip().lower()
@@ -3384,6 +3379,39 @@ class DesignStockImportView(LoginRequiredMixin, TemplateView):
                         break
 
         return column_map
+
+    def _parse_product_name(self, product_name):
+        """
+        Parse product name to extract size, HDBS type, and MAT number.
+        Format examples:
+        - "8 1/2:GT65DH:1234567" -> ("8 1/2", "GT65DH", "1234567")
+        - "6 1/8 : MMD54H : 1145821" -> ("6 1/8", "MMD54H", "1145821")
+        """
+        if not product_name:
+            return None, None, None
+
+        product_name = str(product_name).strip()
+
+        # Try colon separator first (primary)
+        if ':' in product_name:
+            parts = [p.strip() for p in product_name.split(':')]
+            if len(parts) >= 3:
+                return parts[0], parts[1], parts[2]
+            elif len(parts) == 2:
+                return parts[0], parts[1], None
+
+        # Fallback to space separator
+        parts = product_name.split()
+        if len(parts) >= 3:
+            # Try to identify MAT number (usually all digits, 6-7 chars)
+            for i, part in enumerate(parts):
+                if part.isdigit() and len(part) >= 6:
+                    # Found MAT, HDBS type should be before it
+                    size_parts = parts[:i-1] if i > 1 else []
+                    hdbs_type = parts[i-1] if i > 0 else None
+                    return ' '.join(size_parts), hdbs_type, part
+
+        return None, None, None
 
     def post(self, request, *args, **kwargs):
         """Handle file upload, preview, and import."""
@@ -3427,13 +3455,20 @@ class DesignStockImportView(LoginRequiredMixin, TemplateView):
                 'error': 'Could not find header row. Looking for "Item number" column in first 20 rows.'
             }, status=400)
 
-        # Validate required columns
-        required_columns = ['item_number', 'color', 'qty']
-        missing = [c for c in required_columns if c not in column_map]
-        if missing:
+        # Check for required columns - need either search_name or product_name for MAT
+        has_mat_source = 'search_name' in column_map or 'product_name' in column_map
+        has_qty_source = 'physical_inventory' in column_map
+
+        if not has_mat_source:
             return JsonResponse({
                 'success': False,
-                'error': f'Missing required columns: {missing}. Expected: Item number, Color, Available physical'
+                'error': f'Missing MAT number source. Need "Search name" or "Product name" column. Found columns: {list(column_map.keys())}'
+            }, status=400)
+
+        if not has_qty_source:
+            return JsonResponse({
+                'success': False,
+                'error': f'Missing quantity column. Need "Physical inventory" column. Found columns: {list(column_map.keys())}'
             }, status=400)
 
         data_start_row = header_row + 1
@@ -3444,26 +3479,18 @@ class DesignStockImportView(LoginRequiredMixin, TemplateView):
             if design.mat_no:
                 mat_to_design[str(design.mat_no).strip()] = design
 
-        warehouses_to_include = set(self.INCLUDE_WAREHOUSES)
-
-        # Aggregate quantities by MAT number
-        aggregated = defaultdict(lambda: {
-            'qty': 0,
-            'erp_items': set(),
-            'warehouses': set(),
-            'styles': set(),
-        })
-
         stats = {
             'rows_processed': 0,
+            'rm_rows': 0,
             'mats_matched': 0,
             'mats_not_found': 0,
-            'total_quantity': 0,
+            'total_on_hand': 0,
+            'total_on_order': 0,
             'skipped_not_rm': 0,
             'skipped_no_mat': 0,
-            'skipped_warehouse': 0,
         }
         not_found = []
+        preview_data = []
 
         # Process rows
         for row_idx in range(data_start_row, ws.max_row + 1):
@@ -3479,75 +3506,71 @@ class DesignStockImportView(LoginRequiredMixin, TemplateView):
                 stats['skipped_not_rm'] += 1
                 continue
 
-            # Get MAT number from Color column
-            mat_no = ws.cell(row=row_idx, column=column_map['color']).value
+            stats['rm_rows'] += 1
+
+            # Get MAT number - try Search name first, then parse from Product name
+            mat_no = None
+            hdbs_type = None
+
+            if 'search_name' in column_map:
+                search_name = ws.cell(row=row_idx, column=column_map['search_name']).value
+                if search_name:
+                    mat_no = str(search_name).strip()
+
+            if not mat_no and 'product_name' in column_map:
+                product_name = ws.cell(row=row_idx, column=column_map['product_name']).value
+                if product_name:
+                    _, hdbs_type, mat_no = self._parse_product_name(product_name)
+
             if not mat_no:
                 stats['skipped_no_mat'] += 1
                 continue
-            mat_no = str(mat_no).strip()
 
-            # Get warehouse (optional)
-            warehouse = ''
-            if 'warehouse' in column_map:
-                warehouse = ws.cell(row=row_idx, column=column_map['warehouse']).value or ''
-                warehouse = str(warehouse).strip()
+            # Get quantities
+            qty_on_hand = 0
+            qty_on_order = 0
 
-            if warehouse and warehouse not in warehouses_to_include:
-                stats['skipped_warehouse'] += 1
-                continue
+            if 'physical_inventory' in column_map:
+                qty_raw = ws.cell(row=row_idx, column=column_map['physical_inventory']).value
+                try:
+                    qty_on_hand = int(float(str(qty_raw or 0)))
+                except (ValueError, TypeError):
+                    qty_on_hand = 0
 
-            # Get HDBS type from Style column (optional)
-            style = ''
-            if 'style' in column_map:
-                style = ws.cell(row=row_idx, column=column_map['style']).value or ''
-                style = str(style).strip()
+            if 'ordered_total' in column_map:
+                qty_raw = ws.cell(row=row_idx, column=column_map['ordered_total']).value
+                try:
+                    qty_on_order = int(float(str(qty_raw or 0)))
+                except (ValueError, TypeError):
+                    qty_on_order = 0
 
-            # Get quantity
-            qty_raw = ws.cell(row=row_idx, column=column_map['qty']).value
-            try:
-                qty = int(float(str(qty_raw or 0)))
-            except (ValueError, TypeError):
-                qty = 0
-
-            if qty <= 0:
-                continue
-
-            # Aggregate by MAT number
-            aggregated[mat_no]['qty'] += qty
-            aggregated[mat_no]['erp_items'].add(item_number)
-            aggregated[mat_no]['warehouses'].add(warehouse)
-            if style:
-                aggregated[mat_no]['styles'].add(style)
-
-        # Build preview data
-        preview_data = []
-
-        for mat_no, data in aggregated.items():
-            qty = data['qty']
-            styles = data['styles']
-
+            # Match to design
             design = mat_to_design.get(mat_no)
             if not design:
                 stats['mats_not_found'] += 1
                 not_found.append({
                     'mat_no': mat_no,
-                    'hdbs_type': ', '.join(styles) if styles else 'N/A',
-                    'erp_items': list(data['erp_items'])[:3],
-                    'qty': qty,
+                    'hdbs_type': hdbs_type or 'N/A',
+                    'erp_item': item_number,
+                    'qty_on_hand': qty_on_hand,
+                    'qty_on_order': qty_on_order,
                 })
                 continue
 
             stats['mats_matched'] += 1
-            stats['total_quantity'] += qty
+            stats['total_on_hand'] += qty_on_hand
+            stats['total_on_order'] += qty_on_order
 
             preview_data.append({
                 'mat_no': mat_no,
                 'hdbs_type': design.hdbs_type,
                 'size': str(design.size) if design.size else '',
                 'category': design.category,
-                'current_qty': design.quantity_on_hand,
-                'new_qty': qty,
-                'erp_items': list(data['erp_items'])[:3],
+                'current_on_hand': design.quantity_on_hand,
+                'current_on_order': design.quantity_on_order,
+                'new_on_hand': qty_on_hand,
+                'new_on_order': qty_on_order,
+                'erp_item': item_number,
                 'matched': True,
             })
 
@@ -3557,21 +3580,17 @@ class DesignStockImportView(LoginRequiredMixin, TemplateView):
                 'file_name': file_name,
                 'sheet_name': sheet_name,
                 'header_row': header_row,
-                'column_map': column_map,
-                'stats': {
-                    'rows_processed': stats['rows_processed'],
-                    'mats_matched': stats['mats_matched'],
-                    'mats_not_found': stats['mats_not_found'],
-                    'total_quantity': stats['total_quantity'],
-                },
+                'column_map': {k: v for k, v in column_map.items()},
+                'stats': stats,
                 'preview': preview_data[:100],
-                'not_found': not_found[:20],
+                'not_found': not_found[:30],
             })
 
         elif action == 'import':
             import_stats = {
                 'designs_updated': 0,
-                'total_quantity': 0,
+                'total_on_hand': 0,
+                'total_on_order': 0,
             }
 
             with transaction.atomic():
@@ -3580,19 +3599,22 @@ class DesignStockImportView(LoginRequiredMixin, TemplateView):
                     if not design:
                         continue
 
-                    design.quantity_on_hand = row_data['new_qty']
+                    design.quantity_on_hand = row_data['new_on_hand']
+                    design.quantity_on_order = row_data['new_on_order']
                     design.stock_last_updated = timezone.now()
-                    design.save(update_fields=['quantity_on_hand', 'stock_last_updated'])
+                    design.save(update_fields=['quantity_on_hand', 'quantity_on_order', 'stock_last_updated'])
 
                     import_stats['designs_updated'] += 1
-                    import_stats['total_quantity'] += row_data['new_qty']
+                    import_stats['total_on_hand'] += row_data['new_on_hand']
+                    import_stats['total_on_order'] += row_data['new_on_order']
 
             return JsonResponse({
                 'success': True,
                 'stats': {
                     'mats_matched': stats['mats_matched'],
                     'designs_updated': import_stats['designs_updated'],
-                    'total_quantity': import_stats['total_quantity'],
+                    'total_on_hand': import_stats['total_on_hand'],
+                    'total_on_order': import_stats['total_on_order'],
                 },
             })
 

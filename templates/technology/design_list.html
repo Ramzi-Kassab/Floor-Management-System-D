@@ -232,10 +232,10 @@
                             {% elif current_sort == '-status' %}<i data-lucide="arrow-down" class="w-3 h-3 text-blue-500"></i>{% endif %}
                         </div>
                     </th>
-                    <!-- Stock -->
+                    <!-- Stock (On Hand / On Order) -->
                     <th class="px-3 py-3 font-medium whitespace-nowrap text-center relative" data-column="quantity_on_hand" data-type="number">
                         <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'quantity_on_hand')">
-                            <span>Stock</span>
+                            <span title="On Hand / On Order">OH/OO</span>
                             <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
                             {% if current_sort == 'quantity_on_hand' %}<i data-lucide="arrow-up" class="w-3 h-3 text-blue-500"></i>
                             {% elif current_sort == '-quantity_on_hand' %}<i data-lucide="arrow-down" class="w-3 h-3 text-blue-500"></i>{% endif %}
@@ -310,11 +310,13 @@
                             {{ design.get_status_display }}
                         </span>
                     </td>
-                    <!-- Stock -->
-                    <td class="px-3 py-3 text-center" data-value="{{ design.quantity_on_hand }}">
-                        {% if design.quantity_on_hand > 0 %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
-                            {{ design.quantity_on_hand }}
+                    <!-- Stock (On Hand / On Order) -->
+                    <td class="px-3 py-3 text-center" data-value="{{ design.quantity_on_hand }}" title="On Hand: {{ design.quantity_on_hand }}, On Order: {{ design.quantity_on_order }}">
+                        {% if design.quantity_on_hand > 0 or design.quantity_on_order > 0 %}
+                        <span class="inline-flex items-center gap-1 text-xs font-mono">
+                            <span class="{% if design.quantity_on_hand > 0 %}text-emerald-600 font-bold{% else %}text-gray-400{% endif %}">{{ design.quantity_on_hand }}</span>
+                            <span class="text-gray-400">/</span>
+                            <span class="{% if design.quantity_on_order > 0 %}text-amber-600{% else %}text-gray-400{% endif %}">{{ design.quantity_on_order }}</span>
                         </span>
                         {% else %}
                         <span class="text-gray-400">--</span>

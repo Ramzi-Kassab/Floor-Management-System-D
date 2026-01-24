@@ -1,22 +1,15 @@
 """
-Import design (RM) stock quantities from ERP On-hand Excel file.
+Import design (RM) stock quantities from ERP Excel file.
 
 This command reads stock quantities for Raw Material (RM) items from the ERP
-On-hand.xlsx file and updates the Design model with current quantities.
+Items export file and updates the Design model with current quantities.
 
-The command automatically detects the header row by searching for "Item number"
-column, making it flexible for files with varying metadata rows.
-
-On-hand.xlsx Column Mapping for RM Items:
-- Item number: ERP Item Number (e.g., RM-FC-MB-0002)
-- Color: MAT Number - used to match Design.mat_no
-- Style: HDBS Type - used to verify match
-- Size: Bit size (e.g., "5 7/8")
-- Available physical: Quantity
-
-Item Number Prefix → Category Mapping:
-- RM-FC-*  → Fixed Cutter (FC)
-- RM-RC-*  → Roller Cone (RC) - includes MT and TCI
+Expected Columns:
+- Item number: ERP item number (filter for RM-* items)
+- Search name: MAT number (or extract from Product name)
+- Product name: e.g., "8 1/2:GT65DH:1234567" - used to extract MAT if Search name empty
+- Physical inventory: Current stock quantity (On Hand)
+- Ordered in total: Quantity on order
 
 Usage:
     python manage.py import_design_stock                    # Preview mode
@@ -25,7 +18,6 @@ Usage:
 """
 
 import os
-from decimal import Decimal
 from collections import defaultdict
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -39,31 +31,23 @@ except ImportError:
 
 
 class Command(BaseCommand):
-    help = 'Import design (RM) stock quantities from ERP On-hand Excel file'
+    help = 'Import design (RM) stock quantities from ERP Excel file'
 
-    # Expected header names (exact ERP names, case-insensitive)
+    # Expected header names (case-insensitive)
     HEADER_PATTERNS = {
         'item_number': ['item number'],
-        'item_group': ['item group'],
-        'configuration': ['configuration'],
-        'size': ['size'],
-        'color': ['color'],  # This is the MAT number
-        'style': ['style'],  # This is the HDBS type
-        'site': ['site'],
-        'warehouse': ['warehouse'],
-        'location': ['location'],
-        'qty': ['available physical'],
+        'product_name': ['product name'],
+        'search_name': ['search name'],
+        'physical_inventory': ['physical inventory'],
+        'ordered_total': ['ordered in total'],
     }
-
-    # Warehouses to include (filter out Transit, etc.)
-    INCLUDE_WAREHOUSES = ['Store', 'Shopfloor', 'R Warehous', 'FG Warehou']
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--file',
             type=str,
-            default='docs/On-hand.xlsx',
-            help='Path to ERP On-hand Excel file (default: docs/On-hand.xlsx)'
+            default='docs/Items_639021531472517099.xlsx',
+            help='Path to ERP Items Excel file'
         )
         parser.add_argument(
             '--confirm',
@@ -71,30 +55,17 @@ class Command(BaseCommand):
             help='Actually apply changes (default is preview mode)'
         )
         parser.add_argument(
-            '--include-transit',
-            action='store_true',
-            help='Include Transit warehouse quantities (default: exclude)'
-        )
-        parser.add_argument(
             '--verbose',
             action='store_true',
             help='Show detailed per-item import info'
         )
-        parser.add_argument(
-            '--update-erp-item',
-            action='store_true',
-            help='Also update ardt_item_no field with ERP item number'
-        )
 
     def find_header_row(self, ws):
-        """
-        Auto-detect the header row by searching for 'Item number' column.
-        Returns (header_row, column_map) or (None, None) if not found.
-        """
-        max_search_rows = 20  # Search first 20 rows for headers
+        """Auto-detect the header row by searching for 'Item number' column."""
+        max_search_rows = 20
 
         for row_idx in range(1, min(max_search_rows + 1, ws.max_row + 1)):
-            for col_idx in range(1, min(20, ws.max_column + 1)):
+            for col_idx in range(1, min(30, ws.max_column + 1)):
                 cell_value = ws.cell(row=row_idx, column=col_idx).value
                 if cell_value:
                     cell_str = str(cell_value).strip().lower()
@@ -123,6 +94,35 @@ class Command(BaseCommand):
 
         return column_map
 
+    def parse_product_name(self, product_name):
+        """
+        Parse product name to extract size, HDBS type, and MAT number.
+        Format: "8 1/2:GT65DH:1234567"
+        """
+        if not product_name:
+            return None, None, None
+
+        product_name = str(product_name).strip()
+
+        # Try colon separator first
+        if ':' in product_name:
+            parts = [p.strip() for p in product_name.split(':')]
+            if len(parts) >= 3:
+                return parts[0], parts[1], parts[2]
+            elif len(parts) == 2:
+                return parts[0], parts[1], None
+
+        # Fallback to space separator
+        parts = product_name.split()
+        if len(parts) >= 3:
+            for i, part in enumerate(parts):
+                if part.isdigit() and len(part) >= 6:
+                    size_parts = parts[:i-1] if i > 1 else []
+                    hdbs_type = parts[i-1] if i > 0 else None
+                    return ' '.join(size_parts), hdbs_type, part
+
+        return None, None, None
+
     def handle(self, *args, **options):
         if not HAS_OPENPYXL:
             self.stderr.write(self.style.ERROR('openpyxl is required. Install with: pip install openpyxl'))
@@ -130,9 +130,7 @@ class Command(BaseCommand):
 
         file_path = options['file']
         confirm = options['confirm']
-        include_transit = options['include_transit']
         verbose = options['verbose']
-        update_erp_item = options['update_erp_item']
 
         if not os.path.exists(file_path):
             self.stderr.write(self.style.ERROR(f'File not found: {file_path}'))
@@ -157,100 +155,26 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'Found headers at row {header_row}'))
         self.stdout.write(f'Column mapping: {column_map}')
 
-        required_columns = ['item_number', 'color', 'qty']
-        missing = [c for c in required_columns if c not in column_map]
-        if missing:
-            self.stderr.write(self.style.ERROR(f'Missing required columns: {missing}'))
-            self.stderr.write('Expected columns: Item number, Color, Available physical')
+        # Validate required columns
+        has_mat_source = 'search_name' in column_map or 'product_name' in column_map
+        has_qty_source = 'physical_inventory' in column_map
+
+        if not has_mat_source:
+            self.stderr.write(self.style.ERROR(
+                f'Missing MAT number source. Need "Search name" or "Product name" column.'
+            ))
+            return
+
+        if not has_qty_source:
+            self.stderr.write(self.style.ERROR(
+                f'Missing quantity column. Need "Physical inventory" column.'
+            ))
             return
 
         data_start_row = header_row + 1
         self.stdout.write(f'Data starts at row: {data_start_row}')
 
         from apps.technology.models import Design
-
-        warehouses_to_include = set(self.INCLUDE_WAREHOUSES)
-        if include_transit:
-            warehouses_to_include.add('Transit')
-        self.stdout.write(f'Including warehouses: {warehouses_to_include}')
-
-        # Aggregate quantities by MAT number (Color column)
-        # Multiple rows can exist for same item in different warehouses/locations
-        aggregated = defaultdict(lambda: {
-            'qty': 0,
-            'erp_items': set(),
-            'warehouses': set(),
-            'styles': set(),  # HDBS types found
-        })
-
-        skipped = {
-            'no_item_number': 0,
-            'not_rm': 0,
-            'no_mat_no': 0,
-            'excluded_warehouse': 0,
-            'zero_qty': 0,
-        }
-
-        self.stdout.write(f'Reading data rows...')
-        for row_idx in range(data_start_row, ws.max_row + 1):
-            item_number = ws.cell(row=row_idx, column=column_map['item_number']).value
-            if not item_number:
-                skipped['no_item_number'] += 1
-                continue
-
-            item_number = str(item_number).strip()
-
-            # Only process RM (Raw Material) items
-            if not item_number.upper().startswith('RM'):
-                skipped['not_rm'] += 1
-                continue
-
-            # Get MAT number from Color column
-            mat_no = ws.cell(row=row_idx, column=column_map['color']).value
-            if not mat_no:
-                skipped['no_mat_no'] += 1
-                continue
-            mat_no = str(mat_no).strip()
-
-            # Get warehouse (optional)
-            warehouse = ''
-            if 'warehouse' in column_map:
-                warehouse = ws.cell(row=row_idx, column=column_map['warehouse']).value or ''
-                warehouse = str(warehouse).strip()
-
-            if warehouse and warehouse not in warehouses_to_include:
-                skipped['excluded_warehouse'] += 1
-                continue
-
-            # Get HDBS type from Style column (optional, for verification)
-            style = ''
-            if 'style' in column_map:
-                style = ws.cell(row=row_idx, column=column_map['style']).value or ''
-                style = str(style).strip()
-
-            # Get quantity
-            qty_raw = ws.cell(row=row_idx, column=column_map['qty']).value
-            try:
-                qty = int(float(str(qty_raw or 0)))
-            except (ValueError, TypeError):
-                qty = 0
-
-            if qty <= 0:
-                skipped['zero_qty'] += 1
-                continue
-
-            # Aggregate by MAT number
-            aggregated[mat_no]['qty'] += qty
-            aggregated[mat_no]['erp_items'].add(item_number)
-            aggregated[mat_no]['warehouses'].add(warehouse)
-            if style:
-                aggregated[mat_no]['styles'].add(style)
-
-        self.stdout.write(f'Aggregated {len(aggregated)} unique MAT numbers')
-        self.stdout.write(f'Skipped rows:')
-        for reason, count in skipped.items():
-            if count > 0:
-                self.stdout.write(f'  - {reason}: {count}')
 
         # Build MAT -> Design mapping
         mat_to_design = {}
@@ -262,11 +186,15 @@ class Command(BaseCommand):
 
         # Statistics
         stats = {
-            'mats_processed': 0,
-            'designs_matched': 0,
-            'designs_not_found': 0,
+            'rows_processed': 0,
+            'rm_rows': 0,
+            'mats_matched': 0,
+            'mats_not_found': 0,
             'designs_updated': 0,
-            'total_quantity': 0,
+            'total_on_hand': 0,
+            'total_on_order': 0,
+            'skipped_not_rm': 0,
+            'skipped_no_mat': 0,
         }
         not_found_items = []
         matched_items = []
@@ -276,58 +204,95 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.NOTICE('PREVIEW mode - No changes will be made'))
 
-        self.stdout.write(f'\nProcessing {len(aggregated)} aggregated MAT numbers...\n')
+        self.stdout.write(f'\nProcessing rows...\n')
 
         with transaction.atomic():
-            for mat_no, data in aggregated.items():
-                stats['mats_processed'] += 1
-                qty = data['qty']
-                erp_items = data['erp_items']
-                styles = data['styles']
+            for row_idx in range(data_start_row, ws.max_row + 1):
+                item_number = ws.cell(row=row_idx, column=column_map['item_number']).value
+                if not item_number:
+                    continue
 
+                item_number = str(item_number).strip()
+                stats['rows_processed'] += 1
+
+                # Only process RM items
+                if not item_number.upper().startswith('RM'):
+                    stats['skipped_not_rm'] += 1
+                    continue
+
+                stats['rm_rows'] += 1
+
+                # Get MAT number
+                mat_no = None
+                hdbs_type = None
+
+                if 'search_name' in column_map:
+                    search_name = ws.cell(row=row_idx, column=column_map['search_name']).value
+                    if search_name:
+                        mat_no = str(search_name).strip()
+
+                if not mat_no and 'product_name' in column_map:
+                    product_name = ws.cell(row=row_idx, column=column_map['product_name']).value
+                    if product_name:
+                        _, hdbs_type, mat_no = self.parse_product_name(product_name)
+
+                if not mat_no:
+                    stats['skipped_no_mat'] += 1
+                    continue
+
+                # Get quantities
+                qty_on_hand = 0
+                qty_on_order = 0
+
+                if 'physical_inventory' in column_map:
+                    qty_raw = ws.cell(row=row_idx, column=column_map['physical_inventory']).value
+                    try:
+                        qty_on_hand = int(float(str(qty_raw or 0)))
+                    except (ValueError, TypeError):
+                        qty_on_hand = 0
+
+                if 'ordered_total' in column_map:
+                    qty_raw = ws.cell(row=row_idx, column=column_map['ordered_total']).value
+                    try:
+                        qty_on_order = int(float(str(qty_raw or 0)))
+                    except (ValueError, TypeError):
+                        qty_on_order = 0
+
+                # Match to design
                 design = mat_to_design.get(mat_no)
                 if not design:
-                    stats['designs_not_found'] += 1
+                    stats['mats_not_found'] += 1
                     not_found_items.append({
                         'mat_no': mat_no,
-                        'erp_items': list(erp_items),
-                        'styles': list(styles),
-                        'qty': qty,
+                        'hdbs_type': hdbs_type or 'N/A',
+                        'erp_item': item_number,
+                        'qty_on_hand': qty_on_hand,
+                        'qty_on_order': qty_on_order,
                     })
                     continue
 
-                stats['designs_matched'] += 1
-                stats['total_quantity'] += qty
-
-                # Verify HDBS type matches (warning only)
-                if styles and design.hdbs_type:
-                    if design.hdbs_type not in styles:
-                        if verbose:
-                            self.stdout.write(self.style.WARNING(
-                                f'  HDBS mismatch for {mat_no}: Design has {design.hdbs_type}, On-hand has {styles}'
-                            ))
+                stats['mats_matched'] += 1
+                stats['total_on_hand'] += qty_on_hand
+                stats['total_on_order'] += qty_on_order
 
                 matched_items.append({
                     'mat_no': mat_no,
                     'hdbs_type': design.hdbs_type,
-                    'erp_items': list(erp_items),
-                    'qty': qty,
-                    'old_qty': design.quantity_on_hand,
+                    'qty_on_hand': qty_on_hand,
+                    'qty_on_order': qty_on_order,
+                    'old_on_hand': design.quantity_on_hand,
+                    'old_on_order': design.quantity_on_order,
                 })
 
                 if confirm:
-                    design.quantity_on_hand = qty
+                    design.quantity_on_hand = qty_on_hand
+                    design.quantity_on_order = qty_on_order
                     design.stock_last_updated = timezone.now()
-
-                    # Optionally update ERP item number
-                    if update_erp_item and erp_items:
-                        design.ardt_item_no = sorted(erp_items)[0]  # Use first item number
-
-                    design.save(update_fields=['quantity_on_hand', 'stock_last_updated', 'ardt_item_no'])
+                    design.save(update_fields=['quantity_on_hand', 'quantity_on_order', 'stock_last_updated'])
                     stats['designs_updated'] += 1
 
                     if verbose:
-                        self.stdout.write(f'  {design.mat_no} ({design.hdbs_type}): {qty}')
+                        self.stdout.write(f'  {design.mat_no} ({design.hdbs_type}): OH={qty_on_hand}, OO={qty_on_order}')
                 else:
                     stats['designs_updated'] += 1
 
@@ -339,33 +304,36 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('=' * 60))
         self.stdout.write(self.style.SUCCESS('IMPORT SUMMARY'))
         self.stdout.write(self.style.SUCCESS('=' * 60))
-        self.stdout.write(f"MAT numbers processed: {stats['mats_processed']}")
-        self.stdout.write(f"Designs matched:       {stats['designs_matched']}")
-        self.stdout.write(self.style.WARNING(f"Designs not found:     {stats['designs_not_found']}"))
+        self.stdout.write(f"Rows processed:        {stats['rows_processed']}")
+        self.stdout.write(f"RM rows found:         {stats['rm_rows']}")
+        self.stdout.write(f"Skipped (not RM):      {stats['skipped_not_rm']}")
+        self.stdout.write(f"Skipped (no MAT):      {stats['skipped_no_mat']}")
+        self.stdout.write(f"MATs matched:          {stats['mats_matched']}")
+        self.stdout.write(self.style.WARNING(f"MATs not found:        {stats['mats_not_found']}"))
 
         if confirm:
             self.stdout.write(f"Designs updated:       {stats['designs_updated']}")
 
-        self.stdout.write(self.style.SUCCESS(f"Total quantity:        {stats['total_quantity']}"))
+        self.stdout.write(self.style.SUCCESS(f"Total On Hand:         {stats['total_on_hand']}"))
+        self.stdout.write(self.style.SUCCESS(f"Total On Order:        {stats['total_on_order']}"))
 
-        # Show matched items summary
-        if matched_items:
+        # Show matched items sample
+        if matched_items and verbose:
             self.stdout.write('')
             self.stdout.write('Matched designs (sample):')
-            for item in matched_items[:10]:
-                change = f" (was {item['old_qty']})" if item['old_qty'] != item['qty'] else ""
-                self.stdout.write(f"  {item['mat_no']} ({item['hdbs_type']}): {item['qty']}{change}")
-            if len(matched_items) > 10:
-                self.stdout.write(f"  ... and {len(matched_items) - 10} more")
+            for item in matched_items[:15]:
+                change_oh = f" (was {item['old_on_hand']})" if item['old_on_hand'] != item['qty_on_hand'] else ""
+                change_oo = f" (was {item['old_on_order']})" if item['old_on_order'] != item['qty_on_order'] else ""
+                self.stdout.write(f"  {item['mat_no']} ({item['hdbs_type']}): OH={item['qty_on_hand']}{change_oh}, OO={item['qty_on_order']}{change_oo}")
+            if len(matched_items) > 15:
+                self.stdout.write(f"  ... and {len(matched_items) - 15} more")
 
         # Show not found items
         if not_found_items:
             self.stdout.write('')
-            self.stdout.write(self.style.WARNING(f'Designs not found in system ({len(not_found_items)} items):'))
+            self.stdout.write(self.style.WARNING(f'MATs not found in system ({len(not_found_items)} items):'))
             for item in not_found_items[:20]:
-                styles_str = ', '.join(item['styles']) if item['styles'] else 'N/A'
-                erp_str = ', '.join(list(item['erp_items'])[:2])
-                self.stdout.write(f"  MAT {item['mat_no']} ({styles_str}): {item['qty']} ({erp_str})")
+                self.stdout.write(f"  MAT {item['mat_no']} ({item['hdbs_type']}): OH={item['qty_on_hand']}, OO={item['qty_on_order']} ({item['erp_item']})")
             if len(not_found_items) > 20:
                 self.stdout.write(f"  ... and {len(not_found_items) - 20} more")
 
