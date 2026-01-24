@@ -1,0 +1,510 @@
+{% extends "base.html" %}
+
+{% block title %}Import Designs from Excel - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Import Designs from Excel</h1>
+        <p class="text-gray-600 dark:text-gray-400">Import drill bit designs from ERP Items Excel file</p>
+    </div>
+    <div class="flex gap-2">
+        <a href="{% url 'technology:design_list' %}"
+           class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Designs
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- File Selection -->
+    <div class="lg:col-span-1">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                <i data-lucide="file-spreadsheet" class="w-5 h-5 inline mr-2 text-slate-600"></i>
+                Select Excel File
+            </h2>
+
+            <!-- Upload New File -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Upload New File
+                </label>
+                <input type="file" id="excel-file-input" accept=".xlsx,.xls"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
+                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                              file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
+                              file:text-sm file:font-medium file:bg-slate-50 file:text-slate-700
+                              hover:file:bg-slate-100">
+            </div>
+
+            <div class="text-center text-sm text-gray-500 my-4">- OR -</div>
+
+            <!-- Select Existing File -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Select from Documents
+                </label>
+                <select id="existing-file-select"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
+                               bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="">-- Select a file --</option>
+                    {% for file in excel_files %}
+                    <option value="{{ file }}">{{ file }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Preview Button -->
+            <button type="button" onclick="previewData()"
+                    class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i data-lucide="eye" class="w-4 h-4"></i>
+                Preview Data
+            </button>
+
+            <!-- Info -->
+            <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Items Excel Format</h3>
+                <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">Expected columns:</p>
+                <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                    <li><strong>Item number:</strong> RM-{FC|RC}-{body}-NNNN</li>
+                    <li><strong>Product name:</strong> Size : HDBS Type : MAT#</li>
+                    <li><strong>Search name:</strong> MAT number (7 digits)</li>
+                </ul>
+                <hr class="my-2 border-gray-200 dark:border-gray-600">
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Item Number Mapping:</p>
+                <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-0.5 mt-1">
+                    <li><strong>FC:</strong> Fixed Cutter</li>
+                    <li><strong>RC-IT:</strong> Roller Cone - TCI</li>
+                    <li><strong>RC-MT:</strong> Mill Tooth</li>
+                    <li><strong>MB:</strong> Matrix Body</li>
+                    <li><strong>SB:</strong> Steel Body</li>
+                    <li><strong>IB:</strong> Impreg Body (Matrix)</li>
+                </ul>
+            </div>
+
+            <!-- Current Stats -->
+            <div class="mt-4 p-3 bg-slate-50 dark:bg-slate-900/20 rounded-lg">
+                <p class="text-xs text-slate-700 dark:text-slate-300 font-medium mb-2">
+                    <i data-lucide="database" class="w-3 h-3 inline mr-1"></i>
+                    Current Database
+                </p>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="text-gray-600 dark:text-gray-400">
+                        Total Designs: <span class="font-medium text-gray-900 dark:text-white">{{ total_designs }}</span>
+                    </div>
+                    <div class="text-gray-600 dark:text-gray-400">
+                        L3 Designs: <span class="font-medium text-gray-900 dark:text-white">{{ existing_l3 }}</span>
+                    </div>
+                    <div class="text-gray-600 dark:text-gray-400">
+                        L4 Designs: <span class="font-medium text-gray-900 dark:text-white">{{ existing_l4 }}</span>
+                    </div>
+                    <div class="text-gray-600 dark:text-gray-400">
+                        Target L3: <span class="font-medium text-blue-600">{{ total_l3 }}</span>
+                    </div>
+                    <div class="text-gray-600 dark:text-gray-400">
+                        Target L4: <span class="font-medium text-blue-600">{{ total_l4 }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview & Results -->
+    <div class="lg:col-span-2">
+        <!-- Loading State -->
+        <div id="loading-state" class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-center py-12">
+                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                <span class="ml-3 text-gray-600 dark:text-gray-400">Processing...</span>
+            </div>
+        </div>
+
+        <!-- Initial State -->
+        <div id="initial-state" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="text-center py-12">
+                <i data-lucide="file-up" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No Data Loaded</h3>
+                <p class="text-gray-500 dark:text-gray-400">
+                    Select or upload an Excel file, then click "Preview Data"
+                </p>
+            </div>
+        </div>
+
+        <!-- Preview State -->
+        <div id="preview-state" class="hidden">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">RM Rows</p>
+                    <p id="stat-total" class="text-2xl font-bold text-gray-900 dark:text-white">0</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">Matched (L3/L4)</p>
+                    <p id="stat-matched" class="text-2xl font-bold text-green-600">0</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">To Create</p>
+                    <p id="stat-create" class="text-2xl font-bold text-blue-600">0</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">To Update</p>
+                    <p id="stat-update" class="text-2xl font-bold text-amber-600">0</p>
+                </div>
+            </div>
+
+            <!-- Category/Level breakdown -->
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">L3 Designs</p>
+                    <p id="stat-l3" class="text-xl font-bold text-indigo-600">0</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">L4 Designs</p>
+                    <p id="stat-l4" class="text-xl font-bold text-purple-600">0</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">Fixed Cutter</p>
+                    <p id="stat-fc" class="text-xl font-bold text-emerald-600">0</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">Roller Cone</p>
+                    <p id="stat-rc" class="text-xl font-bold text-orange-600">0</p>
+                </div>
+            </div>
+
+            <!-- Preview Table -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        Preview Data
+                        <span id="preview-file-name" class="text-sm font-normal text-gray-500 ml-2"></span>
+                    </h3>
+                    <span id="preview-count" class="text-sm text-gray-500"></span>
+                </div>
+
+                <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">MAT#</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">HDBS Type</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Level</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Category</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Body</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item#</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preview-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Errors Section -->
+            <div id="errors-section" class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+                <h3 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 inline mr-2"></i>
+                    Parsing Errors
+                </h3>
+                <div class="overflow-x-auto max-h-48 overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-red-50 dark:bg-red-900/30 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-red-700">Item Number</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-red-700">Product Name</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-red-700">Error</th>
+                            </tr>
+                        </thead>
+                        <tbody id="errors-table-body" class="divide-y divide-red-100 dark:divide-red-800">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Import Button -->
+            <div class="flex justify-end gap-4">
+                <button type="button" onclick="clearPreview()"
+                        class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+                    Cancel
+                </button>
+                <button type="button" onclick="executeImport()"
+                        class="px-6 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2 font-medium">
+                    <i data-lucide="upload" class="w-5 h-5"></i>
+                    Import Designs
+                </button>
+            </div>
+        </div>
+
+        <!-- Success State -->
+        <div id="success-state" class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="text-center py-8">
+                <div class="w-16 h-16 mx-auto rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
+                    <i data-lucide="check" class="w-8 h-8 text-green-600"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Import Successful!</h3>
+                <p id="success-message" class="text-gray-600 dark:text-gray-400 mb-6"></p>
+
+                <div id="import-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto mb-6">
+                </div>
+
+                <div class="flex justify-center gap-4">
+                    <a href="{% url 'technology:design_list' %}"
+                       class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        View Designs
+                    </a>
+                    <button type="button" onclick="resetForm()"
+                            class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+                        Import Another File
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPreviewData = null;
+
+function getSelectedFile() {
+    const uploadedFile = document.getElementById('excel-file-input').files[0];
+    const selectedFile = document.getElementById('existing-file-select').value;
+    return { uploadedFile, selectedFile };
+}
+
+function showState(state) {
+    ['initial-state', 'loading-state', 'preview-state', 'success-state'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+    });
+    document.getElementById(state + '-state').classList.remove('hidden');
+}
+
+async function previewData() {
+    const { uploadedFile, selectedFile } = getSelectedFile();
+
+    if (!uploadedFile && !selectedFile) {
+        alert('Please select or upload a file first.');
+        return;
+    }
+
+    showState('loading');
+
+    const formData = new FormData();
+    formData.append('action', 'preview');
+
+    if (uploadedFile) {
+        formData.append('excel_file', uploadedFile);
+    } else {
+        formData.append('selected_file', selectedFile);
+    }
+
+    try {
+        const response = await fetch('', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: formData,
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            currentPreviewData = data;
+            renderPreview(data);
+            showState('preview');
+        } else {
+            alert('Error: ' + data.error);
+            showState('initial');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred while processing the file.');
+        showState('initial');
+    }
+}
+
+function renderPreview(data) {
+    // Update stats
+    document.getElementById('stat-total').textContent = data.stats.rows_total.toLocaleString();
+    document.getElementById('stat-matched').textContent = data.stats.rows_matched.toLocaleString();
+    document.getElementById('stat-create').textContent = data.stats.created.toLocaleString();
+    document.getElementById('stat-update').textContent = data.stats.updated.toLocaleString();
+    document.getElementById('stat-l3').textContent = data.stats.l3_count.toLocaleString();
+    document.getElementById('stat-l4').textContent = data.stats.l4_count.toLocaleString();
+    document.getElementById('stat-fc').textContent = data.stats.fc_count.toLocaleString();
+    document.getElementById('stat-rc').textContent = data.stats.rc_count.toLocaleString();
+
+    document.getElementById('preview-file-name').textContent = `(${data.file_name})`;
+    document.getElementById('preview-count').textContent = `Showing ${Math.min(100, data.preview.length)} of ${data.stats.rows_matched} designs`;
+
+    // Render preview table
+    const tbody = document.getElementById('preview-table-body');
+    tbody.innerHTML = '';
+
+    data.preview.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50 dark:hover:bg-gray-700/30';
+
+        const statusClass = row.status === 'create'
+            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+            : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
+
+        const levelClass = row.order_level === 'L3'
+            ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300'
+            : row.order_level === 'L4'
+                ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                : 'bg-gray-100 text-gray-800';
+
+        const categoryClass = row.category === 'FC'
+            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+            : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300';
+
+        tr.innerHTML = `
+            <td class="px-3 py-2"><span class="px-2 py-1 rounded text-xs font-medium ${statusClass}">${row.status}</span></td>
+            <td class="px-3 py-2 font-mono text-gray-700 dark:text-gray-300">${row.mat_no}</td>
+            <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">${row.hdbs_type}</td>
+            <td class="px-3 py-2 text-gray-600 dark:text-gray-400">${row.size}</td>
+            <td class="px-3 py-2 text-center"><span class="px-2 py-1 rounded text-xs font-medium ${levelClass}">${row.order_level}</span></td>
+            <td class="px-3 py-2 text-center"><span class="px-2 py-1 rounded text-xs font-medium ${categoryClass}">${row.category}</span></td>
+            <td class="px-3 py-2 text-center text-gray-600 dark:text-gray-400">${row.body_material}</td>
+            <td class="px-3 py-2 text-xs text-gray-500 font-mono">${row.item_number}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Render errors
+    const errorsSection = document.getElementById('errors-section');
+    const errorsBody = document.getElementById('errors-table-body');
+
+    if (data.errors && data.errors.length > 0) {
+        errorsSection.classList.remove('hidden');
+        errorsBody.innerHTML = '';
+
+        data.errors.forEach(err => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="px-3 py-2 font-mono text-red-700">${err.item_number || '-'}</td>
+                <td class="px-3 py-2 text-red-600 truncate max-w-xs">${err.product_name || '-'}</td>
+                <td class="px-3 py-2 text-red-500">${err.error}</td>
+            `;
+            errorsBody.appendChild(tr);
+        });
+    } else {
+        errorsSection.classList.add('hidden');
+    }
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function executeImport() {
+    if (!confirm('Are you sure you want to import these designs? This will create or update designs in the database.')) {
+        return;
+    }
+
+    showState('loading');
+
+    const { uploadedFile, selectedFile } = getSelectedFile();
+    const formData = new FormData();
+    formData.append('action', 'import');
+
+    if (uploadedFile) {
+        formData.append('excel_file', uploadedFile);
+    } else {
+        formData.append('selected_file', selectedFile);
+    }
+
+    try {
+        const response = await fetch('', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: formData,
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            renderSuccess(data);
+            showState('success');
+        } else {
+            alert('Error: ' + data.error);
+            showState('preview');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred during import.');
+        showState('preview');
+    }
+}
+
+function renderSuccess(data) {
+    document.getElementById('success-message').textContent =
+        `Successfully processed ${data.stats.rows_matched} designs from ${data.file_name}.`;
+
+    const statsDiv = document.getElementById('import-stats');
+    statsDiv.innerHTML = `
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+            <p class="text-xs text-gray-500">Created</p>
+            <p class="text-xl font-bold text-green-600">${data.stats.created}</p>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+            <p class="text-xs text-gray-500">Updated</p>
+            <p class="text-xl font-bold text-amber-600">${data.stats.updated}</p>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+            <p class="text-xs text-gray-500">L3 Designs</p>
+            <p class="text-xl font-bold text-indigo-600">${data.stats.l3_count}</p>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+            <p class="text-xs text-gray-500">L4 Designs</p>
+            <p class="text-xl font-bold text-purple-600">${data.stats.l4_count}</p>
+        </div>
+    `;
+
+    if (data.stats.errors > 0) {
+        statsDiv.innerHTML += `
+        <div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 text-center col-span-4">
+            <p class="text-xs text-red-500">Errors</p>
+            <p class="text-xl font-bold text-red-600">${data.stats.errors}</p>
+        </div>
+        `;
+    }
+}
+
+function clearPreview() {
+    currentPreviewData = null;
+    showState('initial');
+}
+
+function resetForm() {
+    document.getElementById('excel-file-input').value = '';
+    document.getElementById('existing-file-select').value = '';
+    currentPreviewData = null;
+    showState('initial');
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    // Clear other input when one is selected
+    document.getElementById('excel-file-input').addEventListener('change', function() {
+        if (this.files.length > 0) {
+            document.getElementById('existing-file-select').value = '';
+        }
+    });
+
+    document.getElementById('existing-file-select').addEventListener('change', function() {
+        if (this.value) {
+            document.getElementById('excel-file-input').value = '';
+        }
+    });
+});
+</script>
+{% endblock %}

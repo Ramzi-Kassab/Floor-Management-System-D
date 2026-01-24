@@ -2794,3 +2794,450 @@ class APIDesignsFilterView(LoginRequiredMixin, View):
             'success': True,
             'designs': designs,
         })
+
+
+# =============================================================================
+# DESIGN IMPORT VIEW
+# =============================================================================
+
+
+class DesignImportView(LoginRequiredMixin, TemplateView):
+    """
+    Web interface for importing Designs from ERP Items Excel file.
+
+    Reads the Items Excel file and imports RM (Raw Material) entries as Designs.
+    Only imports designs where the MAT number is in the L3 or L4 list.
+
+    Excel Format:
+    - Item number: RM-{FC|RC}-{IB|MB|SB|IT|MT}-NNNN
+    - Product name: Size : HDBS Type : MAT Number
+    - Search name: MAT number (used for matching)
+    """
+
+    template_name = "technology/design_import.html"
+
+    # L3 MAT numbers - designs without cutters, upper section separate
+    L3_MATS = {
+        '1112857', '1134878', '1140080', '1141517', '1141549', '1141552',
+        '1145822', '1145823', '1145824', '1145825', '1145826', '1145877',
+        '1146009', '1153090', '1158490', '1160847', '1186940', '1187881',
+        '1188084', '1188149', '1188197', '1191006', '1192557', '1197910',
+        '1220553', '1221158', '1223029', '1223749', '1227237', '1228690',
+        '1228723', '1228748', '1228782', '1228848', '1228896', '1229187',
+        '1231398', '1234376', '1245350', '1245357', '1245431', '1246680',
+        '1248668', '1251085', '1270578', '1284241', '2013684', '2016137',
+        '2016920', '1146317'
+    }
+
+    # L4 MAT numbers - designs without cutters, upper section welded/machined
+    L4_MATS = {
+        '1145821', '1149944', '1150007', '1158011', '1192119', '1198387',
+        '1198515', '1201053', '1208569', '1212881', '1217589', '1224225',
+        '1228739', '1229062', '1231285', '1238258', '1239176', '1239239',
+        '1239257', '1239258', '1240803', '1246020', '1255267', '1255451',
+        '1257458', '1258119', '1259957', '1261236', '1262047', '1267027',
+        '1267122', '1267809', '1269498', '1270617', '1270865', '1272920',
+        '1281273', '1282368', '1283567', '1290130', '2000401', '2001502',
+        '2009096', '2013542', '2017993', '2019988', '2022318', '2022350',
+        '2025595', '2027359', '2028159', '2028515'
+    }
+
+    # Size mapping: normalize various formats to standard display and decimal
+    SIZE_MAP = {
+        # Fractional sizes
+        '3 5/8': ('3 5/8"', '3.625'),
+        '3 7/8': ('3 7/8"', '3.875'),
+        '3 3/4': ('3 3/4"', '3.750'),
+        '5 1/4': ('5 1/4"', '5.250'),
+        '5 7/8': ('5 7/8"', '5.875'),
+        '6 1/8': ('6 1/8"', '6.125'),
+        '8 1/2': ('8 1/2"', '8.500'),
+        '8 3/8': ('8 3/8"', '8.375'),
+        '12 1/4': ('12 1/4"', '12.250'),
+        # Whole numbers
+        '3': ('3"', '3.000'),
+        '5': ('5"', '5.000'),
+        '6': ('6"', '6.000'),
+        '8': ('8"', '8.000'),
+        '12': ('12"', '12.000'),
+        '16': ('16"', '16.000'),
+        '17': ('17"', '17.000'),
+        '22': ('22"', '22.000'),
+        # Decimal formats
+        '3.625': ('3 5/8"', '3.625'),
+        '3.875': ('3 7/8"', '3.875'),
+        '5.875': ('5 7/8"', '5.875'),
+        '6.125': ('6 1/8"', '6.125'),
+        '8.375': ('8 3/8"', '8.375'),
+        '8.5': ('8 1/2"', '8.500'),
+        '8.500': ('8 1/2"', '8.500'),
+        '12.25': ('12 1/4"', '12.250'),
+    }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Import Designs from Excel"
+
+        # Get available Excel files in docs folder
+        import os
+        docs_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'docs')
+        excel_files = []
+        if os.path.exists(docs_path):
+            for f in os.listdir(docs_path):
+                if f.endswith('.xlsx') and ('item' in f.lower() or 'Item' in f):
+                    excel_files.append(f)
+        context["excel_files"] = sorted(excel_files)
+
+        # Counts
+        context["total_l3"] = len(self.L3_MATS)
+        context["total_l4"] = len(self.L4_MATS)
+        context["total_designs"] = Design.objects.count()
+
+        # Count existing designs by order level
+        context["existing_l3"] = Design.objects.filter(order_level='3').count()
+        context["existing_l4"] = Design.objects.filter(order_level='4').count()
+
+        return context
+
+    def normalize_size(self, size_str):
+        """Normalize size string to standard format."""
+        import re
+        from decimal import Decimal
+
+        if not size_str:
+            return None
+
+        # Remove quotes and extra spaces, trim
+        size_str = size_str.strip().replace('"', '').replace("'", '').strip()
+
+        # Direct lookup
+        if size_str in self.SIZE_MAP:
+            return self.SIZE_MAP[size_str]
+
+        # Try to parse decimal
+        try:
+            decimal_val = Decimal(size_str)
+            # Round to 3 decimal places
+            decimal_val = decimal_val.quantize(Decimal('0.001'))
+            str_val = str(decimal_val)
+            if str_val in self.SIZE_MAP:
+                return self.SIZE_MAP[str_val]
+            # Create a new entry
+            return (f'{decimal_val}"', str(decimal_val))
+        except:
+            pass
+
+        return None
+
+    def parse_product_name(self, product_name):
+        """
+        Parse Product name to extract Size, HDBS Type, and MAT number.
+        Primary format uses ':' as separator: 'Size : HDBS Type : MAT Number'
+        """
+        import re
+
+        if not product_name:
+            return None, None, None
+
+        normalized = product_name.strip()
+
+        # Primary method: split by colon (with optional surrounding spaces)
+        if ':' in normalized:
+            parts = [p.strip() for p in normalized.split(':')]
+            if len(parts) >= 3:
+                size_str = parts[0].replace('"', '').replace("'", '').strip()
+                hdbs_type = re.sub(r'-\d+$', '', parts[1].strip())  # Remove suffix like -1
+                mat_no = parts[2].strip()
+                if mat_no.isdigit() and len(mat_no) >= 6:
+                    return size_str, hdbs_type, mat_no
+            elif len(parts) == 2:
+                # Might be 'Size : HDBS MAT' format
+                size_str = parts[0].replace('"', '').replace("'", '').strip()
+                rest = parts[1].strip().split()
+                if len(rest) >= 2:
+                    mat_no = rest[-1]
+                    hdbs_type = re.sub(r'-\d+$', '', rest[-2])
+                    if mat_no.isdigit() and len(mat_no) >= 6:
+                        return size_str, hdbs_type, mat_no
+
+        # Fallback: handle legacy format without colons (space separated)
+        normalized = re.sub(r'(["\'])\s*([A-Za-z])', r'\1 \2', normalized)
+        parts = normalized.split()
+
+        if len(parts) < 2:
+            return None, None, None
+
+        # Find the MAT number (last numeric part, 6-7 digits)
+        mat_no = None
+        for i in range(len(parts) - 1, -1, -1):
+            if parts[i].isdigit() and len(parts[i]) >= 6:
+                mat_no = parts[i]
+                parts = parts[:i]
+                break
+
+        if not mat_no:
+            return None, None, None
+
+        # Find HDBS type (alphanumeric, before the MAT number)
+        hdbs_type = None
+        for i in range(len(parts) - 1, -1, -1):
+            part = parts[i]
+            clean_part = re.sub(r'-\d+$', '', part)
+            if re.match(r'^[A-Za-z]{2}[A-Za-z0-9]+$', clean_part):
+                hdbs_type = clean_part
+                parts = parts[:i]
+                break
+
+        if not hdbs_type:
+            return None, None, mat_no
+
+        # Remaining parts are the size
+        size_str = ' '.join(parts)
+        size_str = size_str.replace('"', '').replace("'", '').strip()
+
+        return size_str, hdbs_type, mat_no
+
+    def get_category_and_body(self, item_number):
+        """
+        Determine category and body material from item number.
+        Format: RM-{FC|RC}-{IB|MB|SB|IT|MT}-NNNN
+        """
+        parts = item_number.split('-')
+        if len(parts) < 3:
+            return None, None
+
+        bit_type = parts[1]  # FC or RC
+        body_type = parts[2]  # IB, MB, SB, IT, MT
+
+        if bit_type == 'FC':
+            category = 'FC'
+            if body_type == 'MB':
+                body_material = 'M'
+            elif body_type == 'SB':
+                body_material = 'S'
+            elif body_type == 'IB':
+                body_material = 'M'
+            else:
+                body_material = ''
+        elif bit_type == 'RC':
+            if body_type == 'IT':
+                category = 'TCI'
+            elif body_type == 'MT':
+                category = 'MT'
+            else:
+                category = 'TCI'
+            body_material = ''
+        else:
+            category = 'FC'
+            body_material = ''
+
+        return category, body_material
+
+    def get_or_create_size(self, size_str, dry_run=False):
+        """Get or create BitSize record."""
+        from decimal import Decimal
+
+        normalized = self.normalize_size(size_str)
+        if not normalized:
+            return None
+
+        size_display, size_code = normalized
+        size_decimal = Decimal(size_code)
+
+        if dry_run:
+            existing = BitSize.objects.filter(code=size_code).first()
+            return existing
+
+        size, created = BitSize.objects.get_or_create(
+            code=size_code,
+            defaults={
+                'size_decimal': size_decimal,
+                'size_display': size_display,
+                'size_inches': size_display,
+            }
+        )
+        return size
+
+    def post(self, request, *args, **kwargs):
+        """Handle file upload, preview, and import."""
+        import os
+        import re
+        from decimal import Decimal
+
+        action = request.POST.get('action', 'preview')
+
+        # Determine file source
+        uploaded_file = request.FILES.get('excel_file')
+        selected_file = request.POST.get('selected_file', '')
+
+        try:
+            import pandas as pd
+        except ImportError:
+            return JsonResponse({'success': False, 'error': 'pandas is required'}, status=500)
+
+        if uploaded_file:
+            df = pd.read_excel(uploaded_file)
+            file_name = uploaded_file.name
+        elif selected_file:
+            docs_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'docs')
+            file_path = os.path.join(docs_path, selected_file)
+            if not os.path.exists(file_path):
+                return JsonResponse({'success': False, 'error': f'File not found: {selected_file}'}, status=400)
+            df = pd.read_excel(file_path)
+            file_name = selected_file
+        else:
+            return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
+
+        # Check required columns
+        required_cols = ['Item number', 'Product name', 'Search name']
+        missing = [c for c in required_cols if c not in df.columns]
+        if missing:
+            return JsonResponse({
+                'success': False,
+                'error': f'Missing required columns: {missing}'
+            }, status=400)
+
+        # Filter RM rows
+        rm_rows = df[df['Item number'].str.startswith('RM-', na=False)]
+
+        # Get all valid MAT numbers
+        all_mats = self.L3_MATS | self.L4_MATS
+
+        # Filter by MAT numbers in the provided list
+        rm_filtered = rm_rows[rm_rows['Search name'].astype(str).isin(all_mats)]
+
+        dry_run = action == 'preview'
+
+        stats = {
+            'rows_total': len(rm_rows),
+            'rows_matched': len(rm_filtered),
+            'l3_count': 0,
+            'l4_count': 0,
+            'fc_count': 0,
+            'rc_count': 0,
+            'created': 0,
+            'updated': 0,
+            'skipped': 0,
+            'errors': 0,
+        }
+
+        preview_data = []
+        errors = []
+
+        for idx, row in rm_filtered.iterrows():
+            item_number = str(row['Item number']).strip()
+            product_name = str(row['Product name']).strip()
+            search_name = str(row['Search name']).strip()
+
+            # Parse product name
+            size_str, hdbs_type, mat_no = self.parse_product_name(product_name)
+
+            if not mat_no:
+                mat_no = search_name
+
+            if not mat_no:
+                errors.append({
+                    'item_number': item_number,
+                    'product_name': product_name,
+                    'error': 'Could not extract MAT number'
+                })
+                stats['errors'] += 1
+                continue
+
+            # Determine order level
+            if mat_no in self.L3_MATS:
+                order_level = '3'
+                stats['l3_count'] += 1
+            elif mat_no in self.L4_MATS:
+                order_level = '4'
+                stats['l4_count'] += 1
+            else:
+                order_level = ''
+
+            # Get category and body material
+            category, body_material = self.get_category_and_body(item_number)
+
+            if category == 'FC':
+                stats['fc_count'] += 1
+            else:
+                stats['rc_count'] += 1
+
+            # Extract series from HDBS type
+            series = ''
+            if hdbs_type:
+                match = re.match(r'^([A-Za-z]{2,3})', hdbs_type)
+                if match:
+                    series = match.group(1).upper()
+
+            # Check if exists
+            existing = Design.objects.filter(mat_no=mat_no).first()
+
+            preview_item = {
+                'item_number': item_number,
+                'mat_no': mat_no,
+                'size': size_str or '-',
+                'hdbs_type': hdbs_type or '-',
+                'category': category or '-',
+                'body_material': body_material or '-',
+                'order_level': f'L{order_level}' if order_level else '-',
+                'series': series or '-',
+                'status': 'update' if existing else 'create',
+            }
+            preview_data.append(preview_item)
+
+            if dry_run:
+                if existing:
+                    stats['updated'] += 1
+                else:
+                    stats['created'] += 1
+                continue
+
+            # Get or create size
+            size_obj = None
+            if size_str:
+                size_obj = self.get_or_create_size(size_str)
+
+            if existing:
+                # Update existing design - trim all values
+                existing.hdbs_type = (hdbs_type or existing.hdbs_type or '').strip()
+                existing.category = (category or existing.category or '').strip()
+                existing.body_material = (body_material or existing.body_material or '').strip()
+                existing.order_level = (order_level or existing.order_level or '').strip()
+                existing.status = 'ACTIVE'
+                if size_obj:
+                    existing.size = size_obj
+                if series:
+                    existing.series = series.strip()
+                existing.save()
+                stats['updated'] += 1
+            else:
+                # Create new design - trim all values
+                try:
+                    design = Design.objects.create(
+                        mat_no=mat_no.strip(),
+                        hdbs_type=(hdbs_type or '').strip(),
+                        category=(category or 'FC').strip(),
+                        body_material=(body_material or '').strip(),
+                        order_level=(order_level or '').strip(),
+                        size=size_obj,
+                        series=(series or '').strip(),
+                        status='ACTIVE',
+                        description=f"Imported from {item_number}"
+                    )
+                    stats['created'] += 1
+                except Exception as e:
+                    errors.append({
+                        'item_number': item_number,
+                        'mat_no': mat_no,
+                        'error': str(e)
+                    })
+                    stats['errors'] += 1
+
+        return JsonResponse({
+            'success': True,
+            'dry_run': dry_run,
+            'file_name': file_name,
+            'stats': stats,
+            'preview': preview_data[:100],  # Limit preview to 100 items
+            'errors': errors[:20],  # Limit errors to 20
+        })

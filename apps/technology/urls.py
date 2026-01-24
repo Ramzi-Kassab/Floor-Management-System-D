@@ -84,4 +84,6 @@ urlpatterns = [
     # API endpoints for BOM creation workflow
     path("api/smi-types/filter/", views.APISMITypesFilterView.as_view(), name="api_smi_types_filter"),
     path("api/designs/filter/", views.APIDesignsFilterView.as_view(), name="api_designs_filter"),
+    # Design Import from Excel
+    path("designs/import/", views.DesignImportView.as_view(), name="design_import"),
 ]

@@ -93,6 +93,11 @@ class Command(BaseCommand):
             default='docs/Items_639021531472517099.xlsx',
             help='Path to Excel file'
         )
+        parser.add_argument(
+            '--clean',
+            action='store_true',
+            help='Clean and trim all existing design records (removes extra spaces/hidden chars)'
+        )
 
     def normalize_size(self, size_str):
         """Normalize size string to standard format."""
@@ -121,21 +126,39 @@ class Command(BaseCommand):
     def parse_product_name(self, product_name):
         """
         Parse Product name to extract Size, HDBS Type, and MAT number.
+        Primary format uses ':' as separator: 'Size : HDBS Type : MAT Number'
+
         Formats:
-        - '3 5/8:MMD53DH:1145821'
-        - '3 5/8 MMD53DH 1145821'
+        - '3 5/8:MMD53DH:1145821' (colon separated)
         - '6 1/8: GTD54HF: 1217589' (with spaces around colons)
-        - '8 3/8"GT55WUH 1134878' (no space after inch mark)
-        - '16" MMD85DHF-1 1238258' (with suffix like -1)
+        - '8 3/8"GT55WUH 1134878' (legacy: no colons)
+        - '16" MMD85DHF-1 1238258' (legacy: with suffix)
         """
-        # Normalize the string
         normalized = product_name.strip()
 
+        # Primary method: split by colon (with optional surrounding spaces)
+        if ':' in normalized:
+            parts = [p.strip() for p in normalized.split(':')]
+            if len(parts) >= 3:
+                size_str = parts[0].replace('"', '').replace("'", '').strip()
+                hdbs_type = re.sub(r'-\d+$', '', parts[1].strip())  # Remove suffix like -1
+                mat_no = parts[2].strip()
+                if mat_no.isdigit() and len(mat_no) >= 6:
+                    return size_str, hdbs_type, mat_no
+            elif len(parts) == 2:
+                # Might be 'Size : HDBS MAT' format
+                size_str = parts[0].replace('"', '').replace("'", '').strip()
+                # Split second part by space to get HDBS and MAT
+                rest = parts[1].strip().split()
+                if len(rest) >= 2:
+                    mat_no = rest[-1]
+                    hdbs_type = re.sub(r'-\d+$', '', rest[-2])
+                    if mat_no.isdigit() and len(mat_no) >= 6:
+                        return size_str, hdbs_type, mat_no
+
+        # Fallback: handle legacy format without colons (space separated)
         # Handle format like '8 3/8"GT55WUH' - add space after inch mark if followed by letter
         normalized = re.sub(r'(["\'])\s*([A-Za-z])', r'\1 \2', normalized)
-
-        # Replace colon (with optional surrounding spaces) with a standard space
-        normalized = re.sub(r'\s*:\s*', ' ', normalized)
 
         # Split by whitespace
         parts = normalized.split()
@@ -146,7 +169,6 @@ class Command(BaseCommand):
         # Find the MAT number (last numeric part, 6-7 digits)
         mat_no = None
         for i in range(len(parts) - 1, -1, -1):
-            # MAT number is purely numeric and 6-7 digits
             if parts[i].isdigit() and len(parts[i]) >= 6:
                 mat_no = parts[i]
                 parts = parts[:i]
@@ -156,13 +178,10 @@ class Command(BaseCommand):
             return None, None, None
 
         # Find HDBS type (alphanumeric, before the MAT number)
-        # HDBS type can have suffix like -1, -2
         hdbs_type = None
         for i in range(len(parts) - 1, -1, -1):
             part = parts[i]
-            # Remove common suffixes
-            clean_part = re.sub(r'-\d+$', '', part)
-            # HDBS type has letters and usually some numbers
+            clean_part = re.sub(r'-\d+$', '', part)  # Remove suffix like -1
             if re.match(r'^[A-Za-z]{2}[A-Za-z0-9]+$', clean_part):
                 hdbs_type = clean_part
                 parts = parts[:i]
@@ -242,12 +261,102 @@ class Command(BaseCommand):
             self.stdout.write(f"  Created BitSize: {size_display}")
         return size
 
+    def clean_records(self, dry_run=False):
+        """Clean and trim all existing design records."""
+        self.stdout.write("\n" + "=" * 50)
+        self.stdout.write("Cleaning existing design records...")
+        self.stdout.write("=" * 50)
+
+        designs = Design.objects.all()
+        cleaned_count = 0
+        fields_cleaned = 0
+
+        for design in designs:
+            changed = False
+
+            # Check and clean each text field
+            if design.mat_no and design.mat_no != design.mat_no.strip():
+                if not dry_run:
+                    design.mat_no = design.mat_no.strip()
+                changed = True
+                fields_cleaned += 1
+
+            if design.hdbs_type and design.hdbs_type != design.hdbs_type.strip():
+                if not dry_run:
+                    design.hdbs_type = design.hdbs_type.strip()
+                changed = True
+                fields_cleaned += 1
+
+            if design.smi_type and design.smi_type != design.smi_type.strip():
+                if not dry_run:
+                    design.smi_type = design.smi_type.strip()
+                changed = True
+                fields_cleaned += 1
+
+            if design.category and design.category != design.category.strip():
+                if not dry_run:
+                    design.category = design.category.strip()
+                changed = True
+                fields_cleaned += 1
+
+            if design.body_material and design.body_material != design.body_material.strip():
+                if not dry_run:
+                    design.body_material = design.body_material.strip()
+                changed = True
+                fields_cleaned += 1
+
+            if design.series and design.series != design.series.strip():
+                if not dry_run:
+                    design.series = design.series.strip()
+                changed = True
+                fields_cleaned += 1
+
+            if design.order_level and design.order_level != design.order_level.strip():
+                if not dry_run:
+                    design.order_level = design.order_level.strip()
+                changed = True
+                fields_cleaned += 1
+
+            if design.description and design.description != design.description.strip():
+                if not dry_run:
+                    design.description = design.description.strip()
+                changed = True
+                fields_cleaned += 1
+
+            if design.ref_mat_no and design.ref_mat_no != design.ref_mat_no.strip():
+                if not dry_run:
+                    design.ref_mat_no = design.ref_mat_no.strip()
+                changed = True
+                fields_cleaned += 1
+
+            if changed:
+                cleaned_count += 1
+                if not dry_run:
+                    design.save()
+                self.stdout.write(f"  Cleaned: {design.mat_no}")
+
+        self.stdout.write(f"\nCleaned {cleaned_count} designs ({fields_cleaned} fields)")
+        if dry_run:
+            self.stdout.write(self.style.WARNING("DRY RUN - No changes were made"))
+        else:
+            self.stdout.write(self.style.SUCCESS("Records cleaned successfully"))
+
+        return cleaned_count
+
     def handle(self, *args, **options):
         import pandas as pd
 
         confirm = options['confirm']
         dry_run = options['dry_run'] or not confirm
+        clean_only = options.get('clean', False)
         excel_file = options['file']
+
+        # Handle --clean option
+        if clean_only:
+            self.clean_records(dry_run=dry_run)
+            if not confirm:
+                self.stdout.write(self.style.WARNING("\nUse --confirm to actually clean records"))
+            return
 
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN - No changes will be made"))
@@ -325,14 +434,22 @@ class Command(BaseCommand):
                 created_count += 1
                 continue
 
+            # Clean/trim all values before import
+            mat_no = mat_no.strip() if mat_no else ''
+            hdbs_type = hdbs_type.strip() if hdbs_type else ''
+            category = category.strip() if category else ''
+            body_material = body_material.strip() if body_material else ''
+            order_level = order_level.strip() if order_level else ''
+            series = series.strip() if series else ''
+
             # Check if design already exists
             existing = Design.objects.filter(mat_no=mat_no).first()
             if existing:
-                # Update existing design
-                existing.hdbs_type = hdbs_type or existing.hdbs_type
-                existing.category = category or existing.category
-                existing.body_material = body_material or existing.body_material
-                existing.order_level = order_level or existing.order_level
+                # Update existing design with trimmed values
+                existing.hdbs_type = hdbs_type or (existing.hdbs_type or '').strip()
+                existing.category = category or (existing.category or '').strip()
+                existing.body_material = body_material or (existing.body_material or '').strip()
+                existing.order_level = order_level or (existing.order_level or '').strip()
                 existing.status = 'ACTIVE'  # Set to active as requested
                 if size_obj:
                     existing.size = size_obj
