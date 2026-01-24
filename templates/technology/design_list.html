@@ -717,15 +717,33 @@
         }
     });
 
-    // Close menu on scroll (to prevent positioning issues)
-    window.addEventListener('scroll', function() {
-        closeColumnMenu();
-    }, true);
+    // Close menu on main window scroll only (not when scrolling inside the menu)
+    let lastScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    window.addEventListener('scroll', function(e) {
+        // Only close if scrolling the main window, not the menu
+        const menu = document.getElementById('columnMenu');
+        if (menu.classList.contains('hidden')) return;
+
+        // Check if scroll is from the main window
+        if (e.target === document || e.target === document.documentElement || e.target === document.body) {
+            closeColumnMenu();
+        }
+    }, false);  // Use bubbling phase, not capture
 
     // Close menu on window resize
     window.addEventListener('resize', function() {
         closeColumnMenu();
     });
+
+    // Prevent scroll inside menu from closing it
+    document.getElementById('columnMenu').addEventListener('scroll', function(e) {
+        e.stopPropagation();
+    }, true);
+
+    // Also prevent wheel events from propagating
+    document.getElementById('columnMenu').addEventListener('wheel', function(e) {
+        e.stopPropagation();
+    }, false);
 
     // Initialize Lucide icons after menu is shown
     const observer = new MutationObserver(function() {

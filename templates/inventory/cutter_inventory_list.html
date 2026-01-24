@@ -1583,14 +1583,27 @@
         }
     });
 
-    // Close menu on scroll, but not when scrolling inside the menu itself
+    // Close menu on main window scroll only (not when scrolling inside the menu)
     window.addEventListener('scroll', (e) => {
         const menu = document.getElementById('columnMenu');
-        if (!menu.contains(e.target)) {
+        if (menu.classList.contains('hidden')) return;
+
+        // Only close if scroll is from the main window, not the menu
+        if (e.target === document || e.target === document.documentElement || e.target === document.body) {
             closeColumnMenu();
         }
-    }, true);
+    }, false);  // Use bubbling phase, not capture
     window.addEventListener('resize', () => closeColumnMenu());
+
+    // Prevent scroll inside menu from closing it
+    document.getElementById('columnMenu').addEventListener('scroll', (e) => {
+        e.stopPropagation();
+    }, true);
+
+    // Also prevent wheel events from propagating
+    document.getElementById('columnMenu').addEventListener('wheel', (e) => {
+        e.stopPropagation();
+    }, false);
 
     const observer = new MutationObserver(() => {
         if (typeof lucide !== 'undefined') lucide.createIcons();

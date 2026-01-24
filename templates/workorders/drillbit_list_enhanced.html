@@ -669,5 +669,16 @@ document.addEventListener('click', function(e) {
     const menu = document.getElementById('columnMenu');
     if (!menu.contains(e.target) && !e.target.closest('.column-header')) closeColumnMenu();
 });
+
+// Prevent scroll/wheel inside menu from bubbling (which could cause unexpected closures)
+document.getElementById('columnMenu').addEventListener('scroll', (e) => {
+    e.stopPropagation();
+}, true);
+
+document.getElementById('columnMenu').addEventListener('wheel', (e) => {
+    e.stopPropagation();
+}, false);
+
+window.addEventListener('resize', () => closeColumnMenu());
 </script>
 {% endblock %}
