@@ -3295,3 +3295,305 @@ class DesignImportView(LoginRequiredMixin, TemplateView):
             'preview': preview_data[:100],  # Limit preview to 100 items
             'errors': errors[:20],  # Limit errors to 20
         })
+
+
+# =============================================================================
+# DESIGN STOCK IMPORT FROM EXCEL (RM Items from On-hand.xlsx)
+# =============================================================================
+
+
+class DesignStockImportView(LoginRequiredMixin, TemplateView):
+    """
+    Web interface for importing design (RM) stock quantities from ERP On-hand Excel files.
+
+    Supports the ERP On-hand.xlsx format:
+    - Auto-detects header row by searching for "Item number" column
+    - Filters for RM-* item numbers (Raw Materials = designs/bit bodies)
+    - Uses Color column as MAT number to match Design.mat_no
+    - Uses Style column as HDBS Type (for verification)
+    - Aggregates quantities across warehouses
+    """
+
+    template_name = "technology/design_stock_import.html"
+
+    # Header names for auto-detection
+    HEADER_PATTERNS = {
+        'item_number': ['item number'],
+        'item_group': ['item group'],
+        'configuration': ['configuration'],
+        'size': ['size'],
+        'color': ['color'],  # MAT number
+        'style': ['style'],  # HDBS type
+        'warehouse': ['warehouse'],
+        'qty': ['available physical'],
+    }
+
+    # Warehouses to include
+    INCLUDE_WAREHOUSES = ['Store', 'Shopfloor', 'R Warehous', 'FG Warehou']
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Import Design Stock from Excel"
+
+        # Get available Excel files in docs folder
+        import os
+        docs_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'docs')
+        excel_files = []
+        if os.path.exists(docs_path):
+            for f in os.listdir(docs_path):
+                if f.endswith('.xlsx'):
+                    excel_files.append(f)
+        context["excel_files"] = sorted(excel_files)
+
+        # Stats
+        context["total_designs"] = Design.objects.count()
+        context["designs_with_stock"] = Design.objects.filter(quantity_on_hand__gt=0).count()
+
+        return context
+
+    def _find_header_row(self, ws):
+        """Auto-detect header row by searching for 'Item number' column."""
+        max_search_rows = 20
+
+        for row_idx in range(1, min(max_search_rows + 1, ws.max_row + 1)):
+            for col_idx in range(1, min(20, ws.max_column + 1)):
+                cell_value = ws.cell(row=row_idx, column=col_idx).value
+                if cell_value:
+                    cell_str = str(cell_value).strip().lower()
+                    if cell_str in self.HEADER_PATTERNS['item_number']:
+                        column_map = self._map_columns(ws, row_idx)
+                        return row_idx, column_map
+
+        return None, None
+
+    def _map_columns(self, ws, header_row):
+        """Map column names to their positions."""
+        column_map = {}
+
+        for col_idx in range(1, ws.max_column + 1):
+            cell_value = ws.cell(row=header_row, column=col_idx).value
+            if not cell_value:
+                continue
+
+            cell_str = str(cell_value).strip().lower()
+
+            for field_name, patterns in self.HEADER_PATTERNS.items():
+                if cell_str in patterns or any(p in cell_str for p in patterns):
+                    if field_name not in column_map:
+                        column_map[field_name] = col_idx
+                        break
+
+        return column_map
+
+    def post(self, request, *args, **kwargs):
+        """Handle file upload, preview, and import."""
+        import os
+        from collections import defaultdict
+        from django.db import transaction
+        from django.utils import timezone
+
+        try:
+            import openpyxl
+        except ImportError:
+            return JsonResponse({'success': False, 'error': 'openpyxl is required'}, status=500)
+
+        action = request.POST.get('action', 'preview')
+
+        # Determine file source
+        uploaded_file = request.FILES.get('excel_file')
+        selected_file = request.POST.get('selected_file', '')
+
+        if uploaded_file:
+            wb = openpyxl.load_workbook(uploaded_file, data_only=True)
+            file_name = uploaded_file.name
+        elif selected_file:
+            docs_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'docs')
+            file_path = os.path.join(docs_path, selected_file)
+            if not os.path.exists(file_path):
+                return JsonResponse({'success': False, 'error': f'File not found: {selected_file}'}, status=400)
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            file_name = selected_file
+        else:
+            return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
+
+        ws = wb.active
+        sheet_name = ws.title
+
+        header_row, column_map = self._find_header_row(ws)
+
+        if header_row is None:
+            return JsonResponse({
+                'success': False,
+                'error': 'Could not find header row. Looking for "Item number" column in first 20 rows.'
+            }, status=400)
+
+        # Validate required columns
+        required_columns = ['item_number', 'color', 'qty']
+        missing = [c for c in required_columns if c not in column_map]
+        if missing:
+            return JsonResponse({
+                'success': False,
+                'error': f'Missing required columns: {missing}. Expected: Item number, Color, Available physical'
+            }, status=400)
+
+        data_start_row = header_row + 1
+
+        # Build MAT -> Design mapping
+        mat_to_design = {}
+        for design in Design.objects.all():
+            if design.mat_no:
+                mat_to_design[str(design.mat_no).strip()] = design
+
+        warehouses_to_include = set(self.INCLUDE_WAREHOUSES)
+
+        # Aggregate quantities by MAT number
+        aggregated = defaultdict(lambda: {
+            'qty': 0,
+            'erp_items': set(),
+            'warehouses': set(),
+            'styles': set(),
+        })
+
+        stats = {
+            'rows_processed': 0,
+            'mats_matched': 0,
+            'mats_not_found': 0,
+            'total_quantity': 0,
+            'skipped_not_rm': 0,
+            'skipped_no_mat': 0,
+            'skipped_warehouse': 0,
+        }
+        not_found = []
+
+        # Process rows
+        for row_idx in range(data_start_row, ws.max_row + 1):
+            item_number = ws.cell(row=row_idx, column=column_map['item_number']).value
+            if not item_number:
+                continue
+
+            item_number = str(item_number).strip()
+            stats['rows_processed'] += 1
+
+            # Only process RM items
+            if not item_number.upper().startswith('RM'):
+                stats['skipped_not_rm'] += 1
+                continue
+
+            # Get MAT number from Color column
+            mat_no = ws.cell(row=row_idx, column=column_map['color']).value
+            if not mat_no:
+                stats['skipped_no_mat'] += 1
+                continue
+            mat_no = str(mat_no).strip()
+
+            # Get warehouse (optional)
+            warehouse = ''
+            if 'warehouse' in column_map:
+                warehouse = ws.cell(row=row_idx, column=column_map['warehouse']).value or ''
+                warehouse = str(warehouse).strip()
+
+            if warehouse and warehouse not in warehouses_to_include:
+                stats['skipped_warehouse'] += 1
+                continue
+
+            # Get HDBS type from Style column (optional)
+            style = ''
+            if 'style' in column_map:
+                style = ws.cell(row=row_idx, column=column_map['style']).value or ''
+                style = str(style).strip()
+
+            # Get quantity
+            qty_raw = ws.cell(row=row_idx, column=column_map['qty']).value
+            try:
+                qty = int(float(str(qty_raw or 0)))
+            except (ValueError, TypeError):
+                qty = 0
+
+            if qty <= 0:
+                continue
+
+            # Aggregate by MAT number
+            aggregated[mat_no]['qty'] += qty
+            aggregated[mat_no]['erp_items'].add(item_number)
+            aggregated[mat_no]['warehouses'].add(warehouse)
+            if style:
+                aggregated[mat_no]['styles'].add(style)
+
+        # Build preview data
+        preview_data = []
+
+        for mat_no, data in aggregated.items():
+            qty = data['qty']
+            styles = data['styles']
+
+            design = mat_to_design.get(mat_no)
+            if not design:
+                stats['mats_not_found'] += 1
+                not_found.append({
+                    'mat_no': mat_no,
+                    'hdbs_type': ', '.join(styles) if styles else 'N/A',
+                    'erp_items': list(data['erp_items'])[:3],
+                    'qty': qty,
+                })
+                continue
+
+            stats['mats_matched'] += 1
+            stats['total_quantity'] += qty
+
+            preview_data.append({
+                'mat_no': mat_no,
+                'hdbs_type': design.hdbs_type,
+                'size': str(design.size) if design.size else '',
+                'category': design.category,
+                'current_qty': design.quantity_on_hand,
+                'new_qty': qty,
+                'erp_items': list(data['erp_items'])[:3],
+                'matched': True,
+            })
+
+        if action == 'preview':
+            return JsonResponse({
+                'success': True,
+                'file_name': file_name,
+                'sheet_name': sheet_name,
+                'header_row': header_row,
+                'column_map': column_map,
+                'stats': {
+                    'rows_processed': stats['rows_processed'],
+                    'mats_matched': stats['mats_matched'],
+                    'mats_not_found': stats['mats_not_found'],
+                    'total_quantity': stats['total_quantity'],
+                },
+                'preview': preview_data[:100],
+                'not_found': not_found[:20],
+            })
+
+        elif action == 'import':
+            import_stats = {
+                'designs_updated': 0,
+                'total_quantity': 0,
+            }
+
+            with transaction.atomic():
+                for row_data in preview_data:
+                    design = mat_to_design.get(row_data['mat_no'])
+                    if not design:
+                        continue
+
+                    design.quantity_on_hand = row_data['new_qty']
+                    design.stock_last_updated = timezone.now()
+                    design.save(update_fields=['quantity_on_hand', 'stock_last_updated'])
+
+                    import_stats['designs_updated'] += 1
+                    import_stats['total_quantity'] += row_data['new_qty']
+
+            return JsonResponse({
+                'success': True,
+                'stats': {
+                    'mats_matched': stats['mats_matched'],
+                    'designs_updated': import_stats['designs_updated'],
+                    'total_quantity': import_stats['total_quantity'],
+                },
+            })
+
+        return JsonResponse({'success': False, 'error': 'Invalid action'}, status=400)

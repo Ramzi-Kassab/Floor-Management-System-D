@@ -932,6 +932,21 @@ class Design(models.Model):
     )
 
     # ═══════════════════════════════════════════════════════════════════════
+    # STOCK / INVENTORY (from ERP On-hand)
+    # ═══════════════════════════════════════════════════════════════════════
+    quantity_on_hand = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Qty On Hand',
+        help_text='Current stock quantity from ERP On-hand'
+    )
+    stock_last_updated = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Stock Last Updated',
+        help_text='When stock was last synced from ERP'
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════
     # LEGACY FIELDS (for backward compatibility - will be deprecated)
     # ═══════════════════════════════════════════════════════════════════════
     code = models.CharField(max_length=50, blank=True, help_text="Legacy: Use mat_no instead")

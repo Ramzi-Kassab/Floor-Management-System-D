@@ -86,4 +86,6 @@ urlpatterns = [
     path("api/designs/filter/", views.APIDesignsFilterView.as_view(), name="api_designs_filter"),
     # Design Import from Excel
     path("designs/import/", views.DesignImportView.as_view(), name="design_import"),
+    # Design Stock Import from On-hand.xlsx
+    path("designs/stock-import/", views.DesignStockImportView.as_view(), name="design_stock_import"),
 ]
