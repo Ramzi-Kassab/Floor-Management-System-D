@@ -381,26 +381,54 @@ class Command(BaseCommand):
         rm_filtered = rm_rows[rm_rows['Search name'].astype(str).isin(all_mats)]
         self.stdout.write(f"Matching designs to import: {len(rm_filtered)}")
 
-        created_count = 0
-        updated_count = 0
-        skipped_count = 0
-        error_count = 0
-
+        # First pass: collect all HDBS types per MAT number to detect duplicates
+        mat_to_hdbs = {}  # mat_no -> list of (hdbs_type, item_number, product_name)
         for idx, row in rm_filtered.iterrows():
             item_number = row['Item number']
             product_name = str(row['Product name'])
             search_name = str(row['Search name'])
 
-            # Parse product name
             size_str, hdbs_type, mat_no = self.parse_product_name(product_name)
-
             if not mat_no:
-                mat_no = search_name  # Fallback to search name
+                mat_no = search_name
 
-            if not mat_no:
-                self.stdout.write(self.style.WARNING(f"  Skipping {item_number}: Could not extract MAT number"))
-                error_count += 1
-                continue
+            if mat_no:
+                if mat_no not in mat_to_hdbs:
+                    mat_to_hdbs[mat_no] = []
+                mat_to_hdbs[mat_no].append({
+                    'hdbs_type': hdbs_type,
+                    'item_number': item_number,
+                    'product_name': product_name,
+                    'size_str': size_str,
+                })
+
+        # Report duplicates
+        duplicates = {k: v for k, v in mat_to_hdbs.items() if len(v) > 1}
+        if duplicates:
+            self.stdout.write(self.style.WARNING(f"\nFound {len(duplicates)} MAT numbers with multiple HDBS types:"))
+            for mat_no, entries in duplicates.items():
+                hdbs_list = [e['hdbs_type'] for e in entries]
+                self.stdout.write(f"  MAT {mat_no}: {', '.join(hdbs_list)}")
+
+        created_count = 0
+        updated_count = 0
+        skipped_count = 0
+        error_count = 0
+
+        # Second pass: process unique MAT numbers
+        for mat_no, entries in mat_to_hdbs.items():
+            # Use the first entry as primary
+            primary = entries[0]
+            item_number = primary['item_number']
+            hdbs_type = primary['hdbs_type']
+            size_str = primary['size_str']
+
+            # Collect alternative HDBS types if duplicates exist
+            alt_hdbs_types = []
+            if len(entries) > 1:
+                for entry in entries[1:]:
+                    if entry['hdbs_type'] and entry['hdbs_type'] != hdbs_type:
+                        alt_hdbs_types.append(entry['hdbs_type'])
 
             # Determine order level
             if mat_no in self.L3_MATS:
@@ -425,10 +453,17 @@ class Command(BaseCommand):
                 if match:
                     series = match.group(1).upper()
 
+            # Build notes for alternative HDBS types
+            notes = ''
+            if alt_hdbs_types:
+                notes = f"Alternative HDBS types found: {', '.join(alt_hdbs_types)}"
+
             self.stdout.write(
                 f"  {item_number}: MAT={mat_no}, Size={size_str}, HDBS={hdbs_type}, "
                 f"Level=L{order_level}, Cat={category}, Body={body_material}"
             )
+            if alt_hdbs_types:
+                self.stdout.write(self.style.WARNING(f"    -> Also found: {', '.join(alt_hdbs_types)}"))
 
             if dry_run:
                 created_count += 1
@@ -450,11 +485,14 @@ class Command(BaseCommand):
                 existing.category = category or (existing.category or '').strip()
                 existing.body_material = body_material or (existing.body_material or '').strip()
                 existing.order_level = order_level or (existing.order_level or '').strip()
-                existing.status = 'ACTIVE'  # Set to active as requested
+                existing.status = 'ACTIVE'
                 if size_obj:
                     existing.size = size_obj
                 if series:
                     existing.series = series
+                # Add alternative HDBS types to notes if found
+                if notes:
+                    existing.notes = notes
                 existing.save()
                 updated_count += 1
                 self.stdout.write(self.style.SUCCESS(f"    Updated: {mat_no}"))
@@ -469,8 +507,9 @@ class Command(BaseCommand):
                         order_level=order_level,
                         size=size_obj,
                         series=series,
-                        status='ACTIVE',  # Set to active as requested
-                        description=f"Imported from {item_number}"
+                        status='ACTIVE',
+                        description=f"Imported from {item_number}",
+                        notes=notes,  # Store alternative HDBS types
                     )
                     created_count += 1
                     self.stdout.write(self.style.SUCCESS(f"    Created: {mat_no}"))

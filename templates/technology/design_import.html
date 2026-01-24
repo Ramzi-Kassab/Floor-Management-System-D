@@ -136,14 +136,18 @@
         <!-- Preview State -->
         <div id="preview-state" class="hidden">
             <!-- Stats Cards -->
-            <div class="grid grid-cols-4 gap-4 mb-6">
+            <div class="grid grid-cols-5 gap-4 mb-6">
                 <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
                     <p class="text-xs text-gray-500 uppercase">RM Rows</p>
                     <p id="stat-total" class="text-2xl font-bold text-gray-900 dark:text-white">0</p>
                 </div>
                 <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
-                    <p class="text-xs text-gray-500 uppercase">Matched (L3/L4)</p>
+                    <p class="text-xs text-gray-500 uppercase">Unique MATs</p>
                     <p id="stat-matched" class="text-2xl font-bold text-green-600">0</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">With Duplicates</p>
+                    <p id="stat-duplicates" class="text-2xl font-bold text-yellow-600">0</p>
                 </div>
                 <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
                     <p class="text-xs text-gray-500 uppercase">To Create</p>
@@ -332,6 +336,7 @@ function renderPreview(data) {
     // Update stats
     document.getElementById('stat-total').textContent = data.stats.rows_total.toLocaleString();
     document.getElementById('stat-matched').textContent = data.stats.rows_matched.toLocaleString();
+    document.getElementById('stat-duplicates').textContent = (data.stats.rows_with_duplicates || 0).toLocaleString();
     document.getElementById('stat-create').textContent = data.stats.created.toLocaleString();
     document.getElementById('stat-update').textContent = data.stats.updated.toLocaleString();
     document.getElementById('stat-l3').textContent = data.stats.l3_count.toLocaleString();
@@ -348,7 +353,9 @@ function renderPreview(data) {
 
     data.preview.forEach(row => {
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-gray-50 dark:hover:bg-gray-700/30';
+        tr.className = row.has_duplicates
+            ? 'hover:bg-yellow-50 dark:hover:bg-yellow-900/20 bg-yellow-50/50 dark:bg-yellow-900/10'
+            : 'hover:bg-gray-50 dark:hover:bg-gray-700/30';
 
         const statusClass = row.status === 'create'
             ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
@@ -364,10 +371,17 @@ function renderPreview(data) {
             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
             : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300';
 
+        // Show alternative HDBS types if there are duplicates
+        let hdbsDisplay = row.hdbs_type;
+        if (row.alt_hdbs_types && row.alt_hdbs_types.length > 0) {
+            const altTypes = row.alt_hdbs_types.join(', ');
+            hdbsDisplay = `${row.hdbs_type} <span class="text-xs text-yellow-600 dark:text-yellow-400" title="Alternative types found">(also: ${altTypes})</span>`;
+        }
+
         tr.innerHTML = `
             <td class="px-3 py-2"><span class="px-2 py-1 rounded text-xs font-medium ${statusClass}">${row.status}</span></td>
             <td class="px-3 py-2 font-mono text-gray-700 dark:text-gray-300">${row.mat_no}</td>
-            <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">${row.hdbs_type}</td>
+            <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">${hdbsDisplay}</td>
             <td class="px-3 py-2 text-gray-600 dark:text-gray-400">${row.size}</td>
             <td class="px-3 py-2 text-center"><span class="px-2 py-1 rounded text-xs font-medium ${levelClass}">${row.order_level}</span></td>
             <td class="px-3 py-2 text-center"><span class="px-2 py-1 rounded text-xs font-medium ${categoryClass}">${row.category}</span></td>

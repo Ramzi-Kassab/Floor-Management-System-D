@@ -3110,7 +3110,8 @@ class DesignImportView(LoginRequiredMixin, TemplateView):
 
         stats = {
             'rows_total': len(rm_rows),
-            'rows_matched': len(rm_filtered),
+            'rows_matched': 0,  # Will count unique MATs
+            'rows_with_duplicates': 0,
             'l3_count': 0,
             'l4_count': 0,
             'fc_count': 0,
@@ -3124,14 +3125,14 @@ class DesignImportView(LoginRequiredMixin, TemplateView):
         preview_data = []
         errors = []
 
+        # First pass: collect all HDBS types per MAT number to detect duplicates
+        mat_to_entries = {}
         for idx, row in rm_filtered.iterrows():
             item_number = str(row['Item number']).strip()
             product_name = str(row['Product name']).strip()
             search_name = str(row['Search name']).strip()
 
-            # Parse product name
             size_str, hdbs_type, mat_no = self.parse_product_name(product_name)
-
             if not mat_no:
                 mat_no = search_name
 
@@ -3143,6 +3144,32 @@ class DesignImportView(LoginRequiredMixin, TemplateView):
                 })
                 stats['errors'] += 1
                 continue
+
+            if mat_no not in mat_to_entries:
+                mat_to_entries[mat_no] = []
+            mat_to_entries[mat_no].append({
+                'hdbs_type': hdbs_type,
+                'item_number': item_number,
+                'size_str': size_str,
+            })
+
+        stats['rows_matched'] = len(mat_to_entries)
+        stats['rows_with_duplicates'] = sum(1 for v in mat_to_entries.values() if len(v) > 1)
+
+        # Second pass: process unique MAT numbers
+        for mat_no, entries in mat_to_entries.items():
+            # Use first entry as primary
+            primary = entries[0]
+            item_number = primary['item_number']
+            hdbs_type = primary['hdbs_type']
+            size_str = primary['size_str']
+
+            # Collect alternative HDBS types
+            alt_hdbs_types = []
+            if len(entries) > 1:
+                for entry in entries[1:]:
+                    if entry['hdbs_type'] and entry['hdbs_type'] != hdbs_type:
+                        alt_hdbs_types.append(entry['hdbs_type'])
 
             # Determine order level
             if mat_no in self.L3_MATS:
@@ -3172,16 +3199,23 @@ class DesignImportView(LoginRequiredMixin, TemplateView):
             # Check if exists
             existing = Design.objects.filter(mat_no=mat_no).first()
 
+            # Build notes for alternative HDBS types
+            notes = ''
+            if alt_hdbs_types:
+                notes = f"Alternative HDBS types found: {', '.join(alt_hdbs_types)}"
+
             preview_item = {
                 'item_number': item_number,
                 'mat_no': mat_no,
                 'size': size_str or '-',
                 'hdbs_type': hdbs_type or '-',
+                'alt_hdbs_types': alt_hdbs_types,  # Show alternatives in preview
                 'category': category or '-',
                 'body_material': body_material or '-',
                 'order_level': f'L{order_level}' if order_level else '-',
                 'series': series or '-',
                 'status': 'update' if existing else 'create',
+                'has_duplicates': len(entries) > 1,
             }
             preview_data.append(preview_item)
 
@@ -3208,6 +3242,9 @@ class DesignImportView(LoginRequiredMixin, TemplateView):
                     existing.size = size_obj
                 if series:
                     existing.series = series.strip()
+                # Store alternative HDBS types in notes
+                if notes:
+                    existing.notes = notes
                 existing.save()
                 stats['updated'] += 1
             else:
@@ -3222,7 +3259,8 @@ class DesignImportView(LoginRequiredMixin, TemplateView):
                         size=size_obj,
                         series=(series or '').strip(),
                         status='ACTIVE',
-                        description=f"Imported from {item_number}"
+                        description=f"Imported from {item_number}",
+                        notes=notes,  # Store alternative HDBS types
                     )
                     stats['created'] += 1
                 except Exception as e:
