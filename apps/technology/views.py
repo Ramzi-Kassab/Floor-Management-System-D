@@ -32,6 +32,18 @@ class DesignListView(LoginRequiredMixin, ListView):
     context_object_name = "designs"
     paginate_by = 25
 
+    PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 'all']
+
+    def get_paginate_by(self, queryset):
+        """Allow dynamic page size from URL parameter."""
+        page_size = self.request.GET.get('page_size', '25')
+        if page_size == 'all':
+            return None  # No pagination - show all
+        try:
+            return int(page_size)
+        except (ValueError, TypeError):
+            return self.paginate_by
+
     def get_queryset(self):
         queryset = Design.objects.select_related(
             "size", "connection_ref", "connection_ref__connection_type",
@@ -102,6 +114,10 @@ class DesignListView(LoginRequiredMixin, ListView):
             context["draft_count"] = Design.objects.filter(status=Design.Status.DRAFT).count()
         else:
             context["draft_count"] = 0
+        # Page size options
+        context["page_size"] = self.request.GET.get("page_size", "25")
+        context["page_size_options"] = self.PAGE_SIZE_OPTIONS
+        context["total_count"] = self.get_queryset().count()
         return context
 
 
