@@ -33,12 +33,12 @@ except ImportError:
 class Command(BaseCommand):
     help = 'Import design (RM) stock quantities from ERP Excel file'
 
-    # Expected header names (case-insensitive)
+    # Supports both Items file and On-hand file formats
     HEADER_PATTERNS = {
         'item_number': ['item number'],
         'product_name': ['product name'],
-        'search_name': ['search name'],
-        'physical_inventory': ['physical inventory'],
+        'search_name': ['search name', 'color'],  # Color column in On-hand file contains MAT
+        'physical_inventory': ['physical inventory', 'available physical'],  # On-hand uses "Available physical"
         'ordered_total': ['ordered in total'],
         'warehouse': ['warehouse'],
     }
