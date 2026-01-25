@@ -223,6 +223,16 @@ class Command(BaseCommand):
 
                 stats['rm_rows'] += 1
 
+                # Check warehouse - ONLY process 'Store' rows
+                warehouse = ''
+                if 'warehouse' in column_map:
+                    warehouse_raw = ws.cell(row=row_idx, column=column_map['warehouse']).value
+                    warehouse = str(warehouse_raw or '').strip()
+
+                # Skip non-Store rows entirely
+                if warehouse.lower() != 'store':
+                    continue
+
                 # Get MAT number
                 mat_no = None
                 hdbs_type = None
@@ -241,31 +251,16 @@ class Command(BaseCommand):
                     stats['skipped_no_mat'] += 1
                     continue
 
-                # Get warehouse value - only 'Store' counts as on-hand
-                warehouse = ''
-                if 'warehouse' in column_map:
-                    warehouse_raw = ws.cell(row=row_idx, column=column_map['warehouse']).value
-                    warehouse = str(warehouse_raw or '').strip()
-
-                # Get quantities - only count on-hand if warehouse is 'Store'
+                # Get quantity from Physical inventory
                 qty_on_hand = 0
                 qty_on_order = 0
 
-                if warehouse.lower() == 'store':
-                    if 'physical_inventory' in column_map:
-                        qty_raw = ws.cell(row=row_idx, column=column_map['physical_inventory']).value
-                        try:
-                            qty_on_hand = int(float(str(qty_raw or 0)))
-                        except (ValueError, TypeError):
-                            qty_on_hand = 0
-
-                # On order - leaving for now as requested
-                # if 'ordered_total' in column_map:
-                #     qty_raw = ws.cell(row=row_idx, column=column_map['ordered_total']).value
-                #     try:
-                #         qty_on_order = int(float(str(qty_raw or 0)))
-                #     except (ValueError, TypeError):
-                #         qty_on_order = 0
+                if 'physical_inventory' in column_map:
+                    qty_raw = ws.cell(row=row_idx, column=column_map['physical_inventory']).value
+                    try:
+                        qty_on_hand = int(float(str(qty_raw or 0)))
+                    except (ValueError, TypeError):
+                        qty_on_hand = 0
 
                 # Match to design
                 design = mat_to_design.get(mat_no)
