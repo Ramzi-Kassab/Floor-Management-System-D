@@ -2806,7 +2806,10 @@
 
             // Only update BOM qty if CL-Driven mode is ON
             if (editState.clDrivenMode) {
-                selectedItem.count = (parseInt(selectedItem.count) || 0) + 1;
+                const liveBomItem = currentData.summary.find(b => b.index === selectedItem.index);
+                if (liveBomItem) {
+                    liveBomItem.count = (parseInt(liveBomItem.count) || 0) + 1;
+                }
             }
 
             refreshEditor();
@@ -3530,7 +3533,11 @@
 
                 // Only update BOM qty if CL-Driven mode is ON
                 if (editState.clDrivenMode) {
-                    selectedItem.count = (parseInt(selectedItem.count) || 0) + 1;
+                    // Look up directly from currentData.summary to ensure we modify the live object
+                    const liveBomItem = currentData.summary.find(b => b.index === selectedItem.index);
+                    if (liveBomItem) {
+                        liveBomItem.count = (parseInt(liveBomItem.count) || 0) + 1;
+                    }
                 }
 
                 refreshEditor();
@@ -3563,7 +3570,11 @@
                     if (oldBomItem && oldBomItem.count > 0) {
                         oldBomItem.count--;
                     }
-                    selectedItem.count = (parseInt(selectedItem.count) || 0) + 1;
+                    // Look up directly from currentData.summary to ensure we modify the live object
+                    const liveBomItem = currentData.summary.find(b => b.index === selectedItem.index);
+                    if (liveBomItem) {
+                        liveBomItem.count = (parseInt(liveBomItem.count) || 0) + 1;
+                    }
                 }
 
                 refreshEditor();
