@@ -20,6 +20,42 @@ from .utils.pdf_generator import HalliburtonPDFGenerator
 from .utils.ppt_generator import HalliburtonPPTGenerator
 
 
+def _enrich_cutter_shapes_from_inventory(source_data: dict):
+    """
+    Enrich source_data['cutter_shapes'] with shape images from InventoryItem.shape_image_base64.
+    Looks up items by MAT # from summary entries for any missing shapes.
+    """
+    from apps.inventory.models import InventoryItem
+
+    summary = source_data.get('summary', [])
+    cutter_shapes = source_data.get('cutter_shapes', {}) or {}
+
+    for item in summary:
+        idx = str(item.get('index', ''))
+        mat_number = item.get('mat_number', '')
+        # Skip if shape already exists for this index
+        if idx in cutter_shapes and cutter_shapes[idx]:
+            existing = cutter_shapes[idx]
+            if isinstance(existing, dict) and existing.get('data'):
+                continue
+            if isinstance(existing, str) and existing:
+                continue
+
+        # Look up shape from inventory item
+        if mat_number:
+            inv_item = InventoryItem.objects.filter(
+                mat_number=mat_number, shape_image_base64__isnull=False
+            ).exclude(shape_image_base64='').first()
+            if not inv_item:
+                inv_item = InventoryItem.objects.filter(
+                    code=mat_number, shape_image_base64__isnull=False
+                ).exclude(shape_image_base64='').first()
+            if inv_item and inv_item.shape_image_base64:
+                cutter_shapes[idx] = {'data': inv_item.shape_image_base64}
+
+    source_data['cutter_shapes'] = cutter_shapes
+
+
 @login_required
 def index(request):
     """Main cutter map page - list documents or show editor."""
@@ -125,6 +161,10 @@ def bom_view(request, bom_id):
     system_linked = list(DrillBit.objects.filter(system_bom=bom).values_list('serial_number', flat=True))
     linked_serial_numbers = list(set(brazing_linked + system_linked))
 
+    # Enrich cutter_shapes from inventory items (by MAT #)
+    source_data = bom.source_data or {}
+    _enrich_cutter_shapes_from_inventory(source_data)
+
     # Build context for template
     bom_context = {
         'bom_id': bom.pk,
@@ -138,7 +178,7 @@ def bom_view(request, bom_id):
         'smi_type': bom.smi_type.smi_name if bom.smi_type else (bom.design.smi_type if bom.design else ''),
         'edit_mode': edit_mode,
         'from_bom_view': True,
-        'source_data': json.dumps(bom.source_data),  # Pre-serialized for JS
+        'source_data': json.dumps(source_data),  # Pre-serialized for JS
         'linked_serial_numbers': json.dumps(linked_serial_numbers),  # SNs linked to this BOM
     }
 
@@ -180,8 +220,9 @@ def bom_readonly(request, bom_id):
     system_linked = list(DrillBit.objects.filter(system_bom=bom))
     linked_drillbits = list({db.pk: db for db in brazing_linked + system_linked}.values())
 
-    # Parse source_data for template
+    # Parse source_data for template (enrich from inventory items)
     source_data = bom.source_data or {}
+    _enrich_cutter_shapes_from_inventory(source_data)
     cutter_shapes = {}
     if source_data.get('cutter_shapes'):
         for key, shape in source_data['cutter_shapes'].items():
@@ -973,6 +1014,15 @@ def api_sync_to_erp(request):
                 inventory_item=inv_item,  # Link to inventory (may be None if unmatched)
             )
             bom_lines_created += 1
+
+            # Save cutter shape image to inventory item (linked by MAT #)
+            if inv_item and cutter_shapes:
+                shape_data = cutter_shapes.get(str(bom_index)) or cutter_shapes.get(bom_index)
+                if shape_data:
+                    shape_base64 = shape_data.get('data') if isinstance(shape_data, dict) else shape_data
+                    if shape_base64 and not inv_item.shape_image_base64:
+                        inv_item.shape_image_base64 = shape_base64
+                        inv_item.save(update_fields=['shape_image_base64'])
 
             index_to_item_info[bom_index] = {
                 'size': cutter_size,

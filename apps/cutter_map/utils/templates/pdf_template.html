@@ -507,14 +507,8 @@
                     </thead>
                     <tbody>
                         {% for row in summary %}
-                        {% set bom_shape = cutter_shapes.get(row.index|string) if cutter_shapes else none %}
                         <tr>
-                            <td>
-                                {% if bom_shape and bom_shape.data %}
-                                <img src="{{ bom_shape.data }}" alt="{{ row.index }}" class="bom-shape-img">
-                                {% endif %}
-                                {{ row.index }}
-                            </td>
+                            <td>{{ row.index }}</td>
                             <td>{{ row.size or '' }}</td>
                             <td>{{ row.chamfer or '' }}</td>
                             <td>{{ row.type or '' }}</td>

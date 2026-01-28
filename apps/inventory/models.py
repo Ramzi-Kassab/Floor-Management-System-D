@@ -1235,6 +1235,9 @@ class InventoryItem(models.Model):
     # Image
     image = models.ImageField(upload_to="inventory/", null=True, blank=True)
 
+    # Cutter shape image (base64 data URI from PDF extraction, linked by MAT #)
+    shape_image_base64 = models.TextField(null=True, blank=True, help_text="Cutter shape image as base64 data URI")
+
     # Packaging: Purchase vs Release UOM
     purchase_uom = models.ForeignKey(
         UnitOfMeasure,
