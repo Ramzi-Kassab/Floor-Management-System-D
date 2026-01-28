@@ -1633,14 +1633,45 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None, header_
                             comma_rows.append({'values': w.text, 'parsed': parsed_groups, 'y': w.y0, 'y1': w.y1, 'x0': w.x0})
                             all_groups.extend(parsed_groups)
 
-        if comma_rows:
-            # Sort by Y position
-            comma_rows.sort(key=lambda r: r['y'])
-            group_data = comma_rows
-            has_legend = True
-            group_format = 'multi_row' if len(comma_rows) > 1 else 'comma'
+        # Also look for standalone numbers (no comma) in the group column
+        # These may appear alongside comma rows (e.g., "6,7", "10", "9")
+        standalone_rows = []
+        if raw_words:
+            for rw in raw_words:
+                x0, y0, text = rw[0], rw[1], rw[4]
+                if (text.isdigit() and 1 <= int(text) <= 20
+                    and abs(x0 - group_label.x0) < 50
+                    and y0 > group_label.y0 and y0 < group_y_limit):
+                    # Skip if already covered by a comma row at similar Y
+                    if not any(abs(cr['y'] - y0) < 5 for cr in comma_rows):
+                        if not any(abs(sr['y'] - y0) < 5 for sr in standalone_rows):
+                            standalone_rows.append({
+                                'values': text, 'parsed': [int(text)],
+                                'y': y0, 'y1': rw[3], 'x0': x0
+                            })
+                            all_groups.append(int(text))
+        # Also check styled words
+        for w in words:
+            if (w.text.isdigit() and 1 <= int(w.text) <= 20
+                and abs(w.x0 - group_label.x0) < 50
+                and w.y0 > group_label.y0 and w.y0 < group_y_limit):
+                if not any(abs(cr['y'] - w.y0) < 5 for cr in comma_rows):
+                    if not any(abs(sr['y'] - w.y0) < 5 for sr in standalone_rows):
+                        standalone_rows.append({
+                            'values': w.text, 'parsed': [int(w.text)],
+                            'y': w.y0, 'y1': w.y1, 'x0': w.x0
+                        })
+                        all_groups.append(int(w.text))
 
-        # Check for vertical format: individual numbers below Group label
+        # Combine comma rows and standalone rows into unified group_data
+        all_rows = comma_rows + standalone_rows
+        if all_rows:
+            all_rows.sort(key=lambda r: r['y'])
+            group_data = all_rows
+            has_legend = True
+            group_format = 'multi_row'
+
+        # Fallback: check for vertical format (single-digit only, no comma rows found)
         if not group_data:
             vertical_groups = []
             for w in words:
@@ -1649,19 +1680,16 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None, header_
                     and w.y0 > group_label.y0 and w.y0 < group_y_limit):
                     vertical_groups.append({'value': int(w.text), 'y': w.y0, 'y1': w.y1, 'x0': w.x0})
 
-            # Also check raw_words for vertical format
             if raw_words:
                 for rw in raw_words:
                     x0, y0, text = rw[0], rw[1], rw[4]
                     if (text.isdigit() and len(text) == 1 and 1 <= int(text) <= 9
                         and abs(x0 - group_label.x0) < 50
                         and y0 > group_label.y0 and y0 < group_y_limit):
-                        # Check if already added
                         if not any(g['value'] == int(text) and abs(g['y'] - y0) < 5 for g in vertical_groups):
                             vertical_groups.append({'value': int(text), 'y': y0, 'y1': rw[3], 'x0': x0})
 
             if vertical_groups:
-                # Sort by Y position
                 vertical_groups.sort(key=lambda g: g['y'])
                 for g in vertical_groups:
                     g['format'] = 'vertical'
