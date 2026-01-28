@@ -176,13 +176,19 @@ Design (L3/L4)                    # Blueprint - what the bit looks like
 
 **Key Views** (`apps/cutter_map/views.py`):
 - `index` - Main cutter map interface at `/cutter-map/`
-- `api_sync_to_erp` - API to create BOM from extracted data
-- `bom_view` - View/edit existing BOM at `/cutter-map/bom/<id>/`
+- `api_sync_to_erp` - API to create BOM from extracted data (also saves cutter shapes to inventory items)
+- `api_cutter_inventory` - API returning PDC cutters with variant stock breakdown, on-order qty, design usage
+- `api_cutter_shapes` - API returning saved cutter shape images from `InventoryItem.shape_image_base64`
+- `bom_view` - View/edit existing BOM at `/cutter-map/bom/<id>/` (enriches shapes from inventory)
+- `bom_readonly` - Read-only BOM view for work orders (enriches shapes from inventory)
 - `add_cutter_wizard` - Wizard to add unmatched cutters to inventory
+- `_enrich_cutter_shapes_from_inventory()` - Helper that fills missing `cutter_shapes` in source_data from inventory items by MAT #
 
 **Key URLs**:
 - `/cutter-map/` - Main interface
 - `/cutter-map/bom/<id>/` - View BOM in cutter map
+- `/cutter-map/api/cutter-inventory/` - Live cutter inventory with variant stock (Tabulator dialog)
+- `/cutter-map/api/cutter-shapes/` - Saved cutter shapes from DB (shape picker)
 - `/cutter-map/add-cutter-wizard/` - Add cutter wizard
 
 ### `apps/workorders/` - Work Orders & Drill Bits
@@ -262,9 +268,11 @@ The `StockLedger` model is an **immutable ledger** for all stock movements:
 
 **InventoryItem**:
 - `code` - Unique item code (e.g., `CUT-0001`)
+- `mat_number` - SAP Legacy MAT No. (used for HDBS code matching)
 - `category` - FK to InventoryCategory
 - `is_blocked` - Prevents deletion
 - `notes` - Free text remarks
+- `shape_image_base64` - Cutter shape image as base64 data URI (linked by MAT # during BOM sync)
 
 **ItemVariant**:
 - `variant_case` - FK to VariantCase (NEW-PUR, etc.)
@@ -339,7 +347,11 @@ The `StockLedger` model is an **immutable ledger** for all stock movements:
 
 ### API Endpoints
 Most API endpoints follow the pattern: `/{app}/api/{resource}/`
-- `/cutter-map/api/sync-to-erp/` - Create BOM from cutter map
+- `/cutter-map/api/sync-to-erp/` - Create BOM from cutter map (POST)
+- `/cutter-map/api/cutter-inventory/` - Live PDC cutter inventory with variant stock breakdown (GET, optional `?design_id=`)
+- `/cutter-map/api/cutter-shapes/` - Saved cutter shape images from DB (GET)
+- `/cutter-map/api/create-cutters/` - Create missing inventory items (POST)
+- `/cutter-map/api/activate-bom/<id>/` - Activate a BOM (POST)
 - `/work-orders/api/drill-bits/search/` - Search drill bits
 - `/inventory/api/categories/<pk>/attributes/` - Get category attributes
 
@@ -384,6 +396,29 @@ The cutter inventory page has Excel-like column filters:
 - Multiple filters can be active simultaneously
 - Visual indicator (blue header) for filtered columns
 - "Clear All Filters" button
+
+### Cutter Selection Dialog (Cutter Map)
+The cutter map's "Select Cutter MAT" dialog uses **Tabulator.js** with live inventory data:
+- Data loaded from `/cutter-map/api/cutter-inventory/` (pre-loaded on page load)
+- Columns: BOM, MAT #, Size, Type, Chamfer, Family, Total, variant breakdown (New, ENO, Retro, Ground, Reclaim, LSTK, Cli Used), On Order
+- Toggle filters: **Available Only**, **On Order**, **Used for Design** (cutters in prior BOMs for same design)
+- **Variants** column toggle to show/hide stock breakdown
+- Number filters (min >=) on all stock/variant columns
+- Size lock/unlock for compatibility control
+- Three open modes: `openMatTableDialog()` (edit BOM), `openAddNewCutterDialog()` (add to blade), `openMatTableDialogForNewItem()` (new BOM item)
+- All share `_buildMatTable()` for Tabulator initialization
+
+### Cutter Shape Management
+- Shapes extracted from Halliburton PDFs (base64) and stored in `BOM.source_data.cutter_shapes` (keyed by group index)
+- During BOM sync (`api_sync_to_erp`), shapes are also saved to `InventoryItem.shape_image_base64` (linked by MAT #)
+- When loading BOMs, `_enrich_cutter_shapes_from_inventory()` fills missing shapes from inventory items
+- Shape picker in Deep Edit modal: "Saved" button loads shapes from `/cutter-map/api/cutter-shapes/`, or user can upload from PC
+
+### CL-Driven Mode (Cutter Layout)
+- Toggle in both **Edit Layout** and **Deep Edit** tabs (shared `editState.clDrivenMode` state)
+- When OFF: BOM Qty is read-only, CL add/replace/delete does not change BOM counts
+- When ON: All CL operations (add, replace, delete, paste row) automatically update BOM Qty
+- BOM Qty input fields disabled unless CL-Driven is enabled
 
 ### LocalStorage Keys
 - `cutterInventoryPrefs` - Column visibility, freeze mode
@@ -506,6 +541,16 @@ python manage.py check
 - **Statistics Dashboard**: Comprehensive variant totals and health metrics
 - **Item Code Generation**: Fixed to skip existing codes
 
+### Recent Enhancements (Jan 28, 2026)
+- **Cutter Shapes linked to PDC Cutters by MAT #**: `InventoryItem.shape_image_base64` field stores cutter shape images; saved during BOM sync, enriched on BOM load
+- **Shape Picker in Deep Edit**: "Saved" button in cutter modal opens a grid of DB-saved shapes (from `/cutter-map/api/cutter-shapes/`)
+- **Live Cutter Inventory in Selection Dialog**: Replaced hardcoded test data with real-time inventory from `/cutter-map/api/cutter-inventory/`, showing variant stock breakdown (New, ENO, Retro, Ground, Reclaim, LSTK, Client Used), on-order quantities, and design usage flags
+- **Toggle Filters**: Available Only, On Order, Used for Design; plus Variants column toggle
+- **Number Filters**: Min >= filters on all stock/variant/on-order columns
+- **PDF BOM Table Cleanup**: Removed shape images from BOM table index column in generated PDF (shapes still in CL circles and group legend)
+- **CL-Driven BOM Qty Gating**: Deep Edit tab now has CL-Driven toggle; all 7 code paths (add, replace, delete, paste, modal save, context add) gated behind `editState.clDrivenMode`
+- **PDF Group Shape Extraction**: Drawing-based table cell detection using filled rectangles; standalone number detection alongside comma-separated groups
+
 ### Login Credentials (Test)
 - **Password for all users**: `Ardt@2025`
 - **Sample users**: `r.kassab`, `g.escobar`, `m.irshad`
@@ -522,9 +567,12 @@ python manage.py check
 | Base template | `templates/base.html` |
 | Sidebar | `templates/components/sidebar.html` |
 | Cutter inventory | `templates/inventory/cutter_inventory_list.html` |
-| Cutter map | `templates/cutter_map/index.html` |
+| Cutter map (main) | `templates/cutter_map/index.html` |
 | Item form | `templates/inventory/item_form.html` |
 | Drill bit list | `templates/workorders/drillbit_list_enhanced.html` |
+| PDF template (Jinja2) | `apps/cutter_map/utils/templates/pdf_template.html` |
+| PDF extractor | `apps/cutter_map/utils/pdf_extractor.py` |
+| PDF generator | `apps/cutter_map/utils/pdf_generator.py` |
 
 ### Key View Classes
 
