@@ -1615,7 +1615,7 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None, header_
                             if part.isdigit() and 1 <= int(part) <= 20:
                                 parsed_groups.append(int(part))
                         if parsed_groups:
-                            comma_rows.append({'values': text, 'parsed': parsed_groups, 'y': y0, 'y1': rw[3]})
+                            comma_rows.append({'values': text, 'parsed': parsed_groups, 'y': y0, 'y1': rw[3], 'x0': x0})
                             all_groups.extend(parsed_groups)
 
         # Also check styled words
@@ -1630,7 +1630,7 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None, header_
                     if parsed_groups:
                         # Check if already added (by Y position)
                         if not any(abs(cr['y'] - w.y0) < 5 for cr in comma_rows):
-                            comma_rows.append({'values': w.text, 'parsed': parsed_groups, 'y': w.y0, 'y1': w.y1})
+                            comma_rows.append({'values': w.text, 'parsed': parsed_groups, 'y': w.y0, 'y1': w.y1, 'x0': w.x0})
                             all_groups.extend(parsed_groups)
 
         if comma_rows:
@@ -1647,7 +1647,7 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None, header_
                 if (w.text.isdigit() and len(w.text) == 1 and 1 <= int(w.text) <= 9
                     and abs(w.x0 - group_label.x0) < 50
                     and w.y0 > group_label.y0 and w.y0 < group_y_limit):
-                    vertical_groups.append({'value': int(w.text), 'y': w.y0, 'y1': w.y1})
+                    vertical_groups.append({'value': int(w.text), 'y': w.y0, 'y1': w.y1, 'x0': w.x0})
 
             # Also check raw_words for vertical format
             if raw_words:
@@ -1658,7 +1658,7 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None, header_
                         and y0 > group_label.y0 and y0 < group_y_limit):
                         # Check if already added
                         if not any(g['value'] == int(text) and abs(g['y'] - y0) < 5 for g in vertical_groups):
-                            vertical_groups.append({'value': int(text), 'y': y0, 'y1': rw[3]})
+                            vertical_groups.append({'value': int(text), 'y': y0, 'y1': rw[3], 'x0': x0})
 
             if vertical_groups:
                 # Sort by Y position
@@ -1712,14 +1712,224 @@ def find_shapes_containing(shapes: List[Shape], x: float, y: float) -> List[Shap
     ]
 
 
+def _detect_group_table_cells(page, group_data, group_format, header_y_limit) -> list:
+    """
+    Detect group table cells from PDF drawings.
+
+    The Halliburton PDF group table uses filled rectangles as structural elements:
+    - Thin fills (h < 3px, darker gray ~0.87) = horizontal border lines between rows
+    - Taller fills (h > 5px, lighter gray ~0.97) = cell backgrounds (may be absent for some rows)
+
+    Strategy:
+    1. Find horizontal border lines in the group column X range
+    2. Sort border Y positions to derive row boundaries
+    3. For each group text, find the row it belongs to
+    4. Define cell bounds from the border lines and known column X range
+
+    Returns list of cell dicts with x0, y0, x1, y1, row_y0, row_y1.
+    """
+    if not group_data:
+        return []
+
+    try:
+        drawings = page.get_drawings()
+    except Exception:
+        return []
+
+    page_width = page.rect.width
+    page_height = page.rect.height
+
+    # Collect cell backgrounds and border lines from drawings
+    cell_bg_rects = []
+    border_lines = []
+
+    for d in drawings:
+        r = d['rect']
+        fill = d.get('fill')
+        if fill is None:
+            continue
+        w = r.x1 - r.x0
+        h = r.y1 - r.y0
+        # Skip page-spanning elements
+        if w > page_width * 0.5 or r.y0 >= header_y_limit:
+            continue
+        # Classify: border line (thin, h<=3) vs cell background (taller)
+        if w > 5 and h <= 3 and r.x0 > page_width * 0.3:
+            border_lines.append({
+                'x0': r.x0, 'y0': r.y0, 'x1': r.x1, 'y1': r.y1,
+            })
+        elif w > 5 and h > 5 and w < page_width * 0.3 and h < page_height * 0.15:
+            cell_bg_rects.append({
+                'x0': r.x0, 'y0': r.y0, 'x1': r.x1, 'y1': r.y1,
+                'w': w, 'h': h,
+            })
+
+    if not border_lines and not cell_bg_rects:
+        return []
+
+    # Find the TEXT column (contains group text) by checking which cell X range
+    # contains the first group text's X position
+    # group_data may have 'x0' key from raw_words, or we estimate from group label
+    first_text_x = None
+    for row in group_data:
+        if 'x0' in row and row['x0'] > 0:
+            first_text_x = row['x0']
+            break
+
+    # Identify the text column from cell backgrounds
+    text_col_x0 = None
+    text_col_x1 = None
+    shape_col_x0 = None
+    shape_col_x1 = None
+
+    if first_text_x and cell_bg_rects:
+        # Find the cell background that contains the text X position
+        for cb in cell_bg_rects:
+            if cb['x0'] <= first_text_x <= cb['x1']:
+                text_col_x0 = cb['x0']
+                text_col_x1 = cb['x1']
+                break
+
+    if text_col_x0 is not None:
+        # Shape column = the column immediately to the left with the same Y range
+        # Find cells with x1 close to text_col_x0
+        for cb in cell_bg_rects:
+            if abs(cb['x1'] - text_col_x0) < 5 and cb['x0'] < text_col_x0:
+                shape_col_x0 = cb['x0']
+                shape_col_x1 = cb['x1']
+                break
+
+    # Fallback: if we couldn't identify columns from text, use the tallest cells
+    # (shape cells are taller than data cells since they contain images)
+    if shape_col_x0 is None and cell_bg_rects:
+        # Group cells by x0, find the column with tallest cells in the right area
+        from collections import defaultdict
+        col_groups = defaultdict(list)
+        for cb in cell_bg_rects:
+            if cb['x0'] > page_width * 0.4:
+                col_key = round(cb['x0'])
+                col_groups[col_key].append(cb)
+        if col_groups:
+            # Pick column with largest average height
+            best_col = max(col_groups.values(),
+                           key=lambda cells: sum(c['h'] for c in cells) / len(cells))
+            shape_col_x0 = min(c['x0'] for c in best_col)
+            shape_col_x1 = max(c['x1'] for c in best_col)
+
+    if shape_col_x0 is None:
+        return []
+
+    # Collect border Y values for the shape column
+    col_borders = [b for b in border_lines
+                   if (abs(b['x0'] - shape_col_x0) < 5 or
+                       abs(b['x0'] - text_col_x0) < 5 if text_col_x0 else False)]
+    border_y_values = sorted(set(round(b['y0'], 1) for b in col_borders))
+
+    # Build row boundaries from consecutive border Y positions
+    row_bounds = []
+    for i in range(len(border_y_values) - 1):
+        y_top = border_y_values[i]
+        y_bot = border_y_values[i + 1]
+        if y_bot - y_top < 3:
+            continue
+        row_bounds.append((y_top, y_bot))
+
+    # Also derive rows from cell backgrounds in the shape column
+    for cb in cell_bg_rects:
+        if abs(cb['x0'] - shape_col_x0) < 5:
+            already = any(abs(rb[0] - cb['y0']) < 3 for rb in row_bounds)
+            if not already:
+                row_bounds.append((cb['y0'], cb['y1']))
+
+    row_bounds.sort(key=lambda r: r[0])
+
+    # Match each group text to a row
+    table_cells = []
+    for row in group_data:
+        ty0 = row.get('y', 0)
+        ty1 = row.get('y1', ty0 + 10)
+        ty_center = (ty0 + ty1) / 2
+        for rb_y0, rb_y1 in row_bounds:
+            if rb_y0 <= ty_center <= rb_y1:
+                if not any(abs(tc['row_y0'] - rb_y0) < 3 for tc in table_cells):
+                    table_cells.append({
+                        'x0': shape_col_x0,
+                        'y0': rb_y0,
+                        'x1': shape_col_x1,
+                        'y1': rb_y1,
+                        'row_y0': rb_y0,
+                        'row_y1': rb_y1,
+                    })
+                break
+
+    return table_cells
+
+
+def _match_group_text_to_row(group_data, group_format, row_y0, row_y1) -> str:
+    """
+    Match group text to a table row by Y containment.
+    Returns the group text string or empty string if no match.
+    """
+    if not group_data:
+        return ''
+
+    # First try: exact containment (text y0/y1 within row bounds)
+    if group_format in ('comma', 'multi_row'):
+        for row in group_data:
+            text_y0 = row.get('y', 0)
+            text_y1 = row.get('y1', text_y0 + 10)
+            if text_y0 >= row_y0 and text_y1 <= row_y1:
+                return row.get('values', '')
+    elif group_format == 'vertical':
+        for row in group_data:
+            text_y0 = row.get('y', 0)
+            text_y1 = row.get('y1', text_y0 + 10)
+            if text_y0 >= row_y0 and text_y1 <= row_y1:
+                return str(row.get('value', ''))
+
+    # Second try: text center within row bounds (more tolerant)
+    if group_format in ('comma', 'multi_row'):
+        for row in group_data:
+            text_y0 = row.get('y', 0)
+            text_y1 = row.get('y1', text_y0 + 10)
+            text_cy = (text_y0 + text_y1) / 2
+            if row_y0 <= text_cy <= row_y1:
+                return row.get('values', '')
+    elif group_format == 'vertical':
+        for row in group_data:
+            text_y0 = row.get('y', 0)
+            text_y1 = row.get('y1', text_y0 + 10)
+            text_cy = (text_y0 + text_y1) / 2
+            if row_y0 <= text_cy <= row_y1:
+                return str(row.get('value', ''))
+
+    # Third try: closest text within tolerance
+    best_text = ''
+    best_dist = float('inf')
+    for row in group_data:
+        text_y0 = row.get('y', 0)
+        dist = abs(text_y0 - row_y0)
+        if dist < best_dist and dist < (row_y1 - row_y0) * 1.5:
+            best_dist = dist
+            if group_format in ('comma', 'multi_row'):
+                best_text = row.get('values', '')
+            else:
+                best_text = str(row.get('value', ''))
+
+    return best_text
+
+
 def extract_images(page, doc, group_data=None, group_format='unknown', header_boundary_y=None) -> Dict:
     """
     Extract key images from the PDF page:
     - Halliburton logo (wide horizontal image in header)
     - Drill bit face (large image or small preview in header)
     - Group table shape(s) (cutter shape(s) near Group label)
-      - For comma format: single shared shape
-      - For vertical format: one shape per group, matched by Y position
+
+    Uses drawing-based table cell detection for robust group shape identification:
+    - Detects filled rectangles (table cells) from PDF drawings
+    - Matches images to table cells by spatial containment
+    - Matches group text to the same table row
 
     Returns dict with base64-encoded images.
     """
@@ -1742,26 +1952,34 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
         # Get all images on the page
         image_list = page.get_images(full=True)
         page_width = page.rect.width
+        page_height = page.rect.height
 
-        # Proportional thresholds
-        drill_x_threshold = page_width * 0.55  # ~55% from left for drill bit
-        group_x_threshold = page_width * 0.45  # ~45% from left for group shapes
+        # Dynamic Y boundary
+        header_y_limit = header_boundary_y if header_boundary_y else page_height * 0.25
 
-        # Dynamic Y boundary: everything above first blade marker is header area
-        # Fallback to proportional estimate if not provided
-        header_y_limit = header_boundary_y if header_boundary_y else page.rect.height * 0.25
+        # --- Step 1: Detect group table cells from PDF drawings ---
+        # The group table has filled rectangles (light gray ~0.976) as cell backgrounds
+        # and thin darker fills (~0.867) as border lines between rows.
+        # We use these to find the exact cell boundaries for the "shape" column.
+        group_table_cells = _detect_group_table_cells(page, group_data, group_format, header_y_limit)
 
-        # Collect all image info with positions
+        # --- Step 2: Collect all images with unique positions ---
         image_infos = []
+        seen_rects = set()
         for img_info in image_list:
             xref = img_info[0]
             width = img_info[2]
             height = img_info[3]
             rects = page.get_image_rects(xref)
             if rects:
-                image_infos.append((xref, width, height, rects[0]))
+                rect = rects[0]
+                # Deduplicate by position (many images share the same rect in these PDFs)
+                rect_key = (round(rect.x0, 1), round(rect.y0, 1), round(rect.x1, 1), round(rect.y1, 1))
+                if rect_key not in seen_rects:
+                    seen_rects.add(rect_key)
+                    image_infos.append((xref, width, height, rect))
 
-        # Collect potential group shapes (for vertical format matching)
+        # --- Step 3: Classify images ---
         potential_group_shapes = []
 
         for xref, width, height, rect in image_infos:
@@ -1775,8 +1993,8 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
                 b64_data = base64.b64encode(image_bytes).decode('utf-8')
                 data_url = f"data:image/{image_ext};base64,{b64_data}"
 
-                # 1. Halliburton logo - wide horizontal image in header (y < 50)
-                if rect.y0 < 50 and width > height * 3 and width > 200:
+                # 1. Logo - wide horizontal image near top of page
+                if width > height * 3 and width > 200 and rect.y0 < header_y_limit * 0.3:
                     if images_data['halliburton_logo'] is None:
                         images_data['halliburton_logo'] = {
                             'data': data_url,
@@ -1784,12 +2002,47 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
                             'height': height
                         }
                         images_data['has_images'] = True
+                    continue
 
-                # 2. Drill bit face/preview - in header area (far right, above CL, larger size)
-                # Must be position-based AND size-based to differentiate from group shapes
-                # Drill bit: typically 100-300px, in far right (x > 75% of page width)
-                elif rect.x0 > page_width * 0.75 and rect.y0 < header_y_limit and 100 < width < 400 and 100 < height < 400:
-                    # Store as drill_bit_face (the main one used in template)
+                # Skip very wide images (logo-like)
+                if width > height * 3:
+                    continue
+
+                # Skip images below header boundary (CL area images)
+                if rect.y0 >= header_y_limit:
+                    continue
+
+                # 2. Check if image falls within a detected group table cell
+                matched_cell = None
+                if group_table_cells:
+                    for cell in group_table_cells:
+                        # Image center should be within the cell bounds
+                        img_cy = (rect.y0 + rect.y1) / 2
+                        img_cx = (rect.x0 + rect.x1) / 2
+                        if (cell['x0'] <= img_cx <= cell['x1'] and
+                            cell['y0'] <= img_cy <= cell['y1']):
+                            matched_cell = cell
+                            break
+
+                if matched_cell:
+                    # This image is inside a group table cell
+                    shape_info = {
+                        'data': data_url,
+                        'width': width,
+                        'height': height,
+                        'y0': rect.y0,
+                        'y1': rect.y1,
+                        'x0': rect.x0,
+                        'x1': rect.x1,
+                        'cell': matched_cell,
+                    }
+                    potential_group_shapes.append(shape_info)
+                    images_data['has_images'] = True
+
+                # 3. Drill bit face - large roughly-square image in far right of header
+                elif (rect.x0 > page_width * 0.75 and
+                      width > 100 and height > 100 and
+                      width < page_width * 0.5 and height < page_height * 0.5):
                     if images_data['drill_bit_face'] is None:
                         images_data['drill_bit_face'] = {
                             'data': data_url,
@@ -1798,7 +2051,6 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
                             'position': (rect.x0, rect.y0, rect.x1, rect.y1)
                         }
                         images_data['has_images'] = True
-                    # Also keep as drill_bit_preview for fallback
                     if images_data['drill_bit_preview'] is None:
                         images_data['drill_bit_preview'] = {
                             'data': data_url,
@@ -1807,18 +2059,22 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
                             'position': (rect.x0, rect.y0, rect.x1, rect.y1)
                         }
 
-                # 3. Group shape(s) - images in header area that are NOT logo and NOT drill bit face
-                # Identified by: above CL boundary, in group column area, not too large (< drill bit)
-                elif (rect.x0 > group_x_threshold and rect.y0 < header_y_limit
-                      and width < 140 and height < 140    # Exclude drill bit face (140+)
-                      and not (width > height * 3)):       # Exclude logo-like wide images
+                # 4. Fallback: if no table cells detected, use position-based heuristic
+                # Images in group column area that are small enough to be cutter shapes
+                elif (not group_table_cells and
+                      rect.x0 > page_width * 0.45 and
+                      rect.x0 < page_width * 0.85 and
+                      width < page_width * 0.25 and height < page_height * 0.2 and
+                      not (width > 100 and height > 100 and rect.x0 > page_width * 0.75)):
                     shape_info = {
                         'data': data_url,
                         'width': width,
                         'height': height,
                         'y0': rect.y0,
                         'y1': rect.y1,
-                        'y_center': (rect.y0 + rect.y1) / 2
+                        'x0': rect.x0,
+                        'x1': rect.x1,
+                        'cell': None,
                     }
                     potential_group_shapes.append(shape_info)
                     images_data['has_images'] = True
@@ -1826,61 +2082,26 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
             except Exception as e:
                 continue
 
-        # Process group shapes - match each shape with its group row by Y position
+        # --- Step 4: Match group shapes to group text ---
         if potential_group_shapes:
-            # Sort by Y position
             potential_group_shapes.sort(key=lambda s: s['y0'])
 
-            # Match each shape with its group text by checking if text Y is WITHIN shape Y range
             for shape_info in potential_group_shapes:
-                shape_y0 = shape_info['y0']
-                shape_y1 = shape_info['y1']
                 group_text = ''
+                cell = shape_info.get('cell')
 
-                # Find the group text whose y0/y1 falls within the shape's y0/y1
-                if group_data and group_format in ['comma', 'multi_row']:
-                    for row in group_data:
-                        text_y0 = row.get('y', 0)
-                        text_y1 = row.get('y1', text_y0 + 10)
-                        # Text y0 and y1 should be within shape y0 and y1
-                        if text_y0 >= shape_y0 and text_y1 <= shape_y1:
-                            group_text = row.get('values', '')
-                            break
-                    # Fallback: if no exact containment, find closest text within tolerance
-                    if not group_text:
-                        best_match = None
-                        best_dist = float('inf')
-                        for row in group_data:
-                            text_y0 = row.get('y', 0)
-                            dist = abs(text_y0 - shape_y0)
-                            if dist < best_dist and dist < 15:
-                                best_dist = dist
-                                best_match = row
-                        if best_match:
-                            group_text = best_match.get('values', '')
+                if cell and cell.get('row_y0') is not None and cell.get('row_y1') is not None:
+                    # Use the full row bounds (from table cell detection) to find matching text
+                    row_y0 = cell['row_y0']
+                    row_y1 = cell['row_y1']
+                    group_text = _match_group_text_to_row(group_data, group_format, row_y0, row_y1)
 
-                elif group_data and group_format == 'vertical':
-                    for row in group_data:
-                        text_y0 = row.get('y', 0)
-                        text_y1 = row.get('y1', text_y0 + 10)
-                        if text_y0 >= shape_y0 and text_y1 <= shape_y1:
-                            group_text = str(row.get('value', ''))
-                            break
-                    # Fallback
-                    if not group_text:
-                        best_match = None
-                        best_dist = float('inf')
-                        for row in group_data:
-                            text_y0 = row.get('y', 0)
-                            dist = abs(text_y0 - shape_y0)
-                            if dist < best_dist and dist < 15:
-                                best_dist = dist
-                                best_match = row
-                        if best_match:
-                            group_text = str(best_match.get('value', ''))
+                if not group_text:
+                    # Fallback: match by shape's own Y bounds
+                    shape_y0 = shape_info['y0']
+                    shape_y1 = shape_info['y1']
+                    group_text = _match_group_text_to_row(group_data, group_format, shape_y0, shape_y1)
 
-                # Only include shapes that have a valid group_text match
-                # This filters out CL shapes that happen to appear in header area
                 if group_text:
                     images_data['group_shapes'].append({
                         'data': shape_info['data'],
@@ -1890,7 +2111,7 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
                         'group_text': group_text
                     })
 
-            # Set group_shape to first matched shape (not just first potential)
+            # Set group_shape to first matched shape
             if images_data['group_shapes']:
                 images_data['group_shape'] = {
                     'data': images_data['group_shapes'][0]['data'],
