@@ -1,36 +1,28 @@
+{% extends "base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+{% block title %}Cutter Map Editor - ARDT FMS{% endblock %}
+
+{% block extra_css %}
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>Cutter Map Editor - ARDT FMS</title>
-    <!-- Apply dark mode before render to prevent flash -->
-    <script>
-        (function() {
-            if (localStorage.getItem('darkMode') === 'true') {
-                document.documentElement.classList.add('dark');
-            }
-        })();
-    </script>
     <!-- Tabulator Library for MAT Selection Table -->
     <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator_midnight.min.css" rel="stylesheet">
     <script type="text/javascript" src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: #f0f0f0; font-size: 12px; }
+        /* Remove base layout padding for full-width cutter map */
+        .cutter-map-app { margin: -1.5rem; font-family: Arial, sans-serif; font-size: 12px; }
+        .cutter-map-app * { box-sizing: border-box; }
         
-        .app-header { background: #C8102E; color: white; padding: 10px 20px; }
-        .app-header h1 { font-size: 1.2rem; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 15px; }
-        
-        .btn { background: #C8102E; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-        .btn:hover { background: #a00d24; }
-        .btn-green { background: #28a745; }
-        .btn-green:hover { background: #1e7e34; }
-        .btn-gray { background: #666; }
-        .btn-sm { padding: 3px 8px; font-size: 10px; }
+        .cutter-map-app .app-header { background: #C8102E; color: white; padding: 10px 20px; }
+        .cutter-map-app .app-header h1 { font-size: 1.2rem; }
+        .cutter-map-app .container { max-width: 1200px; margin: 0 auto; padding: 15px; }
+
+        .cutter-map-app .btn { background: #C8102E; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .cutter-map-app .btn:hover { background: #a00d24; }
+        .cutter-map-app .btn-green { background: #28a745; }
+        .cutter-map-app .btn-green:hover { background: #1e7e34; }
+        .cutter-map-app .btn-gray { background: #666; }
+        .cutter-map-app .btn-sm { padding: 3px 8px; font-size: 10px; }
         
         .upload-section { background: white; padding: 30px; border-radius: 8px; text-align: center; margin-bottom: 15px; }
         .upload-area { border: 2px dashed #ccc; padding: 40px; border-radius: 8px; cursor: pointer; }
@@ -55,12 +47,12 @@
         .form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
         .form-group { flex: 1; min-width: 150px; }
         .form-group label { display: block; font-weight: bold; margin-bottom: 3px; font-size: 11px; color: #555; }
-        .form-group input, .form-group select { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+        .cutter-map-app .form-group input, .cutter-map-app .form-group select { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
         
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #333; padding: 6px; text-align: center; }
-        th { background: #555; color: white; }
-        tr:nth-child(even) { background: #f5f5f5; }
+        .cutter-map-app table { width: 100%; border-collapse: collapse; }
+        .cutter-map-app th, .cutter-map-app td { border: 1px solid #333; padding: 6px; text-align: center; }
+        .cutter-map-app th { background: #555; color: white; }
+        .cutter-map-app tr:nth-child(even) { background: #f5f5f5; }
         
         .message { padding: 10px; border-radius: 4px; margin-bottom: 10px; }
         .message.success { background: #d4edda; color: #155724; }
@@ -990,38 +982,38 @@
         .mat-col-group-new { background: #e8f5e9 !important; }
         .mat-col-group-used { background: #fff3e0 !important; }
 
-        /* ─── Dark Mode ─── */
-        .dark body, .dark { background: #111827; color: #e5e7eb; }
-        .dark .app-header { background: #7f1d1d; }
-        .dark .container { color: #e5e7eb; }
-        .dark .upload-section, .dark .card, .dark .section { background: #1f2937; border-color: #374151; color: #e5e7eb; }
-        .dark .upload-area { border-color: #4b5563; }
-        .dark .upload-area:hover { border-color: #C8102E; background: #1f1f1f; }
-        .dark input, .dark select, .dark textarea { background: #374151; color: #e5e7eb; border-color: #4b5563; }
-        .dark input::placeholder, .dark select::placeholder, .dark textarea::placeholder { color: #9ca3af; }
+        /* ─── Dark Mode (scoped to cutter-map-app) ─── */
+        .dark .cutter-map-app { background: #111827; color: #e5e7eb; }
+        .dark .cutter-map-app .app-header { background: #7f1d1d; }
+        .dark .cutter-map-app .container { color: #e5e7eb; }
+        .dark .cutter-map-app .upload-section, .dark .cutter-map-app .card, .dark .cutter-map-app .section { background: #1f2937; border-color: #374151; color: #e5e7eb; }
+        .dark .cutter-map-app .upload-area { border-color: #4b5563; }
+        .dark .cutter-map-app .upload-area:hover { border-color: #C8102E; background: #1f1f1f; }
+        .dark .cutter-map-app input, .dark .cutter-map-app select, .dark .cutter-map-app textarea { background: #374151; color: #e5e7eb; border-color: #4b5563; }
+        .dark .cutter-map-app input::placeholder, .dark .cutter-map-app select::placeholder, .dark .cutter-map-app textarea::placeholder { color: #9ca3af; }
 
         /* Dark: panels, tabs, toolbars */
-        .dark .tab-nav { background: #1f2937; border-color: #374151; }
-        .dark .tab-nav button, .dark .tab-btn { color: #9ca3af; }
-        .dark .tab-nav button.active, .dark .tab-btn.active { background: #374151; color: #60a5fa; border-color: #60a5fa; }
-        .dark .toolbar { background: #1f2937; border-color: #374151; }
-        .dark .status-bar { background: #1f2937; color: #9ca3af; border-color: #374151; }
+        .dark .cutter-map-app .tab-nav { background: #1f2937; border-color: #374151; }
+        .dark .cutter-map-app .tab-nav button, .dark .cutter-map-app .tab-btn { color: #9ca3af; }
+        .dark .cutter-map-app .tab-nav button.active, .dark .cutter-map-app .tab-btn.active { background: #374151; color: #60a5fa; border-color: #60a5fa; }
+        .dark .cutter-map-app .toolbar { background: #1f2937; border-color: #374151; }
+        .dark .cutter-map-app .status-bar { background: #1f2937; color: #9ca3af; border-color: #374151; }
 
         /* Dark: tables */
-        .dark table { border-color: #374151; }
-        .dark th { background: #1f2937; color: #d1d5db; border-color: #374151; }
-        .dark td { background: #111827; color: #e5e7eb; border-color: #374151; }
-        .dark tr:hover td { background: #1e293b; }
+        .dark .cutter-map-app table { border-color: #374151; }
+        .dark .cutter-map-app th { background: #1f2937; color: #d1d5db; border-color: #374151; }
+        .dark .cutter-map-app td { background: #111827; color: #e5e7eb; border-color: #374151; }
+        .dark .cutter-map-app tr:hover td { background: #1e293b; }
 
         /* Dark: BOM merged table */
-        .dark .bom-merged-table { border-color: #374151; }
-        .dark .bom-merged-table th { background: #1e293b; color: #d1d5db; }
-        .dark .bom-merged-table td { background: #111827; color: #e5e7eb; }
+        .dark .cutter-map-app .bom-merged-table { border-color: #374151; }
+        .dark .cutter-map-app .bom-merged-table th { background: #1e293b; color: #d1d5db; }
+        .dark .cutter-map-app .bom-merged-table td { background: #111827; color: #e5e7eb; }
 
         /* Dark: modals */
         .dark .modal-box, .dark .mat-dialog-box { background: #1f2937; color: #e5e7eb; }
         .dark .modal-header { background: #111827; border-color: #374151; }
-        .dark .form-group label { color: #d1d5db; }
+        .dark .cutter-map-app .form-group label { color: #d1d5db; }
         .dark .shape-edit-container { border-color: #374151; }
         .dark .shape-preview { background: #111827; border-color: #374151; }
         .dark #shapePicker { background: #1e293b; border-color: #374151; }
@@ -1047,35 +1039,30 @@
         .dark .mat-col-group-used { background: rgba(251,146,60,0.1) !important; }
 
         /* Dark: BOM context banner */
-        .dark [style*="background: linear-gradient(90deg, #065f46"] { filter: brightness(0.85); }
+        .dark .cutter-map-app [style*="background: linear-gradient(90deg, #065f46"] { filter: brightness(0.85); }
 
         /* Dark: validation, stats sections */
-        .dark .validation-section, .dark .stats-box { background: #1f2937; border-color: #374151; color: #e5e7eb; }
+        .dark .cutter-map-app .validation-section, .dark .cutter-map-app .stats-box { background: #1f2937; border-color: #374151; color: #e5e7eb; }
 
         /* Dark: blade editor, CL cells */
-        .dark .blade-panel { background: #1f2937; border-color: #374151; }
-        .dark .blade-header { background: #111827; color: #d1d5db; }
-        .dark .cl-row { border-color: #374151; }
+        .dark .cutter-map-app .blade-panel { background: #1f2937; border-color: #374151; }
+        .dark .cutter-map-app .blade-header { background: #111827; color: #d1d5db; }
+        .dark .cutter-map-app .cl-row { border-color: #374151; }
 
-        /* Dark: scrollbar */
-        .dark ::-webkit-scrollbar { width: 8px; height: 8px; }
-        .dark ::-webkit-scrollbar-track { background: #1f2937; }
-        .dark ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
-        .dark ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        /* Dark: scrollbar (cutter-map-app) */
+        .dark .cutter-map-app ::-webkit-scrollbar { width: 8px; height: 8px; }
+        .dark .cutter-map-app ::-webkit-scrollbar-track { background: #1f2937; }
+        .dark .cutter-map-app ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        .dark .cutter-map-app ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
-        /* Dark mode toggle button */
-        .dark-toggle { background: rgba(255,255,255,0.15); border: none; color: white; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; }
-        .dark-toggle:hover { background: rgba(255,255,255,0.25); }
     </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
+<div class="cutter-map-app">
+    <!-- Cutter Map Sub-Header -->
     <div class="app-header" style="display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 15px;">
-            <a href="{% url 'dashboard:home' %}" title="Back to Home" style="color: white; text-decoration: none; display: flex; align-items: center; padding: 6px 10px; background: rgba(255,255,255,0.15); border-radius: 4px;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-                </svg>
-            </a>
             <h1>HALLIBURTON PDF Generator</h1>
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
@@ -1087,12 +1074,6 @@
             <a href="{% url 'technology:bom_list' %}?from=cutter_map" style="color: white; text-decoration: none; font-size: 12px; padding: 6px 12px; background: rgba(76,175,80,0.9); border-radius: 4px; font-weight: 500;">
                 📋 BOM List
             </a>
-            <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">
-                <svg id="darkModeIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>
-                </svg>
-                <span id="darkModeLabel"></span>
-            </button>
         </div>
     </div>
 
@@ -9663,23 +9644,5 @@
             }
         })();
     </script>
-    <script>
-        // Dark mode toggle
-        function toggleDarkMode() {
-            const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('darkMode', isDark);
-            updateDarkModeLabel();
-        }
-        function updateDarkModeLabel() {
-            const label = document.getElementById('darkModeLabel');
-            const icon = document.getElementById('darkModeIcon');
-            const isDark = document.documentElement.classList.contains('dark');
-            if (label) label.textContent = isDark ? 'Light' : 'Dark';
-            if (icon) icon.innerHTML = isDark
-                ? '<path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 0 0-1.41 0 .996.996 0 0 0 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 0 0-1.41 0 .996.996 0 0 0 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 0 0 0-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 0 0 0-1.41.996.996 0 0 0-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 0 0 0-1.41.996.996 0 0 0-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>'
-                : '<path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>';
-        }
-        updateDarkModeLabel();
-    </script>
-</body>
-</html>
+</div><!-- /.cutter-map-app -->
+{% endblock %}
