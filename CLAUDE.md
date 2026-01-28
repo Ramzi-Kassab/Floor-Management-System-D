@@ -494,10 +494,12 @@ python manage.py check
 - Use `select_related` and `prefetch_related` for optimization
 
 ### Template Conventions
+- All pages extend `base.html` (includes sidebar, topnav, dark mode)
 - Use `{% block content %}` for page content
 - Use `{% block extra_css %}` and `{% block extra_js %}` for page-specific assets
 - Alpine.js components defined in `<script>` at bottom of template
 - Use Lucide icons: `<i data-lucide="icon-name" class="w-4 h-4"></i>`
+- **Cutter map pattern**: Large standalone pages use `.cutter-map-app` wrapper with scoped CSS and `margin: -1.5rem` to cancel base layout padding for full-width display
 
 ### Model Conventions
 - Use `is_active` soft delete pattern
@@ -550,6 +552,7 @@ python manage.py check
 - **PDF BOM Table Cleanup**: Removed shape images from BOM table index column in generated PDF (shapes still in CL circles and group legend)
 - **CL-Driven BOM Qty Gating**: Deep Edit tab now has CL-Driven toggle; all 7 code paths (add, replace, delete, paste, modal save, context add) gated behind `editState.clDrivenMode`
 - **PDF Group Shape Extraction**: Drawing-based table cell detection using filled rectangles; standalone number detection alongside comma-separated groups
+- **Cutter Map Sidebar Integration**: Cutter map page (`index.html`) now extends `base.html`, gaining the sidebar navigation, topnav with dark mode toggle, and consistent layout. CSS selectors scoped to `.cutter-map-app` to avoid conflicts with Tailwind base styles. Negative margin on wrapper cancels base layout padding for edge-to-edge display.
 
 ### Login Credentials (Test)
 - **Password for all users**: `Ardt@2025`
@@ -565,7 +568,8 @@ python manage.py check
 |---------|------|
 | Main URL config | `config/urls.py` |
 | Base template | `templates/base.html` |
-| Sidebar | `templates/components/sidebar.html` |
+| Sidebar | `templates/includes/sidebar.html` |
+| Top Navigation | `templates/includes/topnav.html` |
 | Cutter inventory | `templates/inventory/cutter_inventory_list.html` |
 | Cutter map (main) | `templates/cutter_map/index.html` |
 | Item form | `templates/inventory/item_form.html` |
