@@ -935,7 +935,7 @@
         /* MAT Selection Table Dialog with Tabulator */
         .mat-table-dialog { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1100; }
         .mat-table-dialog.hidden { display: none; }
-        .mat-table-box { background: white; padding: 0; border-radius: 12px; max-width: 900px; width: 95%; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.3); overflow: hidden; }
+        .mat-table-box { background: white; padding: 0; border-radius: 12px; max-width: 1200px; width: 95%; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.3); overflow: hidden; }
         .mat-table-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: linear-gradient(135deg, #1565c0 0%, #1976d2 50%, #42a5f5 100%); color: white; }
         .mat-table-header-left { display: flex; align-items: center; gap: 12px; }
         .mat-table-title { font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
@@ -970,6 +970,16 @@
         #matTabulatorTable .tabulator-row.tabulator-selected { background: #c8e6c9 !important; border-left: 4px solid #4caf50; }
         #matTabulatorTable .tabulator-row:hover { background: #e3f2fd; cursor: pointer; }
         #matTabulatorTable .tabulator-cell { padding: 10px 8px; font-size: 12px; }
+        /* MAT Dialog toggle bar */
+        .mat-toggle-bar { display: flex; gap: 6px; padding: 8px 20px; background: #fafafa; border-bottom: 1px solid #e0e0e0; flex-wrap: wrap; align-items: center; }
+        .mat-toggle-btn { padding: 4px 12px; border-radius: 15px; font-size: 11px; font-weight: 500; border: 1px solid #ccc; background: white; cursor: pointer; transition: all 0.2s; user-select: none; }
+        .mat-toggle-btn:hover { background: #e3f2fd; border-color: #90caf9; }
+        .mat-toggle-btn.active { background: #1976d2; color: white; border-color: #1565c0; }
+        .mat-toggle-btn.active:hover { background: #1565c0; }
+        .mat-toggle-sep { width: 1px; height: 20px; background: #ddd; margin: 0 4px; }
+        /* Column group headers */
+        .mat-col-group-new { background: #e8f5e9 !important; }
+        .mat-col-group-used { background: #fff3e0 !important; }
     </style>
 </head>
 <body>
@@ -1553,6 +1563,15 @@
                 </div>
                 <button class="mat-table-close-btn" onclick="closeMatTableDialog()">&times;</button>
             </div>
+            <div class="mat-toggle-bar" id="matToggleBar">
+                <span style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Show:</span>
+                <button class="mat-toggle-btn" id="matToggleAvailable" onclick="toggleMatFilter('available')" title="Show only cutters with stock > 0">Available Only</button>
+                <button class="mat-toggle-btn" id="matToggleOnOrder" onclick="toggleMatFilter('onorder')" title="Show only cutters with pending POs">On Order</button>
+                <button class="mat-toggle-btn" id="matToggleDesign" onclick="toggleMatFilter('design')" title="Show cutters previously used for this design">Used for Design</button>
+                <div class="mat-toggle-sep"></div>
+                <span style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Columns:</span>
+                <button class="mat-toggle-btn active" id="matToggleVariants" onclick="toggleMatColumns('variants')" title="Show/hide variant stock breakdown">Variants</button>
+            </div>
             <div class="mat-table-container">
                 <div id="matTabulatorTable"></div>
             </div>
@@ -1560,7 +1579,7 @@
                 <div class="mat-table-info">
                     <span class="mat-table-info-count" id="matTableCount">0 items</span>
                     <span class="mat-table-info-selected" id="matTableSelected">Click a row to select</span>
-                    <button onclick="clearMatFilters()" style="background:#ff5252;color:white;border:none;padding:5px 12px;border-radius:15px;cursor:pointer;font-size:11px;font-weight:500;">⟲ Clear Filters</button>
+                    <button onclick="clearMatFilters()" style="background:#ff5252;color:white;border:none;padding:5px 12px;border-radius:15px;cursor:pointer;font-size:11px;font-weight:500;">Clear Filters</button>
                 </div>
                 <div class="mat-table-buttons">
                     <button class="btn btn-gray" onclick="closeMatTableDialog()">Cancel</button>
@@ -1858,57 +1877,81 @@
         const POS_SYMBOLS = { 'CONE': 'C', 'NOSE': 'N', 'SHOULDER': 'S', 'GAUGE': 'G', 'PAD': 'P' };
         const POS_COLORS = { 'CONE': '#ef9a9a', 'NOSE': '#a5d6a7', 'SHOULDER': '#90caf9', 'GAUGE': '#fff59d', 'PAD': '#ce93d8' };
 
-        // Real Cutter MATs Database (Halliburton cutters) with inventory quantities
-        const TEST_CUTTER_MATS = [
-            // 16mm cutters - 1613 size code
-            { mat: '2002126', size: '1613', type: 'CT186', chamfer: 'U-60', family: 'S - Super Premium - WH', qty: 150 },
-            { mat: '1291852', size: '1613', type: 'CT186R', chamfer: 'U', family: 'S - Super Premium - PLW WH', qty: 85 },
-            { mat: '1291870', size: '1613', type: 'CT186', chamfer: '18-60', family: 'S - Super Premium - WH', qty: 200 },
-            { mat: '2024666', size: '1613', type: 'CT186R', chamfer: 'U', family: 'S - Super Premium - PLW WH', qty: 0 },
-            { mat: '1270606', size: '1613', type: 'CT200NL', chamfer: '18-30', family: 'S - Synthetic - RS PLW', qty: 120 },
-            // 16mm cutters - 1608 size code
-            { mat: '1193703', size: '1608', type: 'CT200', chamfer: '18-60', family: 'Premium Synthetic - RS', qty: 75 },
-            { mat: '1149117', size: '1608', type: 'CT400', chamfer: '18-60', family: 'S - Super Premium - WH', qty: 45 },
-            { mat: '1249128', size: '1608', type: 'CT200NL', chamfer: '18-60', family: 'S - Synthetic - RS PLW', qty: 180 },
-            { mat: '1146345', size: '1608', type: 'CT418', chamfer: '18C-60', family: 'S - Super Premium - WH', qty: 95 },
-            // 16mm cutters - 16 generic size code
-            { mat: '1193706', size: '16', type: 'CT200', chamfer: '18-60', family: 'Premium Synthetic - RS', qty: 60 },
-            { mat: '1149118', size: '16', type: 'CT400', chamfer: 'U-60', family: 'S - Super Premium - WH', qty: 35 },
-            // 13mm cutters - 1313 size code
-            { mat: '2008253', size: '1313', type: 'CT187', chamfer: 'U', family: 'S - Super Premium - ABS', qty: 60 },
-            { mat: '2008254', size: '1313', type: 'CT186', chamfer: 'U', family: 'S - Super Premium - ABS', qty: 110 },
-            { mat: '1146346', size: '1313', type: 'CT418', chamfer: '18C-60', family: 'S - Super Premium - WH', qty: 200 },
-            { mat: '1249127', size: '1313', type: 'CT200NL', chamfer: '18-60', family: 'S - Synthetic - RS PLW', qty: 145 },
-            { mat: '1146419', size: '1313', type: 'CT400', chamfer: '18-60', family: 'S - Super Premium - WH', qty: 0 },
-            // 13mm cutters - 1308 size code
-            { mat: '1291871', size: '1308', type: 'CT186', chamfer: '18-60', family: 'S - Super Premium - WH', qty: 175 },
-            { mat: '1193704', size: '1308', type: 'CT200', chamfer: '18-60', family: 'Premium Synthetic - RS', qty: 90 },
-            { mat: '871781', size: '1308', type: 'CT200NL', chamfer: '18C-60', family: 'S - Synthetic - RS PLW', qty: 130 },
-            { mat: '2001155', size: '1308', type: 'CT179T', chamfer: 'U-60', family: 'Super Premium - WH', qty: 55 },
-            // 13mm cutters - 13 generic size code
-            { mat: '1224949', size: '13', type: 'CT186R', chamfer: 'U', family: 'S - Super Premium - PLW WH', qty: 70 },
-            { mat: '2002127', size: '13', type: 'CT186', chamfer: 'U-60', family: 'S - Super Premium - WH', qty: 160 },
-            { mat: '1155908', size: '13', type: 'CT200', chamfer: '18-60', family: 'Premium Synthetic - RS', qty: 0 },
-            // 19mm cutters - 1913 size code
-            { mat: '1156497', size: '1913', type: 'CT200', chamfer: '18-60', family: 'Premium Synthetic - RS', qty: 80 },
-            { mat: '1270607', size: '1913', type: 'CT200NL', chamfer: '18-30', family: 'S - Synthetic - RS PLW', qty: 65 },
-            { mat: '1249129', size: '1913', type: 'CT200NL', chamfer: '18-60', family: 'S - Synthetic - RS PLW', qty: 140 },
-            // 19mm cutters - 1908 size code
-            { mat: '1193705', size: '1908', type: 'CT200', chamfer: '18-60', family: 'Premium Synthetic - RS', qty: 50 },
-            { mat: '1291872', size: '1908', type: 'CT186', chamfer: '18-60', family: 'S - Super Premium - WH', qty: 190 },
-            { mat: '2002128', size: '1908', type: 'CT186', chamfer: 'U-60', family: 'S - Super Premium - WH', qty: 100 },
-            { mat: '1146347', size: '1908', type: 'CT418', chamfer: '18C-60', family: 'S - Super Premium - WH', qty: 75 },
-            // 12mm cutters - 1218 size code
-            { mat: '1197003', size: '1218', type: 'CT187', chamfer: 'U', family: 'S - Super Premium - ABS', qty: 40 },
-            { mat: '1197004', size: '1218', type: 'CT186', chamfer: 'U', family: 'S - Super Premium - ABS', qty: 85 },
-            { mat: '1249126', size: '1218', type: 'CT200NL', chamfer: '18-60', family: 'S - Synthetic - RS PLW', qty: 115 },
-            { mat: '1193702', size: '1218', type: 'CT200', chamfer: '18-60', family: 'Premium Synthetic - RS', qty: 95 },
-            // 8mm cutters - 0808 size code
-            { mat: '649901', size: '0808', type: 'WC-MAT400', chamfer: 'NA', family: 'Wear Cutter', qty: 300 },
-            { mat: '649902', size: '0808', type: 'WC-MAT401', chamfer: 'NA', family: 'Wear Cutter', qty: 250 },
-            // 8mm cutters - 08 generic size code
-            { mat: '649903', size: '08', type: 'WC-MAT400', chamfer: 'NA', family: 'Wear Cutter', qty: 180 },
-        ];
+        // Cutter inventory data (loaded from API)
+        let CUTTER_INVENTORY = [];
+        let CUTTER_INVENTORY_LOADED = false;
+
+        // Toggle filter state
+        const matFilterState = {
+            available: false,
+            onorder: false,
+            design: false,
+            showVariants: true,
+        };
+
+        async function loadCutterInventory(forceReload) {
+            if (CUTTER_INVENTORY_LOADED && !forceReload) return CUTTER_INVENTORY;
+            try {
+                const designId = {% if bom_context and bom_context.design_id %}{{ bom_context.design_id }}{% elif design_context and design_context.design_id %}{{ design_context.design_id }}{% else %}null{% endif %};
+                let url = '/cutter-map/api/cutter-inventory/';
+                if (designId) url += `?design_id=${designId}`;
+                const resp = await fetch(url);
+                const data = await resp.json();
+                if (data.success && data.cutters) {
+                    CUTTER_INVENTORY = data.cutters;
+                    CUTTER_INVENTORY_LOADED = true;
+                }
+            } catch (err) {
+                console.error('Failed to load cutter inventory:', err);
+            }
+            return CUTTER_INVENTORY;
+        }
+
+        function getFilteredCutterData(sizeFilter) {
+            let data = CUTTER_INVENTORY;
+            if (sizeFilter) data = data.filter(m => m.size === sizeFilter);
+            if (matFilterState.available) data = data.filter(m => m.total_stock > 0);
+            if (matFilterState.onorder) data = data.filter(m => m.on_order > 0);
+            if (matFilterState.design) data = data.filter(m => m.used_for_design);
+            return data;
+        }
+
+        function toggleMatFilter(filterName) {
+            matFilterState[filterName] = !matFilterState[filterName];
+            const btn = document.getElementById('matToggle' + filterName.charAt(0).toUpperCase() + filterName.slice(1));
+            if (btn) btn.classList.toggle('active', matFilterState[filterName]);
+
+            // Re-filter table data
+            if (matTableState.tabulator) {
+                const sizeFilter = matTableState.sizeLocked ? matTableState.lockedSize : null;
+                matTableState.tabulator.setData(getFilteredCutterData(sizeFilter));
+            }
+        }
+
+        function toggleMatColumns(group) {
+            if (group === 'variants') {
+                matFilterState.showVariants = !matFilterState.showVariants;
+                const btn = document.getElementById('matToggleVariants');
+                if (btn) btn.classList.toggle('active', matFilterState.showVariants);
+
+                if (matTableState.tabulator) {
+                    const variantCols = ['new_pur', 'new_eo', 'new_ret', 'used_grd', 'used_rcl', 'new_cli', 'used_cli'];
+                    variantCols.forEach(col => {
+                        if (matFilterState.showVariants) {
+                            matTableState.tabulator.showColumn(col);
+                        } else {
+                            matTableState.tabulator.hideColumn(col);
+                        }
+                    });
+                }
+            }
+        }
+
+        // Backward compat alias
+        const TEST_CUTTER_MATS = CUTTER_INVENTORY;
+
+        // Pre-load cutter inventory in background
+        loadCutterInventory();
 
         // Normalize size codes: "1613" -> "16", "1613MM" -> "16", "16mm" -> "16", "13" -> "13", etc.
         // Format date with time: "MM/DD/YYYY H:MM:SS AM/PM"
@@ -2842,89 +2885,39 @@
         }
 
         // Open "Add New Item" style dialog for adding cutter
-        function openAddNewCutterDialog(bladeIdx, rowKey, pos, insertIdx) {
-            // Store context for when dialog saves
+        async function openAddNewCutterDialog(bladeIdx, rowKey, pos, insertIdx) {
             window.addCutterContext = { bladeIdx, rowKey, pos, insertIdx };
-
-            // Set mode to cutter
             document.getElementById('matTableMode').value = 'cutter';
 
-            // Setup MAT table state
             matTableState.mode = 'add';
             matTableState.bomIdx = null;
             matTableState.lockedSize = null;
             matTableState.sizeLocked = false;
             matTableState.selectedMat = null;
 
-            // Update dialog title and subtitle
+            // Reset toggle filters
+            matFilterState.available = false;
+            matFilterState.onorder = false;
+            matFilterState.design = false;
+            document.querySelectorAll('#matToggleAvailable,#matToggleOnOrder,#matToggleDesign').forEach(b => b.classList.remove('active'));
+
             const titleEl = document.querySelector('.mat-table-title');
             if (titleEl) titleEl.textContent = 'Select Cutter to Add';
             document.getElementById('matTableBomInfo').textContent = `Adding cutter to ${currentData.blades[bladeIdx].name} ${rowKey.toUpperCase()} at ${pos}`;
-
-            // Update size info display
             document.getElementById('matTableSizeInfo').textContent = `Size: ALL (select any)`;
             document.getElementById('matTableSizeInfo').style.background = '#e8f5e9';
             document.getElementById('matTableSizeInfo').style.color = '#2e7d32';
             document.getElementById('matTableUnlockBtn').textContent = 'Lock Size';
-
-            // Disable apply button until selection
             document.getElementById('matTableApplyBtn').disabled = true;
             document.getElementById('matTableSelected').textContent = 'Click a row to select';
 
-            // Show ALL cutters (no size filter)
-            const tableData = TEST_CUTTER_MATS;
-
-            // Initialize or update Tabulator
-            if (matTableState.tabulator) {
-                matTableState.tabulator.destroy();
-            }
-
-            matTableState.tabulator = new Tabulator("#matTabulatorTable", {
-                data: tableData,
-                height: "380px",
-                layout: "fitColumns",
-                selectable: 1,
-                selectableRangeMode: "click",
-                placeholder: "<div style='padding:30px;color:#999;'>No matching cutters found</div>",
-                initialSort: [{ column: "type", dir: "asc" }],
-                columns: getMatTableColumns()
-            });
-
-            // Handle row click
-            matTableState.tabulator.on("rowClick", function(e, row) {
-                matTableState.tabulator.deselectRow();
-                row.select();
-
-                const selected = row.getData();
-                matTableState.selectedMat = selected;
-
-                let stockInfo = selected.qty > 0 ? `(${selected.qty} in stock)` : '⚠️ OUT OF STOCK';
-                document.getElementById('matTableSelected').textContent =
-                    `Selected: ${selected.mat} - ${selected.type} (${selected.size}) ${stockInfo}`;
-
-                const applyBtn = document.getElementById('matTableApplyBtn');
-                applyBtn.disabled = false;
-                applyBtn.style.background = '#4caf50';
-                applyBtn.style.cursor = 'pointer';
-                applyBtn.style.opacity = '1';
-            });
-
-            matTableState.tabulator.on("dataFiltered", function(filters, rows) {
-                document.getElementById('matTableCount').textContent = `${rows.length} items`;
-
-                if (matTableState.selectedMat) {
-                    const stillVisible = rows.some(r => r.getData().mat === matTableState.selectedMat.mat);
-                    if (!stillVisible) {
-                        matTableState.selectedMat = null;
-                        document.getElementById('matTableSelected').textContent = 'Click a row to select';
-                        document.getElementById('matTableApplyBtn').disabled = true;
-                        document.getElementById('matTableApplyBtn').style.background = '#9e9e9e';
-                    }
-                }
-            });
-
-            // Show dialog
+            // Show dialog immediately with loading state
             document.getElementById('matTableDialog').classList.remove('hidden');
+            document.getElementById('matTableCount').textContent = 'Loading...';
+
+            await loadCutterInventory();
+            const tableData = getFilteredCutterData(null);
+            _buildMatTable(tableData);
             document.getElementById('matTableCount').textContent = `${tableData.length} items`;
         }
 
@@ -6415,98 +6408,34 @@
             openMatTableDialogForNewItem();
         }
 
-        function openMatTableDialogForNewItem() {
+        async function openMatTableDialogForNewItem() {
             matTableState.mode = 'add';
             matTableState.bomIdx = null;
             matTableState.lockedSize = null;
-            matTableState.sizeLocked = false; // Show ALL sizes for new item
+            matTableState.sizeLocked = false;
             matTableState.selectedMat = null;
 
-            console.log('MAT Dialog - Add New Item mode (all sizes available)');
+            // Reset toggle filters
+            matFilterState.available = false;
+            matFilterState.onorder = false;
+            matFilterState.design = false;
+            document.querySelectorAll('#matToggleAvailable,#matToggleOnOrder,#matToggleDesign').forEach(b => b.classList.remove('active'));
 
-            // Update size info display - show that all sizes are available
             document.getElementById('matTableSizeInfo').textContent = `Size: ALL (select any)`;
             document.getElementById('matTableSizeInfo').style.background = '#e8f5e9';
             document.getElementById('matTableSizeInfo').style.color = '#2e7d32';
             document.getElementById('matTableUnlockBtn').textContent = 'Lock Size';
-
-            // Disable apply button until selection
             document.getElementById('matTableApplyBtn').disabled = true;
             document.getElementById('matTableSelected').textContent = 'Click a row to select';
-
-            // Update BOM info subtitle for add mode
             document.getElementById('matTableBomInfo').textContent = `Adding New BOM Item`;
 
-            // Show ALL cutters (no size filter)
-            const tableData = TEST_CUTTER_MATS;
-
-            console.log('MAT Dialog - Showing all items:', tableData.length);
-
-            // Initialize or update Tabulator
-            if (matTableState.tabulator) {
-                matTableState.tabulator.destroy();
-            }
-
-            matTableState.tabulator = new Tabulator("#matTabulatorTable", {
-                data: tableData,
-                height: "380px",
-                layout: "fitColumns",
-                selectable: 1,
-                selectableRangeMode: "click",
-                placeholder: "<div style='padding:30px;color:#999;'>No matching cutters found</div>",
-                initialSort: [{ column: "type", dir: "asc" }],
-                columns: getMatTableColumns()
-            });
-
-            // Tabulator 5.x: Register events using .on() method
-            matTableState.tabulator.on("rowClick", function(e, row) {
-                matTableState.tabulator.deselectRow();
-                row.select();
-
-                const selected = row.getData();
-                matTableState.selectedMat = selected;
-
-                // Show selection with stock status
-                let stockInfo = selected.qty > 0 ? `(${selected.qty} in stock)` : '⚠️ OUT OF STOCK';
-                document.getElementById('matTableSelected').textContent =
-                    `Selected: ${selected.mat} - ${selected.type} (${selected.size}) ${stockInfo}`;
-
-                const applyBtn = document.getElementById('matTableApplyBtn');
-                applyBtn.disabled = false;
-                applyBtn.removeAttribute('disabled');
-                applyBtn.style.background = '#4caf50';
-                applyBtn.style.cursor = 'pointer';
-                applyBtn.style.opacity = '1';
-            });
-
-            matTableState.tabulator.on("dataFiltered", function(filters, rows) {
-                document.getElementById('matTableCount').textContent = `${rows.length} items`;
-
-                if (matTableState.selectedMat) {
-                    const stillVisible = rows.some(r => r.getData().mat === matTableState.selectedMat.mat);
-                    if (!stillVisible) {
-                        matTableState.selectedMat = null;
-                        document.getElementById('matTableSelected').textContent = 'Click a row to select';
-                        document.getElementById('matTableApplyBtn').disabled = true;
-                        document.getElementById('matTableApplyBtn').style.background = '#9e9e9e';
-                    }
-                }
-            });
-
-            matTableState.tabulator.on("dataLoaded", function(data) {
-                document.getElementById('matTableCount').textContent = `${data.length} items`;
-            });
-
-            matTableState.tabulator.on("tableBuilt", function() {
-                const table = matTableState.tabulator;
-                if (table) {
-                    const count = table.getData().length;
-                    document.getElementById('matTableCount').textContent = `${count} items`;
-                }
-            });
-
-            // Show dialog
+            // Show dialog immediately with loading state
             document.getElementById('matTableDialog').classList.remove('hidden');
+            document.getElementById('matTableCount').textContent = 'Loading...';
+
+            await loadCutterInventory();
+            const tableData = getFilteredCutterData(null);
+            _buildMatTable(tableData);
             document.getElementById('matTableCount').textContent = `${tableData.length} items`;
         }
 
@@ -6749,13 +6678,22 @@
             return bomItem ? bomItem.index : null;
         }
 
+        function stockFormatter(cell) {
+            const val = cell.getValue();
+            if (val > 0) {
+                const color = val > 50 ? '#4caf50' : (val > 10 ? '#ff9800' : '#f44336');
+                return `<span style='font-weight:600;color:${color};'>${val}</span>`;
+            }
+            return "<span style='color:#ccc;'>0</span>";
+        }
+
         function getMatTableColumns() {
-            // Build columns with "In BOM" indicator
+            const showVariants = matFilterState.showVariants;
             return [
                 {
                     title: "BOM",
                     field: "mat",
-                    width: 50,
+                    width: 45,
                     hozAlign: "center",
                     headerSort: true,
                     headerFilter: "select",
@@ -6778,130 +6716,151 @@
                         return "<span style='color:#ccc;'>-</span>";
                     },
                     sorter: function(a, b) {
-                        const aIdx = getMatBomIndex(a) || 999;
-                        const bIdx = getMatBomIndex(b) || 999;
-                        return aIdx - bIdx;
+                        return (getMatBomIndex(a) || 999) - (getMatBomIndex(b) || 999);
                     }
                 },
                 {
                     title: "MAT #",
                     field: "mat",
-                    width: 100,
+                    width: 95,
                     headerFilter: "input",
-                    headerFilterPlaceholder: "Search MAT...",
+                    headerFilterPlaceholder: "Search...",
                     formatter: function(cell) {
                         const matNum = cell.getValue();
                         const bomIdx = getMatBomIndex(matNum);
-                        const inBomStyle = bomIdx !== null ? "background:#e8f5e9;" : "";
-                        return `<span style='font-family:monospace;font-weight:bold;color:#1565c0;${inBomStyle}'>${matNum}</span>`;
+                        const bg = bomIdx !== null ? "background:#e8f5e9;" : "";
+                        return `<span style='font-family:monospace;font-weight:bold;color:#1565c0;${bg}'>${matNum}</span>`;
                     }
                 },
                 {
                     title: "Size",
                     field: "size",
-                    width: 70,
+                    width: 55,
                     hozAlign: "center",
                     headerFilter: matTableState.sizeLocked ? false : "select",
                     headerFilterParams: { valuesLookup: "active", sortValuesList: "asc" },
                     headerFilterPlaceholder: "All",
                     formatter: function(cell) {
-                        const val = cell.getValue();
-                        return "<span style='background:#e3f2fd;padding:2px 6px;border-radius:10px;font-size:11px;font-family:monospace;'>" + val + "</span>";
+                        return `<span style='background:#e3f2fd;padding:2px 5px;border-radius:10px;font-size:10px;font-family:monospace;'>${cell.getValue()}</span>`;
                     }
                 },
                 {
                     title: "Type",
                     field: "type",
-                    width: 90,
+                    width: 75,
                     headerFilter: "select",
                     headerFilterParams: { valuesLookup: "active", sortValuesList: "asc" },
-                    headerFilterPlaceholder: "All Types",
+                    headerFilterPlaceholder: "All",
                     formatter: function(cell) {
-                        return "<span style='color:#2e7d32;font-weight:600;'>" + cell.getValue() + "</span>";
+                        return `<span style='color:#2e7d32;font-weight:600;'>${cell.getValue()}</span>`;
                     }
                 },
                 {
                     title: "Chamfer",
                     field: "chamfer",
-                    width: 100,
+                    width: 75,
                     headerFilter: "select",
                     headerFilterParams: { valuesLookup: "active", sortValuesList: "asc" },
-                    headerFilterPlaceholder: "All Chamfers"
+                    headerFilterPlaceholder: "All"
                 },
                 {
                     title: "Family",
                     field: "family",
-                    width: 80,
+                    width: 70,
                     headerFilter: "select",
                     headerFilterParams: { valuesLookup: "active", sortValuesList: "asc" },
                     headerFilterPlaceholder: "All",
                     formatter: function(cell) {
-                        const val = cell.getValue();
-                        return val ? "<span style='color:#666;'>" + val + "</span>" : "<span style='color:#ccc;'>-</span>";
+                        const v = cell.getValue();
+                        return v ? `<span style='color:#666;font-size:11px;'>${v}</span>` : "<span style='color:#ccc;'>-</span>";
                     }
                 },
+                // ── Total Stock ──
                 {
-                    title: "Stock",
-                    field: "qty",
-                    width: 70,
+                    title: "Total",
+                    field: "total_stock",
+                    width: 55,
                     hozAlign: "center",
-                    headerFilter: "select",
-                    headerFilterParams: { values: {"": "All", "instock": "In Stock", "out": "Out of Stock"} },
-                    headerFilterPlaceholder: "Stock",
-                    headerFilterFunc: function(headerValue, rowValue) {
-                        if (!headerValue || headerValue === "") return true;
-                        if (headerValue === "instock") return rowValue > 0;
-                        if (headerValue === "out") return rowValue === 0;
-                        return true;
-                    },
+                    headerSort: true,
                     formatter: function(cell) {
                         const val = cell.getValue();
                         if (val > 0) {
                             const color = val > 50 ? '#4caf50' : (val > 10 ? '#ff9800' : '#f44336');
-                            return "<span style='font-weight:600;color:" + color + ";'>" + val + "</span>";
-                        } else {
-                            return "<span style='background:#ffebee;color:#c62828;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;'>OUT</span>";
+                            return `<span style='font-weight:700;color:${color};'>${val}</span>`;
                         }
+                        return "<span style='background:#ffebee;color:#c62828;padding:1px 5px;border-radius:4px;font-size:10px;font-weight:600;'>OUT</span>";
                     }
-                }
+                },
+                // ── New Variants ──
+                { title: "New", field: "new_pur", width: 45, hozAlign: "center", visible: showVariants,
+                  formatter: stockFormatter, cssClass: "mat-col-group-new" },
+                { title: "ENO", field: "new_eo", width: 45, hozAlign: "center", visible: showVariants,
+                  formatter: stockFormatter, cssClass: "mat-col-group-new" },
+                { title: "Retro", field: "new_ret", width: 45, hozAlign: "center", visible: showVariants,
+                  formatter: stockFormatter, cssClass: "mat-col-group-new" },
+                // ── Used Variants ──
+                { title: "Grnd", field: "used_grd", width: 45, hozAlign: "center", visible: showVariants,
+                  formatter: stockFormatter, cssClass: "mat-col-group-used" },
+                { title: "Rclm", field: "used_rcl", width: 45, hozAlign: "center", visible: showVariants,
+                  formatter: stockFormatter, cssClass: "mat-col-group-used" },
+                // ── Client Variants ──
+                { title: "LSTK", field: "new_cli", width: 45, hozAlign: "center", visible: showVariants,
+                  formatter: stockFormatter },
+                { title: "Cli.U", field: "used_cli", width: 45, hozAlign: "center", visible: showVariants,
+                  formatter: stockFormatter },
+                // ── On Order ──
+                {
+                    title: "Order",
+                    field: "on_order",
+                    width: 50,
+                    hozAlign: "center",
+                    headerSort: true,
+                    formatter: function(cell) {
+                        const val = cell.getValue();
+                        if (val > 0) return `<span style='color:#1976d2;font-weight:600;'>${val}</span>`;
+                        return "<span style='color:#ccc;'>-</span>";
+                    }
+                },
             ];
         }
 
-        function openMatTableDialog(bomIdx) {
+        async function openMatTableDialog(bomIdx) {
             const bomItem = currentData.summary[bomIdx];
             if (!bomItem) return;
 
             matTableState.mode = 'edit';
             matTableState.bomIdx = bomIdx;
-            // Store the EXACT original size for locked filtering (e.g., "1613" stays "1613")
             matTableState.lockedSize = bomItem.size;
             matTableState.sizeLocked = true;
             matTableState.selectedMat = null;
 
-            // Debug: log sizes for troubleshooting
-            console.log('MAT Dialog - BOM size (exact):', bomItem.size);
+            // Reset toggle filters
+            matFilterState.available = false;
+            matFilterState.onorder = false;
+            matFilterState.design = false;
+            document.querySelectorAll('#matToggleAvailable,#matToggleOnOrder,#matToggleDesign').forEach(b => b.classList.remove('active'));
 
-            // Update size info display - show exact size (only this specific size code)
             document.getElementById('matTableSizeInfo').textContent = `Size: ${bomItem.size} (locked)`;
             document.getElementById('matTableSizeInfo').style.background = '#fff3e0';
             document.getElementById('matTableSizeInfo').style.color = '#e65100';
             document.getElementById('matTableUnlockBtn').textContent = 'Unlock Size';
-
-            // Disable apply button until selection
             document.getElementById('matTableApplyBtn').disabled = true;
             document.getElementById('matTableSelected').textContent = 'Click a row to select';
-
-            // Update BOM info subtitle
             document.getElementById('matTableBomInfo').textContent = `Updating BOM Item #${bomItem.index} - ${bomItem.type || 'Unknown Type'}`;
 
-            // Filter data by EXACT size when locked (e.g., "1613" only matches "1613", not "1608" or "16")
-            const tableData = matTableState.sizeLocked
-                ? TEST_CUTTER_MATS.filter(m => m.size === matTableState.lockedSize)
-                : TEST_CUTTER_MATS;
+            // Show dialog immediately with loading state
+            document.getElementById('matTableDialog').classList.remove('hidden');
+            document.getElementById('matTableCount').textContent = 'Loading...';
 
-            console.log('MAT Dialog - Filtered items:', tableData.length, 'matching exact size', matTableState.lockedSize);
+            // Load data from API
+            await loadCutterInventory();
+            const tableData = getFilteredCutterData(matTableState.lockedSize);
 
-            // Initialize or update Tabulator
+            _buildMatTable(tableData);
+            document.getElementById('matTableCount').textContent = `${tableData.length} items`;
+        }
+
+        function _buildMatTable(tableData) {
             if (matTableState.tabulator) {
                 matTableState.tabulator.destroy();
             }
@@ -6917,22 +6876,16 @@
                 columns: getMatTableColumns()
             });
 
-            // Tabulator 5.x: Register events using .on() method
             matTableState.tabulator.on("rowClick", function(e, row) {
-                // Select this row
                 matTableState.tabulator.deselectRow();
                 row.select();
-
-                // Update state and UI
                 const selected = row.getData();
                 matTableState.selectedMat = selected;
 
-                // Show selection with stock status
-                let stockInfo = selected.qty > 0 ? `(${selected.qty} in stock)` : '⚠️ OUT OF STOCK';
+                let stockInfo = selected.total_stock > 0 ? `(${selected.total_stock} in stock)` : 'OUT OF STOCK';
                 document.getElementById('matTableSelected').textContent =
                     `Selected: ${selected.mat} - ${selected.type} (${selected.size}) ${stockInfo}`;
 
-                // Enable Apply button
                 const applyBtn = document.getElementById('matTableApplyBtn');
                 applyBtn.disabled = false;
                 applyBtn.removeAttribute('disabled');
@@ -6943,8 +6896,6 @@
 
             matTableState.tabulator.on("dataFiltered", function(filters, rows) {
                 document.getElementById('matTableCount').textContent = `${rows.length} items`;
-
-                // Clear selection when filters change (row might be filtered out)
                 if (matTableState.selectedMat) {
                     const stillVisible = rows.some(r => r.getData().mat === matTableState.selectedMat.mat);
                     if (!stillVisible) {
@@ -6961,52 +6912,34 @@
             });
 
             matTableState.tabulator.on("tableBuilt", function() {
-                // Update count after table is fully built
                 const table = matTableState.tabulator;
-                if (table) {
-                    const count = table.getData().length;
-                    document.getElementById('matTableCount').textContent = `${count} items`;
-                }
+                if (table) document.getElementById('matTableCount').textContent = `${table.getData().length} items`;
             });
-
-            // Show dialog
-            document.getElementById('matTableDialog').classList.remove('hidden');
-
-            // Immediately update count
-            document.getElementById('matTableCount').textContent = `${tableData.length} items`;
         }
 
         function closeMatTableDialog() {
             document.getElementById('matTableDialog').classList.add('hidden');
             matTableState.bomIdx = null;
             matTableState.selectedMat = null;
-            // Reset mode and context
             document.getElementById('matTableMode').value = 'bom';
             window.addCutterContext = null;
-            // Reset title
             const titleEl = document.querySelector('.mat-table-title');
             if (titleEl) titleEl.textContent = 'Select Cutter MAT';
         }
 
         function toggleMatSizeLock() {
             if (matTableState.sizeLocked) {
-                // Ask for confirmation before unlocking
-                const confirmed = confirm(
-                    'Changing cutter size may affect bit compatibility.\n\n' +
-                    'Are you sure you want to unlock size filtering?'
-                );
+                const confirmed = confirm('Changing cutter size may affect bit compatibility.\n\nAre you sure you want to unlock size filtering?');
                 if (!confirmed) return;
 
                 matTableState.sizeLocked = false;
-                document.getElementById('matTableSizeInfo').textContent = `⚠️ Size: ALL`;
+                document.getElementById('matTableSizeInfo').textContent = 'Size: ALL';
                 document.getElementById('matTableSizeInfo').style.background = 'rgba(255,82,82,0.3)';
                 document.getElementById('matTableSizeInfo').style.color = 'white';
-                document.getElementById('matTableUnlockBtn').textContent = '🔒 Lock';
+                document.getElementById('matTableUnlockBtn').textContent = 'Lock';
 
-                // Reload table with all data - valuesLookup:"active" handles dropdown updates
                 if (matTableState.tabulator) {
-                    matTableState.tabulator.setData(TEST_CUTTER_MATS);
-                    // Re-add size header filter as dropdown
+                    matTableState.tabulator.setData(getFilteredCutterData(null));
                     matTableState.tabulator.updateColumnDefinition("size", {
                         headerFilter: "select",
                         headerFilterParams: { valuesLookup: "active", sortValuesList: "asc" }
@@ -7019,13 +6952,8 @@
                 document.getElementById('matTableSizeInfo').style.color = '#e65100';
                 document.getElementById('matTableUnlockBtn').textContent = 'Unlock Size';
 
-                // Reload table with filtered data by EXACT size
                 if (matTableState.tabulator) {
-                    const exactSize = matTableState.lockedSize;
-                    const filteredData = TEST_CUTTER_MATS.filter(m => m.size === exactSize);
-                    console.log('Re-locking - Filtered items:', filteredData.length, 'matching exact size', exactSize);
-                    matTableState.tabulator.setData(filteredData);
-                    // Remove size header filter when locked
+                    matTableState.tabulator.setData(getFilteredCutterData(matTableState.lockedSize));
                     matTableState.tabulator.updateColumnDefinition("size", {headerFilter: false});
                 }
             }
@@ -7119,16 +7047,15 @@
                 const newIndex = currentData.summary.length + 1;
 
                 // Show stock warning if out of stock
-                if (mat.qty === 0) {
+                if ((mat.total_stock || 0) === 0) {
                     const proceed = confirm(
-                        `⚠️ WARNING: "${mat.type}" (${mat.mat}) is OUT OF STOCK!\n\n` +
+                        `WARNING: "${mat.type}" (${mat.mat}) is OUT OF STOCK!\n\n` +
                         'Do you still want to add this item?'
                     );
                     if (!proceed) return;
                 }
 
                 // Create new BOM item
-                // Mark as new item (not from original PDF) to avoid Orig Qty lookup confusion
                 currentData.summary.push({
                     index: newIndex,
                     size: mat.size,
@@ -7138,8 +7065,8 @@
                     mat_number: mat.mat,
                     family_number: mat.family || '',
                     replacesOriginal: [],
-                    stock_qty: mat.qty, // Track stock quantity
-                    _isNewItem: true // Flag: this is a newly added item, not from original PDF
+                    stock_qty: mat.total_stock || mat.qty || 0,
+                    _isNewItem: true
                 });
 
                 console.log('Added new BOM item:', mat.mat, mat.type, mat.size);
@@ -7164,9 +7091,9 @@
                 }
 
                 // Show stock warning if out of stock
-                if (mat.qty === 0) {
+                if ((mat.total_stock || 0) === 0) {
                     const proceed = confirm(
-                        `⚠️ WARNING: "${mat.type}" (${mat.mat}) is OUT OF STOCK!\n\n` +
+                        `WARNING: "${mat.type}" (${mat.mat}) is OUT OF STOCK!\n\n` +
                         'Do you still want to use this item?'
                     );
                     if (!proceed) return;
@@ -7178,7 +7105,7 @@
                 bomItem.chamfer = mat.chamfer;
                 bomItem.family_number = mat.family || '';
                 bomItem.size = mat.size;
-                bomItem.stock_qty = mat.qty; // Track stock quantity
+                bomItem.stock_qty = mat.total_stock || mat.qty || 0;
 
                 // Update all cutters in CL that have this BOM index
                 updateCuttersForBomItem(bomItem);

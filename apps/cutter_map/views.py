@@ -1459,6 +1459,113 @@ def api_link_bom_to_drillbits(request, bom_id):
 
 
 @login_required
+def api_cutter_inventory(request):
+    """
+    API endpoint returning PDC cutter inventory with variant stock breakdown.
+    Used by the cutter selection dialog (Tabulator table).
+
+    Optional query params:
+        design_id: Include 'used_for_design' flag for cutters used in BOMs for this design
+    """
+    from apps.inventory.models import InventoryItem, ItemVariant, VariantStock, ItemAttributeValue
+    from apps.technology.models import BOM, BOMLine
+    from apps.supplychain.models import PurchaseOrderLine
+    from django.db.models import Sum, F, DecimalField, Value, Q
+    from django.db.models.functions import Coalesce
+    from decimal import Decimal
+
+    design_id = request.GET.get('design_id')
+
+    # Get cutters used for this design (across all BOMs)
+    design_mat_numbers = set()
+    if design_id:
+        bom_lines = BOMLine.objects.filter(
+            bom__design_id=design_id
+        ).values_list('hdbs_code', flat=True).distinct()
+        design_mat_numbers = {m for m in bom_lines if m}
+
+    variant_codes = ["NEW-PUR", "NEW-RET", "NEW-EO", "USED-GRD", "USED-RCL", "NEW-CLI", "USED-CLI"]
+    new_variant_codes = ["NEW-PUR", "NEW-EO", "NEW-RET", "NEW-CLI"]
+
+    cutters = InventoryItem.objects.filter(
+        category__code="CUT-PDC",
+        is_active=True
+    ).prefetch_related(
+        "variants__variant_case",
+        "variants__stock_records",
+        "attribute_values__attribute__attribute",
+    ).order_by("mat_number", "code")
+
+    results = []
+    for cutter in cutters:
+        # Get attributes
+        attrs = {}
+        for av in cutter.attribute_values.all():
+            try:
+                code = av.attribute.attribute.code
+                attrs[code] = av.text_value or ''
+            except Exception:
+                pass
+
+        mat = cutter.mat_number or attrs.get('hdbs_code', '') or cutter.code
+        size = attrs.get('cutter_size', '') or attrs.get('diameter', '')
+        cutter_type = attrs.get('cutter_type', '')
+        chamfer = attrs.get('chamfer', '')
+        family = attrs.get('family', '')
+
+        # Variant stock breakdown
+        variant_stock = {}
+        total_stock = Decimal('0')
+        total_new = Decimal('0')
+        for variant in cutter.variants.all():
+            if variant.variant_case and variant.variant_case.code in variant_codes:
+                stock = variant.stock_records.aggregate(
+                    total=Coalesce(Sum("quantity_on_hand"), Value(0), output_field=DecimalField())
+                )["total"]
+                variant_stock[variant.variant_case.code] = int(stock)
+                total_stock += stock
+                if variant.variant_case.code in new_variant_codes:
+                    total_new += stock
+
+        # On order
+        on_order = PurchaseOrderLine.objects.filter(
+            inventory_item=cutter,
+            purchase_order__status__in=["APPROVED", "SENT", "PARTIAL"],
+            is_cancelled=False
+        ).aggregate(
+            total=Coalesce(Sum(F("quantity_ordered") - F("quantity_received")), Value(0), output_field=DecimalField())
+        )["total"]
+        on_order = max(int(on_order), 0)
+
+        row = {
+            'mat': mat,
+            'size': size,
+            'type': cutter_type,
+            'chamfer': chamfer,
+            'family': family,
+            'name': cutter.name,
+            # Variant breakdown
+            'new_pur': variant_stock.get('NEW-PUR', 0),
+            'new_eo': variant_stock.get('NEW-EO', 0),
+            'new_ret': variant_stock.get('NEW-RET', 0),
+            'new_cli': variant_stock.get('NEW-CLI', 0),
+            'used_grd': variant_stock.get('USED-GRD', 0),
+            'used_rcl': variant_stock.get('USED-RCL', 0),
+            'used_cli': variant_stock.get('USED-CLI', 0),
+            # Totals
+            'total_new': int(total_new),
+            'total_stock': int(total_stock),
+            'on_order': on_order,
+            'qty': int(total_stock),  # Backward compat with old 'qty' field
+            # Design usage
+            'used_for_design': mat in design_mat_numbers if design_mat_numbers else False,
+        }
+        results.append(row)
+
+    return JsonResponse({'success': True, 'cutters': results})
+
+
+@login_required
 @require_POST
 def api_create_cutters(request):
     """
