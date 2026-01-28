@@ -1225,6 +1225,10 @@
                         <button class="btn btn-sm deep-redo-btn" onclick="redoEdit()" title="Redo (Ctrl+Y)" disabled style="padding:5px 12px;">↷ Redo</button>
                     </div>
                     <span style="font-size:10px; color:#666;" id="deepEditHistoryInfo">No changes</span>
+                    <div style="flex:1;"></div>
+                    <span id="deepEditClDrivenIndicator" class="cl-mode-indicator" onclick="toggleClDrivenMode()" title="Click to toggle CL-Driven mode. When ON, adding/replacing/deleting cutters automatically updates BOM Qty.">
+                        CL-Driven: <strong id="deepEditClDrivenStatus">OFF</strong>
+                    </span>
                 </div>
                 <!-- Header Section (Foldable) -->
                 <div class="cl-section" id="headerSection">
@@ -2799,7 +2803,11 @@
             if (!currentData.blades[bladeIdx][rowKey][pos]) currentData.blades[bladeIdx][rowKey][pos] = [];
 
             currentData.blades[bladeIdx][rowKey][pos].splice(insertIdx, 0, newCutter);
-            selectedItem.count = (parseInt(selectedItem.count) || 0) + 1;
+
+            // Only update BOM qty if CL-Driven mode is ON
+            if (editState.clDrivenMode) {
+                selectedItem.count = (parseInt(selectedItem.count) || 0) + 1;
+            }
 
             refreshEditor();
             setTimeout(clearNewCutterFlags, 1600);
@@ -3142,7 +3150,8 @@
                     <td style="color:#666;">${origQty}</td>
                     <td>
                         <input type="number" value="${bomQty}" min="0" style="width:50px; text-align:center;"
-                            onchange="updateBomQtyFromMerged(${idx}, this.value)">
+                            onchange="updateBomQtyFromMerged(${idx}, this.value)"
+                            ${editState.clDrivenMode ? '' : 'disabled title="Enable CL-Driven to edit BOM Qty"'}>
                     </td>
                     <td>${clCount}</td>
                     <td class="${diffClass}">${diffText}</td>
@@ -3519,8 +3528,10 @@
                 };
                 currentData.blades[bladeIdx][rowKey][pos].splice(cellIdx + 1, 0, newCutter);
 
-                // Update BOM count
-                selectedItem.count = (parseInt(selectedItem.count) || 0) + 1;
+                // Only update BOM qty if CL-Driven mode is ON
+                if (editState.clDrivenMode) {
+                    selectedItem.count = (parseInt(selectedItem.count) || 0) + 1;
+                }
 
                 refreshEditor();
                 setTimeout(clearNewCutterFlags, 1600);
@@ -3541,19 +3552,19 @@
 
                 saveToHistory();
 
-                // Decrease old BOM count
-                if (oldBomItem && oldBomItem.count > 0) {
-                    oldBomItem.count--;
-                }
-
                 // Update cutter to new BOM item
                 cell.type = selectedItem.type;
                 cell.group = selectedItem.index;
                 cell.chamfer = selectedItem.chamfer;
                 cell._isNew = true;
 
-                // Increase new BOM count
-                selectedItem.count = (parseInt(selectedItem.count) || 0) + 1;
+                // Only update BOM qty if CL-Driven mode is ON
+                if (editState.clDrivenMode) {
+                    if (oldBomItem && oldBomItem.count > 0) {
+                        oldBomItem.count--;
+                    }
+                    selectedItem.count = (parseInt(selectedItem.count) || 0) + 1;
+                }
 
                 refreshEditor();
                 setTimeout(clearNewCutterFlags, 1600);
@@ -3892,11 +3903,20 @@
             saveToHistory(); // Save state for undo
 
             const cells = currentData.blades[bladeIdx][rowKey][pos];
+            const deletedCell = cells[cellIdx];
             cells.splice(cellIdx, 1);
 
             // Remove position if empty
             if (cells.length === 0) {
                 delete currentData.blades[bladeIdx][rowKey][pos];
+            }
+
+            // Decrease BOM qty if CL-Driven mode is ON
+            if (editState.clDrivenMode && deletedCell && deletedCell.group && currentData.summary) {
+                const bomItem = currentData.summary.find(b => b.index === deletedCell.group);
+                if (bomItem && bomItem.count > 0) {
+                    bomItem.count--;
+                }
             }
 
             refreshEditor();
@@ -3906,6 +3926,26 @@
         function deleteRow(bladeIdx, rowKey) {
             if (confirm(`Delete row ${rowKey.toUpperCase()} from this blade?`)) {
                 saveToHistory(); // Save state for undo
+
+                // Decrease BOM qty for all cutters in this row if CL-Driven
+                if (editState.clDrivenMode && currentData.summary) {
+                    const rowData = currentData.blades[bladeIdx][rowKey];
+                    if (rowData) {
+                        Object.values(rowData).forEach(cells => {
+                            if (Array.isArray(cells)) {
+                                cells.forEach(cell => {
+                                    if (cell.group) {
+                                        const bomItem = currentData.summary.find(b => b.index === cell.group);
+                                        if (bomItem && bomItem.count > 0) {
+                                            bomItem.count--;
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    }
+                }
+
                 currentData.blades[bladeIdx][rowKey] = {};
                 refreshEditor();
             }
@@ -3941,6 +3981,21 @@
                         posArr.forEach(c => c._isNew = true);
                     }
                 });
+                // Update BOM counts if CL-Driven is ON
+                if (editState.clDrivenMode && currentData.summary) {
+                    Object.values(blade[targetRow]).forEach(posArr => {
+                        if (Array.isArray(posArr)) {
+                            posArr.forEach(cell => {
+                                if (cell.group) {
+                                    const bomItem = currentData.summary.find(b => b.index === cell.group);
+                                    if (bomItem) {
+                                        bomItem.count = (parseInt(bomItem.count) || 0) + 1;
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
                 showMessage(`Pasted row to ${targetRow.toUpperCase()}`, 'success');
             } else {
                 // Add empty row with one placeholder cutter
@@ -4632,8 +4687,8 @@
                 currentData.blades[bi][row][pos].push(cutterData);
             }
 
-            // Update BOM counts if group changed or new cutter added
-            if (currentData.summary) {
+            // Update BOM counts only if CL-Driven mode is ON
+            if (currentData.summary && editState.clDrivenMode) {
                 if (oldGroup !== null && oldGroup !== groupNum) {
                     // Decrease old BOM count
                     const oldBomItem = currentData.summary.find(b => b.index === oldGroup);
@@ -5160,7 +5215,8 @@
                         </button>
                         <input type="number" value="${item.count}" min="0" style="width:45px;"
                                onclick="event.stopPropagation();"
-                               onchange="changeBomQty(${idx}, parseInt(this.value))">
+                               onchange="changeBomQty(${idx}, parseInt(this.value))"
+                               ${editState.clDrivenMode ? '' : 'disabled title="Enable CL-Driven to edit BOM Qty"'}>
                         <button class="btn btn-sm" style="background:#dc3545;color:white;border:none;" onclick="event.stopPropagation(); removeBomItem(${idx})">✕</button>
                     </div>
                 </div>`;
@@ -5406,23 +5462,40 @@
         }
 
         function updateClDrivenModeIndicator() {
+            // Update Edit Layout indicator
             const indicator = document.getElementById('clDrivenModeIndicator');
             const status = document.getElementById('clDrivenModeStatus');
+            if (indicator) {
+                indicator.style.display = 'inline-block';
+                if (editState.clDrivenMode) {
+                    indicator.className = 'cl-mode-indicator active';
+                    status.textContent = 'ON';
+                } else {
+                    indicator.className = 'cl-mode-indicator inactive';
+                    status.textContent = 'OFF';
+                }
+            }
 
-            // Always show the indicator
-            indicator.style.display = 'inline-block';
-            if (editState.clDrivenMode) {
-                indicator.className = 'cl-mode-indicator active';
-                status.textContent = 'ON';
-            } else {
-                indicator.className = 'cl-mode-indicator inactive';
-                status.textContent = 'OFF';
+            // Update Deep Edit indicator (shared state)
+            const deepIndicator = document.getElementById('deepEditClDrivenIndicator');
+            const deepStatus = document.getElementById('deepEditClDrivenStatus');
+            if (deepIndicator) {
+                if (editState.clDrivenMode) {
+                    deepIndicator.className = 'cl-mode-indicator active';
+                    deepStatus.textContent = 'ON';
+                } else {
+                    deepIndicator.className = 'cl-mode-indicator inactive';
+                    deepStatus.textContent = 'OFF';
+                }
             }
         }
 
         function toggleClDrivenMode() {
             editState.clDrivenMode = !editState.clDrivenMode;
             updateClDrivenModeIndicator();
+            // Re-render BOM tables to update disabled state of BOM Qty inputs
+            renderBomMergedTable();
+            if (typeof renderEditLayout === 'function') renderEditLayout();
             console.log('CL-Driven mode:', editState.clDrivenMode ? 'ON' : 'OFF');
         }
 
@@ -7010,7 +7083,7 @@
 
                 // Update BOM count for this item
                 const bomItem = currentData.summary.find(b => b.index === bomIndex);
-                if (bomItem) {
+                if (bomItem && editState.clDrivenMode) {
                     bomItem.count = countCuttersForBomIndex(bomIndex);
                 }
 
