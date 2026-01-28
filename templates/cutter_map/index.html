@@ -7366,49 +7366,52 @@
 
         function showMatDialogForPDF() {
             // Show the Mat dialog and set callback to generate PDF after
-            document.getElementById('matDialogOriginal').textContent = originalData?.header?.mat_number || currentData.header.mat_number || '';
-            document.getElementById('matDialogInput').value = editState.newMatSuffix || 'M';
+            const originalMat = originalData?.header?.mat_number || currentData.header.mat_number || '';
+            document.getElementById('matDialogOriginal').textContent = originalMat;
+            document.getElementById('matDialogBrazing').value = editState.brazingMat || originalMat;
+            document.getElementById('matDialogSystem').value = editState.systemMat || '';
             document.getElementById('matDialogSN').value = editState.newSerialNumber || '';
-            document.getElementById('matDialogNoSuffix').checked = false;
+            document.getElementById('matDialogSuffix').value = '';
             document.getElementById('matDialog').classList.remove('hidden');
 
             // Temporarily override saveMatDialog to generate PDF after
             window.saveMatDialogForPDF = function() {
-                editState.newMatSuffix = document.getElementById('matDialogInput').value;
+                // Save selected BOM type
+                const selectedBomType = document.querySelector('input[name="matDialogBomType"]:checked');
+                editState.bomType = selectedBomType ? selectedBomType.value : 'BRAZING';
+
+                // Save both MAT values
+                editState.brazingMat = document.getElementById('matDialogBrazing').value.trim();
+                editState.systemMat = document.getElementById('matDialogSystem').value.trim();
+                editState.newSerialNumber = document.getElementById('matDialogSN').value.trim();
+
                 const originalMat = originalData?.header?.mat_number || currentData.header.mat_number || '';
-                const originalSn = originalData?.header?.sn_number || '0';
+                const originalSn = originalData?.header?.sn_number || '';
 
-                // Check if SN was changed
-                let snWasChanged = false;
-                if (document.getElementById('matDialogAddSN').checked) {
-                    editState.newSerialNumber = document.getElementById('matDialogSN').value;
-                    document.getElementById('snNumber').value = editState.newSerialNumber;
-                    snWasChanged = editState.newSerialNumber &&
-                                   editState.newSerialNumber !== '' &&
-                                   editState.newSerialNumber !== '0' &&
-                                   editState.newSerialNumber !== originalSn;
-                }
+                // Check if anything was changed
+                const matChanged = editState.brazingMat !== originalMat || (editState.systemMat && editState.systemMat !== originalMat);
+                const snChanged = editState.newSerialNumber && editState.newSerialNumber !== originalSn;
 
-                // Check if suffix was added
-                const suffixWasAdded = editState.newMatSuffix && editState.newMatSuffix !== '';
-
-                // Check if "no suffix" correction mode is enabled
-                const noSuffixMode = document.getElementById('matDialogNoSuffix').checked;
-
-                // Require at least one change for modified PDF (unless correction mode)
-                if (!suffixWasAdded && !snWasChanged && !noSuffixMode) {
-                    showMsg('Please enter a suffix, Serial Number, or enable correction mode.', 'error');
+                // Require at least one MAT to be set
+                if (!editState.brazingMat && !editState.systemMat) {
+                    showMsg('Please enter at least one MAT number.', 'error');
                     return;
                 }
 
-                // Mark as explicitly set (we know at least one change was made)
-                editState.matIdExplicitlySet = true;
+                // Mark as explicitly set
+                editState.matIdExplicitlySet = matChanged || snChanged;
 
-                // Update the MAT number display (use original mat as base)
-                const newMat = originalMat + editState.newMatSuffix;
-                document.getElementById('matNumber').value = newMat;
-                currentData.header.mat_number = newMat;
-                currentData.original_filename = newMat;
+                // Update the display MAT number (use brazing MAT as primary for display)
+                const displayMat = editState.brazingMat || originalMat;
+                document.getElementById('matNumber').value = displayMat;
+                currentData.header.mat_number = displayMat;
+                currentData.original_filename = displayMat;
+
+                // Update serial number in header
+                if (editState.newSerialNumber) {
+                    document.getElementById('snNumber').value = editState.newSerialNumber;
+                    currentData.header.sn_number = editState.newSerialNumber;
+                }
 
                 // Update date_created to current date/time
                 const dateStr = formatDateWithTime();
