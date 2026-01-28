@@ -960,16 +960,17 @@
         /* Tabulator theme overrides */
         #matTabulatorTable { border-radius: 8px; overflow: hidden; border: 1px solid #e0e0e0; }
         #matTabulatorTable .tabulator-header { background: #1a237e; border-bottom: 2px solid #ffc107; }
-        #matTabulatorTable .tabulator-col { border-right: 1px solid rgba(255,255,255,0.15); }
-        #matTabulatorTable .tabulator-col-title { color: #fff; font-weight: 700; font-size: 11px; padding: 8px 4px; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; overflow: visible; }
-        #matTabulatorTable .tabulator-header-filter { padding: 4px; }
+        #matTabulatorTable .tabulator-col { border-right: 1px solid rgba(255,255,255,0.15); min-width: 50px; }
+        #matTabulatorTable .tabulator-col-title { color: #fff; font-weight: 700; font-size: 11px; padding: 6px 4px; letter-spacing: 0.3px; white-space: nowrap; }
+        #matTabulatorTable .tabulator-col-sorter { margin-left: 2px; }
+        #matTabulatorTable .tabulator-header-filter { padding: 3px 4px; }
         #matTabulatorTable .tabulator-header-filter input,
-        #matTabulatorTable .tabulator-header-filter select { font-size: 11px; padding: 4px 6px; border-radius: 4px; border: 1px solid #90a4ae; width: 100%; box-sizing: border-box; }
+        #matTabulatorTable .tabulator-header-filter select { font-size: 10px; padding: 3px 4px; border-radius: 3px; border: 1px solid #90a4ae; width: 100%; box-sizing: border-box; }
         #matTabulatorTable .tabulator-header-filter select { cursor: pointer; background: white; }
         #matTabulatorTable .tabulator-row { border-bottom: 1px solid #f0f0f0; }
         #matTabulatorTable .tabulator-row.tabulator-selected { background: #c8e6c9 !important; border-left: 4px solid #4caf50; }
         #matTabulatorTable .tabulator-row:hover { background: #e3f2fd; cursor: pointer; }
-        #matTabulatorTable .tabulator-cell { padding: 8px 6px; font-size: 12px; }
+        #matTabulatorTable .tabulator-cell { padding: 6px 5px; font-size: 12px; }
         /* MAT Dialog toggle bar */
         .mat-toggle-bar { display: flex; gap: 6px; padding: 8px 20px; background: #fafafa; border-bottom: 1px solid #e0e0e0; flex-wrap: wrap; align-items: center; }
         .mat-toggle-btn { padding: 4px 12px; border-radius: 15px; font-size: 11px; font-weight: 500; border: 1px solid #ccc; background: white; cursor: pointer; transition: all 0.2s; user-select: none; }
@@ -6841,9 +6842,12 @@
                 {
                     title: "Total",
                     field: "total_stock",
-                    width: 55,
+                    width: 65,
                     hozAlign: "center",
                     headerSort: true,
+                    headerFilter: "number",
+                    headerFilterPlaceholder: "Min",
+                    headerFilterFunc: ">=",
                     formatter: function(cell) {
                         const val = cell.getValue();
                         if (val > 0) {
@@ -6854,29 +6858,39 @@
                     }
                 },
                 // ── New Variants ──
-                { title: "New", field: "new_pur", width: 45, hozAlign: "center", visible: showVariants,
+                { title: "New", field: "new_pur", minWidth: 58, hozAlign: "center", visible: showVariants,
+                  headerFilter: "number", headerFilterPlaceholder: "Min", headerFilterFunc: ">=",
                   formatter: stockFormatter, cssClass: "mat-col-group-new" },
-                { title: "ENO", field: "new_eo", width: 45, hozAlign: "center", visible: showVariants,
+                { title: "ENO", field: "new_eo", minWidth: 58, hozAlign: "center", visible: showVariants,
+                  headerFilter: "number", headerFilterPlaceholder: "Min", headerFilterFunc: ">=",
                   formatter: stockFormatter, cssClass: "mat-col-group-new" },
-                { title: "Retro", field: "new_ret", width: 45, hozAlign: "center", visible: showVariants,
+                { title: "Retro", field: "new_ret", minWidth: 62, hozAlign: "center", visible: showVariants,
+                  headerFilter: "number", headerFilterPlaceholder: "Min", headerFilterFunc: ">=",
                   formatter: stockFormatter, cssClass: "mat-col-group-new" },
                 // ── Used Variants ──
-                { title: "Grnd", field: "used_grd", width: 45, hozAlign: "center", visible: showVariants,
+                { title: "Ground", field: "used_grd", minWidth: 68, hozAlign: "center", visible: showVariants,
+                  headerFilter: "number", headerFilterPlaceholder: "Min", headerFilterFunc: ">=",
                   formatter: stockFormatter, cssClass: "mat-col-group-used" },
-                { title: "Rclm", field: "used_rcl", width: 45, hozAlign: "center", visible: showVariants,
+                { title: "Reclaim", field: "used_rcl", minWidth: 72, hozAlign: "center", visible: showVariants,
+                  headerFilter: "number", headerFilterPlaceholder: "Min", headerFilterFunc: ">=",
                   formatter: stockFormatter, cssClass: "mat-col-group-used" },
                 // ── Client Variants ──
-                { title: "LSTK", field: "new_cli", width: 45, hozAlign: "center", visible: showVariants,
+                { title: "LSTK", field: "new_cli", minWidth: 58, hozAlign: "center", visible: showVariants,
+                  headerFilter: "number", headerFilterPlaceholder: "Min", headerFilterFunc: ">=",
                   formatter: stockFormatter },
-                { title: "Cli.U", field: "used_cli", width: 45, hozAlign: "center", visible: showVariants,
+                { title: "Cli Used", field: "used_cli", minWidth: 72, hozAlign: "center", visible: showVariants,
+                  headerFilter: "number", headerFilterPlaceholder: "Min", headerFilterFunc: ">=",
                   formatter: stockFormatter },
                 // ── On Order ──
                 {
-                    title: "Order",
+                    title: "On Order",
                     field: "on_order",
-                    width: 50,
+                    minWidth: 72,
                     hozAlign: "center",
                     headerSort: true,
+                    headerFilter: "number",
+                    headerFilterPlaceholder: "Min",
+                    headerFilterFunc: ">=",
                     formatter: function(cell) {
                         const val = cell.getValue();
                         if (val > 0) return `<span style='color:#1976d2;font-weight:600;'>${val}</span>`;
@@ -6930,7 +6944,7 @@
             matTableState.tabulator = new Tabulator("#matTabulatorTable", {
                 data: tableData,
                 height: "380px",
-                layout: "fitColumns",
+                layout: "fitDataStretch",
                 selectable: 1,
                 selectableRangeMode: "click",
                 placeholder: "<div style='padding:30px;color:#999;'>No matching cutters found</div>",
