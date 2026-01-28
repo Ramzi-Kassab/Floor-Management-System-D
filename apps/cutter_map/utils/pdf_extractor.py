@@ -169,8 +169,20 @@ def extract_pdf_data(pdf_path: str) -> dict:
         group_format = 'unknown'
 
     # 8. Extract images (drill bit face, group shapes)
-    # Pass group_data for matching shapes to groups in vertical format
-    images = extract_images(page, doc, group_data, group_format)
+    # Calculate dynamic header boundary from first blade/CL marker
+    header_boundary_y = None
+    blade_markers = [(rw[0], rw[1], rw[4]) for rw in raw_words if re.match(r'^B\d+$', rw[4])]
+    if blade_markers:
+        blade_markers.sort(key=lambda b: b[1])
+        header_boundary_y = blade_markers[0][1]  # y0 of first blade marker (B1)
+    else:
+        # Fallback: look for first R1 marker
+        r1_markers = [(rw[0], rw[1]) for rw in raw_words if rw[4] == 'R1']
+        if r1_markers:
+            r1_markers.sort(key=lambda m: m[1])
+            header_boundary_y = r1_markers[0][1]
+
+    images = extract_images(page, doc, group_data, group_format, header_boundary_y=header_boundary_y)
 
     # 9. Cross-validate BOM indices and CL group numbers
     validation = validate_bom_cl_consistency(bom_rows, blades)
@@ -1593,7 +1605,7 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None) -> Tupl
                             if part.isdigit() and 1 <= int(part) <= 20:
                                 parsed_groups.append(int(part))
                         if parsed_groups:
-                            comma_rows.append({'values': text, 'parsed': parsed_groups, 'y': y0})
+                            comma_rows.append({'values': text, 'parsed': parsed_groups, 'y': y0, 'y1': rw[3]})
                             all_groups.extend(parsed_groups)
 
         # Also check styled words
@@ -1608,7 +1620,7 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None) -> Tupl
                     if parsed_groups:
                         # Check if already added (by Y position)
                         if not any(abs(cr['y'] - w.y0) < 5 for cr in comma_rows):
-                            comma_rows.append({'values': w.text, 'parsed': parsed_groups, 'y': w.y0})
+                            comma_rows.append({'values': w.text, 'parsed': parsed_groups, 'y': w.y0, 'y1': w.y1})
                             all_groups.extend(parsed_groups)
 
         if comma_rows:
@@ -1625,7 +1637,7 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None) -> Tupl
                 if (w.text.isdigit() and len(w.text) == 1 and 1 <= int(w.text) <= 9
                     and abs(w.x0 - group_label.x0) < 50
                     and w.y0 > group_label.y0 and w.y0 < group_label.y0 + 60):
-                    vertical_groups.append({'value': int(w.text), 'y': w.y0})
+                    vertical_groups.append({'value': int(w.text), 'y': w.y0, 'y1': w.y1})
 
             # Also check raw_words for vertical format
             if raw_words:
@@ -1636,7 +1648,7 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None) -> Tupl
                         and y0 > group_label.y0 and y0 < group_label.y0 + 60):
                         # Check if already added
                         if not any(g['value'] == int(text) and abs(g['y'] - y0) < 5 for g in vertical_groups):
-                            vertical_groups.append({'value': int(text), 'y': y0})
+                            vertical_groups.append({'value': int(text), 'y': y0, 'y1': rw[3]})
 
             if vertical_groups:
                 # Sort by Y position
@@ -1690,7 +1702,7 @@ def find_shapes_containing(shapes: List[Shape], x: float, y: float) -> List[Shap
     ]
 
 
-def extract_images(page, doc, group_data=None, group_format='unknown') -> Dict:
+def extract_images(page, doc, group_data=None, group_format='unknown', header_boundary_y=None) -> Dict:
     """
     Extract key images from the PDF page:
     - Halliburton logo (wide horizontal image in header)
@@ -1724,6 +1736,10 @@ def extract_images(page, doc, group_data=None, group_format='unknown') -> Dict:
         # Proportional thresholds
         drill_x_threshold = page_width * 0.55  # ~55% from left for drill bit
         group_x_threshold = page_width * 0.45  # ~45% from left for group shapes
+
+        # Dynamic Y boundary: everything above first blade marker is header area
+        # Fallback to fixed value if not provided
+        header_y_limit = header_boundary_y if header_boundary_y else 200
 
         # Collect all image info with positions
         image_infos = []
@@ -1759,10 +1775,10 @@ def extract_images(page, doc, group_data=None, group_format='unknown') -> Dict:
                         }
                         images_data['has_images'] = True
 
-                # 2. Drill bit face/preview - in header area (far right, y < 180, larger size)
+                # 2. Drill bit face/preview - in header area (far right, above CL, larger size)
                 # Must be position-based AND size-based to differentiate from group shapes
                 # Drill bit: typically 100-300px, in far right (x > 75% of page width)
-                elif rect.x0 > page_width * 0.75 and rect.y0 < 180 and 100 < width < 400 and 100 < height < 400:
+                elif rect.x0 > page_width * 0.75 and rect.y0 < header_y_limit and 100 < width < 400 and 100 < height < 400:
                     # Store as drill_bit_face (the main one used in template)
                     if images_data['drill_bit_face'] is None:
                         images_data['drill_bit_face'] = {
@@ -1781,10 +1797,10 @@ def extract_images(page, doc, group_data=None, group_format='unknown') -> Dict:
                             'position': (rect.x0, rect.y0, rect.x1, rect.y1)
                         }
 
-                # 3. Group shape(s) - small shapes in group area (middle-right, header)
+                # 3. Group shape(s) - small shapes in group area (middle-right, above CL)
                 # Proper group shapes are typically smaller than CL shapes (which are 100x100, 81x90, 100x80)
                 # Group shapes are usually around 70x66 or similar - exclude CL-sized shapes
-                elif rect.x0 > group_x_threshold and rect.y0 < 130 and 20 < width < 80 and 20 < height < 80:
+                elif rect.x0 > group_x_threshold and rect.y0 < header_y_limit and 20 < width < 80 and 20 < height < 80:
                     shape_info = {
                         'data': data_url,
                         'width': width,
@@ -1804,35 +1820,53 @@ def extract_images(page, doc, group_data=None, group_format='unknown') -> Dict:
             # Sort by Y position
             potential_group_shapes.sort(key=lambda s: s['y0'])
 
-            # Match each shape with its group row text by Y position
+            # Match each shape with its group text by checking if text Y is WITHIN shape Y range
             for shape_info in potential_group_shapes:
-                shape_y = shape_info['y_center']
+                shape_y0 = shape_info['y0']
+                shape_y1 = shape_info['y1']
                 group_text = ''
 
-                # Find the group row closest to this shape (by Y)
+                # Find the group text whose y0/y1 falls within the shape's y0/y1
                 if group_data and group_format in ['comma', 'multi_row']:
-                    best_match = None
-                    best_dist = float('inf')
                     for row in group_data:
-                        row_y = row.get('y', 0)
-                        dist = abs(shape_y - row_y)
-                        if dist < best_dist and dist < 30:  # Within 30px
-                            best_dist = dist
-                            best_match = row
-                    if best_match:
-                        group_text = best_match.get('values', '')
+                        text_y0 = row.get('y', 0)
+                        text_y1 = row.get('y1', text_y0 + 10)
+                        # Text y0 and y1 should be within shape y0 and y1
+                        if text_y0 >= shape_y0 and text_y1 <= shape_y1:
+                            group_text = row.get('values', '')
+                            break
+                    # Fallback: if no exact containment, find closest text within tolerance
+                    if not group_text:
+                        best_match = None
+                        best_dist = float('inf')
+                        for row in group_data:
+                            text_y0 = row.get('y', 0)
+                            dist = abs(text_y0 - shape_y0)
+                            if dist < best_dist and dist < 15:
+                                best_dist = dist
+                                best_match = row
+                        if best_match:
+                            group_text = best_match.get('values', '')
+
                 elif group_data and group_format == 'vertical':
-                    # For vertical format, find the closest single number by Y position
-                    best_match = None
-                    best_dist = float('inf')
                     for row in group_data:
-                        row_y = row.get('y', 0)
-                        dist = abs(shape_y - row_y)
-                        if dist < best_dist and dist < 30:  # Within 30px
-                            best_dist = dist
-                            best_match = row
-                    if best_match:
-                        group_text = str(best_match.get('value', ''))
+                        text_y0 = row.get('y', 0)
+                        text_y1 = row.get('y1', text_y0 + 10)
+                        if text_y0 >= shape_y0 and text_y1 <= shape_y1:
+                            group_text = str(row.get('value', ''))
+                            break
+                    # Fallback
+                    if not group_text:
+                        best_match = None
+                        best_dist = float('inf')
+                        for row in group_data:
+                            text_y0 = row.get('y', 0)
+                            dist = abs(text_y0 - shape_y0)
+                            if dist < best_dist and dist < 15:
+                                best_dist = dist
+                                best_match = row
+                        if best_match:
+                            group_text = str(best_match.get('value', ''))
 
                 # Only include shapes that have a valid group_text match
                 # This filters out CL shapes that happen to appear in header area
