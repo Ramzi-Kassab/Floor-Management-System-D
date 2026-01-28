@@ -149,27 +149,8 @@ def extract_pdf_data(pdf_path: str) -> dict:
     # 3. Extract all shapes/drawings
     shapes = extract_shapes(page)
 
-    # 4. Extract header info (pass raw_words for accurate mat number extraction)
-    header = extract_header(words, raw_words)
-
-    # 5. Extract BOM table (pass raw_words for mat numbers)
-    bom_rows = extract_bom(words, shapes, raw_words)
-
-    # 6. Extract blade layouts using raw words for accuracy
-    blades = extract_blades_v2(raw_words, bom_rows)
-
-    # 7. Extract groups (returns tuple: (groups, has_legend, group_data, group_format))
-    groups_result = extract_groups(words, raw_words)
-    if len(groups_result) == 4:
-        groups, has_group_legend, group_data, group_format = groups_result
-    else:
-        # Backward compatibility
-        groups, has_group_legend = groups_result[:2]
-        group_data = []
-        group_format = 'unknown'
-
-    # 8. Extract images (drill bit face, group shapes)
-    # Calculate dynamic header boundary from first blade/CL marker
+    # 3.5. Calculate dynamic header boundary from first blade/CL marker
+    # This Y position marks where the CL (blade) area begins - everything above is header/BOM
     header_boundary_y = None
     blade_markers = [(rw[0], rw[1], rw[4]) for rw in raw_words if re.match(r'^B\d+$', rw[4])]
     if blade_markers:
@@ -182,19 +163,39 @@ def extract_pdf_data(pdf_path: str) -> dict:
             r1_markers.sort(key=lambda m: m[1])
             header_boundary_y = r1_markers[0][1]
 
+    # 4. Extract header info (pass raw_words for accurate mat number extraction)
+    header = extract_header(words, raw_words)
+
+    # 5. Extract BOM table (pass raw_words for mat numbers)
+    bom_rows = extract_bom(words, shapes, raw_words)
+
+    # 6. Extract blade layouts using raw words for accuracy
+    blades = extract_blades_v2(raw_words, bom_rows)
+
+    # 7. Extract groups (returns tuple: (groups, has_legend, group_data, group_format))
+    groups_result = extract_groups(words, raw_words, header_boundary_y=header_boundary_y)
+    if len(groups_result) == 4:
+        groups, has_group_legend, group_data, group_format = groups_result
+    else:
+        # Backward compatibility
+        groups, has_group_legend = groups_result[:2]
+        group_data = []
+        group_format = 'unknown'
+
+    # 8. Extract images (drill bit face, group shapes)
     images = extract_images(page, doc, group_data, group_format, header_boundary_y=header_boundary_y)
 
     # 9. Cross-validate BOM indices and CL group numbers
     validation = validate_bom_cl_consistency(bom_rows, blades)
 
     # 10. Extract fill colors for BOM rows from shapes
-    bom_colors = extract_bom_colors(shapes, bom_rows, page_height)
+    bom_colors = extract_bom_colors(shapes, bom_rows, page_height, header_boundary_y=header_boundary_y)
 
     # 11. Extract cutter shape images from CL area
-    cutter_shapes = extract_cutter_shapes(page, raw_words, bom_rows)
+    cutter_shapes = extract_cutter_shapes(page, raw_words, bom_rows, header_boundary_y=header_boundary_y)
 
     # 12. Extract drill bit face image
-    drill_bit_image = extract_drill_bit_image(page)
+    drill_bit_image = extract_drill_bit_image(page, header_boundary_y=header_boundary_y)
 
     doc.close()
 
@@ -357,7 +358,7 @@ def get_default_group_color(index: int) -> str:
     return colors.get(index, '#cccccc')
 
 
-def extract_bom_colors(shapes: List[Shape], bom_rows: List, page_height: float) -> Dict[int, str]:
+def extract_bom_colors(shapes: List[Shape], bom_rows: List, page_height: float, header_boundary_y=None) -> Dict[int, str]:
     """
     Extract fill colors from shapes in the BOM area and map them to BOM row indices.
 
@@ -370,10 +371,10 @@ def extract_bom_colors(shapes: List[Shape], bom_rows: List, page_height: float) 
     if not bom_rows:
         return bom_colors
 
-    # Find the y-range of BOM rows (based on typical PDF layout)
-    # BOM is usually in top 20% of page, starting around y=50-150
+    # Find the y-range of BOM rows
+    # BOM is in the header area, ending where blades begin
     bom_y_start = 50
-    bom_y_end = min(200, page_height * 0.2)
+    bom_y_end = header_boundary_y if header_boundary_y else min(page_height * 0.25, page_height * 0.2)
 
     # Find shapes in BOM area - look for small rectangles (row indicator boxes)
     # These are typically at the leftmost position (x < 70) with heights around 10-20px
@@ -488,14 +489,14 @@ def image_to_base64(img: 'Image') -> str:
     return f'data:image/png;base64,{b64}'
 
 
-def extract_cutter_shapes(page, raw_words: List, bom_rows: List) -> Dict[int, Dict]:
+def extract_cutter_shapes(page, raw_words: List, bom_rows: List, header_boundary_y=None) -> Dict[int, Dict]:
     """
     Extract cutter shape images from the CL (Cutter Layout) area.
     Maps each BOM index to its shape image using hybrid matching:
     1. First try containment (index center inside shape bounds)
     2. Fall back to looking for shapes directly below the index
 
-    Uses proportional thresholds for dynamic PDF handling.
+    Uses dynamic boundary from first blade marker for CL area detection.
     Returns dict: {index: {'width': w, 'height': h, 'data': base64_url}}
     """
     if not HAS_PIL:
@@ -508,9 +509,9 @@ def extract_cutter_shapes(page, raw_words: List, bom_rows: List) -> Dict[int, Di
     bom_indices = set(row.index for row in bom_rows)
     doc = page.parent
 
-    # Use proportional threshold for CL area (below header/BOM area)
+    # CL area starts where blades begin (dynamic boundary)
     page_height = page.rect.height
-    cl_area_y_threshold = page_height * 0.15  # CL area starts ~15% down
+    cl_area_y_threshold = header_boundary_y if header_boundary_y else page_height * 0.15
 
     # Build hash -> image data map and collect all shape rectangles
     hash_to_image = {}
@@ -629,13 +630,20 @@ def extract_cutter_shapes(page, raw_words: List, bom_rows: List) -> Dict[int, Di
     return cutter_shapes
 
 
-def extract_drill_bit_image(page) -> Optional[Dict]:
-    """Extract drill bit face image with transparent background"""
+def extract_drill_bit_image(page, header_boundary_y=None) -> Optional[Dict]:
+    """Extract drill bit face image with transparent background.
+    Uses dynamic boundaries based on header area and page dimensions."""
     if not HAS_PIL:
         return None
 
     image_list = page.get_images(full=True)
     doc = page.parent
+    page_width = page.rect.width
+    page_height = page.rect.height
+
+    # Dynamic boundaries
+    y_limit = header_boundary_y if header_boundary_y else page_height * 0.25
+    x_threshold = page_width * 0.60  # Right side of page
 
     for img_info in image_list:
         xref = img_info[0]
@@ -648,13 +656,12 @@ def extract_drill_bit_image(page) -> Optional[Dict]:
         w = base_image['width']
         h = base_image['height']
 
-        # Drill bit face is typically 150-250 pixels, roughly square
-        # Must be in header/BOM area (y < 200) and right side (x > 500)
+        # Drill bit face is typically 140-300 pixels, roughly square
+        # Must be in header area (above blade markers) and right side of page
         if 140 <= w <= 300 and 140 <= h <= 300:
-            # Check position - should be in upper right area
             if rects:
                 rect = rects[0]
-                if rect.x0 > 500 and rect.y0 < 200:
+                if rect.x0 > x_threshold and rect.y0 < y_limit:
                     image_bytes = base_image['image']
                     trans_img = make_image_transparent(image_bytes)
                     if trans_img:
@@ -1564,7 +1571,7 @@ def find_closest_position(x: float, positions_dict: Dict[str, float], all_positi
         return 'PAD'
 
 
-def extract_groups(words: List[Word], raw_words: List = None, page=None) -> Tuple[List[dict], bool]:
+def extract_groups(words: List[Word], raw_words: List = None, page=None, header_boundary_y=None) -> Tuple[List[dict], bool]:
     """
     Extract group numbers from legend with their Y positions for shape matching.
     Returns (group_list, has_legend, group_data, group_format) where group_data contains:
@@ -1589,6 +1596,9 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None) -> Tupl
             break
 
     if group_label:
+        # Dynamic Y limit: group text is between Group label and start of CL area
+        group_y_limit = header_boundary_y if header_boundary_y else group_label.y0 + 80
+
         # Look for ALL comma-separated group values (can be multiple rows)
         comma_rows = []
 
@@ -1596,8 +1606,8 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None) -> Tupl
         if raw_words:
             for rw in raw_words:
                 x0, y0, text = rw[0], rw[1], rw[4]
-                # Look for comma-separated numbers near Group column (within 50px of x, and below header)
-                if y0 > group_label.y0 and y0 < group_label.y0 + 80:
+                # Look for comma-separated numbers near Group column (below label, above CL)
+                if y0 > group_label.y0 and y0 < group_y_limit:
                     if ',' in text:
                         parts = text.replace(' ', '').split(',')
                         parsed_groups = []
@@ -1610,7 +1620,7 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None) -> Tupl
 
         # Also check styled words
         for w in words:
-            if w.y0 > group_label.y0 and w.y0 < group_label.y0 + 80:
+            if w.y0 > group_label.y0 and w.y0 < group_y_limit:
                 if ',' in w.text:
                     parts = w.text.replace(' ', '').split(',')
                     parsed_groups = []
@@ -1636,7 +1646,7 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None) -> Tupl
             for w in words:
                 if (w.text.isdigit() and len(w.text) == 1 and 1 <= int(w.text) <= 9
                     and abs(w.x0 - group_label.x0) < 50
-                    and w.y0 > group_label.y0 and w.y0 < group_label.y0 + 60):
+                    and w.y0 > group_label.y0 and w.y0 < group_y_limit):
                     vertical_groups.append({'value': int(w.text), 'y': w.y0, 'y1': w.y1})
 
             # Also check raw_words for vertical format
@@ -1645,7 +1655,7 @@ def extract_groups(words: List[Word], raw_words: List = None, page=None) -> Tupl
                     x0, y0, text = rw[0], rw[1], rw[4]
                     if (text.isdigit() and len(text) == 1 and 1 <= int(text) <= 9
                         and abs(x0 - group_label.x0) < 50
-                        and y0 > group_label.y0 and y0 < group_label.y0 + 60):
+                        and y0 > group_label.y0 and y0 < group_y_limit):
                         # Check if already added
                         if not any(g['value'] == int(text) and abs(g['y'] - y0) < 5 for g in vertical_groups):
                             vertical_groups.append({'value': int(text), 'y': y0, 'y1': rw[3]})
@@ -1738,8 +1748,8 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
         group_x_threshold = page_width * 0.45  # ~45% from left for group shapes
 
         # Dynamic Y boundary: everything above first blade marker is header area
-        # Fallback to fixed value if not provided
-        header_y_limit = header_boundary_y if header_boundary_y else 200
+        # Fallback to proportional estimate if not provided
+        header_y_limit = header_boundary_y if header_boundary_y else page.rect.height * 0.25
 
         # Collect all image info with positions
         image_infos = []
@@ -1797,10 +1807,11 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
                             'position': (rect.x0, rect.y0, rect.x1, rect.y1)
                         }
 
-                # 3. Group shape(s) - small shapes in group area (middle-right, above CL)
-                # Proper group shapes are typically smaller than CL shapes (which are 100x100, 81x90, 100x80)
-                # Group shapes are usually around 70x66 or similar - exclude CL-sized shapes
-                elif rect.x0 > group_x_threshold and rect.y0 < header_y_limit and 20 < width < 80 and 20 < height < 80:
+                # 3. Group shape(s) - images in header area that are NOT logo and NOT drill bit face
+                # Identified by: above CL boundary, in group column area, not too large (< drill bit)
+                elif (rect.x0 > group_x_threshold and rect.y0 < header_y_limit
+                      and width < 140 and height < 140    # Exclude drill bit face (140+)
+                      and not (width > height * 3)):       # Exclude logo-like wide images
                     shape_info = {
                         'data': data_url,
                         'width': width,
