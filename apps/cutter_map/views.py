@@ -1566,6 +1566,32 @@ def api_cutter_inventory(request):
 
 
 @login_required
+def api_cutter_shapes(request):
+    """
+    API endpoint returning saved cutter shape images from inventory items.
+    Returns shapes grouped by MAT number for the shape picker in Deep Edit.
+    """
+    from apps.inventory.models import InventoryItem
+
+    shapes = []
+    cutters = InventoryItem.objects.filter(
+        category__code="CUT-PDC",
+        is_active=True,
+        shape_image_base64__isnull=False,
+    ).exclude(shape_image_base64='').values('id', 'mat_number', 'code', 'name', 'shape_image_base64')
+
+    for c in cutters:
+        shapes.append({
+            'id': c['id'],
+            'mat': c['mat_number'] or c['code'],
+            'name': c['name'],
+            'data': c['shape_image_base64'],
+        })
+
+    return JsonResponse({'success': True, 'shapes': shapes})
+
+
+@login_required
 @require_POST
 def api_create_cutters(request):
     """

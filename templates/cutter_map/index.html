@@ -1397,6 +1397,7 @@
                             <span class="shape-placeholder">No shape</span>
                         </div>
                         <div class="shape-actions">
+                            <button class="btn btn-sm" style="background:#1976d2;color:white;" onclick="openShapePicker()" title="Pick from saved shapes">Saved</button>
                             <label class="btn btn-sm" style="background:#6c757d; cursor:pointer;">
                                 Upload
                                 <input type="file" id="modalShapeUpload" accept="image/*" style="display:none;" onchange="handleShapeUpload(this)">
@@ -1404,6 +1405,16 @@
                             <button class="btn btn-sm" style="background:#dc3545;" onclick="clearShapeUpload()" title="Remove shape">Clear</button>
                         </div>
                         <input type="hidden" id="modalShapeData" value="">
+                    </div>
+                    <!-- Saved shapes picker (hidden by default) -->
+                    <div id="shapePicker" style="display:none; margin-top:8px; padding:8px; background:#f5f5f5; border-radius:6px; border:1px solid #e0e0e0;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                            <span style="font-size:11px; font-weight:600; color:#555;">Saved Shapes (from DB)</span>
+                            <button onclick="document.getElementById('shapePicker').style.display='none'" style="background:none;border:none;cursor:pointer;color:#999;font-size:14px;">&times;</button>
+                        </div>
+                        <div id="shapePickerGrid" style="display:flex; flex-wrap:wrap; gap:6px; max-height:120px; overflow-y:auto;">
+                            <span style="color:#999;font-size:11px;">Loading...</span>
+                        </div>
                     </div>
                     <small style="color:#666; font-size:10px;">Shape is linked to BOM Group. Changing it updates all cutters with this group.</small>
                 </div>
@@ -2658,8 +2669,59 @@
             document.getElementById('modalShapeUpload').value = '';
             document.getElementById('modalShapeData').value = '';
             const groupNum = parseInt(document.getElementById('modalGroup').value) || 1;
-            // Show existing shape for group if any, otherwise show placeholder
             updateModalShapePreview(groupNum);
+        }
+
+        // Shape picker - load and display saved shapes from DB
+        let _cachedShapes = null;
+
+        async function openShapePicker() {
+            const picker = document.getElementById('shapePicker');
+            const grid = document.getElementById('shapePickerGrid');
+            picker.style.display = 'block';
+
+            if (_cachedShapes) {
+                renderShapeGrid(grid, _cachedShapes);
+                return;
+            }
+
+            grid.innerHTML = '<span style="color:#999;font-size:11px;">Loading...</span>';
+            try {
+                const resp = await fetch('/cutter-map/api/cutter-shapes/');
+                const data = await resp.json();
+                if (data.success && data.shapes) {
+                    _cachedShapes = data.shapes;
+                    renderShapeGrid(grid, data.shapes);
+                } else {
+                    grid.innerHTML = '<span style="color:#999;font-size:11px;">No saved shapes found</span>';
+                }
+            } catch (err) {
+                grid.innerHTML = '<span style="color:#c62828;font-size:11px;">Failed to load shapes</span>';
+            }
+        }
+
+        function renderShapeGrid(grid, shapes) {
+            if (!shapes.length) {
+                grid.innerHTML = '<span style="color:#999;font-size:11px;">No saved shapes in database yet. Shapes are saved when a BOM is synced to ERP.</span>';
+                return;
+            }
+            grid.innerHTML = shapes.map(s => `
+                <div onclick="selectSavedShape('${s.data.replace(/'/g, "\\'")}')"
+                     title="${s.mat} - ${s.name}"
+                     style="width:48px;height:48px;border:2px solid #e0e0e0;border-radius:6px;cursor:pointer;
+                            display:flex;align-items:center;justify-content:center;background:white;
+                            transition:all 0.15s;overflow:hidden;"
+                     onmouseover="this.style.borderColor='#1976d2';this.style.transform='scale(1.08)'"
+                     onmouseout="this.style.borderColor='#e0e0e0';this.style.transform='scale(1)'">
+                    <img src="${s.data}" alt="${s.mat}" style="max-width:42px;max-height:42px;object-fit:contain;">
+                </div>
+            `).join('');
+        }
+
+        function selectSavedShape(dataUri) {
+            document.getElementById('modalShapeData').value = dataUri;
+            document.getElementById('modalShapePreview').innerHTML = `<img src="${dataUri}" alt="Shape">`;
+            document.getElementById('shapePicker').style.display = 'none';
         }
 
         // Handle group number change - update shape preview AND sync type/chamfer from BOM
