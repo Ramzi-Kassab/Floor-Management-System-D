@@ -1877,6 +1877,7 @@ def _detect_group_table_cells(page, group_data, group_format, header_y_limit) ->
         ty0 = row.get('y', 0)
         ty1 = row.get('y1', ty0 + 10)
         ty_center = (ty0 + ty1) / 2
+        matched = False
         for rb_y0, rb_y1 in row_bounds:
             if rb_y0 <= ty_center <= rb_y1:
                 if not any(abs(tc['row_y0'] - rb_y0) < 3 for tc in table_cells):
@@ -1888,7 +1889,25 @@ def _detect_group_table_cells(page, group_data, group_format, header_y_limit) ->
                         'row_y0': rb_y0,
                         'row_y1': rb_y1,
                     })
+                matched = True
                 break
+
+        if not matched:
+            # No detected row boundary covers this group text.
+            # Synthesise a cell from the text's own Y bounds with padding so
+            # an image whose centre falls in this band is captured.
+            pad = 5
+            syn_y0 = ty0 - pad
+            syn_y1 = ty1 + pad
+            if not any(abs(tc['row_y0'] - syn_y0) < 3 for tc in table_cells):
+                table_cells.append({
+                    'x0': shape_col_x0,
+                    'y0': syn_y0,
+                    'x1': shape_col_x1,
+                    'y1': syn_y1,
+                    'row_y0': syn_y0,
+                    'row_y1': syn_y1,
+                })
 
     return table_cells
 
@@ -1945,6 +1964,23 @@ def _match_group_text_to_row(group_data, group_format, row_y0, row_y1) -> str:
                 best_text = str(row.get('value', ''))
 
     return best_text
+
+
+def _in_group_column_x(rect, group_table_cells, page_width) -> bool:
+    """Check whether an image rect falls near the group shape column X range.
+
+    Uses generous tolerance because the shape image may sit in an adjacent
+    column (e.g. one cell to the right of the detected shape-column).
+    """
+    img_cx = (rect.x0 + rect.x1) / 2
+    if group_table_cells:
+        col_x0 = min(c['x0'] for c in group_table_cells)
+        col_x1 = max(c['x1'] for c in group_table_cells)
+        col_w = col_x1 - col_x0
+        # Allow up to one column-width of slack on either side
+        return col_x0 - col_w <= img_cx <= col_x1 + col_w
+    # No cells detected — use broad heuristic
+    return page_width * 0.45 < rect.x0 < page_width * 0.85
 
 
 def extract_images(page, doc, group_data=None, group_format='unknown', header_boundary_y=None) -> Dict:
@@ -2087,13 +2123,16 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
                             'position': (rect.x0, rect.y0, rect.x1, rect.y1)
                         }
 
-                # 4. Fallback: if no table cells detected, use position-based heuristic
-                # Images in group column area that are small enough to be cutter shapes
-                elif (not group_table_cells and
-                      rect.x0 > page_width * 0.45 and
-                      rect.x0 < page_width * 0.85 and
-                      width < page_width * 0.25 and height < page_height * 0.2 and
-                      not (width > 100 and height > 100 and rect.x0 > page_width * 0.75)):
+                # 4. Fallback: position-based heuristic for images in the group
+                # column area that are small enough to be cutter shapes.
+                # When table cells were detected, restrict the X range to the
+                # known shape column and Y range to the group data band so
+                # CL-area images don't leak in.
+                elif (width < page_width * 0.25 and height < page_height * 0.2 and
+                      not (width > 100 and height > 100 and rect.x0 > page_width * 0.75) and
+                      group_data and
+                      rect.y0 <= max(r.get('y1', r.get('y', 0)) for r in group_data) + 15 and
+                      _in_group_column_x(rect, group_table_cells, page_width)):
                     shape_info = {
                         'data': data_url,
                         'width': width,
