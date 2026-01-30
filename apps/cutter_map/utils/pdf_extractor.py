@@ -1992,6 +1992,8 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
         group_table_cells = _detect_group_table_cells(page, group_data, group_format, header_y_limit)
 
         # --- Step 2: Collect all images with unique positions ---
+        # Iterate ALL placements (rects) per xref so the same image placed at
+        # two different positions (e.g. two group-shape rows) is collected twice.
         image_infos = []
         seen_rects = set()
         for img_info in image_list:
@@ -1999,9 +2001,7 @@ def extract_images(page, doc, group_data=None, group_format='unknown', header_bo
             width = img_info[2]
             height = img_info[3]
             rects = page.get_image_rects(xref)
-            if rects:
-                rect = rects[0]
-                # Deduplicate by position (many images share the same rect in these PDFs)
+            for rect in rects:
                 rect_key = (round(rect.x0, 1), round(rect.y0, 1), round(rect.x1, 1), round(rect.y1, 1))
                 if rect_key not in seen_rects:
                     seen_rects.add(rect_key)
