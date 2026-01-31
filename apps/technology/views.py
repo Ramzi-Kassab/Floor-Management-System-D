@@ -850,7 +850,8 @@ class BOMListView(LoginRequiredMixin, ListView):
             "design", "design__size", "design__iadc_code_ref", "created_by",
             "smi_type", "smi_type__hdbs_type"
         ).prefetch_related(
-            "lines__inventory_item",
+            "lines__inventory_item__variants__variant_case",
+            "lines__inventory_item__variants__stock_records",
             "drillbits_brazing",  # Drill bits linked via brazing_bom
             "drillbits_system",   # Drill bits linked via system_bom
         ).order_by("-created_at")
@@ -860,13 +861,16 @@ class BOMListView(LoginRequiredMixin, ListView):
         return self.filterset.qs
 
     def get_context_data(self, **kwargs):
-        from apps.inventory.models import InventoryStock
-        from django.db.models import Sum
+        from apps.inventory.models import VariantStock
+        from django.db.models import Sum, DecimalField, Value
+        from django.db.models.functions import Coalesce
 
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Bills of Materials"
         context["filter"] = self.filterset
         context["sizes"] = BitSize.objects.filter(is_active=True).order_by("size_decimal")
+
+        NEW_VARIANT_CODES = {"NEW-PUR", "NEW-EO", "NEW-RET"}
 
         # Add material availability status for each BOM
         boms_with_status = []
@@ -876,14 +880,17 @@ class BOMListView(LoginRequiredMixin, ListView):
             for line in bom.lines.all():
                 line_count += 1
                 if line.inventory_item:
-                    stock = InventoryStock.objects.filter(item=line.inventory_item).aggregate(
-                        available=Sum('quantity_available')
-                    )
-                    available = stock['available'] or 0
-                    if available < line.quantity:
+                    # Sum new variant stock (same logic as cutter inventory)
+                    total_new = 0
+                    for variant in line.inventory_item.variants.all():
+                        if variant.variant_case and variant.variant_case.code in NEW_VARIANT_CODES:
+                            stock = variant.stock_records.aggregate(
+                                total=Coalesce(Sum("quantity_on_hand"), Value(0), output_field=DecimalField())
+                            )["total"]
+                            total_new += int(stock)
+                    if total_new < line.quantity:
                         all_available = False
                 else:
-                    # No inventory item linked - can't check availability
                     all_available = False
 
             # Collect linked drill bits (both brazing and system)
@@ -2758,6 +2765,11 @@ class BOMCreateWithBuilderView(LoginRequiredMixin, TemplateView):
             "boms"
         ).order_by("-created_at")
 
+        # SMI Types and IADC Codes for BOM creation
+        context["smi_types"] = SMIType.objects.filter(is_active=True).select_related('hdbs_type', 'size').order_by('smi_name')
+        context["iadc_codes"] = IADCCode.objects.filter(is_active=True).order_by('code')
+        context["status_choices"] = BOM.Status.choices
+
         # Handle pre-selection from drill bit detail page
         design_id = self.request.GET.get('design_id')
         drillbit_id = self.request.GET.get('drillbit_id')
@@ -3678,11 +3690,17 @@ class APIBOMUpdateFieldView(LoginRequiredMixin, View):
 
 
 class APIBOMMaterialsDetailView(LoginRequiredMixin, View):
-    """Return detailed materials inventory for a BOM, including shortage analysis."""
+    """Return detailed materials inventory for a BOM, including variant stock breakdown."""
+
+    # Variant codes and which count as "new" for shortage calculation
+    VARIANT_CODES = ["NEW-PUR", "NEW-RET", "NEW-EO", "USED-GRD", "USED-RCL", "NEW-CLI", "USED-CLI"]
+    NEW_VARIANT_CODES = {"NEW-PUR", "NEW-EO", "NEW-RET"}
 
     def get(self, request, pk):
-        from apps.inventory.models import InventoryStock
-        from django.db.models import Sum
+        from apps.inventory.models import VariantStock
+        from django.db.models import Sum, DecimalField, Value
+        from django.db.models.functions import Coalesce
+        from decimal import Decimal
 
         bom = get_object_or_404(
             BOM.objects.select_related('design', 'design__size'),
@@ -3690,22 +3708,39 @@ class APIBOMMaterialsDetailView(LoginRequiredMixin, View):
         )
         lines = bom.lines.select_related(
             'inventory_item', 'inventory_item__category'
+        ).prefetch_related(
+            'inventory_item__variants__variant_case',
+            'inventory_item__variants__stock_records',
         ).order_by('line_number')
 
         items = []
-        min_builds = None  # Lowest possible builds based on available stock
+        min_builds = None
 
         for line in lines:
             item = line.inventory_item
             required = int(line.quantity)
 
             if item:
-                stock = InventoryStock.objects.filter(item=item).aggregate(
-                    available=Sum('quantity_available')
-                )
-                available = int(stock['available'] or 0)
-                shortage = max(0, required - available)
-                possible = available // required if required > 0 else 0
+                # Get variant stock breakdown (same pattern as cutter inventory page)
+                variants = {}
+                total_stock = 0
+                total_new = 0
+                for variant in item.variants.all():
+                    if variant.variant_case and variant.variant_case.code in self.VARIANT_CODES:
+                        stock = variant.stock_records.aggregate(
+                            total=Coalesce(Sum("quantity_on_hand"), Value(0), output_field=DecimalField())
+                        )["total"]
+                        qty = int(stock)
+                        code = variant.variant_case.code
+                        variants[code] = qty
+                        total_stock += qty
+                        if code in self.NEW_VARIANT_CODES:
+                            total_new += qty
+
+                # Shortage is based on new variants only (ENO New, Retrofit, New Stock)
+                available_new = total_new
+                shortage = max(0, required - available_new)
+                possible = available_new // required if required > 0 else 0
                 if min_builds is None or possible < min_builds:
                     min_builds = possible
 
@@ -3719,9 +3754,11 @@ class APIBOMMaterialsDetailView(LoginRequiredMixin, View):
                     'cutter_type': line.cutter_type or '',
                     'chamfer': line.cutter_chamfer or '',
                     'required': required,
-                    'available': available,
+                    'available_new': available_new,
+                    'total_stock': total_stock,
                     'shortage': shortage,
                     'possible_builds': possible,
+                    'variants': variants,
                 })
             else:
                 items.append({
@@ -3734,9 +3771,11 @@ class APIBOMMaterialsDetailView(LoginRequiredMixin, View):
                     'cutter_type': line.cutter_type or '',
                     'chamfer': line.cutter_chamfer or '',
                     'required': required,
-                    'available': 0,
+                    'available_new': 0,
+                    'total_stock': 0,
                     'shortage': required,
                     'possible_builds': 0,
+                    'variants': {},
                 })
                 if min_builds is None or 0 < min_builds:
                     min_builds = 0
@@ -3751,4 +3790,6 @@ class APIBOMMaterialsDetailView(LoginRequiredMixin, View):
             'total_lines': len(items),
             'has_shortage': has_shortage,
             'possible_builds': min_builds if min_builds is not None else 0,
+            'variant_codes': self.VARIANT_CODES,
+            'new_variant_codes': list(self.NEW_VARIANT_CODES),
         })

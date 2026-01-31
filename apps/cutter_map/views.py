@@ -104,6 +104,9 @@ def index(request):
             'design_hdbs': request.GET.get('design_hdbs', ''),
             'design_size': request.GET.get('design_size', ''),
             'design_level': request.GET.get('design_level', ''),  # L3 or L4
+            'smi_type_id': request.GET.get('smi_type_id', ''),
+            'iadc_code_id': request.GET.get('iadc_code_id', ''),
+            'bom_status': request.GET.get('bom_status', ''),
             'from_bom_create': True,
             # Serial number / Drill bit context (multiple)
             'drillbit_ids': drillbit_ids,  # Array of IDs
@@ -776,6 +779,9 @@ def api_sync_to_erp(request):
     bom_type = payload.get('bom_type', 'BRAZING')  # BRAZING (internal) or SYSTEM (client-facing)
     brazing_mat = payload.get('brazing_mat', '').strip()  # Brazing MAT (internal/production)
     system_mat = payload.get('system_mat', '').strip()    # System MAT (client-facing)
+    smi_type_id = payload.get('smi_type_id')  # Optional SMI Type FK
+    iadc_code_id = payload.get('iadc_code_id')  # Optional IADC Code FK (set on Design)
+    bom_status = payload.get('bom_status', '')  # Optional BOM status override
     serial_number = payload.get('serial_number', '').strip()  # Optional serial number (from first drill bit)
     data = payload.get('data', {})
 
@@ -877,16 +883,31 @@ def api_sync_to_erp(request):
                 bom_was_updated = True
 
         if not existing_bom or force_create_new:
+            # Resolve optional SMI Type
+            smi_type_obj = None
+            if smi_type_id:
+                from apps.technology.models import SMIType
+                smi_type_obj = SMIType.objects.filter(pk=smi_type_id).first()
+
             bom = BOM.objects.create(
                 design=parent_design,
                 code=bom_code,
                 name=f"L5 BOM for {parent_design_mat}",
                 revision=header.get('revision_level', 'A'),
-                status=BOM.Status.DRAFT,
+                status=bom_status if bom_status in dict(BOM.Status.choices) else BOM.Status.DRAFT,
                 bom_type=bom_type,  # BRAZING or SYSTEM
                 system_mat_no=system_mat,  # Client-facing MAT
+                smi_type=smi_type_obj,
                 created_by=request.user
             )
+
+            # Set IADC code on design if provided
+            if iadc_code_id:
+                from apps.technology.models import IADCCode
+                iadc_obj = IADCCode.objects.filter(pk=iadc_code_id).first()
+                if iadc_obj and not parent_design.iadc_code_ref:
+                    parent_design.iadc_code_ref = iadc_obj
+                    parent_design.save(update_fields=['iadc_code_ref'])
 
         # Save complete source data for PDF Generator reconstruction
         new_source_data = {

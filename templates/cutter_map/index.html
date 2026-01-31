@@ -1170,6 +1170,9 @@
     <input type="hidden" id="designHdbs" value="{{ design_context.design_hdbs }}">
     <input type="hidden" id="designSize" value="{{ design_context.design_size }}">
     <input type="hidden" id="designLevel" value="{{ design_context.design_level }}">
+    <input type="hidden" id="smiTypeId" value="{{ design_context.smi_type_id|default:'' }}">
+    <input type="hidden" id="iadcCodeId" value="{{ design_context.iadc_code_id|default:'' }}">
+    <input type="hidden" id="bomStatus" value="{{ design_context.bom_status|default:'' }}">
     <!-- Serial number context (multiple) -->
     <input type="hidden" id="drillbitIds" value="{{ design_context.drillbit_ids|safe }}">
     <input type="hidden" id="serialNumbers" value="{{ design_context.serial_numbers|safe }}">
@@ -8043,7 +8046,10 @@
                     groups: formData.groups || currentData.groups || [],  // Cutter group data
                     cutter_shapes: currentData.cutter_shapes || {}  // Individual cutter shapes (base64)
                 },
-                create_missing_items: false  // Can be made configurable
+                create_missing_items: false,  // Can be made configurable
+                smi_type_id: document.getElementById('smiTypeId')?.value || null,
+                iadc_code_id: document.getElementById('iadcCodeId')?.value || null,
+                bom_status: document.getElementById('bomStatus')?.value || '',
             };
 
             // Show preview dialog before creating BOM

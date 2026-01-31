@@ -771,48 +771,66 @@
                     </div>
                 </template>
                 <template x-if="!materialsModal.loading && materialsModal.data && materialsModal.data.items.length > 0">
+                    <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead class="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
                             <tr>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">#</th>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">MAT / HDBS</th>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Size</th>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Type</th>
-                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Chamfer</th>
-                                <th class="px-3 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Required</th>
-                                <th class="px-3 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Available</th>
-                                <th class="px-3 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Shortage</th>
-                                <th class="px-3 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Builds</th>
+                                <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">#</th>
+                                <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">MAT / HDBS</th>
+                                <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Size</th>
+                                <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Req</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase bg-green-50 dark:bg-green-900/20" title="New Purchased">New</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase bg-green-50 dark:bg-green-900/20" title="ENO As New">ENO</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase bg-green-50 dark:bg-green-900/20" title="Retrofit as New">Retro</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" title="ENO Ground">Ground</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" title="ARDT Reclaimed">Reclm</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" title="Client Stock">LSTK</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" title="Client Used">Cli U</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-900 dark:text-white uppercase bg-blue-50 dark:bg-blue-900/20">Avail (New)</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Short</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Builds</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                             <template x-for="(item, idx) in materialsModal.data.items" :key="idx">
                                 <tr :class="item.shortage > 0 ? 'bg-red-50/50 dark:bg-red-900/10' : ''">
-                                    <td class="px-3 py-2 text-gray-500 dark:text-gray-400" x-text="item.order_number || item.line_number"></td>
-                                    <td class="px-3 py-2">
-                                        <div class="flex items-center gap-2">
-                                            <span x-show="item.color_code" class="w-3 h-3 rounded-full inline-block flex-shrink-0" :style="'background:' + item.color_code"></span>
+                                    <td class="px-2 py-2 text-gray-500 dark:text-gray-400 text-xs" x-text="item.order_number || item.line_number"></td>
+                                    <td class="px-2 py-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <span x-show="item.color_code" class="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" :style="'background:' + item.color_code"></span>
                                             <span class="font-mono text-xs text-gray-900 dark:text-white" x-text="item.mat_number"></span>
                                         </div>
                                     </td>
-                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300 text-xs" x-text="item.cutter_size || '-'"></td>
-                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300 text-xs" x-text="item.cutter_type || '-'"></td>
-                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300 text-xs" x-text="item.chamfer || '-'"></td>
-                                    <td class="px-3 py-2 text-center font-medium text-gray-900 dark:text-white" x-text="item.required"></td>
-                                    <td class="px-3 py-2 text-center font-medium"
-                                        :class="item.available >= item.required ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
-                                        x-text="item.available"></td>
-                                    <td class="px-3 py-2 text-center">
+                                    <td class="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs" x-text="item.cutter_size || '-'"></td>
+                                    <td class="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs" x-text="item.cutter_type || '-'"></td>
+                                    <td class="px-2 py-2 text-center font-semibold text-gray-900 dark:text-white text-xs" x-text="item.required"></td>
+                                    <!-- Variant columns (green bg = new variants) -->
+                                    <td class="px-2 py-2 text-center text-xs bg-green-50/50 dark:bg-green-900/10" x-text="item.variants?.['NEW-PUR'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs bg-green-50/50 dark:bg-green-900/10" x-text="item.variants?.['NEW-EO'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs bg-green-50/50 dark:bg-green-900/10" x-text="item.variants?.['NEW-RET'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs" x-text="item.variants?.['USED-GRD'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs" x-text="item.variants?.['USED-RCL'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs" x-text="item.variants?.['NEW-CLI'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs" x-text="item.variants?.['USED-CLI'] || 0"></td>
+                                    <!-- Available New (sum of NEW-PUR + NEW-EO + NEW-RET) -->
+                                    <td class="px-2 py-2 text-center font-semibold bg-blue-50/50 dark:bg-blue-900/10"
+                                        :class="item.available_new >= item.required ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+                                        x-text="item.available_new"></td>
+                                    <td class="px-2 py-2 text-center text-xs text-gray-600 dark:text-gray-400" x-text="item.total_stock"></td>
+                                    <td class="px-2 py-2 text-center">
                                         <span x-show="item.shortage > 0" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" x-text="item.shortage"></span>
-                                        <span x-show="item.shortage === 0" class="text-green-600 dark:text-green-400">-</span>
+                                        <span x-show="item.shortage === 0" class="text-green-600 dark:text-green-400 text-xs">-</span>
                                     </td>
-                                    <td class="px-3 py-2 text-center font-medium"
+                                    <td class="px-2 py-2 text-center font-medium text-xs"
                                         :class="item.possible_builds > 0 ? 'text-gray-700 dark:text-gray-300' : 'text-red-600 dark:text-red-400'"
                                         x-text="item.possible_builds"></td>
                                 </tr>
                             </template>
                         </tbody>
                     </table>
+                    </div>
                 </template>
                 <template x-if="!materialsModal.loading && materialsModal.data && materialsModal.data.items.length === 0">
                     <div class="text-center py-8 text-gray-500 dark:text-gray-400">

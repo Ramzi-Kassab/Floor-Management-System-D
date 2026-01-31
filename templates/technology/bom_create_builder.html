@@ -261,6 +261,47 @@
 
                 <hr class="border-gray-200 dark:border-gray-700 mb-4">
 
+                <!-- BOM Fields: SMI Type, IADC, Status -->
+                <div class="space-y-3 mb-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            SMI Type (Optional)
+                        </label>
+                        <select id="bom-smi-type"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                            <option value="">-- None --</option>
+                            {% for smi in smi_types %}
+                            <option value="{{ smi.pk }}">{{ smi.smi_name }}{% if smi.hdbs_type %} ({{ smi.hdbs_type.code }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            IADC Code (Optional)
+                        </label>
+                        <select id="bom-iadc-code"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                            <option value="">-- None --</option>
+                            {% for iadc in iadc_codes %}
+                            <option value="{{ iadc.pk }}">{{ iadc.code }} - {{ iadc.description }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Initial Status
+                        </label>
+                        <select id="bom-status"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                            {% for val, label in status_choices %}
+                            <option value="{{ val }}" {% if val == 'DRAFT' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <hr class="border-gray-200 dark:border-gray-700 mb-4">
+
                 <!-- Serial Number Selection (Optional - Multi-select) -->
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -624,6 +665,14 @@
             design_level: selectedDesign.level,  // Include L3/L4 level
             from: 'bom_create'
         });
+
+        // Pass BOM creation fields
+        const smiTypeId = document.getElementById('bom-smi-type')?.value;
+        const iadcCodeId = document.getElementById('bom-iadc-code')?.value;
+        const bomStatus = document.getElementById('bom-status')?.value;
+        if (smiTypeId) params.set('smi_type_id', smiTypeId);
+        if (iadcCodeId) params.set('iadc_code_id', iadcCodeId);
+        if (bomStatus) params.set('bom_status', bomStatus);
 
         // Include selected serial numbers (multiple)
         const selectedBits = getSelectedDrillBitIds();
