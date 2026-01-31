@@ -443,7 +443,8 @@ class DrillBitUpdateView(LoginRequiredMixin, UpdateView):
 
 class DrillBitDeleteView(LoginRequiredMixin, DeleteView):
     """
-    Delete a drill bit (soft delete by setting status to SCRAPPED).
+    Delete a drill bit record permanently from the system.
+    This is a data cleanup action, NOT a physical scrap (use ScrapView for that).
     """
 
     model = DrillBit
@@ -453,35 +454,15 @@ class DrillBitDeleteView(LoginRequiredMixin, DeleteView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = f"Delete Drill Bit - {self.object.serial_number}"
-        # Check for related records
         context["work_orders_count"] = self.object.work_orders.count()
         context["events_count"] = self.object.bit_events.count()
         return context
 
     def delete(self, request, *args, **kwargs):
         bit = self.get_object()
-        # Don't actually delete - mark as scrapped
-        bit.status = DrillBit.Status.SCRAPPED
-        bit.lifecycle_status = DrillBit.LifecycleStatus.SCRAP
-        bit.scrap_date = timezone.now().date()
-        bit.save()
-
-        # Create scrap event
-        default_location = bit.bit_location or Location.objects.filter(is_active=True).first()
-        if default_location:
-            BitEvent.objects.create(
-                bit=bit,
-                event_type=BitEvent.EventType.SCRAPPED,
-                event_date=timezone.now(),
-                location=default_location,
-                notes="Marked as scrapped via delete action.",
-                performed_by=request.user,
-            )
-
-        messages.success(
-            request,
-            f'Drill bit "{bit.serial_number}" has been marked as scrapped.',
-        )
+        serial = bit.serial_number
+        bit.delete()
+        messages.success(request, f'Drill bit "{serial}" has been permanently deleted.')
         return redirect(self.success_url)
 
 

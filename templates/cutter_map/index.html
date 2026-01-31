@@ -1082,12 +1082,12 @@
     <div style="background: linear-gradient(90deg, #065f46, #047857); color: white; padding: 12px 20px; margin-bottom: 0;">
         <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 15px;">
-                <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold;">
-                    VIEWING BOM
+                <span class="bom-banner-label" style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold;">
+                    {% if bom_context.serial_number %}BOM FOR SN {{ bom_context.serial_number }}{% else %}VIEWING BOM{% endif %}
                 </span>
                 <div style="display: flex; gap: 15px; font-size: 13px; align-items: center;">
                     <span style="background: #10b981; padding: 2px 8px; border-radius: 3px; font-weight: bold;">L5</span>
-                    <span><strong>MAT:</strong> {{ bom_context.bom_code }}</span>
+                    <span class="bom-banner-mat"><strong>MAT:</strong> {{ bom_context.bom_code }}</span>
                     {% if bom_context.design_level %}
                     <span style="background: {% if bom_context.design_level == 'L3' %}#2196f3{% else %}#8b5cf6{% endif %}; padding: 2px 8px; border-radius: 3px; font-weight: bold;">
                         {{ bom_context.design_level }}
@@ -1097,6 +1097,7 @@
                     <span><strong>HDBS:</strong> {{ bom_context.design_hdbs }}</span>
                     {% if bom_context.design_size %}<span><strong>Size:</strong> {{ bom_context.design_size }}</span>{% endif %}
                     {% if bom_context.smi_type %}<span><strong>SMI:</strong> {{ bom_context.smi_type }}</span>{% endif %}
+                    {% if bom_context.serial_number %}<span style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 3px;"><strong>SN:</strong> {{ bom_context.serial_number }}</span>{% endif %}
                 </div>
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
@@ -9499,6 +9500,10 @@
             const bomCode = document.getElementById('bomCode')?.value;
             const designId = document.getElementById('designId')?.value;
             const designMat = document.getElementById('designMat')?.value;
+            const drillbitIdEl = document.getElementById('drillbitId');
+            const serialNumberEl = document.getElementById('serialNumber');
+            const drillbitId = drillbitIdEl ? drillbitIdEl.value : '';
+            const serialNumber = serialNumberEl ? serialNumberEl.value : '';
 
             if (!bomId) {
                 showMsg('No BOM to save. Please create a BOM first.', 'error');
@@ -9509,6 +9514,14 @@
             if (!formData) {
                 showMsg('No data to save.', 'error');
                 return;
+            }
+
+            // If opened from a drill bit context with changes, create a NEW BOM
+            // with the serial number in the code, linked to this drill bit
+            const isFromDrillbit = !!(drillbitId && serialNumber);
+            let newBomCode = '';
+            if (isFromDrillbit) {
+                newBomCode = bomCode + '-' + serialNumber;
             }
 
             // Build payload matching what api_sync_to_erp expects
@@ -9527,7 +9540,16 @@
                 update_existing_bom: true  // Signal that we're updating
             };
 
-            showMsg('Saving BOM changes...', 'success');
+            // For drill-bit-specific saves: force new BOM with serial in code
+            if (isFromDrillbit) {
+                payload.force_create_new = true;
+                payload.brazing_mat = newBomCode;
+                payload.drillbit_ids = [drillbitId];
+                payload.drillbit_id = drillbitId;
+                payload.serial_number = serialNumber;
+            }
+
+            showMsg(isFromDrillbit ? 'Creating new BOM for SN ' + serialNumber + '...' : 'Saving BOM changes...', 'success');
 
             fetch('/cutter-map/api/sync-to-erp/', {
                 method: 'POST',
@@ -9544,7 +9566,25 @@
                     originalData = JSON.parse(JSON.stringify(currentData));
                     hasUnsavedChanges = false;
                     checkForChanges();
-                    showMsg('BOM changes saved successfully!', 'success');
+
+                    if (isFromDrillbit && result.bom_id) {
+                        // New BOM was created for this serial — update page to point to it
+                        var newCode = result.bom_code || newBomCode;
+                        showMsg('New BOM "' + newCode + '" created for SN ' + serialNumber + '!', 'success');
+                        // Update hidden fields to reflect the new BOM
+                        if (document.getElementById('bomId')) document.getElementById('bomId').value = result.bom_id;
+                        if (document.getElementById('bomCode')) document.getElementById('bomCode').value = newCode;
+                        // Clear drillbit context so subsequent saves update the new BOM
+                        if (drillbitIdEl) drillbitIdEl.value = '';
+                        if (serialNumberEl) serialNumberEl.value = '';
+                        // Update banner label
+                        var bannerLabel = document.querySelector('.bom-banner-label');
+                        if (bannerLabel) bannerLabel.textContent = 'VIEWING BOM';
+                        var bannerMat = document.querySelector('.bom-banner-mat');
+                        if (bannerMat) bannerMat.innerHTML = '<strong>MAT:</strong> ' + newCode;
+                    } else {
+                        showMsg('BOM changes saved successfully!', 'success');
+                    }
                 } else {
                     showMsg('Error saving: ' + (result.error || 'Unknown error'), 'error');
                 }

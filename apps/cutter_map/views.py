@@ -193,6 +193,9 @@ def bom_view(request, bom_id):
         'from_bom_view': True,
         'source_data': json.dumps(source_data),  # Pre-serialized for JS
         'linked_serial_numbers': json.dumps(linked_serial_numbers),  # SNs linked to this BOM
+        # Drill bit context (from query params)
+        'drillbit_id': drillbit_id,
+        'serial_number': serial_number,
     }
 
     form = CutterMapUploadForm()
