@@ -819,7 +819,6 @@ def api_sync_to_erp(request):
     bom_status = payload.get('bom_status', '')  # Optional BOM status override
     serial_number = payload.get('serial_number', '').strip()  # Optional serial number (from first drill bit)
     parent_bom_id = payload.get('parent_bom_id')  # Parent BOM ID for serial copies
-    work_order_id = payload.get('work_order_id')  # Optional work order context
     data = payload.get('data', {})
 
     # Require either design_id or parent_design_mat
@@ -947,12 +946,6 @@ def api_sync_to_erp(request):
             if parent_bom_id:
                 parent_bom_obj = BOM.objects.filter(pk=parent_bom_id).first()
 
-            # Resolve work order if provided
-            work_order_obj = None
-            if work_order_id:
-                from apps.workorders.models import WorkOrder
-                work_order_obj = WorkOrder.objects.filter(pk=work_order_id).first()
-
             bom = BOM.objects.create(
                 design=parent_design,
                 code=bom_code,
@@ -964,7 +957,6 @@ def api_sync_to_erp(request):
                 smi_type=smi_type_obj,
                 serial_number=serial_number,
                 parent_bom=parent_bom_obj,
-                work_order=work_order_obj,
                 created_by=request.user
             )
 
@@ -1333,7 +1325,6 @@ def api_sync_to_erp(request):
             'serial_number': bom.serial_number or bom.source_sn_number or '',
             'is_original': bom.is_original,
             'parent_bom_id': bom.parent_bom_id or '',
-            'work_order_id': bom.work_order_id or '',
             'smi_type_id': bom.smi_type_id or '',
             'iadc_code_id': parent_design.iadc_code_ref_id or '',
             'bom_status': bom.status or '',
@@ -1462,6 +1453,33 @@ def api_toggle_original(request, bom_id):
         'success': True,
         'is_original': bom.is_original,
         'message': f'BOM {bom.code} {"marked as Original" if bom.is_original else "unmarked as Original"}'
+    })
+
+
+@login_required
+def api_check_bom_code(request):
+    """Check if a BOM code already exists. Returns BOM info if found."""
+    from apps.technology.models import BOM
+    code = request.GET.get('code', '').strip()
+    if not code:
+        return JsonResponse({'exists': False})
+    bom = BOM.objects.filter(code=code).select_related('design').first()
+    if not bom:
+        return JsonResponse({'exists': False})
+    # Get linked serial numbers
+    from apps.workorders.models import DrillBit
+    from django.db.models import Q
+    linked_sns = list(DrillBit.objects.filter(
+        Q(brazing_bom=bom) | Q(system_bom=bom)
+    ).values_list('serial_number', flat=True).distinct())
+    return JsonResponse({
+        'exists': True,
+        'bom_id': bom.pk,
+        'bom_code': bom.code,
+        'serial_number': bom.serial_number or '',
+        'is_original': bom.is_original,
+        'status': bom.status,
+        'linked_serial_numbers': linked_sns,
     })
 
 

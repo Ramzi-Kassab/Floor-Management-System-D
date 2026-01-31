@@ -57,6 +57,7 @@ urlpatterns = [
     path('api/create-cutters/', views.api_create_cutters, name='api_create_cutters'),
     path('api/activate-bom/<int:bom_id>/', views.api_activate_bom, name='api_activate_bom'),
     path('api/toggle-original/<int:bom_id>/', views.api_toggle_original, name='api_toggle_original'),
+    path('api/check-bom-code/', views.api_check_bom_code, name='api_check_bom_code'),
     path('api/bom/<int:bom_id>/system-mat/', views.api_set_system_mat, name='api_set_system_mat'),
     path('api/bom/<int:bom_id>/link-drillbits/', views.api_link_bom_to_drillbits, name='api_link_bom_to_drillbits'),
     path('api/quick-add-smi-type/', views.api_quick_add_smi_type, name='api_quick_add_smi_type'),

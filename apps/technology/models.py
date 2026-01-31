@@ -1111,14 +1111,6 @@ class BOM(models.Model):
         related_name='serial_copies',
         help_text="Original BOM this was copied from (for serial-specific copies)"
     )
-    work_order = models.ForeignKey(
-        'workorders.WorkOrder',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='bom_copies',
-        help_text="Work order this BOM was created/modified for (build, repair, etc.)"
-    )
 
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)

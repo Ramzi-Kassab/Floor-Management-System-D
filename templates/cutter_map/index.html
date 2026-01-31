@@ -9556,28 +9556,122 @@
                 return;
             }
 
-            // If opened from a drill bit context, create a NEW BOM for this serial
-            // unless this BOM already belongs to this serial (then update it)
+            // Detect drill bit context
             const isFromDrillbit = !!(drillbitId && serialNumber);
             const bomIsOriginal = document.getElementById('bomIsOriginal')?.value === 'true';
             const bomSerialNumber = document.getElementById('bomSerialNumber')?.value || '';
-            const parentBomId = document.getElementById('parentBomId')?.value || '';
-            // This BOM already belongs to this serial — safe to update
+            // This BOM already belongs to this serial — safe to update directly
             const isSameSerialBOM = bomSerialNumber && bomSerialNumber === serialNumber;
-            // Need new BOM: from drill bit context AND (original OR different serial)
-            const needsNewBOM = isFromDrillbit && !isSameSerialBOM;
 
-            let newBomCode = '';
-            if (needsNewBOM) {
-                // Strip existing serial suffix if present, then append new serial
-                let baseBomCode = bomCode;
-                if (bomSerialNumber && baseBomCode.endsWith('-' + bomSerialNumber)) {
-                    baseBomCode = baseBomCode.slice(0, -(bomSerialNumber.length + 1));
-                }
-                newBomCode = baseBomCode + '-' + serialNumber;
+            // If not from drill bit context, or already same serial BOM → save directly
+            if (!isFromDrillbit || isSameSerialBOM) {
+                _executeBOMSave(formData, {
+                    designId, designMat, bomId, bomCode, drillbitId, serialNumber,
+                    needsNewBOM: false, newBomCode: ''
+                });
+                return;
             }
 
-            // Build payload matching what api_sync_to_erp expects
+            // From drill bit context with different/no serial: compute target BOM code
+            let baseBomCode = bomCode;
+            if (bomSerialNumber && baseBomCode.endsWith('-' + bomSerialNumber)) {
+                baseBomCode = baseBomCode.slice(0, -(bomSerialNumber.length + 1));
+            }
+            const targetCode = baseBomCode + '-' + serialNumber;
+
+            // Check if a BOM with this serial code already exists
+            fetch('/cutter-map/api/check-bom-code/?code=' + encodeURIComponent(targetCode))
+            .then(r => r.json())
+            .then(checkResult => {
+                if (checkResult.exists) {
+                    // BOM for this serial already exists — ask user
+                    _showSerialBOMChoiceDialog(checkResult, targetCode, formData, {
+                        designId, designMat, bomId, bomCode, drillbitId, serialNumber,
+                        baseBomCode
+                    });
+                } else {
+                    // No existing BOM for this serial — create new
+                    _executeBOMSave(formData, {
+                        designId, designMat, bomId, bomCode, drillbitId, serialNumber,
+                        needsNewBOM: true, newBomCode: targetCode
+                    });
+                }
+            })
+            .catch(err => {
+                console.error('Check BOM code error:', err);
+                // On error, default to creating new
+                _executeBOMSave(formData, {
+                    designId, designMat, bomId, bomCode, drillbitId, serialNumber,
+                    needsNewBOM: true, newBomCode: targetCode
+                });
+            });
+        }
+
+        function _showSerialBOMChoiceDialog(existingBom, targetCode, formData, ctx) {
+            const linkedInfo = existingBom.linked_serial_numbers?.length
+                ? `<div style="font-size:11px; color:#666; margin-top:4px;">Linked to SN: ${existingBom.linked_serial_numbers.join(', ')}</div>`
+                : '';
+            const dialog = document.createElement('div');
+            dialog.className = 'mat-dialog';
+            dialog.id = 'serialBomChoiceDialog';
+            dialog.innerHTML = `
+                <div class="mat-dialog-box" style="max-width:480px;">
+                    <div class="mat-dialog-title" style="color:#1565c0; background:#e3f2fd; padding:12px 15px; margin:-15px -15px 15px -15px; border-radius:4px 4px 0 0;">
+                        BOM Already Exists for SN ${ctx.serialNumber}
+                    </div>
+                    <p style="font-size:13px; color:#333; margin-bottom:12px;">
+                        A BOM with code <strong style="font-family:monospace;">${targetCode}</strong> already exists (Status: ${existingBom.status}).
+                        ${linkedInfo}
+                    </p>
+                    <p style="font-size:12px; color:#666; margin-bottom:15px;">
+                        What would you like to do?
+                    </p>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <button id="btnUpdateExisting" style="padding:12px; background:#ff9800; color:white; border:none; border-radius:6px; cursor:pointer; font-size:13px; text-align:left;">
+                            <strong>Update existing BOM</strong>
+                            <div style="font-size:11px; opacity:0.9; margin-top:2px;">Replace ${targetCode} with current changes</div>
+                        </button>
+                        <button id="btnCreateNew" style="padding:12px; background:#4caf50; color:white; border:none; border-radius:6px; cursor:pointer; font-size:13px; text-align:left;">
+                            <strong>Create as new BOM</strong>
+                            <div style="font-size:11px; opacity:0.9; margin-top:2px;">Keep existing, create with next available suffix</div>
+                        </button>
+                        <button id="btnCancelChoice" style="padding:10px; background:#f5f5f5; color:#333; border:1px solid #ddd; border-radius:6px; cursor:pointer; font-size:13px;">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dialog);
+
+            document.getElementById('btnUpdateExisting').onclick = function() {
+                dialog.remove();
+                // Update the existing serial BOM (use its code, no force_create_new)
+                _executeBOMSave(formData, {
+                    ...ctx,
+                    needsNewBOM: false,
+                    newBomCode: '',
+                    // Override brazing_mat to the existing serial BOM code so it updates
+                    overrideBrazingMat: targetCode
+                });
+            };
+            document.getElementById('btnCreateNew').onclick = function() {
+                dialog.remove();
+                // Force create new with auto-suffix
+                _executeBOMSave(formData, {
+                    ...ctx,
+                    needsNewBOM: true,
+                    newBomCode: targetCode  // force_create_new will auto-append -001 if needed
+                });
+            };
+            document.getElementById('btnCancelChoice').onclick = function() {
+                dialog.remove();
+            };
+        }
+
+        function _executeBOMSave(formData, ctx) {
+            const { designId, designMat, bomId, bomCode, drillbitId, serialNumber,
+                    needsNewBOM, newBomCode, overrideBrazingMat } = ctx;
+
             const payload = {
                 design_id: designId || null,
                 parent_design_mat: designMat || '',
@@ -9591,19 +9685,23 @@
                     cutter_shapes: currentData.cutter_shapes || {}
                 },
                 create_missing_items: false,
-                update_existing_bom: !needsNewBOM  // Update only if same serial BOM
+                update_existing_bom: !needsNewBOM
             };
 
-            // For drill-bit-specific saves
-            if (isFromDrillbit) {
+            // Drill bit context
+            if (drillbitId && serialNumber) {
                 payload.drillbit_ids = [drillbitId];
                 payload.drillbit_id = drillbitId;
                 payload.serial_number = serialNumber;
             }
-            if (needsNewBOM) {
+
+            if (overrideBrazingMat) {
+                // Updating existing serial BOM
+                payload.brazing_mat = overrideBrazingMat;
+            } else if (needsNewBOM) {
                 payload.force_create_new = true;
                 payload.brazing_mat = newBomCode;
-                payload.parent_bom_id = bomId;  // Track parent
+                payload.parent_bom_id = bomId;
             }
 
             showMsg(needsNewBOM ? 'Creating new BOM for SN ' + serialNumber + '...' : 'Saving BOM changes...', 'success');
@@ -9619,23 +9717,18 @@
             .then(r => r.json())
             .then(result => {
                 if (result.success) {
-                    // Update original data to match current
                     originalData = JSON.parse(JSON.stringify(currentData));
                     hasUnsavedChanges = false;
                     checkForChanges();
 
-                    if (needsNewBOM && result.bom_id) {
-                        // New BOM was created for this serial — update page to point to it
-                        var newCode = result.bom_code || newBomCode;
-                        showMsg('New BOM "' + newCode + '" created for SN ' + serialNumber + '!', 'success');
-                        // Update hidden fields to reflect the new BOM
+                    if ((needsNewBOM || overrideBrazingMat) && result.bom_id) {
+                        var newCode = result.bom_code || newBomCode || overrideBrazingMat;
+                        showMsg('BOM "' + newCode + '" saved for SN ' + serialNumber + '!', 'success');
                         if (document.getElementById('bomId')) document.getElementById('bomId').value = result.bom_id;
                         if (document.getElementById('bomCode')) document.getElementById('bomCode').value = newCode;
-                        // Mark this BOM as belonging to this serial (subsequent saves will update it)
                         if (document.getElementById('bomSerialNumber')) document.getElementById('bomSerialNumber').value = serialNumber;
                         if (document.getElementById('bomIsOriginal')) document.getElementById('bomIsOriginal').value = 'false';
                         if (document.getElementById('parentBomId')) document.getElementById('parentBomId').value = bomId;
-                        // Update banner
                         var bannerLabel = document.querySelector('.bom-banner-label');
                         if (bannerLabel) bannerLabel.textContent = 'BOM FOR SN ' + serialNumber;
                         var bannerMat = document.querySelector('.bom-banner-mat');
