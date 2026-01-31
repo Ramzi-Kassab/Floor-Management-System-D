@@ -812,6 +812,17 @@
         .bom-merged-table .bom-action-btn:hover { opacity: 0.85; }
         .bom-merged-table .bom-drag-handle { cursor: grab; color: #999; font-size: 12px; }
         .bom-merged-table .bom-drag-handle:hover { color: #333; }
+        /* Change markers — original value indicators */
+        .change-marker { display: none; font-size: 8px; color: #e65100; background: #fff3e0; padding: 1px 3px; border-radius: 2px; border: 1px solid #ffcc80; line-height: 1.1; white-space: nowrap; }
+        .show-changes .change-marker { display: inline-block; }
+        .change-marker::before { content: '← '; }
+        .bom-cell-changed { position: relative; }
+        .show-changes .bom-cell-changed { background: #fff8e1 !important; }
+        .cl-change-marker { display: none; position: absolute; bottom: -2px; left: 50%; transform: translateX(-50%); font-size: 7px; color: #fff; background: #e65100; padding: 0 3px; border-radius: 2px; line-height: 1.3; white-space: nowrap; z-index: 5; }
+        .show-changes .cl-change-marker { display: block; }
+        .show-changes .cutter.cl-changed { box-shadow: 0 0 0 2px #ff6d00, 0 0 8px rgba(255,109,0,0.4); }
+        .change-toggle-btn { padding: 4px 8px; font-size: 10px; border: 1px solid #e0e0e0; border-radius: 4px; background: #f5f5f5; color: #666; cursor: pointer; }
+        .change-toggle-btn.active { background: #fff3e0; border-color: #ff9800; color: #e65100; font-weight: 600; }
         .bom-shape-cell { display: flex; align-items: center; justify-content: center; gap: 4px; }
         .bom-shape-preview { width: 24px; height: 24px; object-fit: contain; border: 1px solid #ddd; border-radius: 3px; background: white; }
         .bom-shape-empty { color: #ccc; font-size: 14px; }
@@ -1110,18 +1121,7 @@
                 <span id="bomStatusBadge" style="background: {% if bom_context.bom_status == 'ACTIVE' %}#10b981{% elif bom_context.bom_status == 'OBSOLETE' %}#6b7280{% else %}#f59e0b{% endif %}; padding: 4px 10px; border-radius: 4px; font-size: 10px; font-weight: bold;">
                     {{ bom_context.bom_status }}
                 </span>
-                <!-- Save Changes Button -->
-                <button type="button" onclick="saveBOMChanges()"
-                        id="btnSaveChanges"
-                        style="background: #f59e0b; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; display: none;">
-                    💾 Save Changes
-                </button>
-                <!-- Discard Changes Button -->
-                <button type="button" onclick="discardBOMChanges()"
-                        id="btnDiscardChanges"
-                        style="background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; display: none;">
-                    ✕ Discard
-                </button>
+                <!-- Save via "Create BOM for MAT" Review Modal only -->
                 <!-- Activate BOM Button (only shown for DRAFT BOMs) -->
                 {% if bom_context.bom_status == 'DRAFT' %}
                 <button type="button" onclick="activateBOM()"
@@ -1480,8 +1480,11 @@
                         </div>
                     </div>
                     <div class="cl-section-content" id="bomContent">
-                        <!-- BOM Toolbar (Original Refs toggle only) -->
-                        <div class="bom-toolbar" id="bomToolbar" style="justify-content: flex-end;">
+                        <!-- BOM Toolbar -->
+                        <div class="bom-toolbar" id="bomToolbar" style="justify-content: flex-end; gap: 6px;">
+                            <button class="change-toggle-btn" id="changeMarkersToggle" onclick="toggleChangeMarkers()" title="Show/hide change markers vs original BOM">
+                                🔍 Changes
+                            </button>
                             <button class="bom-mode-btn active" id="showDeletedToggle" onclick="toggleDeletedRows()" title="Show/hide original reference items">
                                 <span class="mode-icon">📋</span> Original Refs (<span id="deletedCount">0</span>)
                             </button>
@@ -2687,6 +2690,16 @@
                             ? `onclick="openEditCutterModal(${bladeIdx},'${rowKey}','${pos}',${ci})"`
                             : ((bomMode && selectedBomForAdd) ? `onclick="handleCutterModeClick(event,${bladeIdx},'${rowKey}','${pos}',${ci})"` : '');
 
+                        // Check if this cutter changed from original
+                        const origCutter = _getOriginalCutter(bladeIdx, rowKey, pos, ci);
+                        const clIsNew = !origCutter && !isPlaceholder && !c._isNew;
+                        const clChanged = !clIsNew && origCutter && !isPlaceholder && (
+                            (origCutter.group !== c.group) || (origCutter.type !== c.type) || (origCutter.chamfer !== c.chamfer)
+                        );
+                        const clChangedClass = (clChanged || clIsNew) ? ' cl-changed' : '';
+                        const clChangeLabel = clChanged ? `<span class="cl-change-marker">was G${origCutter.group || '?'}</span>`
+                            : (clIsNew ? `<span class="cl-change-marker">added</span>` : '');
+
                         html += `<div class="cutter-wrapper">
                             <div class="cutter-actions">
                                 <button class="cutter-action-btn add-left${addBtnClass}" onclick="addCutterLeft(${bladeIdx},'${rowKey}','${pos}',${ci})" title="${addLeftTitle}">←+</button>
@@ -2695,7 +2708,7 @@
                                 <button class="cutter-action-btn delete" onclick="deleteCutter(${bladeIdx},'${rowKey}','${pos}',${ci})" title="Delete">✕</button>
                                 <button class="cutter-action-btn add-right${addBtnClass}" onclick="addCutterRight(${bladeIdx},'${rowKey}','${pos}',${ci})" title="${addRightTitle}">+→</button>
                             </div>
-                            <div class="cutter draggable${isNew}${placeholderClass}${replaceClass}" ${isPlaceholder ? '' : 'draggable="true"'}
+                            <div class="cutter draggable${isNew}${placeholderClass}${replaceClass}${clChangedClass}" ${isPlaceholder ? '' : 'draggable="true"'}
                                 ${isPlaceholder ? '' : `ondragstart="handleDragStart(event,${bladeIdx},'${rowKey}','${pos}',${ci})"`}
                                 ondragend="handleDragEnd(event)" ${clickHandler} ${isPlaceholder ? 'title="Click to assign cutter type"' : ''}>`;
 
@@ -2717,7 +2730,7 @@
                                 <div class="cutter-chamfer">${c.chamfer || ''}</div>`;
                         }
 
-                        html += `</div></div>`;
+                        html += `${clChangeLabel}</div></div>`;
 
                         // Drop zone after each cutter (hidden until insert mode)
                         html += `<div class="drop-zone" onclick="insertCutterAt(${bladeIdx},'${rowKey}','${pos}',${ci + 1})"
@@ -3274,6 +3287,7 @@
         let selectedBomForAdd = null; // { idx, item } for add/replace mode
         let bomMode = null; // null, 'add', or 'replace'
         let showDeletedRows = true; // Show/hide deleted BOM rows
+        let showChangeMarkers = false; // Show/hide change markers vs original
 
         // Render merged BOM table (combines BOM Table and BOM Comparison)
         function renderBomMergedTable() {
@@ -3396,6 +3410,23 @@
                     ? `<img src="${shape.data}" class="bom-shape-preview" alt="Shape">`
                     : '<span class="bom-shape-empty">-</span>';
 
+                // Compare fields with original for change markers
+                const lookupIdx = row._originalIndex !== undefined ? row._originalIndex : row.index;
+                const origRow = row._isNewItem ? null : (originalByIndex[lookupIdx] || originalByIndex[String(lookupIdx)] || originalByIndex[parseInt(lookupIdx)]);
+                function _cm(field, curVal) {
+                    // Return change marker HTML if field changed from original
+                    if (!origRow) return '';
+                    const origVal = origRow[field] || '';
+                    const cur = String(curVal || '');
+                    if (cur === String(origVal)) return '';
+                    return `<span class="change-marker">${origVal || '∅'}</span>`;
+                }
+                const typeChanged = origRow && (row.type || '') !== (origRow.type || '');
+                const sizeChanged = origRow && (row.size || '') !== (origRow.size || '');
+                const chamferChanged = origRow && (row.chamfer || '') !== (origRow.chamfer || '');
+                const matChanged = origRow && (row.mat_number || '') !== (origRow.mat_number || '');
+                const familyChanged = origRow && (row.family_number || '') !== (origRow.family_number || '');
+
                 html += `<tr class="bom-row${selectedClass}" data-bom-idx="${idx}" draggable="true"
                     ondragstart="handleBomDragStart(event, ${idx})"
                     ondragend="handleBomDragEnd(event)"
@@ -3410,11 +3441,11 @@
                             📷
                         </label>
                     </td>
-                    <td>${row.type || ''}</td>
-                    <td>${row.size || ''}</td>
-                    <td>${row.chamfer || ''}</td>
-                    <td>${row.mat_number || ''}</td>
-                    <td>${row.family_number || ''}</td>
+                    <td class="${typeChanged ? 'bom-cell-changed' : ''}">${row.type || ''}${_cm('type', row.type)}</td>
+                    <td class="${sizeChanged ? 'bom-cell-changed' : ''}">${row.size || ''}${_cm('size', row.size)}</td>
+                    <td class="${chamferChanged ? 'bom-cell-changed' : ''}">${row.chamfer || ''}${_cm('chamfer', row.chamfer)}</td>
+                    <td class="${matChanged ? 'bom-cell-changed' : ''}">${row.mat_number || ''}${_cm('mat_number', row.mat_number)}</td>
+                    <td class="${familyChanged ? 'bom-cell-changed' : ''}">${row.family_number || ''}${_cm('family_number', row.family_number)}</td>
                     <td style="color:#666;">${origQty}</td>
                     <td>
                         <input type="number" value="${bomQty}" min="0" style="width:50px; text-align:center;"
@@ -3519,6 +3550,29 @@
                     btn.classList.remove('active');
                 }
             }
+        }
+
+        function toggleChangeMarkers() {
+            showChangeMarkers = !showChangeMarkers;
+            const btn = document.getElementById('changeMarkersToggle');
+            if (btn) {
+                btn.classList.toggle('active', showChangeMarkers);
+            }
+            // Toggle class on BOM table container and blades container
+            const bomTable = document.getElementById('bomMergedTable');
+            if (bomTable) bomTable.classList.toggle('show-changes', showChangeMarkers);
+            const bladesWrap = document.getElementById('bladesEditor');
+            if (bladesWrap) bladesWrap.classList.toggle('show-changes', showChangeMarkers);
+        }
+
+        // Helper: get original cutter at a specific blade/row/pos/index
+        function _getOriginalCutter(bladeIdx, rowKey, pos, cutterIdx) {
+            if (!originalData || !originalData.blades) return null;
+            const blade = originalData.blades[bladeIdx];
+            if (!blade || !blade[rowKey]) return null;
+            const cutters = blade[rowKey][pos];
+            if (!cutters || cutterIdx >= cutters.length) return null;
+            return cutters[cutterIdx];
         }
 
         // BOM drag state
@@ -9542,13 +9596,7 @@
             const changed = hasActualDataChanges();
             hasUnsavedChanges = changed;
 
-            // Show/hide save/discard buttons
-            const saveBtn = document.getElementById('btnSaveChanges');
-            const discardBtn = document.getElementById('btnDiscardChanges');
-            if (saveBtn && discardBtn) {
-                saveBtn.style.display = changed ? 'inline-block' : 'none';
-                discardBtn.style.display = changed ? 'inline-block' : 'none';
-            }
+            // Change indicator (no save button — use Review Modal)
         }
 
         function trackChange() {
@@ -9556,236 +9604,7 @@
             setTimeout(checkForChanges, 100);
         }
 
-        function saveBOMChanges() {
-            const bomId = document.getElementById('bomId')?.value;
-            const bomCode = document.getElementById('bomCode')?.value;
-            const designId = document.getElementById('designId')?.value;
-            const designMat = document.getElementById('designMat')?.value;
-            const drillbitIdEl = document.getElementById('drillbitId');
-            const serialNumberEl = document.getElementById('serialNumber');
-            const drillbitId = drillbitIdEl ? drillbitIdEl.value : '';
-            const serialNumber = serialNumberEl ? serialNumberEl.value : '';
-
-            if (!bomId) {
-                showMsg('No BOM to save. Please create a BOM first.', 'error');
-                return;
-            }
-
-            const formData = collectFormData();
-            if (!formData) {
-                showMsg('No data to save.', 'error');
-                return;
-            }
-
-            // Detect drill bit context
-            const isFromDrillbit = !!(drillbitId && serialNumber);
-            const bomIsOriginal = document.getElementById('bomIsOriginal')?.value === 'true';
-            const bomSerialNumber = document.getElementById('bomSerialNumber')?.value || '';
-            // This BOM already belongs to this serial — safe to update directly
-            const isSameSerialBOM = bomSerialNumber && bomSerialNumber === serialNumber;
-
-            // If not from drill bit context, or already same serial BOM → save directly
-            if (!isFromDrillbit || isSameSerialBOM) {
-                _executeBOMSave(formData, {
-                    designId, designMat, bomId, bomCode, drillbitId, serialNumber,
-                    needsNewBOM: false, newBomCode: ''
-                });
-                return;
-            }
-
-            // From drill bit context with different/no serial: compute target BOM code
-            let baseBomCode = bomCode;
-            if (bomSerialNumber && baseBomCode.endsWith('-' + bomSerialNumber)) {
-                baseBomCode = baseBomCode.slice(0, -(bomSerialNumber.length + 1));
-            }
-            const targetCode = baseBomCode + '-' + serialNumber;
-
-            // Check if a BOM with this serial code already exists
-            fetch('/cutter-map/api/check-bom-code/?code=' + encodeURIComponent(targetCode))
-            .then(r => r.json())
-            .then(checkResult => {
-                if (checkResult.exists) {
-                    // BOM for this serial already exists — ask user
-                    _showSerialBOMChoiceDialog(checkResult, targetCode, formData, {
-                        designId, designMat, bomId, bomCode, drillbitId, serialNumber,
-                        baseBomCode
-                    });
-                } else {
-                    // No existing BOM for this serial — create new
-                    _executeBOMSave(formData, {
-                        designId, designMat, bomId, bomCode, drillbitId, serialNumber,
-                        needsNewBOM: true, newBomCode: targetCode
-                    });
-                }
-            })
-            .catch(err => {
-                console.error('Check BOM code error:', err);
-                // On error, default to creating new
-                _executeBOMSave(formData, {
-                    designId, designMat, bomId, bomCode, drillbitId, serialNumber,
-                    needsNewBOM: true, newBomCode: targetCode
-                });
-            });
-        }
-
-        function _showSerialBOMChoiceDialog(existingBom, targetCode, formData, ctx) {
-            const linkedInfo = existingBom.linked_serial_numbers?.length
-                ? `<div style="font-size:11px; color:#666; margin-top:4px;">Linked to SN: ${existingBom.linked_serial_numbers.join(', ')}</div>`
-                : '';
-            const dialog = document.createElement('div');
-            dialog.className = 'mat-dialog';
-            dialog.id = 'serialBomChoiceDialog';
-            dialog.innerHTML = `
-                <div class="mat-dialog-box" style="max-width:480px;">
-                    <div class="mat-dialog-title" style="color:#1565c0; background:#e3f2fd; padding:12px 15px; margin:-15px -15px 15px -15px; border-radius:4px 4px 0 0;">
-                        BOM Already Exists for SN ${ctx.serialNumber}
-                    </div>
-                    <p style="font-size:13px; color:#333; margin-bottom:12px;">
-                        A BOM with code <strong style="font-family:monospace;">${targetCode}</strong> already exists (Status: ${existingBom.status}).
-                        ${linkedInfo}
-                    </p>
-                    <p style="font-size:12px; color:#666; margin-bottom:15px;">
-                        What would you like to do?
-                    </p>
-                    <div style="display:flex; flex-direction:column; gap:10px;">
-                        <button id="btnUpdateExisting" style="padding:12px; background:#ff9800; color:white; border:none; border-radius:6px; cursor:pointer; font-size:13px; text-align:left;">
-                            <strong>Update existing BOM</strong>
-                            <div style="font-size:11px; opacity:0.9; margin-top:2px;">Replace ${targetCode} with current changes</div>
-                        </button>
-                        <button id="btnCreateNew" style="padding:12px; background:#4caf50; color:white; border:none; border-radius:6px; cursor:pointer; font-size:13px; text-align:left;">
-                            <strong>Create as new BOM</strong>
-                            <div style="font-size:11px; opacity:0.9; margin-top:2px;">Keep existing, create with next available suffix</div>
-                        </button>
-                        <button id="btnCancelChoice" style="padding:10px; background:#f5f5f5; color:#333; border:1px solid #ddd; border-radius:6px; cursor:pointer; font-size:13px;">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(dialog);
-
-            document.getElementById('btnUpdateExisting').onclick = function() {
-                dialog.remove();
-                // Update the existing serial BOM (use its code, no force_create_new)
-                _executeBOMSave(formData, {
-                    ...ctx,
-                    needsNewBOM: false,
-                    newBomCode: '',
-                    // Override brazing_mat to the existing serial BOM code so it updates
-                    overrideBrazingMat: targetCode
-                });
-            };
-            document.getElementById('btnCreateNew').onclick = function() {
-                dialog.remove();
-                // Force create new with auto-suffix
-                _executeBOMSave(formData, {
-                    ...ctx,
-                    needsNewBOM: true,
-                    newBomCode: targetCode  // force_create_new will auto-append -001 if needed
-                });
-            };
-            document.getElementById('btnCancelChoice').onclick = function() {
-                dialog.remove();
-            };
-        }
-
-        function _executeBOMSave(formData, ctx) {
-            const { designId, designMat, bomId, bomCode, drillbitId, serialNumber,
-                    needsNewBOM, newBomCode, overrideBrazingMat } = ctx;
-
-            const payload = {
-                design_id: designId || null,
-                parent_design_mat: designMat || '',
-                document_id: currentData.document_id || null,
-                data: {
-                    header: formData.header,
-                    summary: formData.summary,
-                    blades: formData.blades,
-                    images: formData.images || {},
-                    groups: formData.groups || [],
-                    cutter_shapes: currentData.cutter_shapes || {}
-                },
-                create_missing_items: false,
-                update_existing_bom: !needsNewBOM
-            };
-
-            // Drill bit context
-            if (drillbitId && serialNumber) {
-                payload.drillbit_ids = [drillbitId];
-                payload.drillbit_id = drillbitId;
-                payload.serial_number = serialNumber;
-            }
-
-            if (overrideBrazingMat) {
-                // Updating existing serial BOM
-                payload.brazing_mat = overrideBrazingMat;
-            } else if (needsNewBOM) {
-                payload.force_create_new = true;
-                payload.brazing_mat = newBomCode;
-                payload.parent_bom_id = bomId;
-            }
-
-            showMsg(needsNewBOM ? 'Creating new BOM for SN ' + serialNumber + '...' : 'Saving BOM changes...', 'success');
-
-            fetch('/cutter-map/api/sync-to-erp/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCSRFToken()
-                },
-                body: JSON.stringify(payload)
-            })
-            .then(r => r.json())
-            .then(result => {
-                if (result.success) {
-                    originalData = JSON.parse(JSON.stringify(currentData));
-                    hasUnsavedChanges = false;
-                    checkForChanges();
-
-                    if ((needsNewBOM || overrideBrazingMat) && result.bom_id) {
-                        var newCode = result.bom_code || newBomCode || overrideBrazingMat;
-                        showMsg('BOM "' + newCode + '" saved for SN ' + serialNumber + '!', 'success');
-                        if (document.getElementById('bomId')) document.getElementById('bomId').value = result.bom_id;
-                        if (document.getElementById('bomCode')) document.getElementById('bomCode').value = newCode;
-                        if (document.getElementById('bomSerialNumber')) document.getElementById('bomSerialNumber').value = serialNumber;
-                        if (document.getElementById('bomIsOriginal')) document.getElementById('bomIsOriginal').value = 'false';
-                        if (document.getElementById('parentBomId')) document.getElementById('parentBomId').value = bomId;
-                        var bannerLabel = document.querySelector('.bom-banner-label');
-                        if (bannerLabel) bannerLabel.textContent = 'BOM FOR SN ' + serialNumber;
-                        var bannerMat = document.querySelector('.bom-banner-mat');
-                        if (bannerMat) bannerMat.innerHTML = '<strong>MAT:</strong> ' + newCode;
-                        // Hide the "original copy" info bar — we're now on the serial copy
-                        var infoBar = document.getElementById('originalCopyInfoBar');
-                        if (infoBar) infoBar.style.display = 'none';
-                        // Update original badge
-                        var origBadge = document.getElementById('originalBadge');
-                        if (origBadge) { origBadge.textContent = '☆ Set as Original'; origBadge.style.background = 'rgba(255,255,255,0.15)'; }
-                    } else {
-                        showMsg('BOM changes saved successfully!', 'success');
-                    }
-                } else {
-                    showMsg('Error saving: ' + (result.error || 'Unknown error'), 'error');
-                }
-            })
-            .catch(err => {
-                console.error('Save error:', err);
-                showMsg('Error saving changes: ' + err.message, 'error');
-            });
-        }
-
-        function discardBOMChanges() {
-            if (!hasUnsavedChanges) {
-                showMsg('No changes to discard.', 'info');
-                return;
-            }
-
-            if (!confirm('Are you sure you want to discard all changes? This cannot be undone.')) {
-                return;
-            }
-
-            // Reload the page to get original data
-            window.location.reload();
-        }
+        // Save Changes / Discard removed — all saves go through Review Modal ("Create BOM for MAT")
 
         function activateBOM() {
             const bomId = document.getElementById('bomId')?.value;
