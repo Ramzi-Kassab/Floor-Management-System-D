@@ -1297,6 +1297,9 @@ def api_sync_to_erp(request):
             'brazing_mat': bom.code,  # Brazing MAT (same as bom_code)
             'system_mat': bom.system_mat_no or '',  # System MAT (client-facing)
             'serial_number': bom.source_sn_number or '',
+            'smi_type_id': bom.smi_type_id or '',
+            'iadc_code_id': parent_design.iadc_code_ref_id or '',
+            'bom_status': bom.status or '',
             'linked_drillbit': linked_drillbit,  # First drill bit (backwards compatibility)
             'linked_drillbits': linked_drillbits,  # All linked drill bits
             'bom_lines_created': bom_lines_created,

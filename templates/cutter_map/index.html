@@ -8341,13 +8341,13 @@
                                 style="flex: 1; padding: 12px; background: #f5f5f5; color: #333; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 14px;">
                             ✕ Cancel
                         </button>
-                        <a href="/technology/boms/"
-                           style="flex: 1; padding: 12px; background: #495057; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; text-decoration: none; text-align: center; display: flex; align-items: center; justify-content: center;">
-                            📑 BOMs List
-                        </a>
                         <button onclick="confirmAndCreateBOM();"
                                 style="flex: 1; padding: 12px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">
                             ✓ ${isEditingExistingBOM ? 'Save BOM' : 'Create BOM'}
+                        </button>
+                        <button onclick="window._saveAndGoToBomsList = true; confirmAndCreateBOM();"
+                                style="flex: 1; padding: 12px; background: #495057; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">
+                            ✓ Save & go to BOMs List
                         </button>
                     </div>
                 </div>
@@ -8422,6 +8422,25 @@
             .then(result => {
                 console.log('API result:', result);
                 if (result.success) {
+                    // Update hidden inputs so next Review dialog has the saved values
+                    if (result.smi_type_id) {
+                        const h = document.getElementById('smiTypeId');
+                        if (h) h.value = result.smi_type_id;
+                    }
+                    if (result.iadc_code_id) {
+                        const h = document.getElementById('iadcCodeId');
+                        if (h) h.value = result.iadc_code_id;
+                    }
+                    if (result.bom_status) {
+                        const h = document.getElementById('bomStatus');
+                        if (h) h.value = result.bom_status;
+                    }
+                    // If "Save & go to BOMs List" was clicked, redirect immediately
+                    if (window._saveAndGoToBomsList) {
+                        window._saveAndGoToBomsList = false;
+                        window.location.href = '/technology/boms/';
+                        return;
+                    }
                     // Show success dialog with options instead of redirecting to old builder
                     showBOMSuccessDialog(result);
                 } else {
