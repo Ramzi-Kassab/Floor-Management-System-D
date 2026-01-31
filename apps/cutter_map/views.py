@@ -129,10 +129,17 @@ def index(request):
             except Design.DoesNotExist:
                 pass
 
+    # Load SMI Types and IADC Codes for review modal dropdowns
+    from apps.technology.models import SMIType, IADCCode
+    smi_types = SMIType.objects.filter(is_active=True).select_related('hdbs_type', 'size').order_by('smi_name')
+    iadc_codes = IADCCode.objects.filter(is_active=True).order_by('code')
+
     return render(request, 'cutter_map/index.html', {
         'documents': documents,
         'form': form,
-        'design_context': design_context
+        'design_context': design_context,
+        'smi_types': smi_types,
+        'iadc_codes': iadc_codes,
     })
 
 
@@ -187,6 +194,11 @@ def bom_view(request, bom_id):
 
     form = CutterMapUploadForm()
 
+    # Load SMI Types and IADC Codes for review modal dropdowns
+    from apps.technology.models import SMIType, IADCCode
+    smi_types = SMIType.objects.filter(is_active=True).select_related('hdbs_type', 'size').order_by('smi_name')
+    iadc_codes = IADCCode.objects.filter(is_active=True).order_by('code')
+
     return render(request, 'cutter_map/index.html', {
         'documents': [],
         'form': form,
@@ -196,12 +208,17 @@ def bom_view(request, bom_id):
             'design_hdbs': bom.design.hdbs_type if bom.design else '',
             'design_size': str(bom.design.size) if bom.design and bom.design.size else '',
             'from_bom_create': False,
+            'smi_type_id': bom.smi_type_id or '',
+            'iadc_code_id': bom.design.iadc_code_ref_id if bom.design else '',
+            'bom_status': bom.status or '',
             # Fields for conflict detection
             'blade_count': bom.design.no_of_blades if bom.design else None,
             'pocket_rows_count': bom.design.pocket_rows_count if bom.design else None,
             'total_pockets_count': bom.design.total_pockets_count if bom.design else None,
         },
-        'bom_context': bom_context
+        'bom_context': bom_context,
+        'smi_types': smi_types,
+        'iadc_codes': iadc_codes,
     })
 
 
@@ -1728,6 +1745,78 @@ def api_create_cutters(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+@login_required
+@require_http_methods(['POST'])
+def api_quick_add_smi_type(request):
+    """Quick-add a new SMI Type from the Review BOM modal."""
+    from apps.technology.models import SMIType, HDBSType, BitSize
+    try:
+        data = json.loads(request.body)
+        smi_name = data.get('smi_name', '').strip()
+        hdbs_type_id = data.get('hdbs_type_id')
+        size_id = data.get('size_id')
+
+        if not smi_name:
+            return JsonResponse({'success': False, 'error': 'SMI Name is required'}, status=400)
+        if not hdbs_type_id:
+            return JsonResponse({'success': False, 'error': 'HDBS Type is required'}, status=400)
+        if not size_id:
+            return JsonResponse({'success': False, 'error': 'Size is required'}, status=400)
+
+        hdbs_type = HDBSType.objects.filter(pk=hdbs_type_id).first()
+        size = BitSize.objects.filter(pk=size_id).first()
+        if not hdbs_type:
+            return JsonResponse({'success': False, 'error': 'HDBS Type not found'}, status=400)
+        if not size:
+            return JsonResponse({'success': False, 'error': 'Size not found'}, status=400)
+
+        # Check for duplicate
+        existing = SMIType.objects.filter(smi_name=smi_name, hdbs_type=hdbs_type, size=size).first()
+        if existing:
+            return JsonResponse({'success': True, 'id': existing.pk, 'label': str(existing), 'message': 'Already exists'})
+
+        smi = SMIType.objects.create(smi_name=smi_name, hdbs_type=hdbs_type, size=size)
+        return JsonResponse({'success': True, 'id': smi.pk, 'label': str(smi)})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(['POST'])
+def api_quick_add_iadc_code(request):
+    """Quick-add a new IADC Code from the Review BOM modal."""
+    from apps.technology.models import IADCCode
+    try:
+        data = json.loads(request.body)
+        code = data.get('code', '').strip()
+        description = data.get('description', '').strip()
+
+        if not code:
+            return JsonResponse({'success': False, 'error': 'IADC Code is required'}, status=400)
+
+        existing = IADCCode.objects.filter(code=code).first()
+        if existing:
+            return JsonResponse({'success': True, 'id': existing.pk, 'label': str(existing), 'message': 'Already exists'})
+
+        iadc = IADCCode.objects.create(
+            code=code,
+            bit_type='FC',
+            description=description or f'IADC {code}',
+        )
+        return JsonResponse({'success': True, 'id': iadc.pk, 'label': str(iadc)})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def api_dropdown_data(request):
+    """Return HDBS Types and Bit Sizes for quick-add forms."""
+    from apps.technology.models import HDBSType, BitSize
+    hdbs_types = list(HDBSType.objects.filter(is_active=True).order_by('hdbs_name').values('id', 'hdbs_name'))
+    bit_sizes = list(BitSize.objects.filter(is_active=True).order_by('size_decimal').values('id', 'size_display', 'size_decimal'))
+    return JsonResponse({'hdbs_types': hdbs_types, 'bit_sizes': bit_sizes})
 
 
 @login_required

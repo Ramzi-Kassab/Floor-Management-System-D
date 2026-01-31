@@ -127,7 +127,9 @@
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_level" onclick="toggleFilterDropdown(event, 'd_level')">Level<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_mat" onclick="toggleFilterDropdown(event, 'd_mat')">MAT No.<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_hdbs" onclick="toggleFilterDropdown(event, 'd_hdbs')">HDBS Type<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_smi" onclick="toggleFilterDropdown(event, 'd_smi')">SMI Type<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_size" onclick="toggleFilterDropdown(event, 'd_size')">Size<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_iadc" onclick="toggleFilterDropdown(event, 'd_iadc')">IADC<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_status" onclick="toggleFilterDropdown(event, 'd_status')">Status<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_boms" onclick="toggleFilterDropdown(event, 'd_boms')">BOMs<span class="sort-icon"></span></th>
                                 </tr>
@@ -147,14 +149,16 @@
                                     </td>
                                     <td class="px-3 py-2 font-mono font-medium text-gray-900 dark:text-white" data-col="d_mat" data-val="{{ design.mat_no }}">{{ design.mat_no }}</td>
                                     <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="d_hdbs" data-val="{{ design.hdbs_type|default:'' }}">{{ design.hdbs_type|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="d_smi" data-val="{{ design.smi_type|default:'' }}">{{ design.smi_type|default:"--" }}</td>
                                     <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="d_size" data-val="{{ design.size.size_display|default:'' }}">{{ design.size.size_display|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="d_iadc" data-val="{{ design.iadc_code_ref.code|default:'' }}">{{ design.iadc_code_ref.code|default:"--" }}</td>
                                     <td class="px-3 py-2" data-col="d_status" data-val="{{ design.status }}">
                                         <span class="px-1.5 py-0.5 rounded text-xs font-medium {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">{{ design.status }}</span>
                                     </td>
                                     <td class="px-3 py-2 text-gray-500" data-col="d_boms" data-val="{{ design.boms.count }}">{{ design.boms.count }}</td>
                                 </tr>
                                 {% empty %}
-                                <tr><td colspan="7" class="px-3 py-8 text-center text-gray-500">No designs found.</td></tr>
+                                <tr><td colspan="9" class="px-3 py-8 text-center text-gray-500">No designs found.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -172,10 +176,12 @@
                                 <tr>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase w-10"></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_mat" onclick="toggleFilterDropdown(event, 'b_mat')">Design MAT<span class="sort-icon"></span></th>
-                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_code" onclick="toggleFilterDropdown(event, 'b_code')">BOM Code<span class="sort-icon"></span></th>
-                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_type" onclick="toggleFilterDropdown(event, 'b_type')">Type<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter bg-orange-50 dark:bg-orange-900/20" data-col="b_brazing" onclick="toggleFilterDropdown(event, 'b_brazing')">Brazing MAT<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter bg-blue-50 dark:bg-blue-900/20" data-col="b_system" onclick="toggleFilterDropdown(event, 'b_system')">System MAT<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_hdbs" onclick="toggleFilterDropdown(event, 'b_hdbs')">HDBS Type<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_smi" onclick="toggleFilterDropdown(event, 'b_smi')">SMI Type<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_size" onclick="toggleFilterDropdown(event, 'b_size')">Size<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_iadc" onclick="toggleFilterDropdown(event, 'b_iadc')">IADC<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_status" onclick="toggleFilterDropdown(event, 'b_status')">Status<span class="sort-icon"></span></th>
                                 </tr>
                             </thead>
@@ -192,18 +198,18 @@
                                     onclick="selectRow(this)">
                                     <td class="px-3 py-2"><div class="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center row-check"></div></td>
                                     <td class="px-3 py-2 font-mono text-gray-900 dark:text-white" data-col="b_mat" data-val="{{ bom.design.mat_no }}">{{ bom.design.mat_no }}</td>
-                                    <td class="px-3 py-2 font-mono font-medium text-green-700 dark:text-green-400" data-col="b_code" data-val="{{ bom.code }}">{{ bom.code }}</td>
-                                    <td class="px-3 py-2" data-col="b_type" data-val="{{ bom.get_bom_type_display }}">
-                                        <span class="px-1.5 py-0.5 rounded text-xs font-medium {% if bom.bom_type == 'BRAZING' %}bg-orange-100 text-orange-700{% else %}bg-blue-100 text-blue-700{% endif %}">{{ bom.get_bom_type_display }}</span>
-                                    </td>
+                                    <td class="px-3 py-2 font-mono text-orange-700 dark:text-orange-400" data-col="b_brazing" data-val="{{ bom.code }}">{{ bom.code }}</td>
+                                    <td class="px-3 py-2 font-mono text-blue-700 dark:text-blue-400" data-col="b_system" data-val="{{ bom.system_mat_no|default:'' }}">{{ bom.system_mat_no|default:"--" }}</td>
                                     <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="b_hdbs" data-val="{{ bom.design.hdbs_type|default:'' }}">{{ bom.design.hdbs_type|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="b_smi" data-val="{{ bom.smi_type.smi_name|default:'' }}">{{ bom.smi_type.smi_name|default:"--" }}</td>
                                     <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="b_size" data-val="{{ bom.design.size.size_display|default:'' }}">{{ bom.design.size.size_display|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="b_iadc" data-val="{{ bom.design.iadc_code_ref.code|default:'' }}">{{ bom.design.iadc_code_ref.code|default:"--" }}</td>
                                     <td class="px-3 py-2" data-col="b_status" data-val="{{ bom.status }}">
                                         <span class="px-1.5 py-0.5 rounded text-xs font-medium {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% elif bom.status == 'DRAFT' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ bom.status }}</span>
                                     </td>
                                 </tr>
                                 {% empty %}
-                                <tr><td colspan="7" class="px-3 py-8 text-center text-gray-500">No BOMs found.</td></tr>
+                                <tr><td colspan="10" class="px-3 py-8 text-center text-gray-500">No BOMs found.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -241,17 +247,31 @@
                         <span class="text-sm text-gray-500">Design MAT:</span>
                         <span id="sel-mat" class="font-mono font-medium text-blue-600 dark:text-blue-400">-</span>
                     </div>
+                    <div id="sel-bom-row" class="hidden space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-500">Brazing MAT:</span>
+                            <span id="sel-brazing" class="font-mono font-medium text-orange-600 dark:text-orange-400">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-500">System MAT:</span>
+                            <span id="sel-system" class="font-mono font-medium text-blue-600 dark:text-blue-400">-</span>
+                        </div>
+                    </div>
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">HDBS Type:</span>
                         <span id="sel-hdbs" class="font-medium text-gray-900 dark:text-white">-</span>
                     </div>
                     <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">SMI Type:</span>
+                        <span id="sel-smi" class="font-medium text-gray-900 dark:text-white">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Size:</span>
                         <span id="sel-size" class="font-medium text-gray-900 dark:text-white">-</span>
                     </div>
-                    <div id="sel-bom-row" class="flex justify-between items-center hidden">
-                        <span class="text-sm text-gray-500">BOM:</span>
-                        <span id="sel-bom-code" class="font-mono font-medium text-green-600 dark:text-green-400">-</span>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">IADC:</span>
+                        <span id="sel-iadc" class="font-medium text-gray-900 dark:text-white">-</span>
                     </div>
                 </div>
 
@@ -354,18 +374,22 @@ function selectRow(row) {
     document.getElementById('no-selection').classList.add('hidden');
     document.getElementById('selection-info').classList.remove('hidden');
 
+    // Helper to get cell value by data-col attribute
+    function cellVal(col) {
+        const td = row.querySelector(`td[data-col="${col}"]`);
+        return td ? (td.dataset.val || '') : '';
+    }
+
     if (type === 'design') {
         const designId = row.dataset.id;
         document.getElementById('id_design').value = designId;
         document.getElementById('id_bom').value = '';
 
-        const mat = cells[1]?.dataset.val || '-';
-        const hdbs = cells[2]?.dataset.val || '-';
-        const size = cells[3]?.dataset.val || '-';
-
-        document.getElementById('sel-mat').textContent = mat;
-        document.getElementById('sel-hdbs').textContent = hdbs || '--';
-        document.getElementById('sel-size').textContent = size || '--';
+        document.getElementById('sel-mat').textContent = cellVal('d_mat') || '-';
+        document.getElementById('sel-hdbs').textContent = cellVal('d_hdbs') || '--';
+        document.getElementById('sel-smi').textContent = cellVal('d_smi') || '--';
+        document.getElementById('sel-size').textContent = cellVal('d_size') || '--';
+        document.getElementById('sel-iadc').textContent = cellVal('d_iadc') || '--';
         document.getElementById('sel-bom-row').classList.add('hidden');
         document.getElementById('sel-source-badge').textContent = 'From Design (Component)';
         document.getElementById('sel-source-badge').className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300';
@@ -375,16 +399,14 @@ function selectRow(row) {
         document.getElementById('id_design').value = designId;
         document.getElementById('id_bom').value = bomId;
 
-        const mat = cells[0]?.dataset.val || '-';
-        const bomCode = cells[1]?.dataset.val || '-';
-        const hdbs = cells[3]?.dataset.val || '-';
-        const size = cells[4]?.dataset.val || '-';
-
-        document.getElementById('sel-mat').textContent = mat;
-        document.getElementById('sel-hdbs').textContent = hdbs || '--';
-        document.getElementById('sel-size').textContent = size || '--';
+        document.getElementById('sel-mat').textContent = cellVal('b_mat') || '-';
+        document.getElementById('sel-hdbs').textContent = cellVal('b_hdbs') || '--';
+        document.getElementById('sel-smi').textContent = cellVal('b_smi') || '--';
+        document.getElementById('sel-size').textContent = cellVal('b_size') || '--';
+        document.getElementById('sel-iadc').textContent = cellVal('b_iadc') || '--';
         document.getElementById('sel-bom-row').classList.remove('hidden');
-        document.getElementById('sel-bom-code').textContent = bomCode;
+        document.getElementById('sel-brazing').textContent = cellVal('b_brazing') || '--';
+        document.getElementById('sel-system').textContent = cellVal('b_system') || '--';
         document.getElementById('sel-source-badge').textContent = 'From BOM (Finished)';
         document.getElementById('sel-source-badge').className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
     }

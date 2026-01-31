@@ -58,6 +58,9 @@ urlpatterns = [
     path('api/activate-bom/<int:bom_id>/', views.api_activate_bom, name='api_activate_bom'),
     path('api/bom/<int:bom_id>/system-mat/', views.api_set_system_mat, name='api_set_system_mat'),
     path('api/bom/<int:bom_id>/link-drillbits/', views.api_link_bom_to_drillbits, name='api_link_bom_to_drillbits'),
+    path('api/quick-add-smi-type/', views.api_quick_add_smi_type, name='api_quick_add_smi_type'),
+    path('api/quick-add-iadc-code/', views.api_quick_add_iadc_code, name='api_quick_add_iadc_code'),
+    path('api/dropdown-data/', views.api_dropdown_data, name='api_dropdown_data'),
 
     # Wizard
     path('add-cutter-wizard/', views.add_cutter_wizard, name='add_cutter_wizard'),

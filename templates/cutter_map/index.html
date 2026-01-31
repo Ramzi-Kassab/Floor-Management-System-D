@@ -1199,6 +1199,20 @@
     <input type="hidden" id="designCutterCount" value="">
     {% endif %}
 
+    <!-- SMI Types and IADC Codes for Review BOM modal -->
+    <script>
+        window._smiTypes = [
+            {% for smi in smi_types %}
+            { id: {{ smi.pk }}, label: "{{ smi.smi_name|escapejs }} ({{ smi.hdbs_type.hdbs_name|escapejs }} - {{ smi.size.size_display|escapejs }})" },
+            {% endfor %}
+        ];
+        window._iadcCodes = [
+            {% for iadc in iadc_codes %}
+            { id: {{ iadc.pk }}, label: "{{ iadc.code|escapejs }} - {{ iadc.description|escapejs }}" },
+            {% endfor %}
+        ];
+    </script>
+
     <div class="container">
         <!-- Upload -->
         <div class="upload-section" id="uploadSection">
@@ -8069,6 +8083,11 @@
             const isEditingExistingBOM = currentData && currentData.from_bom;
             const existingBomCode = isEditingExistingBOM ? (currentData.bom_code || '') : '';
 
+            // Current SMI Type, IADC Code, and Status from payload/hidden inputs
+            const currentSmiTypeId = payload.smi_type_id || document.getElementById('smiTypeId')?.value || '';
+            const currentIadcCodeId = payload.iadc_code_id || document.getElementById('iadcCodeId')?.value || '';
+            const currentBomStatus = payload.bom_status || document.getElementById('bomStatus')?.value || 'ACTIVE';
+
             // Get linked serial numbers (only available when editing existing BOM)
             let existingLinkedSNs = [];
             {% if bom_context and bom_context.linked_serial_numbers %}
@@ -8190,6 +8209,39 @@
                             </div>
                         </div>
 
+                        <!-- SMI Type, IADC Code, Status -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; margin-top: 12px;">
+                            <!-- Status -->
+                            <div>
+                                <label style="color: #666; font-size: 11px; display: block; margin-bottom: 4px;">Status:</label>
+                                <select id="previewBomStatus" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; background: white;">
+                                    <option value="DRAFT" ${currentBomStatus === 'DRAFT' ? 'selected' : ''}>Draft</option>
+                                    <option value="ACTIVE" ${currentBomStatus === 'ACTIVE' ? 'selected' : ''}>Active</option>
+                                    <option value="OBSOLETE" ${currentBomStatus === 'OBSOLETE' ? 'selected' : ''}>Obsolete</option>
+                                </select>
+                            </div>
+                            <!-- IADC Code -->
+                            <div>
+                                <label style="color: #666; font-size: 11px; display: block; margin-bottom: 4px;">IADC Code:
+                                    <a href="#" onclick="event.preventDefault(); showQuickAddIADC();" style="font-size: 10px; color: #1565c0; margin-left: 4px;">+ Quick Add</a>
+                                </label>
+                                <select id="previewIadcCode" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; background: white;">
+                                    <option value="">-- None --</option>
+                                    ${(window._iadcCodes || []).map(c => '<option value="' + c.id + '"' + (String(currentIadcCodeId) === String(c.id) ? ' selected' : '') + '>' + c.label + '</option>').join('')}
+                                </select>
+                            </div>
+                            <!-- SMI Type -->
+                            <div style="grid-column: 1 / -1;">
+                                <label style="color: #666; font-size: 11px; display: block; margin-bottom: 4px;">SMI Type:
+                                    <a href="#" onclick="event.preventDefault(); showQuickAddSMI();" style="font-size: 10px; color: #1565c0; margin-left: 4px;">+ Quick Add</a>
+                                </label>
+                                <select id="previewSmiType" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; background: white;">
+                                    <option value="">-- None --</option>
+                                    ${(window._smiTypes || []).map(s => '<option value="' + s.id + '"' + (String(currentSmiTypeId) === String(s.id) ? ' selected' : '') + '>' + s.label + '</option>').join('')}
+                                </select>
+                            </div>
+                        </div>
+
                         ${serialNumbersHtml}
                     </div>
 
@@ -8230,6 +8282,14 @@
             if (systemMatInput) {
                 payload.system_mat = systemMatInput.value.trim();
             }
+
+            // Get SMI Type, IADC Code, Status from preview dialog
+            const smiTypeSelect = document.getElementById('previewSmiType');
+            const iadcCodeSelect = document.getElementById('previewIadcCode');
+            const bomStatusSelect = document.getElementById('previewBomStatus');
+            if (smiTypeSelect) payload.smi_type_id = smiTypeSelect.value || null;
+            if (iadcCodeSelect) payload.iadc_code_id = iadcCodeSelect.value || null;
+            if (bomStatusSelect) payload.bom_status = bomStatusSelect.value || '';
 
             // Check save mode (only present when editing existing BOM)
             const saveModeRadio = document.querySelector('input[name="saveMode"]:checked');
@@ -8311,6 +8371,140 @@
                 </div>
             `;
             document.body.appendChild(dialog);
+        }
+
+        // Quick-add SMI Type dialog
+        function showQuickAddSMI() {
+            // Fetch dropdown data for HDBS Types and Sizes
+            fetch('/cutter-map/api/dropdown-data/', { headers: { 'X-CSRFToken': getCSRFToken() } })
+            .then(r => r.json())
+            .then(dd => {
+                const hdbs_opts = dd.hdbs_types.map(h => `<option value="${h.id}">${h.hdbs_name}</option>`).join('');
+                const size_opts = dd.bit_sizes.map(s => `<option value="${s.id}">${s.size_display} (${s.size_decimal}")</option>`).join('');
+
+                const dlg = document.createElement('div');
+                dlg.className = 'mat-dialog';
+                dlg.id = 'quickAddSmiDialog';
+                dlg.style.zIndex = '10001';
+                dlg.innerHTML = `
+                    <div class="mat-dialog-box" style="max-width: 400px;">
+                        <div class="mat-dialog-title" style="color: #1565c0; background: #e3f2fd; padding: 10px 15px; margin: -15px -15px 15px -15px; border-radius: 4px 4px 0 0;">
+                            Quick Add SMI Type
+                        </div>
+                        <div style="display: grid; gap: 10px; font-size: 13px;">
+                            <div>
+                                <label style="color: #666; font-size: 11px; display: block; margin-bottom: 3px;">SMI Name *</label>
+                                <input type="text" id="qaSmName" placeholder="e.g. GT65RHs-1" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px;">
+                            </div>
+                            <div>
+                                <label style="color: #666; font-size: 11px; display: block; margin-bottom: 3px;">HDBS Type *</label>
+                                <select id="qaSmHdbs" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px;">
+                                    <option value="">-- Select --</option>${hdbs_opts}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="color: #666; font-size: 11px; display: block; margin-bottom: 3px;">Size *</label>
+                                <select id="qaSmSize" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px;">
+                                    <option value="">-- Select --</option>${size_opts}
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 15px;">
+                            <button onclick="document.getElementById('quickAddSmiDialog').remove();" style="flex: 1; padding: 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">Cancel</button>
+                            <button onclick="submitQuickAddSMI();" style="flex: 1; padding: 8px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;">Add</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(dlg);
+            });
+        }
+
+        function submitQuickAddSMI() {
+            const name = document.getElementById('qaSmName')?.value.trim();
+            const hdbs = document.getElementById('qaSmHdbs')?.value;
+            const size = document.getElementById('qaSmSize')?.value;
+            if (!name || !hdbs || !size) { showMsg('All fields are required', 'error'); return; }
+
+            fetch('/cutter-map/api/quick-add-smi-type/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+                body: JSON.stringify({ smi_name: name, hdbs_type_id: hdbs, size_id: size })
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    // Add to dropdown and select it
+                    const sel = document.getElementById('previewSmiType');
+                    if (sel) {
+                        const opt = new Option(result.label, result.id, true, true);
+                        sel.appendChild(opt);
+                    }
+                    window._smiTypes.push({ id: result.id, label: result.label });
+                    document.getElementById('quickAddSmiDialog')?.remove();
+                    showMsg(result.message || 'SMI Type added', 'success');
+                } else {
+                    showMsg(result.error, 'error');
+                }
+            })
+            .catch(err => showMsg(err.message, 'error'));
+        }
+
+        // Quick-add IADC Code dialog
+        function showQuickAddIADC() {
+            const dlg = document.createElement('div');
+            dlg.className = 'mat-dialog';
+            dlg.id = 'quickAddIadcDialog';
+            dlg.style.zIndex = '10001';
+            dlg.innerHTML = `
+                <div class="mat-dialog-box" style="max-width: 350px;">
+                    <div class="mat-dialog-title" style="color: #1565c0; background: #e3f2fd; padding: 10px 15px; margin: -15px -15px 15px -15px; border-radius: 4px 4px 0 0;">
+                        Quick Add IADC Code
+                    </div>
+                    <div style="display: grid; gap: 10px; font-size: 13px;">
+                        <div>
+                            <label style="color: #666; font-size: 11px; display: block; margin-bottom: 3px;">IADC Code *</label>
+                            <input type="text" id="qaIadcCode" placeholder="e.g. M433" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px;">
+                        </div>
+                        <div>
+                            <label style="color: #666; font-size: 11px; display: block; margin-bottom: 3px;">Description</label>
+                            <input type="text" id="qaIadcDesc" placeholder="e.g. Medium soft formation" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px;">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 15px;">
+                        <button onclick="document.getElementById('quickAddIadcDialog').remove();" style="flex: 1; padding: 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">Cancel</button>
+                        <button onclick="submitQuickAddIADC();" style="flex: 1; padding: 8px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;">Add</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dlg);
+        }
+
+        function submitQuickAddIADC() {
+            const code = document.getElementById('qaIadcCode')?.value.trim();
+            const desc = document.getElementById('qaIadcDesc')?.value.trim();
+            if (!code) { showMsg('IADC Code is required', 'error'); return; }
+
+            fetch('/cutter-map/api/quick-add-iadc-code/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+                body: JSON.stringify({ code: code, description: desc })
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    const sel = document.getElementById('previewIadcCode');
+                    if (sel) {
+                        const opt = new Option(result.label, result.id, true, true);
+                        sel.appendChild(opt);
+                    }
+                    window._iadcCodes.push({ id: result.id, label: result.label });
+                    document.getElementById('quickAddIadcDialog')?.remove();
+                    showMsg(result.message || 'IADC Code added', 'success');
+                } else {
+                    showMsg(result.error, 'error');
+                }
+            })
+            .catch(err => showMsg(err.message, 'error'));
         }
 
         function showBOMSuccessDialog(result) {
