@@ -469,6 +469,8 @@
                             <a href="{% url 'workorders:drillbit_detail_enhanced' bit.pk %}" class="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100" title="View"><i data-lucide="eye" class="w-4 h-4"></i></a>
                             <a href="{% url 'workorders:drillbit_qr' bit.pk %}" class="p-1 text-gray-400 hover:text-green-600 rounded hover:bg-gray-100" title="QR"><i data-lucide="qr-code" class="w-4 h-4"></i></a>
                             <a href="{% url 'workorders:drillbit_update' bit.pk %}" class="p-1 text-gray-400 hover:text-yellow-600 rounded hover:bg-gray-100" title="Edit"><i data-lucide="edit" class="w-4 h-4"></i></a>
+                            {% if bit.status != 'SCRAPPED' %}<a href="{% url 'workorders:drillbit_scrap' bit.pk %}" class="p-1 text-gray-400 hover:text-orange-600 rounded hover:bg-gray-100" title="Scrap"><i data-lucide="recycle" class="w-4 h-4"></i></a>{% endif %}
+                            <a href="{% url 'workorders:drillbit_delete' bit.pk %}" class="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-gray-100" title="Delete Record"><i data-lucide="trash-2" class="w-4 h-4"></i></a>
                         </div>
                     </td>
                 </tr>
