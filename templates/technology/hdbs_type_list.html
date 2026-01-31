@@ -313,13 +313,18 @@ function toggleFilterSelectAll(checked) {
 
 function applyColumnFilter() {
     if (!currentFilterCol) return;
-    const checked = [...document.querySelectorAll('#filter-values-list .filter-cb:checked')].map(cb => cb.value);
-    const total = document.querySelectorAll('#filter-values-list .filter-cb').length;
+    // Only consider visible checkboxes (respect search filter)
+    const allCbs = [...document.querySelectorAll('#filter-values-list .filter-cb')];
+    const visibleCbs = allCbs.filter(cb => cb.closest('label').style.display !== 'none');
+    const visibleChecked = visibleCbs.filter(cb => cb.checked).map(cb => cb.value);
+    const totalVisible = visibleCbs.length;
+    const totalAll = allCbs.length;
 
-    if (checked.length === total || checked.length === 0) {
+    if ((visibleChecked.length === totalAll) || visibleChecked.length === 0) {
+        // All values selected or none selected = no filter
         activeFilters.delete(currentFilterCol);
     } else {
-        activeFilters.set(currentFilterCol, new Set(checked));
+        activeFilters.set(currentFilterCol, new Set(visibleChecked));
     }
 
     document.getElementById('col-filter-dropdown').classList.remove('active');

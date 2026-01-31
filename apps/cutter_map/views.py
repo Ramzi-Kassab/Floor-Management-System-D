@@ -1769,27 +1769,44 @@ def api_create_cutters(request):
 @login_required
 @require_http_methods(['POST'])
 def api_quick_add_smi_type(request):
-    """Quick-add a new SMI Type from the Review BOM modal."""
-    from apps.technology.models import SMIType, HDBSType, BitSize
+    """Quick-add a new SMI Type from the Review BOM modal.
+
+    Accepts design_id to auto-resolve HDBS type and size from the design,
+    ensuring the SMI is added to the correct existing HDBSType+Size combination.
+    Falls back to hdbs_type_id/size_id if design_id not provided.
+    """
+    from apps.technology.models import SMIType, HDBSType, BitSize, Design
     try:
         data = json.loads(request.body)
         smi_name = data.get('smi_name', '').strip()
+        design_id = data.get('design_id')
         hdbs_type_id = data.get('hdbs_type_id')
         size_id = data.get('size_id')
 
         if not smi_name:
             return JsonResponse({'success': False, 'error': 'SMI Name is required'}, status=400)
-        if not hdbs_type_id:
-            return JsonResponse({'success': False, 'error': 'HDBS Type is required'}, status=400)
-        if not size_id:
-            return JsonResponse({'success': False, 'error': 'Size is required'}, status=400)
 
-        hdbs_type = HDBSType.objects.filter(pk=hdbs_type_id).first()
-        size = BitSize.objects.filter(pk=size_id).first()
+        # Resolve HDBS type and size from design context first
+        hdbs_type = None
+        size = None
+        if design_id:
+            design = Design.objects.filter(pk=design_id).select_related('size').first()
+            if design:
+                if design.size:
+                    size = design.size
+                if design.hdbs_type:
+                    hdbs_type = HDBSType.objects.filter(hdbs_name=design.hdbs_type).first()
+
+        # Fall back to explicit IDs if design didn't resolve
+        if not hdbs_type and hdbs_type_id:
+            hdbs_type = HDBSType.objects.filter(pk=hdbs_type_id).first()
+        if not size and size_id:
+            size = BitSize.objects.filter(pk=size_id).first()
+
         if not hdbs_type:
-            return JsonResponse({'success': False, 'error': 'HDBS Type not found'}, status=400)
+            return JsonResponse({'success': False, 'error': 'HDBS Type not found for this design'}, status=400)
         if not size:
-            return JsonResponse({'success': False, 'error': 'Size not found'}, status=400)
+            return JsonResponse({'success': False, 'error': 'Size not found for this design'}, status=400)
 
         # Check for duplicate
         existing = SMIType.objects.filter(smi_name=smi_name, hdbs_type=hdbs_type, size=size).first()

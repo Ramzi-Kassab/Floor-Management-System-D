@@ -8651,10 +8651,11 @@
             if (!smiName) { errorDiv.style.display = ''; errorDiv.querySelector('p').textContent = 'SMI Name is required'; return; }
             if (!sizeId) { errorDiv.style.display = ''; errorDiv.querySelector('p').textContent = 'Size not available - select a size in the design first'; return; }
 
+            const designId = document.getElementById('designId')?.value || '';
             fetch('/cutter-map/api/quick-add-smi-type/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
-                body: JSON.stringify({ smi_name: smiName, hdbs_type_id: hdbsId, size_id: sizeId })
+                body: JSON.stringify({ smi_name: smiName, hdbs_type_id: hdbsId, size_id: sizeId, design_id: designId })
             })
             .then(r => r.json())
             .then(result => {

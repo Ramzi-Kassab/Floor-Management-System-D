@@ -903,13 +903,14 @@
     function applyColumnFilter() {
         if (!activeFilterCol) return;
         const cbs = [...document.querySelectorAll('.filter-value-cb')];
-        const allChecked = cbs.every(cb => cb.checked);
+        const visibleCbs = cbs.filter(cb => cb.closest('label').style.display !== 'none');
+        const visibleChecked = visibleCbs.filter(cb => cb.checked);
 
-        if (allChecked) {
+        if (visibleChecked.length === cbs.length || visibleChecked.length === 0) {
             delete columnFilters[activeFilterCol];
         } else {
             const allowed = new Set();
-            cbs.forEach(cb => { if (cb.checked) allowed.add(cb.value); });
+            visibleChecked.forEach(cb => allowed.add(cb.value));
             columnFilters[activeFilterCol] = allowed;
         }
 

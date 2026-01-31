@@ -616,11 +616,15 @@ function clearColumnFilter() {
 }
 
 function applyColumnFilter() {
+    const allCbs = [...document.querySelectorAll('#columnValuesList input[type="checkbox"]')];
+    const visibleCbs = allCbs.filter(cb => {
+        const li = cb.closest('li') || cb.closest('label') || cb.parentElement;
+        return li && li.style.display !== 'none';
+    });
+    const visibleChecked = visibleCbs.filter(cb => cb.checked);
     const selected = new Set();
-    document.querySelectorAll('#columnValuesList input[type="checkbox"]:checked').forEach(cb => selected.add(cb.dataset.value));
-    // Use current visible values count instead of all column values
-    const visibleValuesCount = window.currentVisibleValues ? window.currentVisibleValues.length : (allColumnValues[currentColumn] || []).length;
-    if (selected.size === visibleValuesCount) {
+    visibleChecked.forEach(cb => selected.add(cb.dataset.value));
+    if (visibleChecked.length === allCbs.length || visibleChecked.length === 0) {
         delete columnFilters[currentColumn];
     } else {
         columnFilters[currentColumn] = selected;
