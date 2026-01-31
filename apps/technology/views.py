@@ -854,6 +854,7 @@ class BOMListView(LoginRequiredMixin, ListView):
             "lines__inventory_item__variants__stock_records",
             "drillbits_brazing",  # Drill bits linked via brazing_bom
             "drillbits_system",   # Drill bits linked via system_bom
+            "drill_bits",         # Drill bits linked via legacy bom FK
         ).order_by("-created_at")
 
         # Apply django-filter
@@ -893,11 +894,13 @@ class BOMListView(LoginRequiredMixin, ListView):
                 else:
                     all_available = False
 
-            # Collect linked drill bits (both brazing and system)
+            # Collect linked drill bits (brazing, system, and legacy bom FK)
             linked_drillbits = set()
             for db in bom.drillbits_brazing.all():
                 linked_drillbits.add(db.serial_number)
             for db in bom.drillbits_system.all():
+                linked_drillbits.add(db.serial_number)
+            for db in bom.drill_bits.all():
                 linked_drillbits.add(db.serial_number)
 
             boms_with_status.append({
