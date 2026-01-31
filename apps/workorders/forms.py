@@ -376,6 +376,15 @@ class DrillBitCreateForm(forms.ModelForm):
             if instance.design.size:
                 instance.size = instance.design.size.size_value if hasattr(instance.design.size, 'size_value') else 0
 
+        # Auto-populate brazing_bom / system_bom from legacy bom field
+        if instance.bom and not instance.brazing_bom and not instance.system_bom:
+            from apps.technology.models import BOM
+            if instance.bom.bom_type == BOM.BOMType.SYSTEM:
+                instance.system_bom = instance.bom
+            else:
+                # Default: treat as brazing BOM
+                instance.brazing_bom = instance.bom
+
         # Set initial status
         instance.status = DrillBit.Status.NEW
         instance.lifecycle_status = DrillBit.LifecycleStatus.NEW

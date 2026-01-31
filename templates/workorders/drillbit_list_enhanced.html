@@ -395,7 +395,7 @@
                     <!-- HDBS Type -->
                     <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.hdbs_type|default:'' }}">{{ bit.design.hdbs_type|default:"--" }}</td>
                     <!-- SMI Type (from BOM FK, fallback to design CharField) -->
-                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.design.smi_type '' %}">{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.design.smi_type "--" %}</td>
+                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.bom.smi_type.smi_name bit.design.smi_type '' %}">{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.bom.smi_type.smi_name bit.design.smi_type "--" %}</td>
                     <!-- Size -->
                     <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.size.size_display|default:'' }}">{{ bit.design.size.size_display|default:"--" }}</td>
                     <!-- Connection -->
@@ -423,13 +423,21 @@
                         {% endif %}
                     </td>
                     <!-- Brazing BOM (MAT#) -->
-                    <td class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{{ bit.brazing_bom.code|default:'' }}">
-                        {% if bit.brazing_bom %}<a href="{% url 'technology:bom_detail' bit.brazing_bom.pk %}" class="text-green-600 hover:underline" title="BOM: {{ bit.brazing_bom.name }}">{{ bit.brazing_bom.code }}</a>{% else %}<span class="text-gray-400">--</span>{% endif %}
+                    <td class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{% firstof bit.brazing_bom.code bit.bom.code '' %}">
+                        {% if bit.brazing_bom %}
+                            <a href="{% url 'technology:bom_detail' bit.brazing_bom.pk %}" class="text-green-600 hover:underline" title="BOM: {{ bit.brazing_bom.name }}">{{ bit.brazing_bom.code }}</a>
+                        {% elif bit.bom %}
+                            <a href="{% url 'technology:bom_detail' bit.bom.pk %}" class="text-green-600 hover:underline" title="BOM: {{ bit.bom.name }}">{{ bit.bom.code }}</a>
+                        {% else %}
+                            <span class="text-gray-400">--</span>
+                        {% endif %}
                     </td>
                     <!-- System MAT# -->
-                    <td class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{% firstof bit.brazing_bom.system_mat_no bit.system_bom.code '' %}">
+                    <td class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{% firstof bit.brazing_bom.system_mat_no bit.bom.system_mat_no bit.system_bom.code '' %}">
                         {% if bit.brazing_bom.system_mat_no %}
                             <span title="System MAT from Brazing BOM">{{ bit.brazing_bom.system_mat_no }}</span>
+                        {% elif bit.bom.system_mat_no %}
+                            <span title="System MAT from BOM">{{ bit.bom.system_mat_no }}</span>
                         {% elif bit.system_bom %}
                             <a href="{% url 'technology:bom_detail' bit.system_bom.pk %}" class="text-green-600 hover:underline" title="System BOM: {{ bit.system_bom.name }}">{{ bit.system_bom.code }}</a>
                         {% else %}
