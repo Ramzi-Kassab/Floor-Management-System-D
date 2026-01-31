@@ -68,7 +68,7 @@
                                 <select name="location" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     <option value="">Select location...</option>
                                     {% for loc in locations %}
-                                    <option value="{{ loc.id }}">{{ loc.name }}</option>
+                                    <option value="{{ loc.id }}" {% if default_received_location and loc.id == default_received_location.id %}selected{% endif %}>{{ loc.name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -101,7 +101,7 @@
                                 <select name="location_intake" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white location-field">
                                     <option value="">Select location...</option>
                                     {% for loc in locations %}
-                                    <option value="{{ loc.id }}">{{ loc.name }}</option>
+                                    <option value="{{ loc.id }}" {% if default_intake_location and loc.id == default_intake_location.id %}selected{% endif %}>{{ loc.name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>

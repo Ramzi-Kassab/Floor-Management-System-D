@@ -17,15 +17,55 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         # Base locations (not linked to rigs)
         base_locations = [
+            # Receiving / Intake areas
             {
-                "code": "WH-MAIN",
-                "name": "Main Warehouse",
+                "code": "RCV-AREA",
+                "name": "Receiving Area",
+                "location_type": Location.LocationType.RECEIVING,
+            },
+            {
+                "code": "PDC-RCV",
+                "name": "PDC Receiving Area",
+                "location_type": Location.LocationType.RECEIVING,
+            },
+            {
+                "code": "BACKLOAD",
+                "name": "Backload Area",
+                "location_type": Location.LocationType.RECEIVING,
+            },
+            # Warehouses
+            {
+                "code": "WH-COMP",
+                "name": "Components Warehouse",
                 "location_type": Location.LocationType.WAREHOUSE,
+            },
+            {
+                "code": "WH-FG",
+                "name": "Finished Goods Warehouse",
+                "location_type": Location.LocationType.WAREHOUSE,
+            },
+            # Production / WIP
+            {
+                "code": "WIP",
+                "name": "Work In Progress (WIP)",
+                "location_type": Location.LocationType.WIP,
             },
             {
                 "code": "RS-MAIN",
                 "name": "Repair Shop",
                 "location_type": Location.LocationType.REPAIR_SHOP,
+            },
+            # Dispatch
+            {
+                "code": "DISPATCH",
+                "name": "Dispatch Area",
+                "location_type": Location.LocationType.DISPATCH,
+            },
+            # Inspection / Evaluation / QC
+            {
+                "code": "FINAL-INSP",
+                "name": "Final Inspection Area",
+                "location_type": Location.LocationType.INSPECTION,
             },
             {
                 "code": "EVAL-AREA",
@@ -37,16 +77,23 @@ class Command(BaseCommand):
                 "name": "QC Area",
                 "location_type": Location.LocationType.QC,
             },
+            # Scrap
             {
                 "code": "SCRAP-YARD",
                 "name": "Scrap Yard",
                 "location_type": Location.LocationType.SCRAP,
             },
+            # External
             {
                 "code": "USA-HAL",
                 "name": "Woodlands, Texas (USA)",
                 "location_type": Location.LocationType.USA,
                 "address": "Halliburton, 3000 N Sam Houston Pkwy E, Houston, TX 77032",
+            },
+            {
+                "code": "FACTORY",
+                "name": "Factory",
+                "location_type": Location.LocationType.FACTORY,
             },
             {
                 "code": "TRANSIT",

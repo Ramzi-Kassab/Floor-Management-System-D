@@ -45,12 +45,17 @@ class Location(models.Model):
     """
     class LocationType(models.TextChoices):
         WAREHOUSE = "WAREHOUSE", "Warehouse"
+        RECEIVING = "RECEIVING", "Receiving Area"
+        WIP = "WIP", "Work In Progress"
+        DISPATCH = "DISPATCH", "Dispatch Area"
+        INSPECTION = "INSPECTION", "Inspection Area"
         REPAIR_SHOP = "REPAIR_SHOP", "Repair Shop"
         RIG = "RIG", "Rig Site"
         EVALUATION = "EVALUATION", "Evaluation Area"
         QC = "QC", "QC Area"
         SCRAP = "SCRAP", "Scrap Yard"
         USA = "USA", "USA Facility"
+        FACTORY = "FACTORY", "Factory"
         TRANSIT = "TRANSIT", "In Transit"
 
     code = models.CharField(max_length=50, unique=True)

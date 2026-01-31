@@ -286,6 +286,13 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
         context['usa_location'] = Location.objects.filter(
             location_type=Location.LocationType.USA, is_active=True
         ).first()
+        # Default locations for Received and Customer Intake
+        context['default_received_location'] = Location.objects.filter(
+            code='RCV-AREA', is_active=True
+        ).first()
+        context['default_intake_location'] = Location.objects.filter(
+            code='BACKLOAD', is_active=True
+        ).first()
         return context
 
     def post(self, request, *args, **kwargs):
