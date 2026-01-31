@@ -364,6 +364,7 @@ Most API endpoints follow the pattern: `/{app}/api/{resource}/`
 - `/cutter-map/api/activate-bom/<id>/` - Activate a BOM (POST)
 - `/work-orders/api/drill-bits/search/` - Search drill bits
 - `/inventory/api/categories/<pk>/attributes/` - Get category attributes
+- `/workorders/<wo_pk>/router-sheet/<step>/api-scan/` - QR scan start/complete/skip router step (POST)
 
 ---
 
@@ -480,6 +481,12 @@ python manage.py import_stock_from_onhand --confirm
 # Sync HDBS types from design text fields
 python manage.py sync_hdbs_from_designs --confirm
 
+# Seed accounts (11 accounts: LSTK, UR, L3, L4, ARDT, WFD, ARAMCO, RC-LSTK, HALLIBURTON, HAL_REGIONAL, SUB)
+python manage.py seed_accounts
+
+# Seed router steps (FC Repair 33 steps, L3/L4 Manufacture 26 steps)
+python manage.py seed_router_steps
+
 # Clear test cutter data
 python manage.py clear_test_cutters --confirm
 ```
@@ -583,6 +590,19 @@ python manage.py check
 - **Column Filter Search-then-Apply Fix**: Fixed bug in all 4 templates with Excel-style column filters where typing a search value and clicking Apply did nothing (hidden checkboxes were still counted). Now only visible checkboxes are considered. Fixed in: `hdbs_type_list.html`, `bom_create_builder.html`, `drillbit_form.html`, `drillbit_list_enhanced.html`.
 - **sync_hdbs_from_designs Management Command**: `python manage.py sync_hdbs_from_designs --confirm` scans designs with hdbs_type text values, creates missing HDBSType records, links sizes via M2M, and creates DesignHDBS junction records.
 
+### Recent Enhancements (Jan 31, 2026 - Session 3)
+- **Account-Based Work Order System**: Full WO creation workflow driven by `Account` model. Each account (LSTK, UR, L3, L4, ARDT, WFD, ARAMCO, RC-LSTK, HALLIBURTON, HAL_REGIONAL, SUB) has its own WO number format, pricing mode, workflow type, max repairs, delivery location, and reviewer label.
+- **Account Model Extended** (`apps/sales/models.py`): Added 15+ config fields — `wo_prefix`, `wo_format` (STANDARD/NUMERIC/SUFFIX), `wo_suffix`, `wo_seq_padding`, `wo_seq_start`, `legacy_wo_format`, `contract_number`, `pricing_mode` (STANDARD/LSTK/ARAMCO/ZERO/REGIONAL), `vendor_number`, `workflow_type` (REPAIR/MANUFACTURE/BOTH), `max_repairs`, `repair_suffix_format`, `delivery_location`, `reviewer_label`, `customer` FK, `sort_order`. Methods: `generate_wo_number()` (thread-safe via NumberSequence), `get_repair_suffix()`.
+- **Account FK on DrillBit & WorkOrder**: Both models now have `account` FK to `sales.Account`. Bits belong to an account from day one (L3 bit → LSTK or ARAMCO). Account determines WO numbering and workflow.
+- **WO Number Formats**: STANDARD (`YYYY-PREFIX-NNN`), NUMERIC (`YYYYNNNN`), SUFFIX (`YYYYNNNN-SUFFIX`). Thread-safe auto-increment via `NumberSequence` model with `select_for_update`.
+- **WO Create Page** (`templates/workorders/workorder_create.html`): Account is the primary field. Selecting an account shows an info card with workflow type, pricing mode, max repairs, delivery location. `WorkOrderCreateEnhancedForm` in `apps/workorders/forms.py`.
+- **WO List Page Updated**: Account column with indigo badge, account dropdown filter, `select_related('account')` in queryset.
+- **Process Routes & Router Steps**: Two seeded routes — FC Repair (33 steps from JC Template QAS/1006 Rev L) and L3/L4 Manufacture (26 steps). `ProcessRouteOperation` has `is_conditional` and `has_yes_no` flags. `ProcessRoute` has `workflow_type` and `accounts` M2M.
+- **Router Sheet Auto-Population**: `RouterSheetView._get_route_for_wo()` selects route by account workflow type or WO type. Creates `RouterSheetEntry` records from operations on first view.
+- **QR Scan API**: `api_router_step_scan` endpoint (`POST /workorders/<wo_pk>/router-sheet/<step>/api-scan/`) supports `start`, `end`, `skip` actions with state validation. Returns JSON with timestamps, operator, duration.
+- **Repair Tracking**: `DrillBit.repair_count` separate from serial number. ARAMCO: max 2 repairs (R, R2 then scrap), 8-digit serials. R suffixes are events, not part of serial identity.
+- **11 Accounts Seeded**: LSTK (NUMERIC seq 1001), UR (STANDARD seq 1001), L3 (STANDARD ARDT-LV3), L4 (STANDARD ARDT-LV4), ARDT (STANDARD), WFD (STANDARD seq 1001), ARAMCO (STANDARD AR prefix, max 2 repairs, R{n} suffix), RC-LSTK (STANDARD RC), HALLIBURTON (SUFFIX HDBSC seq 1001), HAL_REGIONAL (SUFFIX REG seq 1001), SUB (STANDARD SUB prefix).
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
@@ -636,6 +656,12 @@ extract_pdf_data(pdf_path)            # Main entry point
 | HDBS types list | `templates/technology/hdbs_type_list.html` |
 | Drill bit create form | `templates/workorders/drillbit_form.html` |
 | Sync HDBS command | `apps/technology/management/commands/sync_hdbs_from_designs.py` |
+| WO create page | `templates/workorders/workorder_create.html` |
+| WO list page | `templates/workorders/workorder_list_enhanced.html` |
+| Job card detail | `templates/workorders/workorder_detail_enhanced.html` |
+| Router sheet | `templates/workorders/router_sheet.html` |
+| Seed accounts command | `apps/sales/management/commands/seed_accounts.py` |
+| Seed router steps | `apps/workorders/management/commands/seed_router_steps.py` |
 
 ### Key View Classes
 
@@ -646,6 +672,10 @@ extract_pdf_data(pdf_path)            # Main entry point
 | ItemCreateView | `apps/inventory/views.py:700+` | `/inventory/items/create/` |
 | BOMCreateWithBuilderView | `apps/technology/views.py:2737` | `/technology/boms/create/` |
 | DrillBitListEnhancedView | `apps/workorders/views_drillbit.py` | `/work-orders/drill-bits/` |
+| WorkOrderCreateView | `apps/workorders/views.py:104` | `/workorders/create/` |
+| WorkOrderListEnhancedView | `apps/workorders/views_jobcard.py:99` | `/workorders/enhanced/` |
+| WorkOrderDetailEnhancedView | `apps/workorders/views_jobcard.py:197` | `/workorders/enhanced/<pk>/` |
+| RouterSheetView | `apps/workorders/views_jobcard.py:656` | `/workorders/<pk>/router-sheet/` |
 
 ### Database Queries
 ```python
