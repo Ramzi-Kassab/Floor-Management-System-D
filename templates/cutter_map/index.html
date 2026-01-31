@@ -1138,6 +1138,27 @@
             </div>
         </div>
     </div>
+    {% if bom_context.drillbit_id and bom_context.is_original == 'true' %}
+    <!-- Info bar: editing original from drill bit context -->
+    <div id="originalCopyInfoBar" style="background: #fff3e0; border-bottom: 2px solid #ff9800; padding: 8px 20px; font-size: 12px; color: #e65100;">
+        <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 16px;">⚠️</span>
+            <span>
+                This is an <strong>Original BOM</strong>. Changes made for <strong>SN {{ bom_context.serial_number_param }}</strong> will be saved as a <strong>separate copy</strong> — the original will not be modified.
+            </span>
+        </div>
+    </div>
+    {% elif bom_context.drillbit_id and bom_context.serial_number_bom %}
+    <!-- Info bar: editing serial-specific BOM -->
+    <div style="background: #e8f5e9; border-bottom: 2px solid #4caf50; padding: 8px 20px; font-size: 12px; color: #2e7d32;">
+        <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 16px;">✓</span>
+            <span>
+                This BOM is a <strong>serial-specific copy</strong> for <strong>SN {{ bom_context.serial_number_bom }}</strong>. Changes will update this copy directly.
+            </span>
+        </div>
+    </div>
+    {% endif %}
     <input type="hidden" id="designId" value="{{ bom_context.design_id }}">
     <input type="hidden" id="designMat" value="{{ bom_context.design_mat }}">
     <input type="hidden" id="designHdbs" value="{{ bom_context.design_hdbs }}">
@@ -1148,7 +1169,7 @@
     <input type="hidden" id="smiTypeId" value="{{ bom_context.smi_type_id|default:'' }}">
     <input type="hidden" id="iadcCodeId" value="{{ bom_context.iadc_code_id|default:'' }}">
     <input type="hidden" id="bomIsOriginal" value="{{ bom_context.is_original|default:'false' }}">
-    <input type="hidden" id="bomSerialNumber" value="{{ bom_context.serial_number|default:'' }}">
+    <input type="hidden" id="bomSerialNumber" value="{{ bom_context.serial_number_bom|default:'' }}">
     <input type="hidden" id="parentBomId" value="{{ bom_context.parent_bom_id|default:'' }}">
     <!-- Drill bit context (passed via query params) -->
     <input type="hidden" id="drillbitId" value="{{ bom_context.drillbit_id|default:'' }}">
@@ -9733,6 +9754,12 @@
                         if (bannerLabel) bannerLabel.textContent = 'BOM FOR SN ' + serialNumber;
                         var bannerMat = document.querySelector('.bom-banner-mat');
                         if (bannerMat) bannerMat.innerHTML = '<strong>MAT:</strong> ' + newCode;
+                        // Hide the "original copy" info bar — we're now on the serial copy
+                        var infoBar = document.getElementById('originalCopyInfoBar');
+                        if (infoBar) infoBar.style.display = 'none';
+                        // Update original badge
+                        var origBadge = document.getElementById('originalBadge');
+                        if (origBadge) { origBadge.textContent = '☆ Set as Original'; origBadge.style.background = 'rgba(255,255,255,0.15)'; }
                     } else {
                         showMsg('BOM changes saved successfully!', 'success');
                     }

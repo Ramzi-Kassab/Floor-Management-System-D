@@ -848,7 +848,7 @@ class BOMListView(LoginRequiredMixin, ListView):
         from .filters import BOMFilter
         queryset = BOM.objects.select_related(
             "design", "design__size", "design__iadc_code_ref", "created_by",
-            "smi_type", "smi_type__hdbs_type"
+            "smi_type", "smi_type__hdbs_type", "parent_bom"
         ).prefetch_related(
             "lines__inventory_item__variants__variant_case",
             "lines__inventory_item__variants__stock_records",
