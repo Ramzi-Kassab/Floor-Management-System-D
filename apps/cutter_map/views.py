@@ -896,8 +896,24 @@ def api_sync_to_erp(request):
                 existing_bom.lines.all().delete()
                 existing_bom.bom_type = bom_type  # Update BOM type on existing BOM
                 existing_bom.system_mat_no = system_mat  # Update System MAT
+                # Update SMI Type
+                if smi_type_id:
+                    from apps.technology.models import SMIType
+                    smi_type_obj = SMIType.objects.filter(pk=smi_type_id).first()
+                    existing_bom.smi_type = smi_type_obj
+                # Update Status
+                if bom_status and bom_status in dict(BOM.Status.choices):
+                    existing_bom.status = bom_status
                 bom = existing_bom
                 bom_was_updated = True
+
+                # Set IADC code on design if provided
+                if iadc_code_id:
+                    from apps.technology.models import IADCCode
+                    iadc_obj = IADCCode.objects.filter(pk=iadc_code_id).first()
+                    if iadc_obj:
+                        parent_design.iadc_code_ref = iadc_obj
+                        parent_design.save(update_fields=['iadc_code_ref'])
 
         if not existing_bom or force_create_new:
             # Resolve optional SMI Type
