@@ -895,19 +895,24 @@ class BOMListView(LoginRequiredMixin, ListView):
                     all_available = False
 
             # Collect linked drill bits (brazing, system, and legacy bom FK)
-            linked_drillbits = set()
+            linked_drillbits = {}  # {pk: serial_number} to dedup
             for db in bom.drillbits_brazing.all():
-                linked_drillbits.add(db.serial_number)
+                linked_drillbits[db.pk] = db.serial_number
             for db in bom.drillbits_system.all():
-                linked_drillbits.add(db.serial_number)
+                linked_drillbits[db.pk] = db.serial_number
             for db in bom.drill_bits.all():
-                linked_drillbits.add(db.serial_number)
+                linked_drillbits[db.pk] = db.serial_number
+
+            # Build list of dicts with pk and serial for template links
+            linked_sns_list = [{'pk': pk, 'sn': sn} for pk, sn in linked_drillbits.items()]
+            linked_sns_list.sort(key=lambda x: x['sn'])
 
             boms_with_status.append({
                 'bom': bom,
                 'materials_ready': all_available if line_count > 0 else None,
                 'line_count': line_count,
-                'linked_sns': list(linked_drillbits),
+                'linked_sns': [d['sn'] for d in linked_sns_list],  # Backwards compat for filters
+                'linked_drillbits': linked_sns_list,  # With PKs for links
             })
 
         context["boms_with_status"] = boms_with_status
