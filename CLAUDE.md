@@ -554,6 +554,36 @@ python manage.py check
 - **PDF Group Shape Extraction**: Drawing-based table cell detection using filled rectangles; standalone number detection alongside comma-separated groups
 - **Cutter Map Sidebar Integration**: Cutter map page (`index.html`) now extends `base.html`, gaining the sidebar navigation, topnav with dark mode toggle, and consistent layout. CSS selectors scoped to `.cutter-map-app` to avoid conflicts with Tailwind base styles. Negative margin on wrapper cancels base layout padding for edge-to-edge display.
 
+### Recent Enhancements (Jan 31, 2026)
+- **BOM Create Design Table Filters & Sort**: `/technology/boms/create/` design selection table now has Excel-style column filters and sort on all data columns (Level, MAT No., HDBS Type, Size, Status, BOMs). Click header to open dropdown with Sort Asc/Desc, value checkboxes, search within values, Select All toggle. Blue header text indicates active filter. Works alongside existing search box. Template: `templates/technology/bom_create_builder.html`. Filter dropdown HTML is placed between `{% endblock page_header %}` and `{% block content %}`.
+- **PDF Group Shape Extraction Robustness**: Fixed `extract_images()` in `apps/cutter_map/utils/pdf_extractor.py` to handle all edge cases:
+  1. **All image placements iterated**: `page.get_image_rects(xref)` now loops over ALL rects (not just `rects[0]`), so when the same image xref is placed at multiple positions (e.g. two group rows), every placement is collected.
+  2. **Synthetic cell bounds**: `_detect_group_table_cells()` now synthesises cells from group text Y bounds when no PDF drawing boundary exists for a row. Previously, rows without border/background drawings were silently missed.
+  3. **Fallback classifier**: Image classification Step 3 fallback (branch #4) no longer requires `not group_table_cells` — it also runs when cells exist but an image missed all of them. Constrained by `_in_group_column_x()` (uses detected column X range with column-width tolerance) and Y band from `group_data` to prevent CL-area images from leaking in.
+  4. **Helper `_in_group_column_x()`**: New function that checks image center against the detected shape column X range (with one-column-width tolerance), falling back to broad heuristic only when no cells exist.
+
+### PDF Extractor Architecture Notes
+The PDF extraction pipeline in `apps/cutter_map/utils/pdf_extractor.py` follows this flow:
+```
+extract_pdf_data(pdf_path)            # Main entry point
+  ├── extract_words_with_style(page)  # Step 1: text with coordinates
+  ├── extract_shapes(page)            # Step 3: vector drawings
+  ├── extract_header(words)           # Step 4: header metadata
+  ├── extract_bom(words, shapes)      # Step 5: BOM table rows
+  ├── extract_blades_v2(raw_words)    # Step 6: blade/CL data
+  ├── extract_groups(words, raw_words)# Step 7: group legend → (groups, has_legend, group_data, group_format)
+  └── extract_images(page, doc, group_data, group_format)  # Step 8: images
+       ├── _detect_group_table_cells()  # Find shape column cells from PDF drawings
+       ├── Step 2: Collect images (all placements per xref, dedup by rect)
+       ├── Step 3: Classify (logo, group shape via cell match, drill bit face, fallback)
+       └── Step 4: Match group shapes to group text via _match_group_text_to_row()
+```
+- `group_format` can be `'comma'`, `'multi_row'`, `'vertical'`, or `'unknown'`
+- `group_data` for multi_row: `[{'values': '2', 'parsed': [2], 'y': 55.1, 'y1': 62.3, 'x0': 850.5}, ...]`
+- `_detect_group_table_cells()` identifies shape column from filled-rectangle drawings; synthesises cells for unmatched group text rows
+- Test PDFs in `docs/`: `2030271.pdf`, `13472099_B.pdf`, `1248668M.pdf`, `1283277_B.pdf`, `2020054_B.pdf`
+- To test extraction: `DJANGO_SETTINGS_MODULE=ardt_fms.settings python3 -c "import django; django.setup(); from apps.cutter_map.utils.pdf_extractor import extract_pdf_data; r = extract_pdf_data('docs/2030271.pdf'); print(r['images']['group_shapes'])"`
+
 ### Login Credentials (Test)
 - **Password for all users**: `Ardt@2025`
 - **Sample users**: `r.kassab`, `g.escobar`, `m.irshad`
@@ -567,6 +597,7 @@ python manage.py check
 | Purpose | File |
 |---------|------|
 | Main URL config | `config/urls.py` |
+| Django settings | `ardt_fms/settings.py` (`DJANGO_SETTINGS_MODULE=ardt_fms.settings`) |
 | Base template | `templates/base.html` |
 | Sidebar | `templates/includes/sidebar.html` |
 | Top Navigation | `templates/includes/topnav.html` |
@@ -575,6 +606,7 @@ python manage.py check
 | Item form | `templates/inventory/item_form.html` |
 | Drill bit list | `templates/workorders/drillbit_list_enhanced.html` |
 | PDF template (Jinja2) | `apps/cutter_map/utils/templates/pdf_template.html` |
+| BOM create page | `templates/technology/bom_create_builder.html` |
 | PDF extractor | `apps/cutter_map/utils/pdf_extractor.py` |
 | PDF generator | `apps/cutter_map/utils/pdf_generator.py` |
 
@@ -585,7 +617,7 @@ python manage.py check
 | CutterInventoryListView | `apps/inventory/views.py:1540` | `/inventory/cutters/` |
 | CutterInventoryExportView | `apps/inventory/views.py:3208` | `/inventory/cutters/export/` |
 | ItemCreateView | `apps/inventory/views.py:700+` | `/inventory/items/create/` |
-| BOMCreateView | `apps/technology/views.py` | `/technology/boms/create/` |
+| BOMCreateWithBuilderView | `apps/technology/views.py:2737` | `/technology/boms/create/` |
 | DrillBitListEnhancedView | `apps/workorders/views_drillbit.py` | `/work-orders/drill-bits/` |
 
 ### Database Queries
