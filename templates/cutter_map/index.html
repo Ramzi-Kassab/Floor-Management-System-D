@@ -8471,18 +8471,24 @@
             modal.style.display = 'block';
             document.getElementById('smi-picker-search').value = '';
 
-            // Resolve design size from context
+            // Resolve design size and HDBS from context
             const designSize = document.getElementById('designSize')?.value || '';
+            const designHdbs = document.getElementById('designHdbs')?.value || '';
+            window._smiPickerDesignHdbs = designHdbs;
+
             const sizeInfo = document.getElementById('smi-size-filter-info');
             const sizeVal = document.getElementById('smi-size-filter-value');
-            if (designSize && sizeInfo && sizeVal) {
-                sizeVal.textContent = designSize;
+            if ((designSize || designHdbs) && sizeInfo && sizeVal) {
+                let filterParts = [];
+                if (designHdbs) filterParts.push('HDBS: ' + designHdbs);
+                if (designSize) filterParts.push('Size: ' + designSize);
+                sizeVal.textContent = filterParts.join(', ');
                 sizeInfo.style.display = 'block';
             } else if (sizeInfo) {
                 sizeInfo.style.display = 'none';
             }
 
-            // Populate HDBS dropdown for Quick Create tab
+            // Populate HDBS dropdown for Quick Create tab and auto-select design's HDBS
             fetch('/technology/api/hdbs-types/', { headers: { 'X-CSRFToken': getCSRFToken() } })
             .then(r => r.json())
             .then(data => {
@@ -8490,7 +8496,8 @@
                 if (sel && data.hdbs_types) {
                     sel.innerHTML = '<option value="">Select HDBS Type...</option>';
                     data.hdbs_types.forEach(h => {
-                        sel.innerHTML += `<option value="${h.id}">${h.hdbs_name}</option>`;
+                        const selected = (designHdbs && h.hdbs_name === designHdbs) ? ' selected' : '';
+                        sel.innerHTML += `<option value="${h.id}"${selected}>${h.hdbs_name}</option>`;
                     });
                 }
             });
@@ -8545,6 +8552,7 @@
 
         function _loadSmiPickerResultsNow() {
             const search = (document.getElementById('smi-picker-search')?.value || '').trim();
+            const designHdbs = window._smiPickerDesignHdbs || '';
             const params = new URLSearchParams();
             if (search) params.append('q', search);
 
@@ -8557,9 +8565,17 @@
                     return;
                 }
 
+                // Filter by design HDBS if set and no search query
+                let filteredTypes = data.hdbs_types;
+                if (designHdbs && !search) {
+                    filteredTypes = data.hdbs_types.filter(h => h.hdbs_name === designHdbs);
+                    // If no match, show all
+                    if (filteredTypes.length === 0) filteredTypes = data.hdbs_types;
+                }
+
                 // Build rows: one row per SMI type (flat list)
                 let rows = [];
-                data.hdbs_types.forEach(h => {
+                filteredTypes.forEach(h => {
                     if (h.smi_types && h.smi_types.length > 0) {
                         h.smi_types.forEach(s => {
                             rows.push(`
