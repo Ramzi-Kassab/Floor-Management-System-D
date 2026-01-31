@@ -190,6 +190,9 @@ Design (L3/L4)                    # Blueprint - what the bit looks like
 - `/cutter-map/api/cutter-inventory/` - Live cutter inventory with variant stock (Tabulator dialog)
 - `/cutter-map/api/cutter-shapes/` - Saved cutter shapes from DB (shape picker)
 - `/cutter-map/add-cutter-wizard/` - Add cutter wizard
+- `/cutter-map/api/quick-add-smi-type/` - Quick-create SMI Type (POST, resolves HDBS from design_id)
+- `/cutter-map/api/quick-add-iadc-code/` - Quick-create IADC Code (POST)
+- `/cutter-map/api/dropdown-data/` - HDBS types and bit sizes for dropdowns (GET)
 
 ### `apps/workorders/` - Work Orders & Drill Bits
 **Purpose**: Manage drill bit lifecycle, work orders, and job cards
@@ -284,6 +287,13 @@ The `StockLedger` model is an **immutable ledger** for all stock movements:
 - `source_data` - JSONField storing complete PDF extraction data
 - `design` - FK to Design
 - `brazing_mat_no` / `system_mat_no` - MAT codes
+- `smi_type` - FK to SMIType (optional, set via Review BOM modal)
+- `status` - CharField choices: DRAFT, ACTIVE, OBSOLETE
+
+**Design** (important fields for HDBS/SMI resolution):
+- `hdbs_type` - **CharField** (NOT FK) storing HDBS name text (e.g., "GT65RHS")
+- `size` - FK to BitSize
+- `iadc_code_ref` - FK to IADCCode (optional)
 
 ---
 
@@ -467,6 +477,9 @@ python manage.py import_cutters_excel --confirm
 # Import stock from ERP On-hand.xlsx
 python manage.py import_stock_from_onhand --confirm
 
+# Sync HDBS types from design text fields
+python manage.py sync_hdbs_from_designs --confirm
+
 # Clear test cutter data
 python manage.py clear_test_cutters --confirm
 ```
@@ -531,10 +544,9 @@ python manage.py check
 - **42 inventory categories**
 
 ### Known Issues
-1. **SMI Types**: Not seeding properly (missing bit sizes)
-2. **PDF Extraction**: Only works with Halliburton PDF format
-3. **Tailwind CDN**: Console warning about CDN usage (not critical)
-4. **Alpine x-collapse**: Plugin warning (not critical)
+1. **PDF Extraction**: Only works with Halliburton PDF format
+2. **Tailwind CDN**: Console warning about CDN usage (not critical)
+3. **Alpine x-collapse**: Plugin warning (not critical)
 
 ### Recent Enhancements (Jan 23, 2026)
 - **Export Dialog**: Column and record filtering options for Excel export
@@ -561,6 +573,18 @@ python manage.py check
   2. **Synthetic cell bounds**: `_detect_group_table_cells()` now synthesises cells from group text Y bounds when no PDF drawing boundary exists for a row. Previously, rows without border/background drawings were silently missed.
   3. **Fallback classifier**: Image classification Step 3 fallback (branch #4) no longer requires `not group_table_cells` — it also runs when cells exist but an image missed all of them. Constrained by `_in_group_column_x()` (uses detected column X range with column-width tolerance) and Y band from `group_data` to prevent CL-area images from leaking in.
   4. **Helper `_in_group_column_x()`**: New function that checks image center against the detected shape column X range (with one-column-width tolerance), falling back to broad heuristic only when no cells exist.
+
+### Recent Enhancements (Jan 31, 2026 - Session 2)
+- **SMI Type / IADC Code / Status in Review BOM Modal**: The "Review BOM Before Saving" modal in the cutter map now includes editable fields for SMI Type (picker modal), IADC Code (dropdown + quick-add), and Status (DRAFT/ACTIVE/OBSOLETE). Values persist across save sessions via hidden inputs updated from API response (`smi_type_id`, `iadc_code_id`, `bom_status` returned by `api_sync_to_erp`).
+- **SMI Type Picker Modal**: Full modal with "Select Existing" tab (searchable/filterable list from `/technology/api/hdbs-types/`) and "Quick Create" tab. Auto-selects HDBS Type and Size from the design context. Quick Create resolves HDBS by matching `design.hdbs_type` (CharField) against `HDBSType.hdbs_name` to avoid creating duplicate HDBS records.
+- **BOM Update Path Saves All Fields**: `api_sync_to_erp` update path (existing BOM) now saves `smi_type`, `status`, and `iadc_code_ref` on design. Previously only `bom_type` and `system_mat_no` were updated.
+- **"Save & go to BOMs List" Button**: Review BOM modal has a second save button that saves the BOM then redirects to `/technology/boms/`. Success dialog also has a "Go to BOMs List" navigation link.
+- **HDBS Types List Filters & Sort**: `technology/types/` page now has client-side Excel-style column filters, sort, pagination (25/50/100/All), global search, and Show Inactive toggle. Template: `templates/technology/hdbs_type_list.html`.
+- **Column Filter Search-then-Apply Fix**: Fixed bug in all 4 templates with Excel-style column filters where typing a search value and clicking Apply did nothing (hidden checkboxes were still counted). Now only visible checkboxes are considered. Fixed in: `hdbs_type_list.html`, `bom_create_builder.html`, `drillbit_form.html`, `drillbit_list_enhanced.html`.
+- **sync_hdbs_from_designs Management Command**: `python manage.py sync_hdbs_from_designs --confirm` scans designs with hdbs_type text values, creates missing HDBSType records, links sizes via M2M, and creates DesignHDBS junction records.
+
+### Default Rule for List Pages
+**Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
 ### PDF Extractor Architecture Notes
 The PDF extraction pipeline in `apps/cutter_map/utils/pdf_extractor.py` follows this flow:
@@ -609,6 +633,9 @@ extract_pdf_data(pdf_path)            # Main entry point
 | BOM create page | `templates/technology/bom_create_builder.html` |
 | PDF extractor | `apps/cutter_map/utils/pdf_extractor.py` |
 | PDF generator | `apps/cutter_map/utils/pdf_generator.py` |
+| HDBS types list | `templates/technology/hdbs_type_list.html` |
+| Drill bit create form | `templates/workorders/drillbit_form.html` |
+| Sync HDBS command | `apps/technology/management/commands/sync_hdbs_from_designs.py` |
 
 ### Key View Classes
 
