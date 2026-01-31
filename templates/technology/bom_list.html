@@ -71,6 +71,7 @@
 </style>
 {% endblock %}
 
+{% block content %}
 <!-- Column Filter Dropdown (shared, positioned absolutely) -->
 <div id="columnMenu" class="hidden fixed z-[100] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl w-72 max-h-[420px] flex flex-col text-sm"
      style="top:0; left:0;">
@@ -109,7 +110,6 @@
     </div>
 </div>
 
-{% block content %}
 <div x-data="bomListPage()" x-init="init()">
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -492,17 +492,52 @@
     <!-- Design View Table -->
     <div x-show="currentView === 'design'" x-cloak class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table id="designTable" class="w-full text-sm">
                 <thead class="bg-gray-50 dark:bg-gray-700/50">
                     <tr>
                         <th class="w-8"></th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Level</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Design MAT</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">HDBS Type</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">SMI Type</th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Size</th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">BOMs</th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_level" data-type="text">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_level')">
+                                <span class="col-label">Level</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_mat" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_mat')">
+                                <span class="col-label">Design MAT</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_hdbs" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_hdbs')">
+                                <span class="col-label">HDBS Type</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_smi" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_smi')">
+                                <span class="col-label">SMI Type</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_size" data-type="text">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_size')">
+                                <span class="col-label">Size</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_boms" data-type="number">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_boms')">
+                                <span class="col-label">BOMs</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_status" data-type="text">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_status')">
+                                <span class="col-label">Status</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -528,7 +563,7 @@
                             </button>
                         </td>
                         <!-- Level -->
-                        <td class="px-4 py-3 text-center">
+                        <td class="px-4 py-3 text-center" data-column="d_level" data-value="L{{ design.order_level }}">
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                                 {% if design.order_level == '3' %}bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300
                                 {% elif design.order_level == '4' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300
@@ -537,25 +572,25 @@
                             </span>
                         </td>
                         <!-- Design MAT -->
-                        <td class="px-4 py-3">
+                        <td class="px-4 py-3" data-column="d_mat" data-value="{{ design.mat_no|default:'' }}">
                             <a href="{% url 'technology:design_detail' design.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">
                                 {{ design.mat_no|default:"-" }}
                             </a>
                         </td>
                         <!-- HDBS Type -->
-                        <td class="px-4 py-3 text-gray-900 dark:text-white">{{ design.hdbs_type|default:"-" }}</td>
+                        <td class="px-4 py-3 text-gray-900 dark:text-white" data-column="d_hdbs" data-value="{{ design.hdbs_type|default:'' }}">{{ design.hdbs_type|default:"-" }}</td>
                         <!-- SMI Type -->
-                        <td class="px-4 py-3 text-gray-900 dark:text-white">{{ design.smi_type|default:"-" }}</td>
+                        <td class="px-4 py-3 text-gray-900 dark:text-white" data-column="d_smi" data-value="{{ design.smi_type|default:'' }}">{{ design.smi_type|default:"-" }}</td>
                         <!-- Size -->
-                        <td class="px-4 py-3 text-center text-gray-900 dark:text-white">{{ design.size.size_display|default:"-" }}</td>
+                        <td class="px-4 py-3 text-center text-gray-900 dark:text-white" data-column="d_size" data-value="{{ design.size.size_display|default:'' }}">{{ design.size.size_display|default:"-" }}</td>
                         <!-- BOMs Count -->
-                        <td class="px-4 py-3 text-center">
+                        <td class="px-4 py-3 text-center" data-column="d_boms" data-value="{{ bom_list|length }}">
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                                 {{ bom_list|length }}
                             </span>
                         </td>
                         <!-- Status -->
-                        <td class="px-4 py-3 text-center">
+                        <td class="px-4 py-3 text-center" data-column="d_status" data-value="{{ design.get_status_display }}">
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs
                                 {% if design.status == 'ACTIVE' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
                                 {% elif design.status == 'DRAFT' %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300
@@ -779,6 +814,7 @@
                                 <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">MAT / HDBS</th>
                                 <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Size</th>
                                 <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                                <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Chamfer</th>
                                 <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Req</th>
                                 <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase bg-green-50 dark:bg-green-900/20" title="New Purchased">New</th>
                                 <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase bg-green-50 dark:bg-green-900/20" title="ENO As New">ENO</th>
@@ -805,6 +841,7 @@
                                     </td>
                                     <td class="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs" x-text="item.cutter_size || '-'"></td>
                                     <td class="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs" x-text="item.cutter_type || '-'"></td>
+                                    <td class="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs" x-text="item.chamfer || '-'"></td>
                                     <td class="px-2 py-2 text-center font-semibold text-gray-900 dark:text-white text-xs" x-text="item.required"></td>
                                     <!-- Variant columns (green bg = new variants) -->
                                     <td class="px-2 py-2 text-center text-xs bg-green-50/50 dark:bg-green-900/10" x-text="item.variants?.['NEW-PUR'] || 0"></td>
@@ -886,13 +923,21 @@ function toggleColumnMenu(event, column) {
     renderValuesList();
 }
 
+function getTableForColumn(column) {
+    if (column.startsWith('d_')) return { table: '#designTable', rowClass: '.design-row' };
+    return { table: '#bomTable', rowClass: '.bom-row' };
+}
+
 function populateValuesList(column) {
+    const { table, rowClass } = getTableForColumn(column);
     const values = new Set();
-    document.querySelectorAll('#bomTable tbody tr.bom-row').forEach(row => {
-        // Only consider rows visible after OTHER filters (cascading)
+    document.querySelectorAll(`${table} tbody tr${rowClass}`).forEach(row => {
         let passOtherFilters = true;
         for (const [col, filterVals] of activeFilters) {
             if (col === column) continue;
+            // Only check filters belonging to the same table
+            const colTable = getTableForColumn(col).table;
+            if (colTable !== table) continue;
             const cell = row.querySelector(`td[data-column="${col}"]`);
             if (!cell) continue;
             const cv = (cell.dataset.value || cell.textContent.trim());
@@ -907,7 +952,12 @@ function populateValuesList(column) {
         if (alpine && alpine.searchQuery) {
             const q = alpine.searchQuery.toLowerCase();
             const d = row.dataset;
-            if (!(d.code.includes(q) || d.name.includes(q) || d.hdbs.includes(q) || d.smi.includes(q) || d.mat.includes(q))) {
+            const searchFields = d.mat || '';
+            const hdbs = d.hdbs || '';
+            const smi = d.smi || '';
+            const code = d.code || '';
+            const name = d.name || '';
+            if (!(code.includes(q) || name.includes(q) || hdbs.includes(q) || smi.includes(q) || searchFields.includes(q))) {
                 passOtherFilters = false;
             }
         }
@@ -927,7 +977,6 @@ function populateValuesList(column) {
         return a.toString().localeCompare(b.toString(), undefined, {numeric: true});
     });
 
-    // Restore previous selections
     if (activeFilters.has(column)) {
         selectedValues = new Set(activeFilters.get(column));
     } else {
@@ -1005,9 +1054,27 @@ function clearAllFilters() {
 }
 
 function applyAllColumnFilters() {
+    // Apply to BOM table rows
     document.querySelectorAll('#bomTable tbody tr.bom-row').forEach(row => {
         let show = true;
         for (const [col, filterVals] of activeFilters) {
+            if (col.startsWith('d_')) continue; // skip design filters
+            const cell = row.querySelector(`td[data-column="${col}"]`);
+            if (!cell) { show = false; break; }
+            const cv = cell.dataset.value !== undefined ? cell.dataset.value : cell.textContent.trim();
+            const isBlank = !cv || cv === '-';
+            let match = false;
+            if (isBlank && filterVals.has('__blank__')) match = true;
+            else if (filterVals.has(cv)) match = true;
+            if (!match) { show = false; break; }
+        }
+        row.dataset.columnFilterHidden = show ? '' : '1';
+    });
+    // Apply to Design table rows
+    document.querySelectorAll('#designTable tbody tr.design-row').forEach(row => {
+        let show = true;
+        for (const [col, filterVals] of activeFilters) {
+            if (!col.startsWith('d_')) continue; // skip bom filters
             const cell = row.querySelector(`td[data-column="${col}"]`);
             if (!cell) { show = false; break; }
             const cv = cell.dataset.value !== undefined ? cell.dataset.value : cell.textContent.trim();
@@ -1025,7 +1092,8 @@ function applyAllColumnFilters() {
 }
 
 function updateFilterIndicators() {
-    document.querySelectorAll('#bomTable thead th[data-column]').forEach(th => {
+    // Update both tables
+    document.querySelectorAll('#bomTable thead th[data-column], #designTable thead th[data-column]').forEach(th => {
         const col = th.dataset.column;
         if (activeFilters.has(col)) {
             th.classList.add('has-filter');
@@ -1033,7 +1101,6 @@ function updateFilterIndicators() {
             th.classList.remove('has-filter');
         }
     });
-    // Active filters bar
     const bar = document.getElementById('activeFiltersBar');
     if (activeFilters.size > 0) {
         const names = Array.from(activeFilters.keys()).join(', ');
@@ -1046,16 +1113,20 @@ function updateFilterIndicators() {
 
 function sortColumn(dir) {
     if (!currentColumn) return;
-    const tbody = document.querySelector('#bomTable tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr.bom-row'));
+    const { table, rowClass } = getTableForColumn(currentColumn);
+    const tbody = document.querySelector(`${table} tbody`);
+    const rows = Array.from(tbody.querySelectorAll(`tr${rowClass}`));
     const detailRows = new Map();
 
-    // Pair each bom-row with its detail row
+    // Pair each row with its trailing detail/child rows
     rows.forEach(row => {
-        const next = row.nextElementSibling;
-        if (next && next.classList.contains('bom-detail-row')) {
-            detailRows.set(row, next);
+        const children = [];
+        let next = row.nextElementSibling;
+        while (next && !next.matches(rowClass)) {
+            children.push(next);
+            next = next.nextElementSibling;
         }
+        if (children.length) detailRows.set(row, children);
     });
 
     rows.sort((a, b) => {
@@ -1069,7 +1140,7 @@ function sortColumn(dir) {
 
     rows.forEach(row => {
         tbody.appendChild(row);
-        if (detailRows.has(row)) tbody.appendChild(detailRows.get(row));
+        if (detailRows.has(row)) detailRows.get(row).forEach(r => tbody.appendChild(r));
     });
 
     document.getElementById('columnMenu').classList.add('hidden');
@@ -1152,6 +1223,7 @@ function bomListPage() {
         },
 
         isDesignRowVisible(el) {
+            if (el.dataset.columnFilterHidden === '1') return false;
             const d = el.dataset;
             const q = this.searchQuery.toLowerCase();
             if (q && !(d.mat.includes(q) || d.hdbs.includes(q) || d.smi.includes(q))) {
