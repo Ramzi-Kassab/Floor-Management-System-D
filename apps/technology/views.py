@@ -1088,35 +1088,52 @@ class BOMDeleteView(LoginRequiredMixin, DeleteView):
 
 
 class BOMCloneView(LoginRequiredMixin, View):
-    """Clone an existing BOM with a new code."""
+    """Clone an existing BOM with all details, ready for editing."""
 
-    def post(self, request, pk):
-        import json
+    def _generate_clone_code(self, source_code):
+        """Generate a unique clone code by appending -C1, -C2, etc."""
+        base = source_code.rstrip('0123456789').rstrip('-C')
+        if base == source_code:
+            base = source_code
+        i = 1
+        while True:
+            candidate = f"{base}-C{i}"
+            if not BOM.objects.filter(code=candidate).exists():
+                return candidate
+            i += 1
+
+    def _do_clone(self, request, pk, new_code=None):
+        import copy
         source_bom = get_object_or_404(BOM, pk=pk)
 
-        try:
-            data = json.loads(request.body)
-            new_code = data.get("new_code", "").strip()
-        except json.JSONDecodeError:
-            new_code = request.POST.get("new_code", "").strip()
-
         if not new_code:
-            return JsonResponse({"success": False, "error": "New BOM code is required"}, status=400)
+            new_code = self._generate_clone_code(source_bom.code)
+        elif BOM.objects.filter(code=new_code).exists():
+            return None, f"BOM with code {new_code} already exists"
 
-        if BOM.objects.filter(code=new_code).exists():
-            return JsonResponse({"success": False, "error": f"BOM with code {new_code} already exists"}, status=400)
+        # Deep-copy source_data so mutations don't affect the original
+        source_data = copy.deepcopy(source_bom.source_data) if source_bom.source_data else {}
 
-        # Clone the BOM
         new_bom = BOM.objects.create(
             design=source_bom.design,
             code=new_code,
             name=f"{source_bom.name} (Clone)" if source_bom.name else "",
             revision="A",
             status=BOM.Status.DRAFT,
+            bom_type=source_bom.bom_type,
+            system_mat_no=source_bom.system_mat_no,
+            smi_type=source_bom.smi_type,
+            source_type=source_bom.source_type,
+            source_mat_number=source_bom.source_mat_number,
+            source_sn_number=source_bom.source_sn_number,
+            source_revision_level=source_bom.source_revision_level,
+            source_software_version=source_bom.source_software_version,
+            source_data=source_data,
+            notes=f"Cloned from {source_bom.code}",
             created_by=request.user,
         )
 
-        # Clone all lines
+        # Clone all BOM lines
         for line in source_bom.lines.all():
             BOMLine.objects.create(
                 bom=new_bom,
@@ -1127,6 +1144,39 @@ class BOMCloneView(LoginRequiredMixin, View):
                 color=line.color,
                 notes=line.notes,
             )
+
+        return new_bom, None
+
+    def get(self, request, pk):
+        """GET: auto-clone with generated code and redirect to cutter map for editing."""
+        new_bom, error = self._do_clone(request, pk)
+        if error:
+            messages.error(request, error)
+            return redirect(reverse("technology:bom_detail", args=[pk]))
+
+        messages.success(request, f'BOM cloned as "{new_bom.code}" (Draft). You can now edit it.')
+
+        # If BOM has source_data, open in cutter map for editing; otherwise go to BOM detail
+        if new_bom.source_data:
+            return redirect(f"{reverse('cutter_map:bom_view', args=[new_bom.pk])}?edit=1")
+        else:
+            return redirect(reverse("technology:bom_detail", args=[new_bom.pk]))
+
+    def post(self, request, pk):
+        """POST: clone with a specific new_code (API call)."""
+        import json
+        try:
+            data = json.loads(request.body)
+            new_code = data.get("new_code", "").strip()
+        except json.JSONDecodeError:
+            new_code = request.POST.get("new_code", "").strip()
+
+        if not new_code:
+            return JsonResponse({"success": False, "error": "New BOM code is required"}, status=400)
+
+        new_bom, error = self._do_clone(request, pk, new_code)
+        if error:
+            return JsonResponse({"success": False, "error": error}, status=400)
 
         return JsonResponse({
             "success": True,
