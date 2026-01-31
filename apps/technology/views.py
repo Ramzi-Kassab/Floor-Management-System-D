@@ -1140,11 +1140,21 @@ class BOMCloneView(LoginRequiredMixin, View):
         for line in source_bom.lines.all():
             BOMLine.objects.create(
                 bom=new_bom,
+                line_number=line.line_number,
                 order_number=line.order_number,
                 inventory_item=line.inventory_item,
-                display_name=line.display_name,
                 quantity=line.quantity,
+                unit=line.unit,
                 color_code=line.color_code,
+                cutter_size=line.cutter_size,
+                cutter_chamfer=line.cutter_chamfer,
+                cutter_type=line.cutter_type,
+                hdbs_code=line.hdbs_code,
+                family_number=line.family_number,
+                unit_cost=line.unit_cost,
+                position=line.position,
+                is_optional=line.is_optional,
+                is_phantom=line.is_phantom,
                 notes=line.notes,
             )
 
