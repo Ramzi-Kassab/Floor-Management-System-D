@@ -1795,9 +1795,14 @@ def api_quick_add_smi_type(request):
                 if design.size:
                     size = design.size
                 if design.hdbs_type:
-                    hdbs_type = HDBSType.objects.filter(hdbs_name=design.hdbs_type).first()
+                    hdbs_name = design.hdbs_type.strip()
+                    # Try exact match first, then case-insensitive
+                    hdbs_type = (
+                        HDBSType.objects.filter(hdbs_name=hdbs_name).first()
+                        or HDBSType.objects.filter(hdbs_name__iexact=hdbs_name).first()
+                    )
 
-        # Fall back to explicit IDs if design didn't resolve
+        # Fall back to explicit IDs only if design didn't resolve HDBS
         if not hdbs_type and hdbs_type_id:
             hdbs_type = HDBSType.objects.filter(pk=hdbs_type_id).first()
         if not size and size_id:

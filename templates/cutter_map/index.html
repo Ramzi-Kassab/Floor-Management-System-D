@@ -8518,8 +8518,9 @@
                 const sel = document.getElementById('smi-create-hdbs');
                 if (sel && data.hdbs_types) {
                     sel.innerHTML = '<option value="">Select HDBS Type...</option>';
+                    const hdbsLower = (designHdbs || '').trim().toLowerCase();
                     data.hdbs_types.forEach(h => {
-                        const selected = (designHdbs && h.hdbs_name === designHdbs) ? ' selected' : '';
+                        const selected = (hdbsLower && h.hdbs_name.trim().toLowerCase() === hdbsLower) ? ' selected' : '';
                         sel.innerHTML += `<option value="${h.id}"${selected}>${h.hdbs_name}</option>`;
                     });
                 }
