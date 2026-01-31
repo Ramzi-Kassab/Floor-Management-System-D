@@ -16,7 +16,7 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, T
 from django.http import JsonResponse
 
 from .forms import BOMForm, BOMLineForm, BitSizeForm, BreakerSlotForm, ConnectionForm, DesignCutterLayoutForm, DesignForm, HDBSTypeForm, SMITypeForm
-from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout, HDBSType, SMIType
+from .models import BOM, BOMLine, BitSize, BitType, BreakerSlot, Connection, ConnectionSize, ConnectionType, Design, DesignCutterLayout, HDBSType, IADCCode, SMIType
 
 
 # =============================================================================
@@ -901,6 +901,9 @@ class BOMListView(LoginRequiredMixin, ListView):
             })
 
         context["boms_with_status"] = boms_with_status
+        context["smi_types"] = SMIType.objects.filter(is_active=True).select_related('hdbs_type', 'size').order_by('smi_name')
+        context["iadc_codes"] = IADCCode.objects.filter(is_active=True).order_by('code')
+        context["status_choices"] = BOM.Status.choices
         return context
 
 
@@ -3624,3 +3627,128 @@ class DesignStockImportView(LoginRequiredMixin, TemplateView):
             })
 
         return JsonResponse({'success': False, 'error': 'Invalid action'}, status=400)
+
+
+# =============================================================================
+# BOM LIST API ENDPOINTS
+# =============================================================================
+
+
+class APIBOMUpdateFieldView(LoginRequiredMixin, View):
+    """Inline update of BOM fields (smi_type, status) or Design fields (iadc_code_ref)."""
+
+    def post(self, request, pk):
+        import json
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        bom = get_object_or_404(BOM, pk=pk)
+        field = data.get('field')
+        value = data.get('value')
+
+        if field == 'smi_type':
+            if value:
+                smi = get_object_or_404(SMIType, pk=value)
+                bom.smi_type = smi
+            else:
+                bom.smi_type = None
+            bom.save(update_fields=['smi_type', 'updated_at'])
+            return JsonResponse({'success': True, 'display': bom.smi_type.smi_name if bom.smi_type else '-'})
+
+        elif field == 'status':
+            if value not in dict(BOM.Status.choices):
+                return JsonResponse({'success': False, 'error': 'Invalid status'}, status=400)
+            bom.status = value
+            bom.save(update_fields=['status', 'updated_at'])
+            return JsonResponse({'success': True, 'display': bom.get_status_display()})
+
+        elif field == 'iadc':
+            design = bom.design
+            if value:
+                iadc = get_object_or_404(IADCCode, pk=value)
+                design.iadc_code_ref = iadc
+            else:
+                design.iadc_code_ref = None
+            design.save(update_fields=['iadc_code_ref'])
+            return JsonResponse({'success': True, 'display': design.iadc_code_ref.code if design.iadc_code_ref else '-'})
+
+        return JsonResponse({'success': False, 'error': 'Unknown field'}, status=400)
+
+
+class APIBOMMaterialsDetailView(LoginRequiredMixin, View):
+    """Return detailed materials inventory for a BOM, including shortage analysis."""
+
+    def get(self, request, pk):
+        from apps.inventory.models import InventoryStock
+        from django.db.models import Sum
+
+        bom = get_object_or_404(
+            BOM.objects.select_related('design', 'design__size'),
+            pk=pk
+        )
+        lines = bom.lines.select_related(
+            'inventory_item', 'inventory_item__category'
+        ).order_by('line_number')
+
+        items = []
+        min_builds = None  # Lowest possible builds based on available stock
+
+        for line in lines:
+            item = line.inventory_item
+            required = int(line.quantity)
+
+            if item:
+                stock = InventoryStock.objects.filter(item=item).aggregate(
+                    available=Sum('quantity_available')
+                )
+                available = int(stock['available'] or 0)
+                shortage = max(0, required - available)
+                possible = available // required if required > 0 else 0
+                if min_builds is None or possible < min_builds:
+                    min_builds = possible
+
+                items.append({
+                    'line_number': line.line_number,
+                    'order_number': line.order_number,
+                    'mat_number': item.mat_number or item.code,
+                    'description': str(item),
+                    'color_code': line.color_code or '',
+                    'cutter_size': line.cutter_size or '',
+                    'cutter_type': line.cutter_type or '',
+                    'chamfer': line.cutter_chamfer or '',
+                    'required': required,
+                    'available': available,
+                    'shortage': shortage,
+                    'possible_builds': possible,
+                })
+            else:
+                items.append({
+                    'line_number': line.line_number,
+                    'order_number': line.order_number,
+                    'mat_number': line.hdbs_code or f'Line {line.line_number}',
+                    'description': 'No inventory item linked',
+                    'color_code': line.color_code or '',
+                    'cutter_size': line.cutter_size or '',
+                    'cutter_type': line.cutter_type or '',
+                    'chamfer': line.cutter_chamfer or '',
+                    'required': required,
+                    'available': 0,
+                    'shortage': required,
+                    'possible_builds': 0,
+                })
+                if min_builds is None or 0 < min_builds:
+                    min_builds = 0
+
+        has_shortage = any(i['shortage'] > 0 for i in items)
+
+        return JsonResponse({
+            'success': True,
+            'bom_code': bom.code,
+            'design_mat': bom.design.mat_no or '-',
+            'items': items,
+            'total_lines': len(items),
+            'has_shortage': has_shortage,
+            'possible_builds': min_builds if min_builds is not None else 0,
+        })
