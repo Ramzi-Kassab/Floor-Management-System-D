@@ -8,6 +8,7 @@
         .no-print { display: none !important; }
         body { background: white !important; }
         .print-content { padding: 0 !important; margin: 0 !important; }
+        .print-content .qr-card { box-shadow: none !important; border: 1px solid #e5e7eb; }
     }
 </style>
 {% endblock %}
@@ -19,7 +20,7 @@
         <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
         <li><a href="{% url 'workorders:drillbit_list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Drill Bits</a></li>
         <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
-        <li><a href="{% url 'workorders:drillbit_detail' drill_bit.pk %}" class="hover:text-gray-700 dark:hover:text-gray-200">{{ drill_bit.serial_number }}</a></li>
+        <li><a href="{% url 'workorders:drillbit_detail_enhanced' drill_bit.pk %}" class="hover:text-gray-700 dark:hover:text-gray-200">{{ drill_bit.serial_number }}</a></li>
         <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
         <li class="text-gray-900 dark:text-white font-medium">QR Code</li>
     </ol>
@@ -37,7 +38,7 @@
             <i data-lucide="printer" class="w-4 h-4 mr-2"></i>
             Print
         </button>
-        <a href="{% url 'workorders:drillbit_detail' drill_bit.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+        <a href="{% url 'workorders:drillbit_detail_enhanced' drill_bit.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
             <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
             Back
         </a>
@@ -47,7 +48,7 @@
 
 {% block content %}
 <div class="max-w-md mx-auto print-content">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-center">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-center qr-card">
         <!-- Company Header -->
         <div class="mb-6">
             <h2 class="text-2xl font-bold text-ardt-blue dark:text-white">ARDT</h2>
@@ -55,38 +56,19 @@
         </div>
 
         <!-- QR Code -->
-        <div class="bg-white p-6 rounded-lg inline-block mb-6 border-4 border-gray-100">
-            <!-- QR Code would be generated here using a library like qrcode.js or django-qr-code -->
-            <div id="qrcode" class="w-48 h-48 bg-gray-100 dark:bg-gray-200 rounded flex items-center justify-center mx-auto">
-                <!-- Placeholder - in production this would be a real QR code -->
-                <svg class="w-full h-full p-4" viewBox="0 0 100 100">
-                    <rect fill="#000" x="0" y="0" width="30" height="30"/>
-                    <rect fill="#fff" x="5" y="5" width="20" height="20"/>
-                    <rect fill="#000" x="10" y="10" width="10" height="10"/>
-                    <rect fill="#000" x="70" y="0" width="30" height="30"/>
-                    <rect fill="#fff" x="75" y="5" width="20" height="20"/>
-                    <rect fill="#000" x="80" y="10" width="10" height="10"/>
-                    <rect fill="#000" x="0" y="70" width="30" height="30"/>
-                    <rect fill="#fff" x="5" y="75" width="20" height="20"/>
-                    <rect fill="#000" x="10" y="80" width="10" height="10"/>
-                    <rect fill="#000" x="40" y="0" width="10" height="10"/>
-                    <rect fill="#000" x="40" y="20" width="10" height="10"/>
-                    <rect fill="#000" x="40" y="40" width="20" height="20"/>
-                    <rect fill="#000" x="0" y="40" width="10" height="10"/>
-                    <rect fill="#000" x="20" y="40" width="10" height="10"/>
-                    <rect fill="#000" x="70" y="40" width="10" height="10"/>
-                    <rect fill="#000" x="90" y="40" width="10" height="10"/>
-                    <rect fill="#000" x="70" y="70" width="10" height="10"/>
-                    <rect fill="#000" x="90" y="70" width="10" height="10"/>
-                    <rect fill="#000" x="70" y="90" width="30" height="10"/>
-                </svg>
+        <div class="bg-white p-4 rounded-lg inline-block mb-6 border-4 border-gray-100">
+            {% if qr_code %}
+            <img src="{{ qr_code }}" alt="QR Code for {{ drill_bit.serial_number }}" class="w-48 h-48 mx-auto">
+            {% else %}
+            <div class="w-48 h-48 bg-gray-100 rounded flex items-center justify-center mx-auto">
+                <span class="text-gray-400 text-sm">QR unavailable</span>
             </div>
+            {% endif %}
         </div>
 
         <!-- Serial Number -->
         <div class="mb-6">
             <p class="text-3xl font-bold font-mono text-gray-900 dark:text-white tracking-wider">{{ drill_bit.serial_number }}</p>
-            <p class="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1">{{ drill_bit.qr_code }}</p>
         </div>
 
         <!-- Drill Bit Info -->
@@ -98,18 +80,30 @@
                 </div>
                 <div>
                     <dt class="text-gray-500 dark:text-gray-400">Size</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white">{{ drill_bit.size }}"</dd>
+                    <dd class="font-medium text-gray-900 dark:text-white">{{ size_display|default:"--" }}</dd>
                 </div>
-                {% if drill_bit.iadc_code %}
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">IADC</dt>
-                    <dd class="font-medium font-mono text-gray-900 dark:text-white">{{ drill_bit.iadc_code }}</dd>
+                {% if smi_display %}
+                <div class="col-span-2">
+                    <dt class="text-gray-500 dark:text-gray-400">SMI Type</dt>
+                    <dd class="font-medium font-mono text-gray-900 dark:text-white">{{ smi_display }}</dd>
                 </div>
                 {% endif %}
                 {% if drill_bit.design %}
                 <div>
                     <dt class="text-gray-500 dark:text-gray-400">Design</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.code }}</dd>
+                    <dd class="font-medium font-mono text-gray-900 dark:text-white">{{ drill_bit.design.mat_no|default:drill_bit.design.code }}</dd>
+                </div>
+                {% endif %}
+                {% if active_bom %}
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">BOM</dt>
+                    <dd class="font-medium font-mono text-gray-900 dark:text-white">{{ active_bom.code }}</dd>
+                </div>
+                {% endif %}
+                {% if drill_bit.iadc_code %}
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">IADC</dt>
+                    <dd class="font-medium font-mono text-gray-900 dark:text-white">{{ drill_bit.iadc_code }}</dd>
                 </div>
                 {% endif %}
             </dl>
@@ -118,7 +112,7 @@
         <!-- Status -->
         <div class="mt-6">
             <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium
-                {% if drill_bit.status == 'IN_STOCK' %}bg-green-100 text-green-800
+                {% if drill_bit.status == 'ACTIVE' %}bg-green-100 text-green-800
                 {% elif drill_bit.status == 'IN_PRODUCTION' %}bg-yellow-100 text-yellow-800
                 {% else %}bg-gray-100 text-gray-800{% endif %}">
                 {{ drill_bit.get_status_display }}
@@ -127,7 +121,7 @@
 
         <!-- Instructions (no-print) -->
         <div class="mt-8 text-xs text-gray-400 dark:text-gray-500 no-print">
-            Scan this QR code with the ARDT FMS mobile app to view drill bit details
+            Scan this QR code to view drill bit details and history
         </div>
     </div>
 

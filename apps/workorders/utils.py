@@ -86,7 +86,9 @@ def generate_work_order_qr(work_order, base_url=None):
 
 def generate_drill_bit_qr(drill_bit, base_url=None):
     """
-    Generate QR code for a drill bit linking to its detail page.
+    Generate QR code for a drill bit containing:
+    - Link to the detail page (for authorized users to open)
+    - Serial number, size, SMI type as human-readable lines
 
     Args:
         drill_bit: DrillBit instance
@@ -97,15 +99,37 @@ def generate_drill_bit_qr(drill_bit, base_url=None):
     """
     from django.urls import reverse
 
-    relative_url = reverse("workorders:drillbit_detail", kwargs={"pk": drill_bit.pk})
+    relative_url = reverse("workorders:drillbit_detail_enhanced", kwargs={"pk": drill_bit.pk})
 
+    # Build the detail page URL
     if base_url:
-        url = f"{base_url.rstrip('/')}{relative_url}"
+        detail_url = f"{base_url.rstrip('/')}{relative_url}"
     else:
-        # Use the QR code identifier for offline scanning
-        url = f"ARDT-BIT:{drill_bit.serial_number}"
+        detail_url = relative_url
 
-    return generate_qr_code_base64(url)
+    # Build multi-line QR data with key info
+    lines = [detail_url]
+    lines.append(f"SN: {drill_bit.serial_number}")
+
+    # Size from design
+    size_str = ""
+    if drill_bit.design and drill_bit.design.size:
+        size_str = str(drill_bit.design.size.size_display)
+    elif drill_bit.size:
+        size_str = f'{drill_bit.size}"'
+    if size_str:
+        lines.append(f"Size: {size_str}")
+
+    # SMI Type from active BOM
+    smi_str = ""
+    active_bom = drill_bit.brazing_bom or drill_bit.bom or drill_bit.system_bom
+    if active_bom and hasattr(active_bom, 'smi_type') and active_bom.smi_type:
+        smi_str = str(active_bom.smi_type)
+    if smi_str:
+        lines.append(f"SMI: {smi_str}")
+
+    qr_data = "\n".join(lines)
+    return generate_qr_code_base64(qr_data)
 
 
 def format_duration(minutes):

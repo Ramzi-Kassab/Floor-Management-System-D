@@ -370,13 +370,7 @@ class DrillBitUpdateView(LoginRequiredMixin, UpdateView):
     """
     Edit drill bit identity - Design and BOMs only.
 
-    Only allows editing identity fields:
-    - Serial Number
-    - Design (L3/L4)
-    - Brazing BOM (L5)
-    - System BOM (L5)
-
-    Derived fields (size, type, etc.) auto-update when design changes.
+    Uses the same table-based design/BOM selection as the create page.
     """
 
     model = DrillBit
@@ -388,24 +382,50 @@ class DrillBitUpdateView(LoginRequiredMixin, UpdateView):
         context["page_title"] = f"Edit Drill Bit - {self.object.serial_number}"
         context["action"] = "edit"
 
-        # Provide design and BOM data for JavaScript filtering
-        from apps.technology.models import Design, BOM
-        import json
+        from apps.technology.models import BOM, Design
 
-        designs = list(Design.objects.select_related("size").values(
-            "id", "mat_no", "hdbs_type", "category"
-        ))
-        for d in designs:
-            design_obj = Design.objects.select_related("size").get(pk=d["id"])
-            d["size"] = str(design_obj.size) if design_obj.size else None
+        # Same querysets as create view for table-based selection
+        designs = Design.objects.select_related(
+            "size", "iadc_code_ref"
+        ).prefetch_related("boms").order_by("mat_no")
+        context["designs"] = designs
 
-        boms = list(BOM.objects.select_related("design").values(
-            "id", "code", "name", "design_id", "bom_type", "system_mat_no"
-        ))
+        boms = BOM.objects.filter(
+            design__isnull=False
+        ).select_related(
+            "design", "design__size", "design__iadc_code_ref", "smi_type"
+        ).order_by("design__mat_no", "code")
+        context["boms"] = boms
 
-        context["designs_json"] = json.dumps(designs)
-        context["boms_json"] = json.dumps(boms)
+        # JSON data for JS filtering (legacy)
+        designs_data = []
+        for design in designs:
+            designs_data.append({
+                "id": design.id,
+                "mat_no": design.mat_no,
+                "hdbs_type": design.hdbs_type or "",
+                "size": str(design.size) if design.size else "",
+                "category": design.category or "",
+            })
+        context["designs_json"] = designs_data
+
+        boms_data = []
+        for bom in boms.filter(status="ACTIVE"):
+            boms_data.append({
+                "id": bom.id,
+                "code": bom.code,
+                "name": bom.name or "",
+                "design_id": bom.design.id if bom.design else None,
+                "design_mat_no": bom.design.mat_no if bom.design else "",
+                "system_mat_no": bom.system_mat_no or "",
+            })
+        context["boms_json"] = boms_data
+
+        # Pre-selected IDs for edit mode
         context["current_design_id"] = self.object.design_id
+        context["current_brazing_bom_id"] = self.object.brazing_bom_id
+        context["current_system_bom_id"] = self.object.system_bom_id
+        context["current_bom_id"] = self.object.bom_id
 
         return context
 

@@ -156,6 +156,9 @@ def bom_view(request, bom_id):
 
     bom = get_object_or_404(BOM, pk=bom_id)
     edit_mode = request.GET.get('edit', '0') == '1'
+    # Drill bit context from query params (when opened from drill bit detail page)
+    drillbit_id = request.GET.get('drillbit_id', '')
+    serial_number = request.GET.get('serial_number', '')
 
     # Check if BOM has source data
     if not bom.source_data:
@@ -211,6 +214,11 @@ def bom_view(request, bom_id):
             'smi_type_id': bom.smi_type_id or '',
             'iadc_code_id': bom.design.iadc_code_ref_id if bom.design else '',
             'bom_status': bom.status or '',
+            # Drill bit context (for linking BOM to drill bit on save)
+            'drillbit_id': drillbit_id,
+            'drillbit_ids': [drillbit_id] if drillbit_id else [],
+            'serial_number': serial_number,
+            'serial_numbers': [serial_number] if serial_number else [],
             # Fields for conflict detection
             'blade_count': bom.design.no_of_blades if bom.design else None,
             'pocket_rows_count': bom.design.pocket_rows_count if bom.design else None,

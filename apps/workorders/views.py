@@ -342,9 +342,35 @@ def drillbit_qr_view(request, pk):
     """
     Display QR code for a drill bit.
     """
-    drill_bit = get_object_or_404(DrillBit, pk=pk)
+    from .utils import generate_drill_bit_qr
+    drill_bit = get_object_or_404(
+        DrillBit.objects.select_related(
+            "design", "design__size", "brazing_bom", "brazing_bom__smi_type",
+            "bom", "bom__smi_type", "system_bom", "system_bom__smi_type",
+        ),
+        pk=pk,
+    )
+    base_url = getattr(settings, "SITE_URL", None) or request.build_absolute_uri("/")[:-1]
+    qr_code = generate_drill_bit_qr(drill_bit, base_url)
+
+    # Active BOM for SMI display
+    active_bom = drill_bit.brazing_bom or drill_bit.bom or drill_bit.system_bom
+    smi_display = str(active_bom.smi_type) if active_bom and active_bom.smi_type else ""
+    size_display = ""
+    if drill_bit.design and drill_bit.design.size:
+        size_display = drill_bit.design.size.size_display
+    elif drill_bit.size:
+        size_display = f'{drill_bit.size}"'
+
     return render(
-        request, "drillbits/drillbit_qr.html", {"drill_bit": drill_bit, "page_title": f"QR Code - {drill_bit.serial_number}"}
+        request, "drillbits/drillbit_qr.html", {
+            "drill_bit": drill_bit,
+            "page_title": f"QR Code - {drill_bit.serial_number}",
+            "qr_code": qr_code,
+            "smi_display": smi_display,
+            "size_display": size_display,
+            "active_bom": active_bom,
+        }
     )
 
 

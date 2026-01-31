@@ -4,7 +4,6 @@
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
 {% block extra_css %}
-{% if action == 'create' %}
 <style>
     .filter-dropdown {
         position: fixed;
@@ -31,7 +30,6 @@
     .sel-row.selected { background: rgba(59, 130, 246, 0.15) !important; }
     .dark .sel-row.selected { background: rgba(59, 130, 246, 0.3) !important; }
 </style>
-{% endif %}
 {% endblock %}
 
 {% block page_header %}
@@ -53,7 +51,6 @@
 {% endblock %}
 
 {% block content %}
-{% if action == 'create' %}
 <!-- Column Filter Dropdown (shared) -->
 <div id="col-filter-dropdown" class="filter-dropdown">
     <div class="p-3 border-b border-gray-200 dark:border-gray-600">
@@ -86,8 +83,13 @@
 <form method="post" id="createForm">
 {% csrf_token %}
 <!-- Hidden fields populated by JS -->
-<input type="hidden" name="design" id="id_design" value="">
+<input type="hidden" name="design" id="id_design" value="{{ current_design_id|default:'' }}">
+{% if action == 'edit' %}
+<input type="hidden" name="brazing_bom" id="id_brazing_bom" value="{{ current_brazing_bom_id|default:'' }}">
+<input type="hidden" name="system_bom" id="id_system_bom" value="{{ current_system_bom_id|default:'' }}">
+{% else %}
 <input type="hidden" name="bom" id="id_bom" value="">
+{% endif %}
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Main Column: Table Selection -->
@@ -304,8 +306,13 @@
                 <!-- Submit -->
                 <button type="submit"
                     class="w-full px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl">
+                    {% if action == 'edit' %}
+                    <i data-lucide="save" class="w-5 h-5"></i>
+                    Save Changes
+                    {% else %}
                     <i data-lucide="plus-circle" class="w-5 h-5"></i>
                     Register Drill Bit
+                    {% endif %}
                 </button>
 
                 <button type="button" onclick="clearSelection()"
@@ -331,8 +338,13 @@
             <ul class="text-xs text-blue-700 dark:text-blue-400 space-y-1.5 list-disc list-inside">
                 <li><strong>From Design</strong> = Component (no BOM yet, assign later)</li>
                 <li><strong>From BOM</strong> = Design auto-filled, BOM linked</li>
+                {% if action == 'edit' %}
+                <li>Change the design or BOM by selecting a new row</li>
+                <li>Edit the serial number if needed, then Save</li>
+                {% else %}
                 <li>Enter the serial number and click Register</li>
                 <li>Next step: specify the first event (received, in production, etc.)</li>
+                {% endif %}
             </ul>
         </div>
     </div>
@@ -395,7 +407,12 @@ function selectRow(row) {
     if (type === 'design') {
         const designId = row.dataset.id;
         document.getElementById('id_design').value = designId;
-        document.getElementById('id_bom').value = '';
+        var bomField = document.getElementById('id_bom');
+        var brazingField = document.getElementById('id_brazing_bom');
+        var systemField = document.getElementById('id_system_bom');
+        if (bomField) bomField.value = '';
+        if (brazingField) brazingField.value = '';
+        if (systemField) systemField.value = '';
 
         document.getElementById('sel-mat').textContent = cellVal('d_mat') || '-';
         document.getElementById('sel-hdbs').textContent = cellVal('d_hdbs') || '--';
@@ -409,7 +426,13 @@ function selectRow(row) {
         const bomId = row.dataset.id;
         const designId = row.dataset.designId;
         document.getElementById('id_design').value = designId;
-        document.getElementById('id_bom').value = bomId;
+        // Set appropriate BOM field based on mode
+        var bomField = document.getElementById('id_bom');
+        var brazingField = document.getElementById('id_brazing_bom');
+        var systemField = document.getElementById('id_system_bom');
+        if (bomField) bomField.value = bomId;
+        if (brazingField) brazingField.value = bomId;
+        if (systemField) systemField.value = bomId;
 
         document.getElementById('sel-mat').textContent = cellVal('b_mat') || '-';
         document.getElementById('sel-hdbs').textContent = cellVal('b_hdbs') || '--';
@@ -432,7 +455,12 @@ function clearSelection() {
         r.querySelector('.row-check').innerHTML = '';
     });
     document.getElementById('id_design').value = '';
-    document.getElementById('id_bom').value = '';
+    var bomField = document.getElementById('id_bom');
+    var brazingField = document.getElementById('id_brazing_bom');
+    var systemField = document.getElementById('id_system_bom');
+    if (bomField) bomField.value = '';
+    if (brazingField) brazingField.value = '';
+    if (systemField) systemField.value = '';
     document.getElementById('no-selection').classList.remove('hidden');
     document.getElementById('selection-info').classList.add('hidden');
 }
@@ -630,171 +658,32 @@ document.addEventListener('click', function(e) {
 
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    // Auto-select pre-existing design/BOM in edit mode
+    {% if action == 'edit' %}
+    var preDesignId = '{{ current_design_id|default:"" }}';
+    var preBrazingBomId = '{{ current_brazing_bom_id|default:"" }}';
+    var preBomId = '{{ current_bom_id|default:"" }}';
+    var preSelectId = preBrazingBomId || preBomId;
+
+    if (preSelectId) {
+        // Try to select from BOM table first
+        var bomRow = document.querySelector('.bom-row[data-id="' + preSelectId + '"]');
+        if (bomRow) {
+            switchTab('bom');
+            selectRow(bomRow);
+            bomRow.scrollIntoView({block: 'center', behavior: 'smooth'});
+        }
+    } else if (preDesignId) {
+        // Fallback: select from Design table
+        var designRow = document.querySelector('.design-row[data-id="' + preDesignId + '"]');
+        if (designRow) {
+            selectRow(designRow);
+            designRow.scrollIntoView({block: 'center', behavior: 'smooth'});
+        }
+    }
+    {% endif %}
 });
 </script>
 
-{% else %}
-{# ═══════════════════════════════════════════════════════ #}
-{# EDIT MODE - Keep the existing form-based UI            #}
-{# ═══════════════════════════════════════════════════════ #}
-<div class="max-w-4xl mx-auto">
-    <form method="post" class="space-y-6">
-        {% csrf_token %}
-
-        <!-- Edit Mode - Identity fields only (Design + BOMs) -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                <i data-lucide="fingerprint" class="w-5 h-5 mr-2 text-blue-600"></i>
-                Drill Bit Identity
-            </h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Edit the serial number, design, and BOM assignments. Other fields (size, type) are derived from the design.
-            </p>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label for="id_serial_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Serial Number <span class="text-red-500">*</span>
-                    </label>
-                    {{ form.serial_number }}
-                    {% if form.serial_number.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.serial_number.errors.0 }}</p>
-                    {% endif %}
-                </div>
-                <div>
-                    <label for="id_design" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Design (L3/L4) <span class="text-red-500">*</span>
-                    </label>
-                    {{ form.design }}
-                    {% if form.design.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.design.errors.0 }}</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div id="design-preview" class="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Design Info</h4>
-                <div class="grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                        <span class="text-gray-500 dark:text-gray-400">Size:</span>
-                        <p id="preview-size" class="font-medium text-gray-900 dark:text-white">{{ object.design.size|default:"-" }}</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 dark:text-gray-400">Category:</span>
-                        <p id="preview-category" class="font-medium text-gray-900 dark:text-white">{{ object.design.category|default:"-" }}</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 dark:text-gray-400">HDBS Type:</span>
-                        <p id="preview-hdbs" class="font-medium text-gray-900 dark:text-white">{{ object.design.hdbs_type|default:"-" }}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                <i data-lucide="layers" class="w-5 h-5 mr-2 text-green-600"></i>
-                BOM Assignments (L5)
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label for="id_brazing_bom" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Brazing BOM (L5)
-                    </label>
-                    {{ form.brazing_bom }}
-                    {% if form.brazing_bom.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.brazing_bom.errors.0 }}</p>
-                    {% endif %}
-                </div>
-                <div>
-                    <label for="id_system_bom" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        System BOM (L5)
-                    </label>
-                    {{ form.system_bom }}
-                    {% if form.system_bom.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.system_bom.errors.0 }}</p>
-                    {% endif %}
-                </div>
-            </div>
-            <div id="bom-hint" class="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                <span id="bom-count">{{ form.brazing_bom.field.queryset.count }}</span> BOM(s) available for this design
-            </div>
-        </div>
-
-        {% if form.non_field_errors %}
-        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-            {% for error in form.non_field_errors %}
-            <p class="text-sm text-red-700 dark:text-red-400">{{ error }}</p>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <div class="flex justify-end space-x-4">
-            <a href="{% url 'workorders:drillbit_list_enhanced' %}"
-               class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                Cancel
-            </a>
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                Save Changes
-            </button>
-        </div>
-    </form>
-</div>
-
-<script>
-const designsData = {{ designs_json|safe }};
-const bomsData = {{ boms_json|safe }};
-let currentDesignId = {{ current_design_id|default:'null' }};
-
-document.addEventListener('DOMContentLoaded', function() {
-    const designSelect = document.getElementById('id_design');
-    const brazingBomSelect = document.getElementById('id_brazing_bom');
-    const systemBomSelect = document.getElementById('id_system_bom');
-    const bomHint = document.getElementById('bom-hint');
-    const bomCount = document.getElementById('bom-count');
-
-    function updateDesignPreview(designId) {
-        const design = designsData.find(d => d.id === parseInt(designId));
-        if (design) {
-            document.getElementById('preview-size').textContent = design.size || '-';
-            document.getElementById('preview-category').textContent = design.category || '-';
-            document.getElementById('preview-hdbs').textContent = design.hdbs_type || '-';
-        }
-    }
-
-    function filterBomsByDesign(designId, preserveValues = false) {
-        const currentBrazingBom = brazingBomSelect.value;
-        const currentSystemBom = systemBomSelect.value;
-        brazingBomSelect.innerHTML = '<option value="">-- No Brazing BOM --</option>';
-        systemBomSelect.innerHTML = '<option value="">-- No System BOM --</option>';
-        if (!designId) { bomCount.textContent = '0'; return; }
-
-        const filteredBoms = bomsData.filter(b => b.design_id === parseInt(designId));
-        bomCount.textContent = filteredBoms.length.toString();
-        filteredBoms.forEach(bom => {
-            const bo = document.createElement('option'); bo.value = bom.id;
-            bo.textContent = bom.code + (bom.system_mat_no ? ` (${bom.system_mat_no})` : '');
-            brazingBomSelect.appendChild(bo);
-            const so = document.createElement('option'); so.value = bom.id;
-            so.textContent = bom.code + (bom.system_mat_no ? ` → ${bom.system_mat_no}` : '');
-            systemBomSelect.appendChild(so);
-        });
-        if (preserveValues) {
-            if (currentBrazingBom && filteredBoms.some(b => b.id === parseInt(currentBrazingBom))) brazingBomSelect.value = currentBrazingBom;
-            if (currentSystemBom && filteredBoms.some(b => b.id === parseInt(currentSystemBom))) systemBomSelect.value = currentSystemBom;
-        }
-    }
-
-    if (designSelect) {
-        designSelect.addEventListener('change', function() {
-            const did = parseInt(this.value);
-            updateDesignPreview(did);
-            if (did !== currentDesignId) { filterBomsByDesign(did, false); currentDesignId = did; }
-        });
-        if (designSelect.value) { updateDesignPreview(designSelect.value); filterBomsByDesign(designSelect.value, true); }
-    }
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-});
-</script>
-{% endif %}
 {% endblock %}
