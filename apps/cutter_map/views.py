@@ -1293,11 +1293,18 @@ def api_sync_to_erp(request):
                     try:
                         drillbit = DrillBit.objects.get(pk=db_id)
                         # Link as brazing or system BOM based on bom_type
+                        update_fields = []
                         if bom_type == 'BRAZING':
                             drillbit.brazing_bom = bom
+                            update_fields.append('brazing_bom')
                         else:
                             drillbit.system_bom = bom
-                        drillbit.save(update_fields=['brazing_bom' if bom_type == 'BRAZING' else 'system_bom'])
+                            update_fields.append('system_bom')
+                        # Clear legacy bom FK if it pointed to old BOM (prevents stale Linked SNs)
+                        if drillbit.bom_id and drillbit.bom_id != bom.pk:
+                            drillbit.bom = None
+                            update_fields.append('bom')
+                        drillbit.save(update_fields=update_fields)
                         linked_drillbits.append({
                             'id': drillbit.pk,
                             'serial_number': drillbit.serial_number
@@ -1566,11 +1573,18 @@ def api_link_bom_to_drillbits(request, bom_id):
         try:
             drillbit = DrillBit.objects.get(pk=db_id)
             # Link as brazing or system BOM based on bom_type
+            update_fields = []
             if bom_type == 'BRAZING':
                 drillbit.brazing_bom = bom
+                update_fields.append('brazing_bom')
             else:
                 drillbit.system_bom = bom
-            drillbit.save(update_fields=['brazing_bom' if bom_type == 'BRAZING' else 'system_bom'])
+                update_fields.append('system_bom')
+            # Clear legacy bom FK if it pointed to old BOM (prevents stale Linked SNs)
+            if drillbit.bom_id and drillbit.bom_id != bom.pk:
+                drillbit.bom = None
+                update_fields.append('bom')
+            drillbit.save(update_fields=update_fields)
             linked_drillbits.append({
                 'id': drillbit.pk,
                 'serial_number': drillbit.serial_number
