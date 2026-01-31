@@ -1791,9 +1791,12 @@ def api_quick_add_smi_type(request):
         # Check for duplicate
         existing = SMIType.objects.filter(smi_name=smi_name, hdbs_type=hdbs_type, size=size).first()
         if existing:
+            hdbs_type.sizes.add(size)  # Ensure size is linked
             return JsonResponse({'success': True, 'id': existing.pk, 'label': str(existing), 'message': 'Already exists'})
 
         smi = SMIType.objects.create(smi_name=smi_name, hdbs_type=hdbs_type, size=size)
+        # Ensure the size is linked to the HDBS type's sizes M2M
+        hdbs_type.sizes.add(size)
         return JsonResponse({'success': True, 'id': smi.pk, 'label': str(smi)})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
