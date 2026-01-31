@@ -814,9 +814,25 @@
     }
 
     function getUniqueValues(col) {
+        const searchText = document.getElementById('design-search').value.toLowerCase().trim();
         const vals = new Set();
         document.querySelectorAll('.design-row').forEach(row => {
-            vals.add(getCellValue(row, col));
+            // Cascading: only include values from rows that pass OTHER filters + search
+            let passOthers = true;
+            for (const [fcol, allowed] of Object.entries(columnFilters)) {
+                if (fcol === col) continue;
+                if (!allowed.has(getCellValue(row, fcol))) { passOthers = false; break; }
+            }
+            if (passOthers && searchText) {
+                const mat = row.dataset.mat || '';
+                const hdbs = row.dataset.hdbs || '';
+                const size = row.dataset.size || '';
+                const level = row.dataset.level || '';
+                if (!(mat.includes(searchText) || hdbs.includes(searchText) || size.includes(searchText) || level.includes(searchText))) {
+                    passOthers = false;
+                }
+            }
+            if (passOthers) vals.add(getCellValue(row, col));
         });
         return [...vals].sort((a, b) => {
             const na = parseFloat(a), nb = parseFloat(b);

@@ -948,7 +948,7 @@ function populateValuesList(column) {
             break;
         }
         // Also check search query
-        const alpine = document.querySelector('[x-data]').__x.$data;
+        const alpine = document.querySelector('[x-data]')._x_dataStack[0];
         if (alpine && alpine.searchQuery) {
             const q = alpine.searchQuery.toLowerCase();
             const d = row.dataset;
@@ -1046,7 +1046,7 @@ function clearAllFilters() {
     applyAllColumnFilters();
     updateFilterIndicators();
     // Also clear Alpine search
-    const alpine = document.querySelector('[x-data]').__x.$data;
+    const alpine = document.querySelector('[x-data]')._x_dataStack[0];
     if (alpine) {
         alpine.searchQuery = '';
         alpine.applyFilters();
@@ -1086,9 +1086,12 @@ function applyAllColumnFilters() {
         }
         row.dataset.columnFilterHidden = show ? '' : '1';
     });
-    // Trigger Alpine re-evaluation
-    const alpine = document.querySelector('[x-data]').__x.$data;
-    if (alpine) alpine.applyFilters();
+    // Trigger Alpine re-evaluation by incrementing reactive counter
+    const alpine = document.querySelector('[x-data]')._x_dataStack[0];
+    if (alpine) {
+        alpine.filterTick++;
+        alpine.applyFilters();
+    }
 }
 
 function updateFilterIndicators() {
@@ -1172,6 +1175,7 @@ function bomListPage() {
         deleteModal: { show: false, id: null, code: '' },
         stats: { ready: 0, shortage: 0, draft: 0 },
         visibleCount: 0,
+        filterTick: 0,
 
         // Inline edit state
         inlineEdit: { show: false, bomId: null, field: '', value: '', title: '', saving: false },
@@ -1208,6 +1212,8 @@ function bomListPage() {
         },
 
         isRowVisible(el) {
+            // Touch filterTick to create Alpine reactive dependency
+            void this.filterTick;
             // Column filters
             if (el.dataset.columnFilterHidden === '1') return false;
 
@@ -1223,6 +1229,7 @@ function bomListPage() {
         },
 
         isDesignRowVisible(el) {
+            void this.filterTick;
             if (el.dataset.columnFilterHidden === '1') return false;
             const d = el.dataset;
             const q = this.searchQuery.toLowerCase();
