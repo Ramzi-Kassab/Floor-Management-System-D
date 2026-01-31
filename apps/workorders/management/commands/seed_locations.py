@@ -3,11 +3,12 @@ ARDT FMS - Seed Locations
 Phase 2: Products & Drill Bit Tracking
 
 Creates physical locations where drill bits can be tracked.
+Rig-specific locations are NOT created here — use the generic "Rig Site"
+and select the specific rig elsewhere.
 """
 
 from django.core.management.base import BaseCommand
 
-from apps.sales.models import Rig
 from apps.workorders.models import Location
 
 
@@ -100,12 +101,17 @@ class Command(BaseCommand):
                 "name": "In Transit",
                 "location_type": Location.LocationType.TRANSIT,
             },
+            # Generic rig site — specific rig selected elsewhere
+            {
+                "code": "RIG-SITE",
+                "name": "Rig Site",
+                "location_type": Location.LocationType.RIG,
+            },
         ]
 
         created_count = 0
         updated_count = 0
 
-        # Create base locations
         for loc_data in base_locations:
             obj, created = Location.objects.update_or_create(
                 code=loc_data["code"],
@@ -121,28 +127,9 @@ class Command(BaseCommand):
             else:
                 updated_count += 1
 
-        # Create rig locations from existing rigs
-        rigs = Rig.objects.filter(is_active=True)
-        for rig in rigs:
-            location_code = f"RIG-{rig.code}"
-            obj, created = Location.objects.update_or_create(
-                code=location_code,
-                defaults={
-                    "name": f"Rig {rig.code}",
-                    "location_type": Location.LocationType.RIG,
-                    "rig": rig,
-                    "address": rig.location or "",
-                    "is_active": True,
-                }
-            )
-            if created:
-                created_count += 1
-            else:
-                updated_count += 1
-
         self.stdout.write(
             self.style.SUCCESS(
                 f"✅ Locations: {created_count} created, {updated_count} updated. "
-                f"Total: {Location.objects.count()} ({rigs.count()} rig locations)"
+                f"Total: {Location.objects.count()}"
             )
         )
