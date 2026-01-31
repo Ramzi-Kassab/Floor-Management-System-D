@@ -97,6 +97,17 @@
                 </select>
             </div>
 
+            <!-- Account -->
+            <div class="w-36">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Account</label>
+                <select name="account" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="">All</option>
+                    {% for acc in accounts %}
+                    <option value="{{ acc.pk }}" {% if current_account == acc.pk|stringformat:"d" %}selected{% endif %}>{{ acc.code }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
             <!-- Priority -->
             <div class="w-32">
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Priority</label>
@@ -140,7 +151,7 @@
                     <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>
                     Filter
                 </button>
-                {% if current_search or current_status or current_wo_type or current_priority or date_from or date_to %}
+                {% if current_search or current_status or current_wo_type or current_priority or current_account or date_from or date_to %}
                 <a href="{% url 'workorders:workorder_list_enhanced' %}" class="px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm">
                     Clear
                 </a>
@@ -158,6 +169,7 @@
             <thead>
                 <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
                     <th class="px-4 py-3 font-medium">WO #</th>
+                    <th class="px-4 py-3 font-medium">Account</th>
                     <th class="px-4 py-3 font-medium">Type</th>
                     <th class="px-4 py-3 font-medium">Customer</th>
                     <th class="px-4 py-3 font-medium">Serial #</th>
@@ -181,6 +193,7 @@
                     <th class="px-4 py-2"><input type="text" class="col-filter" data-col="7" placeholder="Filter..."></th>
                     <th class="px-4 py-2"><input type="text" class="col-filter" data-col="8" placeholder="Filter..."></th>
                     <th class="px-4 py-2"><input type="text" class="col-filter" data-col="9" placeholder="Filter..."></th>
+                    <th class="px-4 py-2"><input type="text" class="col-filter" data-col="10" placeholder="Filter..."></th>
                     <th class="px-4 py-2"></th>
                 </tr>
             </thead>
@@ -191,6 +204,15 @@
                         <a href="{% url 'workorders:workorder_detail_enhanced' wo.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
                             {{ wo.wo_number }}
                         </a>
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if wo.account %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                            {{ wo.account.code }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
                     </td>
                     <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ wo.get_wo_type_display }}</td>
                     <td class="px-4 py-3 text-gray-900 dark:text-white">{{ wo.customer.name|default:"--" }}</td>

@@ -144,6 +144,105 @@ class WorkOrderForm(forms.ModelForm):
         return cleaned_data
 
 
+class WorkOrderCreateEnhancedForm(forms.ModelForm):
+    """
+    Enhanced WO creation form with account-driven WO number generation.
+    Account selection determines: WO number format, workflow type, pricing mode.
+    """
+    INPUT_CLASS = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+
+    class Meta:
+        model = WorkOrder
+        fields = [
+            'account',
+            'wo_type',
+            'drill_bit',
+            'design',
+            'bom',
+            'customer',
+            'priority',
+            'due_date',
+            'description',
+            'notes',
+        ]
+        widgets = {
+            'account': forms.Select(attrs={
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+                'id': 'id_account',
+            }),
+            'wo_type': forms.Select(attrs={
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+            }),
+            'drill_bit': forms.Select(attrs={
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+            }),
+            'design': forms.Select(attrs={
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+            }),
+            'bom': forms.Select(attrs={
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+            }),
+            'customer': forms.Select(attrs={
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+            }),
+            'priority': forms.Select(attrs={
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+            }),
+            'due_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+            }),
+            'description': forms.Textarea(attrs={
+                'rows': 3,
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+                'placeholder': 'Work description...',
+            }),
+            'notes': forms.Textarea(attrs={
+                'rows': 2,
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+                'placeholder': 'Additional notes...',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from apps.sales.models import Account
+        from apps.technology.models import BOM, Design
+
+        # Account - required, ordered by sort_order
+        self.fields['account'].queryset = Account.objects.filter(is_active=True).order_by('sort_order')
+        self.fields['account'].required = True
+        self.fields['account'].empty_label = '-- Select Account --'
+
+        # Drill bit - optional
+        self.fields['drill_bit'].queryset = DrillBit.objects.order_by('-created_at')[:200]
+        self.fields['drill_bit'].required = False
+        self.fields['drill_bit'].empty_label = '-- No Drill Bit --'
+        self.fields['drill_bit'].label_from_instance = lambda obj: f"{obj.serial_number} ({obj.get_status_display()})"
+
+        # Design - optional
+        self.fields['design'].queryset = Design.objects.select_related('size').order_by('mat_no')
+        self.fields['design'].required = False
+        self.fields['design'].empty_label = '-- No Design --'
+        self.fields['design'].label_from_instance = lambda obj: f"{obj.mat_no} - {obj.hdbs_type or ''}"
+
+        # BOM - optional
+        self.fields['bom'].queryset = BOM.objects.filter(status='ACTIVE').select_related('design').order_by('code')
+        self.fields['bom'].required = False
+        self.fields['bom'].empty_label = '-- No BOM --'
+        self.fields['bom'].label_from_instance = lambda obj: f"{obj.code} ({obj.name or 'L5'})"
+
+        # Customer - optional
+        self.fields['customer'].required = False
+
+        # Due date - optional
+        self.fields['due_date'].required = False
+
+        # Description and notes - optional
+        self.fields['description'].required = False
+        self.fields['notes'].required = False
+
+
 class WorkOrderStatusForm(forms.Form):
     """
     Form for updating work order status (used with HTMX).

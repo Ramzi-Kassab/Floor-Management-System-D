@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}New Work Order - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">New Work Order</h1>
+        <p class="text-gray-600 dark:text-gray-400">Create a new work order with account-based numbering</p>
+    </div>
+    <a href="{% url 'workorders:workorder_list_enhanced' %}"
+       class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+        Back to List
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="woCreateForm()" x-init="init()">
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Account Selection (Primary) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="building-2" class="w-5 h-5 mr-2 text-blue-500"></i>
+                Account & Type
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Account -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account *</label>
+                    {{ form.account }}
+                    {% if form.account.errors %}<p class="mt-1 text-sm text-red-600">{{ form.account.errors.0 }}</p>{% endif %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" x-show="selectedAccount">
+                        Format: <span x-text="accountInfo.legacy_format" class="font-mono"></span>
+                    </p>
+                </div>
+                <!-- WO Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">WO Type *</label>
+                    {{ form.wo_type }}
+                    {% if form.wo_type.errors %}<p class="mt-1 text-sm text-red-600">{{ form.wo_type.errors.0 }}</p>{% endif %}
+                </div>
+                <!-- Priority -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
+                    {{ form.priority }}
+                </div>
+            </div>
+
+            <!-- Account Info Card -->
+            <div x-show="selectedAccount" x-cloak
+                 class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                        <span class="text-blue-600 dark:text-blue-400 font-medium">Workflow:</span>
+                        <span class="text-gray-700 dark:text-gray-300 ml-1" x-text="accountInfo.workflow_type"></span>
+                    </div>
+                    <div>
+                        <span class="text-blue-600 dark:text-blue-400 font-medium">Pricing:</span>
+                        <span class="text-gray-700 dark:text-gray-300 ml-1" x-text="accountInfo.pricing_mode"></span>
+                    </div>
+                    <div>
+                        <span class="text-blue-600 dark:text-blue-400 font-medium">Max Repairs:</span>
+                        <span class="text-gray-700 dark:text-gray-300 ml-1" x-text="accountInfo.max_repairs || 'Unlimited'"></span>
+                    </div>
+                    <div>
+                        <span class="text-blue-600 dark:text-blue-400 font-medium">Delivery:</span>
+                        <span class="text-gray-700 dark:text-gray-300 ml-1" x-text="accountInfo.delivery_location"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Drill Bit & Design -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="disc" class="w-5 h-5 mr-2 text-green-500"></i>
+                Drill Bit & Design
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Drill Bit (Serial #)</label>
+                    {{ form.drill_bit }}
+                    {% if form.drill_bit.errors %}<p class="mt-1 text-sm text-red-600">{{ form.drill_bit.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Design (L3/L4)</label>
+                    {{ form.design }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">BOM (L5)</label>
+                    {{ form.bom }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Customer & Schedule -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="calendar" class="w-5 h-5 mr-2 text-purple-500"></i>
+                Customer & Schedule
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Customer</label>
+                    {{ form.customer }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date</label>
+                    {{ form.due_date }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Description -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="file-text" class="w-5 h-5 mr-2 text-gray-500"></i>
+                Description
+            </h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Work Description</label>
+                    {{ form.description }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'workorders:workorder_list_enhanced' %}"
+               class="px-6 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm font-medium">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium inline-flex items-center">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                Create Work Order
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function woCreateForm() {
+    return {
+        selectedAccount: null,
+        accountInfo: {},
+        accounts: {
+            {% for acc in accounts %}
+            '{{ acc.pk }}': {
+                code: '{{ acc.code }}',
+                workflow_type: '{{ acc.get_workflow_type_display }}',
+                pricing_mode: '{{ acc.get_pricing_mode_display }}',
+                max_repairs: '{{ acc.max_repairs|default_if_none:"" }}',
+                delivery_location: '{{ acc.delivery_location }}',
+                legacy_format: '{{ acc.legacy_wo_format }}',
+            },
+            {% endfor %}
+        },
+
+        init() {
+            const accountSelect = document.getElementById('id_account');
+            if (accountSelect) {
+                accountSelect.addEventListener('change', () => this.onAccountChange(accountSelect.value));
+                if (accountSelect.value) this.onAccountChange(accountSelect.value);
+            }
+        },
+
+        onAccountChange(val) {
+            this.selectedAccount = val;
+            this.accountInfo = this.accounts[val] || {};
+        }
+    };
+}
+</script>
+{% endblock %}

@@ -74,6 +74,7 @@ urlpatterns = [
     # Router Sheet
     path("<int:pk>/router-sheet/", views_jobcard.RouterSheetView.as_view(), name="router_sheet"),
     path("<int:wo_pk>/router-sheet/<int:step_number>/scan/", views_jobcard.router_step_scan, name="router_step_scan"),
+    path("<int:wo_pk>/router-sheet/<int:step_number>/api-scan/", views_jobcard.api_router_step_scan, name="api_router_step_scan"),
 
     # QC Forms
     path("<int:wo_pk>/e-checklist/", views_jobcard.EvaluationChecklistView.as_view(), name="e_checklist"),

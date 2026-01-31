@@ -128,7 +128,12 @@ class DrillBit(models.Model):
     )
     is_aramco_contract = models.BooleanField(
         default=False,
-        help_text="If true, serial increments on repair (R1, R2, R3)"
+        help_text="Legacy: use account instead. If true, serial increments on repair."
+    )
+    account = models.ForeignKey(
+        'sales.Account', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='drill_bits',
+        help_text='Account this bit belongs to (LSTK, ARAMCO, UR, L3, L4, ARDT, etc.)'
     )
 
     # Sprint 4: Physical and accounting status
@@ -480,7 +485,12 @@ class WorkOrder(models.Model):
     )
     bom = models.ForeignKey("technology.BOM", on_delete=models.SET_NULL, null=True, blank=True, related_name="work_orders")
 
-    # Customer/Job
+    # Account & Customer
+    account = models.ForeignKey(
+        'sales.Account', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='work_orders',
+        help_text='Account driving WO number, pricing, and workflow rules'
+    )
     customer = models.ForeignKey(
         "sales.Customer", on_delete=models.SET_NULL, null=True, blank=True, related_name="work_orders"
     )
@@ -1377,6 +1387,14 @@ class ProcessRoute(models.Model):
         null=True, blank=True,
         help_text="List of applicable bit types, e.g., ['FC', 'RC']"
     )
+    workflow_type = models.CharField(
+        max_length=20, blank=True, default='REPAIR',
+        help_text='REPAIR or MANUFACTURE — determines which route template to use'
+    )
+    accounts = models.ManyToManyField(
+        'sales.Account', blank=True, related_name='process_routes',
+        help_text='Accounts this route applies to (empty = all accounts)'
+    )
 
     # Status
     is_active = models.BooleanField(default=True)
@@ -1426,6 +1444,16 @@ class ProcessRouteOperation(models.Model):
     # QC requirements
     requires_qc = models.BooleanField(default=False)
     qc_checklist = models.TextField(blank=True)
+
+    # Conditional step
+    is_conditional = models.BooleanField(
+        default=False,
+        help_text='Step marked "If Applicable" — may be skipped'
+    )
+    has_yes_no = models.BooleanField(
+        default=False,
+        help_text='Step requires Yes/No answer (e.g., Cerebro Removal: Yes/No)'
+    )
 
     # Safety
     safety_requirements = models.TextField(blank=True)

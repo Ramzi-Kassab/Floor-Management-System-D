@@ -34,20 +34,40 @@ from decimal import Decimal
 
 class Account(models.Model):
     """
-    Aramco division accounts.
-    Accounts are used to track which SMI types are used by which Aramco division.
-    Examples: Oil, Gas, LSTK, Offshore
+    ARDT Work Order Accounts.
+    Each account drives: WO number format, contract details, pricing rules,
+    allowed cutter variants, evaluation workflow, max repair limits, etc.
+    Examples: LSTK, ARAMCO, UR, L3, L4, ARDT, HALLIBURTON, Hal_Regional, WFD, RC-LSTK, SUB
     """
+
+    class WOFormat(models.TextChoices):
+        """WO number format templates. {YYYY}=year, {SEQ}=sequence number."""
+        STANDARD = 'STANDARD', 'YYYY-CODE-NNN'           # e.g. 2025-AR-001
+        NUMERIC = 'NUMERIC', 'YYYYNNNN'                   # e.g. 20251001
+        SUFFIX = 'SUFFIX', 'YYYYNNNN-SUFFIX'              # e.g. 20251001-HDBSC
+
+    class PricingMode(models.TextChoices):
+        STANDARD = 'STANDARD', 'Standard (Book Stock)'
+        LSTK = 'LSTK', 'LSTK Pricing'
+        ARAMCO = 'ARAMCO', 'ARAMCO Contract Pricing'
+        ZERO = 'ZERO', 'Zero (Internal / Partner)'
+        REGIONAL = 'REGIONAL', 'Regional Pricing'
+
+    class WorkflowType(models.TextChoices):
+        REPAIR = 'REPAIR', 'Repair / Rework'
+        MANUFACTURE = 'MANUFACTURE', 'New Build (L3/L4)'
+        BOTH = 'BOTH', 'Both Repair and Manufacture'
+
     code = models.CharField(
         max_length=20,
         unique=True,
         verbose_name='Account Code',
-        help_text='Short code (e.g., OIL, GAS, LSTK, OFFSHORE)'
+        help_text='Short code (e.g., LSTK, ARAMCO, UR)'
     )
     name = models.CharField(
         max_length=100,
         verbose_name='Account Name',
-        help_text='Full name (e.g., Oil Division, Gas Division)'
+        help_text='Full display name'
     )
     name_ar = models.CharField(
         max_length=100,
@@ -65,18 +85,149 @@ class Account(models.Model):
         help_text='Primary sales contact for this account'
     )
     description = models.TextField(blank=True)
+
+    # --- WO Number Generation ---
+    wo_prefix = models.CharField(
+        max_length=20, blank=True,
+        help_text='WO number prefix code (e.g., AR, ARDT-LV3, RC). Used in STANDARD format.'
+    )
+    wo_format = models.CharField(
+        max_length=20, choices=WOFormat.choices, default=WOFormat.STANDARD,
+        help_text='WO number format template'
+    )
+    wo_suffix = models.CharField(
+        max_length=20, blank=True,
+        help_text='WO number suffix (e.g., HDBSC, REG). Used in SUFFIX format.'
+    )
+    wo_seq_padding = models.IntegerField(
+        default=3,
+        help_text='Sequence number padding (3 → 001, 4 → 0001)'
+    )
+    wo_seq_start = models.IntegerField(
+        default=1,
+        help_text='Sequence start number (1 for most accounts, 1001 for UR/WFD)'
+    )
+    legacy_wo_format = models.CharField(
+        max_length=50, blank=True,
+        help_text='Legacy display format description (for reference)'
+    )
+
+    # --- Contract & Pricing ---
+    contract_number = models.CharField(
+        max_length=50, blank=True,
+        help_text='Contract number (e.g., 960031408 for LSTK, 6600048646 for ARAMCO)'
+    )
+    pricing_mode = models.CharField(
+        max_length=20, choices=PricingMode.choices, default=PricingMode.STANDARD
+    )
+    vendor_number = models.CharField(
+        max_length=50, blank=True, default='10012130',
+        help_text='ARDT vendor number for this account'
+    )
+
+    # --- Workflow & Rules ---
+    workflow_type = models.CharField(
+        max_length=20, choices=WorkflowType.choices, default=WorkflowType.REPAIR,
+        help_text='Primary workflow type for this account'
+    )
+    max_repairs = models.IntegerField(
+        null=True, blank=True,
+        help_text='Maximum allowed repairs (null = unlimited, 2 for ARAMCO)'
+    )
+    repair_suffix_format = models.CharField(
+        max_length=20, blank=True,
+        help_text='Repair suffix display format (e.g., "R{n}" for ARAMCO → R, R2)'
+    )
+    delivery_location = models.CharField(
+        max_length=100, blank=True, default='HDBS Warehouse',
+        help_text='Default delivery destination'
+    )
+    reviewer_label = models.CharField(
+        max_length=50, blank=True, default='Reviewed by Eng.',
+        help_text='Label for reviewer field (e.g., "DTD/TSSD:" for ARAMCO)'
+    )
+
+    # --- Linked Customer ---
+    customer = models.ForeignKey(
+        'Customer', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='linked_accounts',
+        help_text='Default customer for this account (e.g., Halliburton for LSTK)'
+    )
+
     is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0, help_text='Display order in dropdowns')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "accounts"
-        ordering = ['code']
+        ordering = ['sort_order', 'code']
         verbose_name = "Account"
         verbose_name_plural = "Accounts"
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    def generate_wo_number(self, year=None):
+        """
+        Generate next WO number for this account in the given year.
+        Thread-safe via select_for_update on NumberSequence.
+        """
+        from apps.organization.models import NumberSequence
+        from django.db import transaction
+        import datetime
+
+        if year is None:
+            year = datetime.date.today().year
+
+        seq_code = f"WO-{self.code}-{year}"
+
+        with transaction.atomic():
+            seq, created = NumberSequence.objects.select_for_update().get_or_create(
+                code=seq_code,
+                defaults={
+                    'name': f"WO sequence for {self.code} ({year})",
+                    'prefix': '',
+                    'suffix': '',
+                    'padding': self.wo_seq_padding,
+                    'current_value': self.wo_seq_start - 1,
+                    'increment_by': 1,
+                    'reset_period': 'YEARLY',
+                }
+            )
+            seq.current_value += 1
+            seq.save(update_fields=['current_value'])
+            seq_num = seq.current_value
+
+        if self.wo_format == self.WOFormat.STANDARD:
+            # YYYY-PREFIX-NNN  e.g. 2025-AR-001
+            return f"{year}-{self.wo_prefix}-{str(seq_num).zfill(self.wo_seq_padding)}"
+        elif self.wo_format == self.WOFormat.NUMERIC:
+            # YYYYNNNN  e.g. 20251001
+            return f"{year}{str(seq_num).zfill(self.wo_seq_padding)}"
+        elif self.wo_format == self.WOFormat.SUFFIX:
+            # YYYYNNNN-SUFFIX  e.g. 20251001-HDBSC
+            return f"{year}{str(seq_num).zfill(self.wo_seq_padding)}-{self.wo_suffix}"
+        else:
+            return f"{year}-{self.wo_prefix}-{str(seq_num).zfill(self.wo_seq_padding)}"
+
+    def get_repair_suffix(self, repair_count):
+        """
+        Get the display suffix for a given repair count.
+        ARAMCO: R (1st), R2 (2nd). Others: R1, R2, R3...
+        """
+        if not self.repair_suffix_format:
+            if repair_count == 0:
+                return ''
+            return f"R{repair_count}"
+        # Template: "R{n}" → R for first, R2 for second
+        if self.repair_suffix_format == 'R{n}':
+            if repair_count == 0:
+                return ''
+            if repair_count == 1:
+                return 'R'
+            return f"R{repair_count}"
+        return f"R{repair_count}" if repair_count > 0 else ''
 
 
 # =============================================================================

@@ -103,36 +103,49 @@ class WorkOrderDetailView(LoginRequiredMixin, DetailView):
 
 class WorkOrderCreateView(LoginRequiredMixin, CreateView):
     """
-    Create a new work order.
+    Create a new work order with account-based WO number generation.
     """
-
     model = WorkOrder
-    form_class = WorkOrderForm
-    template_name = "workorders/workorder_form.html"
+    template_name = "workorders/workorder_create.html"
+
+    def get_form_class(self):
+        from .forms import WorkOrderCreateEnhancedForm
+        return WorkOrderCreateEnhancedForm
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "New Work Order"
+        from apps.sales.models import Account
+        context["accounts"] = Account.objects.filter(is_active=True).order_by('sort_order')
         return context
 
     def form_valid(self, form):
+        account = form.cleaned_data.get('account')
         form.instance.created_by = self.request.user
-        form.instance.wo_number = self.generate_wo_number()
+
+        # Generate WO number from account
+        if account:
+            form.instance.wo_number = account.generate_wo_number()
+            # Auto-set customer from account if not set
+            if not form.instance.customer and account.customer:
+                form.instance.customer = account.customer
+        else:
+            # Fallback to old method
+            form.instance.wo_number = self.generate_wo_number()
+
         messages.success(self.request, f"Work order {form.instance.wo_number} created successfully.")
         return super().form_valid(form)
 
     def generate_wo_number(self):
-        """Generate unique work order number."""
+        """Fallback WO number generation."""
         prefix = getattr(settings, "ARDT_WO_NUMBER_PREFIX", "WO")
         padding = getattr(settings, "ARDT_WO_NUMBER_PADDING", 6)
-
         last_wo = WorkOrder.objects.order_by("-id").first()
         next_number = (last_wo.id + 1) if last_wo else 1
-
         return f"{prefix}-{str(next_number).zfill(padding)}"
 
     def get_success_url(self):
-        return reverse_lazy("workorders:detail", kwargs={"pk": self.object.pk})
+        return reverse_lazy("workorders:workorder_detail_enhanced", kwargs={"pk": self.object.pk})
 
 
 class WorkOrderUpdateView(LoginRequiredMixin, UpdateView):

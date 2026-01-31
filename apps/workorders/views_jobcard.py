@@ -120,7 +120,7 @@ class WorkOrderListEnhancedView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = WorkOrder.objects.select_related(
-            "customer", "drill_bit", "assigned_to", "design", "bom"
+            "customer", "drill_bit", "assigned_to", "design", "bom", "account"
         ).order_by("-created_at")
 
         # Filter by status
@@ -142,6 +142,11 @@ class WorkOrderListEnhancedView(LoginRequiredMixin, ListView):
         customer_id = self.request.GET.get("customer")
         if customer_id:
             queryset = queryset.filter(customer_id=customer_id)
+
+        # Filter by account
+        account_id = self.request.GET.get("account")
+        if account_id:
+            queryset = queryset.filter(account_id=account_id)
 
         # Search
         search = self.request.GET.get("search")
@@ -172,10 +177,12 @@ class WorkOrderListEnhancedView(LoginRequiredMixin, ListView):
         context["priority_choices"] = WorkOrder.Priority.choices
 
         # Get unique customers for filter
-        from apps.sales.models import Customer
+        from apps.sales.models import Customer, Account
         context["customers"] = Customer.objects.filter(
             work_orders__isnull=False
         ).distinct().order_by('name')
+        context["accounts"] = Account.objects.filter(is_active=True).order_by('sort_order')
+        context["current_account"] = self.request.GET.get("account", "")
 
         # Current filters
         context["current_status"] = self.request.GET.get("status", "")
@@ -669,48 +676,19 @@ class RouterSheetView(LoginRequiredMixin, TemplateView):
         # Get or create router entries from process route
         entries = list(wo.router_entries.order_by('step_number'))
 
-        # If no entries and there's a procedure, create from template
-        if not entries and wo.procedure:
-            # Create entries from procedure steps
-            for step in wo.procedure.steps.order_by('order'):
-                RouterSheetEntry.objects.get_or_create(
-                    work_order=wo,
-                    step_number=step.order,
-                    defaults={
-                        'step_description': step.name,
-                    }
-                )
-            entries = list(wo.router_entries.order_by('step_number'))
-
-        # If still no entries, create default FC repair steps
-        if not entries and wo.wo_type in ['FC_REPAIR', 'FC_REWORK']:
-            default_steps = [
-                "Nozzle Removal",
-                "Cerebro Removal (if applicable)",
-                "O-Ring Removal (if applicable)",
-                "Washing",
-                "Sand Blasting",
-                "Pressure Test (if applicable)",
-                "Die Check",
-                "Photos & Evaluation",
-                "Bit Head Preparation",
-                "De-Brazing (if applicable)",
-                "Matrix or Hardfacing Repair (if applicable)",
-                "Pocket, Blade or IA Grinding (if applicable)",
-                "Sand Blasting",
-                "Bit Head Preparation For Brazing",
-                "Brazing",
-                "Final Grinding",
-                "Cleaning & Packaging",
-                "Final Inspection",
-            ]
-            for i, desc in enumerate(default_steps, 1):
-                RouterSheetEntry.objects.get_or_create(
-                    work_order=wo,
-                    step_number=i,
-                    defaults={'step_description': desc}
-                )
-            entries = list(wo.router_entries.order_by('step_number'))
+        # If no entries exist, create from the appropriate ProcessRoute
+        if not entries:
+            route = self._get_route_for_wo(wo)
+            if route:
+                for op in route.operations.order_by('sequence'):
+                    RouterSheetEntry.objects.get_or_create(
+                        work_order=wo,
+                        step_number=op.sequence,
+                        defaults={
+                            'step_description': op.operation_name,
+                        }
+                    )
+                entries = list(wo.router_entries.order_by('step_number'))
 
         context['entries'] = entries
 
@@ -719,6 +697,31 @@ class RouterSheetView(LoginRequiredMixin, TemplateView):
         context['wo_qr'] = generate_work_order_qr(wo, base_url)
 
         return context
+
+    def _get_route_for_wo(self, wo):
+        """Find the appropriate ProcessRoute for this work order."""
+        # Determine workflow type from account
+        is_manufacture = False
+        if wo.account:
+            if wo.account.workflow_type == 'MANUFACTURE':
+                is_manufacture = True
+            elif wo.account.code in ('L3', 'L4'):
+                is_manufacture = True
+
+        # Also check WO type
+        if wo.wo_type in ('FC_NEW', 'RC_NEW'):
+            is_manufacture = True
+
+        if is_manufacture:
+            route = ProcessRoute.objects.filter(
+                route_number='RT-FC-MANUFACTURE', is_active=True
+            ).first()
+        else:
+            route = ProcessRoute.objects.filter(
+                route_number='RT-FC-REPAIR', is_active=True
+            ).first()
+
+        return route
 
 
 @login_required
@@ -753,6 +756,62 @@ def router_step_scan(request, wo_pk, step_number):
         })
 
     return redirect('workorders:router_sheet', pk=wo_pk)
+
+
+@login_required
+def api_router_step_scan(request, wo_pk, step_number):
+    """
+    API endpoint for QR scan - start/complete a router step.
+    Returns JSON response for HTMX/fetch usage.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    wo = get_object_or_404(WorkOrder, pk=wo_pk)
+    entry = get_object_or_404(RouterSheetEntry, work_order=wo, step_number=step_number)
+
+    action = request.POST.get('action', 'start')
+    station_qr = request.POST.get('station_qr', '')
+
+    if action == 'start':
+        if entry.qr_scan_start:
+            return JsonResponse({'error': 'Step already started', 'success': False})
+        entry.qr_scan_start = timezone.now()
+        entry.operator = request.user
+        entry.station_qr = station_qr
+        entry.save()
+        return JsonResponse({
+            'success': True,
+            'step_number': step_number,
+            'action': 'started',
+            'started_at': entry.qr_scan_start.isoformat(),
+            'operator': request.user.get_short_name() or request.user.username,
+        })
+    elif action == 'end':
+        if not entry.qr_scan_start:
+            return JsonResponse({'error': 'Step not started yet', 'success': False})
+        if entry.is_complete:
+            return JsonResponse({'error': 'Step already completed', 'success': False})
+        entry.qr_scan_end = timezone.now()
+        entry.is_complete = True
+        entry.save()
+        return JsonResponse({
+            'success': True,
+            'step_number': step_number,
+            'action': 'completed',
+            'completed_at': entry.qr_scan_end.isoformat(),
+            'duration_minutes': entry.duration_minutes,
+        })
+    elif action == 'skip':
+        entry.is_complete = True
+        entry.save()
+        return JsonResponse({
+            'success': True,
+            'step_number': step_number,
+            'action': 'skipped',
+        })
+
+    return JsonResponse({'error': f'Unknown action: {action}', 'success': False})
 
 
 # =============================================================================
