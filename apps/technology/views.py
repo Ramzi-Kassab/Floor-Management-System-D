@@ -1144,7 +1144,7 @@ class BOMCloneView(LoginRequiredMixin, View):
                 inventory_item=line.inventory_item,
                 display_name=line.display_name,
                 quantity=line.quantity,
-                color=line.color,
+                color_code=line.color_code,
                 notes=line.notes,
             )
 
