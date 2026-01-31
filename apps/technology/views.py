@@ -2203,27 +2203,12 @@ class HDBSTypeListView(LoginRequiredMixin, ListView):
     model = HDBSType
     template_name = "technology/hdbs_type_list.html"
     context_object_name = "hdbs_types"
-    paginate_by = 25
 
     def get_queryset(self):
-        queryset = HDBSType.objects.prefetch_related('smi_types', 'smi_types__size', 'sizes').order_by('hdbs_name')
-
-        search = self.request.GET.get("q")
-        if search:
-            queryset = queryset.filter(
-                Q(hdbs_name__icontains=search) |
-                Q(description__icontains=search) |
-                Q(smi_types__smi_name__icontains=search)
-            ).distinct()
-
-        size = self.request.GET.get("size")
-        if size:
-            queryset = queryset.filter(sizes__id=size)
-
-        if not self.request.GET.get("show_inactive"):
-            queryset = queryset.filter(is_active=True)
-
-        return queryset
+        # Load all records — filtering/pagination handled client-side
+        return HDBSType.objects.prefetch_related(
+            'smi_types', 'smi_types__size', 'sizes'
+        ).order_by('hdbs_name')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
