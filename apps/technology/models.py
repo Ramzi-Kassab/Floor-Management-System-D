@@ -1093,6 +1093,25 @@ class BOM(models.Model):
         help_text="Original baseline source data (set on first creation, never modified)"
     )
 
+    # Original / Serial copy tracking
+    is_original = models.BooleanField(
+        default=False,
+        help_text="Mark as Original (master template). Protected from serial-specific overwrites."
+    )
+    serial_number = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Serial number this BOM was created for (empty = generic/original)"
+    )
+    parent_bom = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='serial_copies',
+        help_text="Original BOM this was copied from (for serial-specific copies)"
+    )
+
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

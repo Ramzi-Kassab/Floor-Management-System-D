@@ -1098,6 +1098,11 @@
                     {% if bom_context.design_size %}<span><strong>Size:</strong> {{ bom_context.design_size }}</span>{% endif %}
                     {% if bom_context.smi_type %}<span><strong>SMI:</strong> {{ bom_context.smi_type }}</span>{% endif %}
                     {% if bom_context.serial_number %}<span style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 3px;"><strong>SN:</strong> {{ bom_context.serial_number }}</span>{% endif %}
+                    <!-- Original Badge -->
+                    <span id="originalBadge" style="background: {% if bom_context.is_original == 'true' %}#f59e0b{% else %}rgba(255,255,255,0.15){% endif %}; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: bold; cursor: pointer; user-select: none;"
+                          onclick="toggleOriginal()" title="Click to toggle Original status">
+                        {% if bom_context.is_original == 'true' %}★ ORIGINAL{% else %}☆ Set as Original{% endif %}
+                    </span>
                 </div>
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
@@ -1140,6 +1145,16 @@
     <input type="hidden" id="bomId" value="{{ bom_context.bom_id }}">
     <input type="hidden" id="bomCode" value="{{ bom_context.bom_code }}">
     <input type="hidden" id="bomStatus" value="{{ bom_context.bom_status }}">
+    <input type="hidden" id="smiTypeId" value="{{ bom_context.smi_type_id|default:'' }}">
+    <input type="hidden" id="iadcCodeId" value="{{ bom_context.iadc_code_id|default:'' }}">
+    <input type="hidden" id="bomIsOriginal" value="{{ bom_context.is_original|default:'false' }}">
+    <input type="hidden" id="bomSerialNumber" value="{{ bom_context.serial_number|default:'' }}">
+    <input type="hidden" id="parentBomId" value="{{ bom_context.parent_bom_id|default:'' }}">
+    <!-- Drill bit context (passed via query params) -->
+    <input type="hidden" id="drillbitId" value="{{ bom_context.drillbit_id|default:'' }}">
+    <input type="hidden" id="serialNumber" value="{{ bom_context.serial_number_param|default:'' }}">
+    <input type="hidden" id="drillbitIds" value="[]">
+    <input type="hidden" id="serialNumbers" value="[]">
     <input type="hidden" id="bomViewMode" value="true">
     {% elif design_context %}
     <!-- Design Context Banner - Shown when coming from BOM Create -->
@@ -8126,6 +8141,20 @@
                     serialNumbers = [];
                 }
             }
+            // Fallback: single serial from drillbit context
+            if (!serialNumbers.length) {
+                const snEl = document.getElementById('serialNumber');
+                if (snEl && snEl.value) serialNumbers = [snEl.value];
+            }
+
+            // Detect drill bit context for auto-appending serial to brazing MAT
+            const contextDrillbitId = document.getElementById('drillbitId')?.value || '';
+            const contextSerialNumber = document.getElementById('serialNumber')?.value || '';
+            let brazingMat = editState.brazingMat || formData.header.mat_number || '';
+            // If from drill bit and serial not already in brazing MAT, append it
+            if (contextSerialNumber && brazingMat && !brazingMat.includes(contextSerialNumber)) {
+                brazingMat = brazingMat + '-' + contextSerialNumber;
+            }
 
             const payload = {
                 design_id: designId || null,
@@ -8133,9 +8162,9 @@
                 document_id: currentData.document_id || null,
                 drillbit_ids: drillbitIds,  // Link to multiple drill bits
                 bom_type: editState.bomType || 'BRAZING',  // BRAZING (internal) or SYSTEM (client-facing)
-                brazing_mat: editState.brazingMat || formData.header.mat_number || '',
+                brazing_mat: brazingMat,
                 system_mat: editState.systemMat || formData.header.mat_number || '',
-                serial_number: editState.newSerialNumber || formData.header.sn_number || '',
+                serial_number: contextSerialNumber || editState.newSerialNumber || formData.header.sn_number || '',
                 data: {
                     header: formData.header,
                     summary: formData.summary,
@@ -8203,26 +8232,34 @@
                 `;
             }
 
-            // Save mode options (only show when editing existing BOM)
+            // Detect drill bit context
+            const hasDrillbitContext = !!(document.getElementById('drillbitId')?.value || document.getElementById('serialNumber')?.value);
+            const bomIsOriginal = document.getElementById('bomIsOriginal')?.value === 'true';
+            // Force create_new when: from drill bit context, or BOM is original, or linked to other SNs
+            const forceCreateNew = hasDrillbitContext || bomIsOriginal;
+
+            // Save mode options (show when editing existing BOM or from drill bit context)
             let saveModeHtml = '';
-            if (isEditingExistingBOM) {
+            if (isEditingExistingBOM || hasDrillbitContext) {
+                const updateDisabled = forceCreateNew ? 'disabled' : '';
+                const updateNote = forceCreateNew ? ' (protected — original or drill-bit context)' : '';
                 saveModeHtml = `
                     <div style="margin-bottom: 15px; padding: 12px; background: #f5f5f5; border-radius: 6px;">
                         <div style="font-size: 12px; font-weight: bold; color: #333; margin-bottom: 10px;">Save Options:</div>
-                        <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; margin-bottom: 8px;">
-                            <input type="radio" name="saveMode" value="update" ${existingLinkedSNs.length === 0 ? 'checked' : ''}
+                        <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; margin-bottom: 8px; ${forceCreateNew ? 'opacity: 0.5;' : ''}">
+                            <input type="radio" name="saveMode" value="update" ${!forceCreateNew && existingLinkedSNs.length === 0 ? 'checked' : ''} ${updateDisabled}
                                    style="margin-top: 2px;">
                             <div>
-                                <span style="font-weight: 500; color: #333;">Update existing BOM</span>
+                                <span style="font-weight: 500; color: #333;">Update existing BOM${updateNote}</span>
                                 <div style="font-size: 11px; color: #666;">Replace current BOM data (code: ${existingBomCode})</div>
                             </div>
                         </label>
                         <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer;">
-                            <input type="radio" name="saveMode" value="create_new" ${existingLinkedSNs.length > 0 ? 'checked' : ''}
+                            <input type="radio" name="saveMode" value="create_new" ${forceCreateNew || existingLinkedSNs.length > 0 ? 'checked' : ''}
                                    style="margin-top: 2px;">
                             <div>
                                 <span style="font-weight: 500; color: #333;">Create as new BOM</span>
-                                <div style="font-size: 11px; color: #666;">Keep original, create new BOM with suffix (e.g., ${existingBomCode}-001)</div>
+                                <div style="font-size: 11px; color: #666;">Keep original, create new BOM with serial/suffix</div>
                             </div>
                         </label>
                     </div>
@@ -8386,10 +8423,13 @@
             if (iadcCodeSelect) payload.iadc_code_id = iadcCodeSelect.value || null;
             if (bomStatusSelect) payload.bom_status = bomStatusSelect.value || '';
 
-            // Check save mode (only present when editing existing BOM)
+            // Check save mode (only present when editing existing BOM or drill bit context)
             const saveModeRadio = document.querySelector('input[name="saveMode"]:checked');
             if (saveModeRadio && saveModeRadio.value === 'create_new') {
                 payload.force_create_new = true;
+                // Track parent BOM for serial copies
+                const currentBomId = document.getElementById('bomId')?.value;
+                if (currentBomId) payload.parent_bom_id = currentBomId;
             }
 
             // Close preview dialog
@@ -9516,12 +9556,25 @@
                 return;
             }
 
-            // If opened from a drill bit context with changes, create a NEW BOM
-            // with the serial number in the code, linked to this drill bit
+            // If opened from a drill bit context, create a NEW BOM for this serial
+            // unless this BOM already belongs to this serial (then update it)
             const isFromDrillbit = !!(drillbitId && serialNumber);
+            const bomIsOriginal = document.getElementById('bomIsOriginal')?.value === 'true';
+            const bomSerialNumber = document.getElementById('bomSerialNumber')?.value || '';
+            const parentBomId = document.getElementById('parentBomId')?.value || '';
+            // This BOM already belongs to this serial — safe to update
+            const isSameSerialBOM = bomSerialNumber && bomSerialNumber === serialNumber;
+            // Need new BOM: from drill bit context AND (original OR different serial)
+            const needsNewBOM = isFromDrillbit && !isSameSerialBOM;
+
             let newBomCode = '';
-            if (isFromDrillbit) {
-                newBomCode = bomCode + '-' + serialNumber;
+            if (needsNewBOM) {
+                // Strip existing serial suffix if present, then append new serial
+                let baseBomCode = bomCode;
+                if (bomSerialNumber && baseBomCode.endsWith('-' + bomSerialNumber)) {
+                    baseBomCode = baseBomCode.slice(0, -(bomSerialNumber.length + 1));
+                }
+                newBomCode = baseBomCode + '-' + serialNumber;
             }
 
             // Build payload matching what api_sync_to_erp expects
@@ -9534,22 +9587,26 @@
                     summary: formData.summary,
                     blades: formData.blades,
                     images: formData.images || {},
-                    groups: formData.groups || []
+                    groups: formData.groups || [],
+                    cutter_shapes: currentData.cutter_shapes || {}
                 },
                 create_missing_items: false,
-                update_existing_bom: true  // Signal that we're updating
+                update_existing_bom: !needsNewBOM  // Update only if same serial BOM
             };
 
-            // For drill-bit-specific saves: force new BOM with serial in code
+            // For drill-bit-specific saves
             if (isFromDrillbit) {
-                payload.force_create_new = true;
-                payload.brazing_mat = newBomCode;
                 payload.drillbit_ids = [drillbitId];
                 payload.drillbit_id = drillbitId;
                 payload.serial_number = serialNumber;
             }
+            if (needsNewBOM) {
+                payload.force_create_new = true;
+                payload.brazing_mat = newBomCode;
+                payload.parent_bom_id = bomId;  // Track parent
+            }
 
-            showMsg(isFromDrillbit ? 'Creating new BOM for SN ' + serialNumber + '...' : 'Saving BOM changes...', 'success');
+            showMsg(needsNewBOM ? 'Creating new BOM for SN ' + serialNumber + '...' : 'Saving BOM changes...', 'success');
 
             fetch('/cutter-map/api/sync-to-erp/', {
                 method: 'POST',
@@ -9567,19 +9624,20 @@
                     hasUnsavedChanges = false;
                     checkForChanges();
 
-                    if (isFromDrillbit && result.bom_id) {
+                    if (needsNewBOM && result.bom_id) {
                         // New BOM was created for this serial — update page to point to it
                         var newCode = result.bom_code || newBomCode;
                         showMsg('New BOM "' + newCode + '" created for SN ' + serialNumber + '!', 'success');
                         // Update hidden fields to reflect the new BOM
                         if (document.getElementById('bomId')) document.getElementById('bomId').value = result.bom_id;
                         if (document.getElementById('bomCode')) document.getElementById('bomCode').value = newCode;
-                        // Clear drillbit context so subsequent saves update the new BOM
-                        if (drillbitIdEl) drillbitIdEl.value = '';
-                        if (serialNumberEl) serialNumberEl.value = '';
-                        // Update banner label
+                        // Mark this BOM as belonging to this serial (subsequent saves will update it)
+                        if (document.getElementById('bomSerialNumber')) document.getElementById('bomSerialNumber').value = serialNumber;
+                        if (document.getElementById('bomIsOriginal')) document.getElementById('bomIsOriginal').value = 'false';
+                        if (document.getElementById('parentBomId')) document.getElementById('parentBomId').value = bomId;
+                        // Update banner
                         var bannerLabel = document.querySelector('.bom-banner-label');
-                        if (bannerLabel) bannerLabel.textContent = 'VIEWING BOM';
+                        if (bannerLabel) bannerLabel.textContent = 'BOM FOR SN ' + serialNumber;
                         var bannerMat = document.querySelector('.bom-banner-mat');
                         if (bannerMat) bannerMat.innerHTML = '<strong>MAT:</strong> ' + newCode;
                     } else {
@@ -9658,6 +9716,34 @@
                 console.error('Activate error:', err);
                 showMsg('Error activating BOM: ' + err.message, 'error');
             });
+        }
+
+        function toggleOriginal() {
+            const bomId = document.getElementById('bomId')?.value;
+            if (!bomId) { showMsg('No BOM loaded.', 'error'); return; }
+
+            fetch(`/cutter-map/api/toggle-original/${bomId}/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() }
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    const badge = document.getElementById('originalBadge');
+                    const hidden = document.getElementById('bomIsOriginal');
+                    if (result.is_original) {
+                        if (badge) { badge.textContent = '★ ORIGINAL'; badge.style.background = '#f59e0b'; }
+                        if (hidden) hidden.value = 'true';
+                    } else {
+                        if (badge) { badge.textContent = '☆ Set as Original'; badge.style.background = 'rgba(255,255,255,0.15)'; }
+                        if (hidden) hidden.value = 'false';
+                    }
+                    showMsg(result.message, 'success');
+                } else {
+                    showMsg('Error: ' + (result.error || 'Unknown'), 'error');
+                }
+            })
+            .catch(err => showMsg('Error: ' + err.message, 'error'));
         }
 
         function showReuploadDialog() {

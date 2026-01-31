@@ -193,9 +193,16 @@ def bom_view(request, bom_id):
         'from_bom_view': True,
         'source_data': json.dumps(source_data),  # Pre-serialized for JS
         'linked_serial_numbers': json.dumps(linked_serial_numbers),  # SNs linked to this BOM
+        'smi_type_id': bom.smi_type_id or '',
+        'iadc_code_id': bom.design.iadc_code_ref_id if bom.design else '',
+        # Original / serial copy tracking
+        'is_original': 'true' if bom.is_original else 'false',
+        'serial_number_bom': bom.serial_number or '',  # Serial stored on BOM itself
+        'parent_bom_id': bom.parent_bom_id or '',
         # Drill bit context (from query params)
         'drillbit_id': drillbit_id,
-        'serial_number': serial_number,
+        'serial_number_param': serial_number,  # From URL query param
+        'serial_number': serial_number or bom.serial_number or '',  # Combined for display
     }
 
     form = CutterMapUploadForm()
@@ -811,6 +818,7 @@ def api_sync_to_erp(request):
     iadc_code_id = payload.get('iadc_code_id')  # Optional IADC Code FK (set on Design)
     bom_status = payload.get('bom_status', '')  # Optional BOM status override
     serial_number = payload.get('serial_number', '').strip()  # Optional serial number (from first drill bit)
+    parent_bom_id = payload.get('parent_bom_id')  # Parent BOM ID for serial copies
     data = payload.get('data', {})
 
     # Require either design_id or parent_design_mat
@@ -933,15 +941,22 @@ def api_sync_to_erp(request):
                 from apps.technology.models import SMIType
                 smi_type_obj = SMIType.objects.filter(pk=smi_type_id).first()
 
+            # Resolve parent BOM for serial copies
+            parent_bom_obj = None
+            if parent_bom_id:
+                parent_bom_obj = BOM.objects.filter(pk=parent_bom_id).first()
+
             bom = BOM.objects.create(
                 design=parent_design,
                 code=bom_code,
-                name=f"L5 BOM for {parent_design_mat}",
+                name=f"L5 BOM for {parent_design_mat}" + (f" (SN {serial_number})" if serial_number else ""),
                 revision=header.get('revision_level', 'A'),
                 status=bom_status if bom_status in dict(BOM.Status.choices) else BOM.Status.DRAFT,
                 bom_type=bom_type,  # BRAZING or SYSTEM
                 system_mat_no=system_mat,  # Client-facing MAT
                 smi_type=smi_type_obj,
+                serial_number=serial_number,
+                parent_bom=parent_bom_obj,
                 created_by=request.user
             )
 
@@ -1307,7 +1322,9 @@ def api_sync_to_erp(request):
             'bom_type': bom.bom_type,  # BRAZING or SYSTEM
             'brazing_mat': bom.code,  # Brazing MAT (same as bom_code)
             'system_mat': bom.system_mat_no or '',  # System MAT (client-facing)
-            'serial_number': bom.source_sn_number or '',
+            'serial_number': bom.serial_number or bom.source_sn_number or '',
+            'is_original': bom.is_original,
+            'parent_bom_id': bom.parent_bom_id or '',
             'smi_type_id': bom.smi_type_id or '',
             'iadc_code_id': parent_design.iadc_code_ref_id or '',
             'bom_status': bom.status or '',
@@ -1416,6 +1433,26 @@ def api_activate_bom(request, bom_id):
         'message': f'BOM {bom.code} activated successfully',
         'status': bom.status,
         'lines_count': lines_count
+    })
+
+
+@login_required
+@require_POST
+def api_toggle_original(request, bom_id):
+    """Toggle is_original flag on a BOM."""
+    from apps.technology.models import BOM
+    try:
+        bom = BOM.objects.get(pk=bom_id)
+    except BOM.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'BOM not found'}, status=404)
+
+    bom.is_original = not bom.is_original
+    bom.save(update_fields=['is_original'])
+
+    return JsonResponse({
+        'success': True,
+        'is_original': bom.is_original,
+        'message': f'BOM {bom.code} {"marked as Original" if bom.is_original else "unmarked as Original"}'
     })
 
 
