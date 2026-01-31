@@ -2188,8 +2188,17 @@ class BitSizeDeleteView(LoginRequiredMixin, DeleteView):
     success_url = reverse_lazy("technology:bit_size_list")
 
     def form_valid(self, form):
-        messages.success(self.request, f"Bit Size {self.object.size_display} deleted.")
-        return super().form_valid(form)
+        try:
+            messages.success(self.request, f"Bit Size {self.object.size_display} deleted.")
+            return super().form_valid(form)
+        except Exception:
+            messages.error(
+                self.request,
+                f"Cannot delete {self.object.size_display} — it is referenced by designs, "
+                f"SMI types, or other records. Reassign those records first, or use the "
+                f"merge_duplicate_sizes management command."
+            )
+            return redirect("technology:bit_size_list")
 
 
 # =============================================================================
