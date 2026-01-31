@@ -458,6 +458,7 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
         # ── Design pocket layout ──
         design = bit.design
         if design:
+            import json as _json
             from apps.technology.models import DesignPocket, DesignPocketConfig
             pockets = DesignPocket.objects.filter(
                 design=design
@@ -473,14 +474,47 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
             ).order_by('order')
             context["pocket_configs"] = pocket_configs
 
-            # Group pockets by blade for layout display
-            blades_dict = {}
+            # Build grid data, row separators, location data for Alpine.js read-only grid
+            grid_data = {}
+            location_data = {}
+            engagement_data = {}
+            positions_by_row = {}
             for p in pockets:
-                blade_key = p.blade_number
-                if blade_key not in blades_dict:
-                    blades_dict[blade_key] = []
-                blades_dict[blade_key].append(p)
-            context["pockets_by_blade"] = dict(sorted(blades_dict.items()))
+                key = f"{p.blade_number}_{p.position_in_blade}"
+                grid_data[key] = p.pocket_config_id
+                if p.blade_location:
+                    location_data[key] = p.blade_location
+                if p.engagement_order:
+                    engagement_data[key] = p.engagement_order
+                if p.row_number not in positions_by_row:
+                    positions_by_row[p.row_number] = []
+                positions_by_row[p.row_number].append(p.position_in_blade)
+
+            row_separators = []
+            for row_num in sorted(positions_by_row.keys())[:-1]:
+                row_separators.append(max(positions_by_row[row_num]))
+
+            context["pocket_grid_data_json"] = _json.dumps(grid_data)
+            context["pocket_row_separators_json"] = _json.dumps(sorted(row_separators))
+            context["pocket_location_data_json"] = _json.dumps(location_data)
+            context["pocket_engagement_data_json"] = _json.dumps(engagement_data)
+
+            # Generate display colors for configs (same as DesignPocketsView)
+            colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+                      '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1']
+            config_data = {}
+            for i, cfg in enumerate(pocket_configs):
+                dc = cfg.color_code if cfg.color_code else colors[i % len(colors)]
+                cfg.display_color = dc
+                config_data[cfg.pk] = {
+                    "count": cfg.count,
+                    "order": cfg.order,
+                    "color": dc,
+                    "name": cfg.pocket_size.display_name if cfg.pocket_size else '',
+                    "sizeCode": cfg.pocket_size.code if cfg.pocket_size else '',
+                }
+            context["pocket_config_data_json"] = _json.dumps(config_data)
+            context["config_total"] = sum(cfg.count for cfg in pocket_configs)
 
         return context
 
