@@ -440,16 +440,18 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
             except Exception:
                 pass
             context["bom_source_data"] = source_data
-            # Build cutter_shapes dict {int(index): base64_data}
+            # Build cutter_shapes dict {int(index): base64_data_uri}
             cutter_shapes = {}
+            prefix = "data:image/png;base64,"
             raw_shapes = source_data.get("cutter_shapes", {})
             for k, v in raw_shapes.items():
                 try:
                     idx = int(k)
-                    if isinstance(v, dict):
-                        cutter_shapes[idx] = v.get("data", "")
-                    elif isinstance(v, str):
-                        cutter_shapes[idx] = v
+                    data = v.get("data", "") if isinstance(v, dict) else (v if isinstance(v, str) else "")
+                    # Fix double data-URI prefix
+                    while data.startswith(prefix + prefix):
+                        data = data[len(prefix):]
+                    cutter_shapes[idx] = data
                 except (ValueError, TypeError):
                     pass
             context["cutter_shapes"] = cutter_shapes

@@ -6,25 +6,25 @@
 
 {% block extra_css %}
 <style>
-    /* BOM Table */
+    /* BOM Table - compact */
     .bom-inline-table { width: 100%; border-collapse: collapse; }
     .bom-inline-table th {
-        background: #f3f4f6; padding: 10px 14px; text-align: left;
-        font-size: 11px; font-weight: 600; text-transform: uppercase;
+        background: #f3f4f6; padding: 6px 10px; text-align: left;
+        font-size: 10px; font-weight: 600; text-transform: uppercase;
         color: #6b7280; border-bottom: 2px solid #e5e7eb;
     }
-    .bom-inline-table td { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+    .bom-inline-table td { padding: 4px 10px; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
     .bom-inline-table tr:hover { background: #f9fafb; }
     .dark .bom-inline-table th { background: #374151; color: #9ca3af; border-bottom-color: #4b5563; }
     .dark .bom-inline-table td { border-bottom-color: #374151; }
     .dark .bom-inline-table tr:hover { background: #374151; }
 
     .bom-index-badge {
-        width: 32px; height: 32px; border-radius: 6px;
+        width: 24px; height: 24px; border-radius: 4px;
         display: inline-flex; align-items: center; justify-content: center;
-        font-weight: 700; font-size: 12px; color: white;
+        font-weight: 700; font-size: 10px; color: white;
     }
-    .bom-cutter-shape { width: 36px; height: 36px; object-fit: contain; background: #f3f4f6; border-radius: 4px; padding: 2px; }
+    .bom-cutter-shape { width: 28px; height: 28px; object-fit: contain; background: #f3f4f6; border-radius: 4px; padding: 1px; }
 
     /* ── Cutter-map blade layout (read-only replica) ── */
     .ro-blade-block { margin-bottom: 4px; background: white; border: 2px solid #888; }
@@ -70,9 +70,9 @@
         border: 1px solid #333; display: flex; align-items: center;
         justify-content: center; font-weight: bold; font-size: 8px;
     }
-    .ro-cutter-shape { position: relative; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; }
-    .ro-cutter-shape img { width: 100%; height: 100%; object-fit: contain; }
-    .ro-cutter-shape .ro-group-label {
+    .ro-cutter-shape-wrap { position: relative; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; }
+    .ro-cutter-shape-wrap img { width: 100%; height: 100%; object-fit: contain; }
+    .ro-cutter-shape-wrap .ro-group-label {
         position: absolute; font-weight: bold; font-size: 7px;
         color: white; text-shadow: 0 0 2px black, 0 0 2px black;
     }
@@ -82,15 +82,10 @@
     }
     .dark .ro-cutter-chamfer { color: #9ca3af; }
 
-    /* Tab system */
-    .tab-btn { padding: 8px 16px; font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; cursor: pointer; }
-    .tab-btn.active { border-bottom-color: #3b82f6; color: #3b82f6; }
-    .tab-btn:not(.active) { color: #6b7280; }
-    .tab-btn:not(.active):hover { color: #374151; }
-    .dark .tab-btn:not(.active) { color: #9ca3af; }
-    .dark .tab-btn:not(.active):hover { color: #d1d5db; }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
+    /* Foldable section */
+    .section-toggle { cursor: pointer; user-select: none; }
+    .section-toggle .toggle-icon { transition: transform 0.2s; }
+    .section-toggle.collapsed .toggle-icon { transform: rotate(-90deg); }
 </style>
 {% endblock %}
 
@@ -137,7 +132,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6" x-data="{ bomOpen: true, designOpen: true, woOpen: true, eventsOpen: true }">
     <!-- Main Info -->
     <div class="lg:col-span-2 space-y-6">
         <!-- Bit Details -->
@@ -204,39 +199,34 @@
         </div>
 
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- BILL OF MATERIALS SECTION                                      -->
+        <!-- BILL OF MATERIALS SECTION (foldable)                           -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                    <i data-lucide="file-text" class="w-5 h-5 inline mr-2 text-purple-600"></i>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between p-6 pb-0 section-toggle" :class="{ collapsed: !bomOpen }" @click="bomOpen = !bomOpen">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="chevron-down" class="w-5 h-5 mr-2 text-gray-400 toggle-icon"></i>
+                    <i data-lucide="file-text" class="w-5 h-5 mr-2 text-purple-600"></i>
                     Bill of Materials
                 </h3>
-                {% if active_bom %}
-                <a href="{% url 'cutter_map:bom_view' active_bom.pk %}?edit=1"
-                   class="inline-flex items-center px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                   title="Open in Cutter Map">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>Open in Cutter Map
-                </a>
-                {% endif %}
-            </div>
-
-            {% if bom_source_data and bom_source_data.summary %}
-            <!-- Tabs: BOM Lines | Cutter Layout -->
-            <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
-                <div class="flex">
-                    <button class="tab-btn active" onclick="switchBomTab('lines')">BOM Lines</button>
-                    <button class="tab-btn" onclick="switchBomTab('layout')">Cutter Layout</button>
+                <div class="flex items-center gap-2" @click.stop>
+                    {% if active_bom %}
+                    <a href="{% url 'cutter_map:bom_view' active_bom.pk %}?edit=1"
+                       class="inline-flex items-center px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                       title="Open in Cutter Map">
+                        <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>Open in Cutter Map
+                    </a>
+                    {% endif %}
                 </div>
             </div>
 
-            <!-- BOM Lines Tab -->
-            <div id="bom-tab-lines" class="tab-panel active">
-                <div class="overflow-x-auto">
+            <div class="p-6 pt-4" x-show="bomOpen" x-collapse>
+            {% if bom_source_data and bom_source_data.summary %}
+                <!-- BOM Lines Table (compact) -->
+                <div class="overflow-x-auto mb-4">
                     <table class="bom-inline-table">
                         <thead>
                             <tr>
-                                <th style="width: 50px;">#</th>
+                                <th style="width: 40px;">#</th>
                                 <th>Shape</th>
                                 <th>Size</th>
                                 <th>Chamfer</th>
@@ -255,24 +245,25 @@
                                     {% if cutter_shapes and item.index in cutter_shapes %}
                                     <img src="{{ cutter_shapes|get_item:item.index }}" class="bom-cutter-shape" alt="Shape">
                                     {% else %}
-                                    <div class="w-9 h-9 bg-gray-200 dark:bg-gray-600 rounded flex items-center justify-center text-xs text-gray-400">--</div>
+                                    <div class="w-7 h-7 bg-gray-200 dark:bg-gray-600 rounded flex items-center justify-center text-[9px] text-gray-400">--</div>
                                     {% endif %}
                                 </td>
-                                <td class="font-mono">{{ item.size }}</td>
-                                <td>{{ item.chamfer|default:"--" }}</td>
-                                <td class="font-medium">{{ item.type }}</td>
-                                <td class="font-mono text-blue-600 dark:text-blue-400">{{ item.mat_number|default:"--" }}</td>
-                                <td style="text-align: center;" class="font-bold text-lg">{{ item.count }}</td>
+                                <td class="font-mono text-xs">{{ item.size }}</td>
+                                <td class="text-xs">{{ item.chamfer|default:"--" }}</td>
+                                <td class="font-medium text-xs">{{ item.type }}</td>
+                                <td class="font-mono text-blue-600 dark:text-blue-400 text-xs">{{ item.mat_number|default:"--" }}</td>
+                                <td style="text-align: center;" class="font-bold">{{ item.count }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-            </div>
 
-            <!-- Cutter Layout Tab (replicates cutter-map blade layout, read-only) -->
-            <div id="bom-tab-layout" class="tab-panel">
+                <!-- Cutter Layout (blade blocks, directly below BOM table) -->
                 {% if bom_source_data.blades %}
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                    <i data-lucide="layout-grid" class="w-4 h-4 mr-1.5 text-gray-400"></i>Cutter Layout
+                </h4>
                 <div class="overflow-x-auto">
                     {% for blade in bom_source_data.blades %}
                     <div class="ro-blade-block">
@@ -291,7 +282,7 @@
                                         <div class="ro-cutter">
                                             <div class="ro-cutter-type">{{ cell.type|default:"" }}</div>
                                             {% if cutter_shapes and cell.group in cutter_shapes %}
-                                            <div class="ro-cutter-shape">
+                                            <div class="ro-cutter-shape-wrap">
                                                 <img src="{{ cutter_shapes|get_item:cell.group }}" alt="{{ cell.group }}">
                                                 <span class="ro-group-label">{{ cell.group }}</span>
                                             </div>
@@ -312,10 +303,7 @@
                     </div>
                     {% endfor %}
                 </div>
-                {% else %}
-                <p class="text-gray-500 dark:text-gray-400 text-center py-4">No blade layout data available</p>
                 {% endif %}
-            </div>
 
             {% elif active_bom %}
             <!-- BOM exists but no source_data -->
@@ -342,25 +330,30 @@
                 {% endif %}
             </div>
             {% endif %}
+            </div>
         </div>
 
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- DESIGN DETAILS SECTION                                         -->
+        <!-- DESIGN DETAILS SECTION (foldable)                              -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
         {% if drill_bit.design %}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                    <i data-lucide="drafting-compass" class="w-5 h-5 inline mr-2 text-blue-600"></i>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between p-6 pb-0 section-toggle" :class="{ collapsed: !designOpen }" @click="designOpen = !designOpen">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="chevron-down" class="w-5 h-5 mr-2 text-gray-400 toggle-icon"></i>
+                    <i data-lucide="drafting-compass" class="w-5 h-5 mr-2 text-blue-600"></i>
                     Design Details
                 </h3>
-                <a href="{% url 'technology:design_detail' drill_bit.design.pk %}"
-                   class="inline-flex items-center px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                   title="View Full Design">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>View Design
-                </a>
+                <div @click.stop>
+                    <a href="{% url 'technology:design_detail' drill_bit.design.pk %}"
+                       class="inline-flex items-center px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                       title="View Full Design">
+                        <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>View Design
+                    </a>
+                </div>
             </div>
 
+            <div class="p-6 pt-4" x-show="designOpen" x-collapse>
             <!-- Design specs grid -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-6">
                 <div>
@@ -443,14 +436,15 @@
 
             <!-- Pocket Layout (replicates design_pockets.html grid, read-only) -->
             {% if pocket_configs %}
-            <div class="border-t border-gray-200 dark:border-gray-700 pt-4" x-data="pocketsReadonly()">
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-4"
+                 x-data="pocketsReadonly()" x-init="$nextTick(() => { if(typeof lucide !== 'undefined') lucide.createIcons() })">
                 <!-- Tabs -->
                 <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
                     <nav class="flex -mb-px">
                         <button @click="pocketTab = 'config'"
                                 :class="pocketTab === 'config' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
                                 class="px-4 py-2 border-b-2 font-medium text-xs flex items-center gap-1">
-                            <i data-lucide="settings" class="w-3 h-3"></i>Configuration & Grid
+                            <i data-lucide="settings" class="w-3 h-3"></i>Configuration &amp; Grid
                         </button>
                         <button @click="pocketTab = 'locations'"
                                 :class="pocketTab === 'locations' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
@@ -467,7 +461,6 @@
 
                 <!-- Tab 1: Configuration & Grid -->
                 <div x-show="pocketTab === 'config'">
-                    <!-- Config Table -->
                     <div class="overflow-x-auto mb-4">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                             <thead class="bg-gray-50 dark:bg-gray-700">
@@ -475,7 +468,7 @@
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Order</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Pocket Size</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">L/M/S</th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Pocket Shape</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Shape</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Count</th>
                                 </tr>
                             </thead>
@@ -509,44 +502,33 @@
                         </table>
                     </div>
 
-                    <!-- Pockets Grid (exact replica of design_pockets.html) -->
                     {% if drill_bit.design.no_of_blades and pocket_configs %}
                     <div class="overflow-x-auto">
                         <div class="inline-block min-w-full select-none">
-                            <!-- Header Row -->
                             <div class="flex mb-1">
                                 <div class="w-16 flex-shrink-0"></div>
                                 <div class="flex">
                                     <template x-for="col in 20" :key="col">
                                         <div class="flex">
-                                            <div class="w-10 text-center text-xs font-medium py-1"
-                                                 :class="getColumnRowClass(col)">
-                                                <span x-text="col"></span>
-                                            </div>
+                                            <div class="w-10 text-center text-xs font-medium py-1" :class="getColumnRowClass(col)" x-text="col"></div>
                                             <div class="w-4 flex items-center justify-center" x-show="col < 20">
-                                                <div class="w-1 h-8 rounded"
-                                                     :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-gray-300 dark:bg-gray-600'"></div>
+                                                <div class="w-1 h-8 rounded" :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-gray-300 dark:bg-gray-600'"></div>
                                             </div>
                                         </div>
                                     </template>
                                 </div>
                             </div>
-                            <!-- Pos row -->
                             <div class="flex mb-2">
                                 <div class="w-16 flex-shrink-0 text-xs text-gray-400">Pos &rarr;</div>
                                 <div class="flex">
                                     <template x-for="col in 20" :key="col">
                                         <div class="flex">
-                                            <div class="w-10 text-center text-xs font-bold"
-                                                 :class="getColumnRowClass(col)"
-                                                 x-text="getPositionInRow(col)"></div>
-                                            <div class="w-4" x-show="col < 20"
-                                                 :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
+                                            <div class="w-10 text-center text-xs font-bold" :class="getColumnRowClass(col)" x-text="getPositionInRow(col)"></div>
+                                            <div class="w-4" x-show="col < 20" :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
                                         </div>
                                     </template>
                                 </div>
                             </div>
-                            <!-- Blade Rows -->
                             {% for blade_num in "123456789"|make_list %}
                             {% if blade_num|add:0 <= drill_bit.design.no_of_blades %}
                             <div class="flex items-center mb-1">
@@ -556,10 +538,8 @@
                                         <div class="flex">
                                             <div class="w-10 h-10 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-xs font-bold text-white"
                                                  :style="getCellStyle({{ blade_num }}, col)"
-                                                 x-text="getCellNumber({{ blade_num }}, col)">
-                                            </div>
-                                            <div class="w-4" x-show="col < 20"
-                                                 :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
+                                                 x-text="getCellNumber({{ blade_num }}, col)"></div>
+                                            <div class="w-4" x-show="col < 20" :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
                                         </div>
                                     </template>
                                 </div>
@@ -573,20 +553,15 @@
 
                 <!-- Tab 2: Pockets Locations -->
                 <div x-show="pocketTab === 'locations'">
-                    <!-- Location Zone Legend -->
                     <div class="flex flex-wrap gap-4 mb-4">
                         <template x-for="loc in locationZones" :key="loc.code">
-                            <div class="flex items-center gap-2 px-3 py-2 rounded-lg border"
-                                 :style="`border-color: ${loc.color}`">
-                                <div class="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold"
-                                     :style="`background-color: ${loc.color}`"
-                                     x-text="loc.code"></div>
+                            <div class="flex items-center gap-2 px-3 py-2 rounded-lg border" :style="`border-color: ${loc.color}`">
+                                <div class="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold" :style="`background-color: ${loc.color}`" x-text="loc.code"></div>
                                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300" x-text="loc.name"></span>
                                 <span class="text-xs text-gray-500" x-text="`(${getLocationCount(loc.code)})`"></span>
                             </div>
                         </template>
                     </div>
-                    <!-- Location Grid -->
                     {% if drill_bit.design.no_of_blades and pocket_configs %}
                     <div class="overflow-x-auto">
                         <div class="inline-block min-w-full select-none">
@@ -641,7 +616,6 @@
 
                 <!-- Tab 3: Engagements -->
                 <div x-show="pocketTab === 'engagements'">
-                    <!-- Config Legend -->
                     <div class="flex flex-wrap gap-2 mb-4">
                         {% for config in pocket_configs %}
                         <div class="flex items-center gap-1.5 px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
@@ -652,7 +626,6 @@
                         </div>
                         {% endfor %}
                     </div>
-                    <!-- Engagement Grid -->
                     {% if drill_bit.design.no_of_blades and pocket_configs %}
                     <div class="overflow-x-auto">
                         <div class="inline-block min-w-full select-none">
@@ -669,7 +642,6 @@
                                     </template>
                                 </div>
                             </div>
-                            <!-- Zone header -->
                             <div class="flex mb-0.5" x-show="Object.keys(locationData).length > 0">
                                 <div class="w-10 flex-shrink-0 text-[10px] text-gray-400 flex items-center">Zone</div>
                                 <div class="flex">
@@ -713,17 +685,24 @@
                 </div>
             </div>
             {% endif %}
+            </div>
         </div>
         {% endif %}
 
-        <!-- Work Orders -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Work Orders</h3>
-                <a href="{% url 'workorders:create' %}?drill_bit={{ drill_bit.pk }}"
-                   class="text-blue-600 dark:text-blue-400 text-sm hover:underline">Create WO &rarr;</a>
+        <!-- Work Orders (foldable) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between p-6 pb-0 section-toggle" :class="{ collapsed: !woOpen }" @click="woOpen = !woOpen">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="chevron-down" class="w-5 h-5 mr-2 text-gray-400 toggle-icon"></i>
+                    Work Orders
+                </h3>
+                <div @click.stop>
+                    <a href="{% url 'workorders:create' %}?drill_bit={{ drill_bit.pk }}"
+                       class="text-blue-600 dark:text-blue-400 text-sm hover:underline">Create WO &rarr;</a>
+                </div>
             </div>
 
+            <div class="p-6 pt-4" x-show="woOpen" x-collapse>
             {% if work_orders %}
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -757,12 +736,19 @@
             {% else %}
             <p class="text-gray-500 dark:text-gray-400 text-center py-4">No work orders yet</p>
             {% endif %}
+            </div>
         </div>
 
-        <!-- Event History -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Event History</h3>
+        <!-- Event History (foldable) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="p-6 pb-0 section-toggle" :class="{ collapsed: !eventsOpen }" @click="eventsOpen = !eventsOpen">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="chevron-down" class="w-5 h-5 mr-2 text-gray-400 toggle-icon"></i>
+                    Event History
+                </h3>
+            </div>
 
+            <div class="p-6 pt-4" x-show="eventsOpen" x-collapse>
             {% if events %}
             <div class="relative">
                 <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-600"></div>
@@ -791,6 +777,7 @@
             {% else %}
             <p class="text-gray-500 dark:text-gray-400 text-center py-4">No events recorded</p>
             {% endif %}
+            </div>
         </div>
     </div>
 
@@ -864,20 +851,13 @@
 
 {% block extra_js %}
 <script>
-function switchBomTab(tab) {
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('bom-tab-' + tab).classList.add('active');
-    event.target.classList.add('active');
-}
-
 /* ── Read-only pocket grid (mirrors design_pockets.html pocketsLayout) ── */
 function pocketsReadonly() {
-    const configData = {{ pocket_config_data_json|default:"{}" }};
-    const gridData = {{ pocket_grid_data_json|default:"{}" }};
-    const rowSeparators = {{ pocket_row_separators_json|default:"[]" }};
-    const locationData = {{ pocket_location_data_json|default:"{}" }};
-    const engagementData = {{ pocket_engagement_data_json|default:"{}" }};
+    const configData = JSON.parse('{{ pocket_config_data_json|escapejs }}');
+    const gridData = JSON.parse('{{ pocket_grid_data_json|escapejs }}');
+    const rowSeparators = JSON.parse('{{ pocket_row_separators_json|escapejs }}');
+    const locationData = JSON.parse('{{ pocket_location_data_json|escapejs }}');
+    const engagementData = JSON.parse('{{ pocket_engagement_data_json|escapejs }}');
 
     const locationZones = [
         { code: 'C', name: 'Cone', color: '#ef4444' },
@@ -893,57 +873,53 @@ function pocketsReadonly() {
         configData, gridData, rowSeparators, locationData, engagementData, locationZones,
 
         getColumnRowClass(col) {
-            // Alternate row background color
             let row = 1;
             for (const sep of this.rowSeparators) { if (col > sep) row++; }
             return row % 2 === 0 ? 'text-purple-600 dark:text-purple-400' : 'text-gray-600 dark:text-gray-400';
         },
         getPositionInRow(col) {
             let pos = col;
-            for (const sep of this.rowSeparators.sort((a,b)=>a-b)) { if (col > sep) pos = col - sep; }
+            for (const sep of this.rowSeparators.slice().sort((a,b)=>a-b)) { if (col > sep) pos = col - sep; }
             return pos;
         },
         getCellStyle(blade, col) {
-            const key = `${blade}_${col}`;
+            const key = blade + '_' + col;
             const cfgId = this.gridData[key];
             if (!cfgId) return 'background: transparent;';
             const cfg = this.configData[cfgId];
             if (!cfg) return 'background: #6b7280;';
-            return `background: ${cfg.color};`;
+            return 'background: ' + cfg.color + ';';
         },
         getCellNumber(blade, col) {
-            const key = `${blade}_${col}`;
+            const key = blade + '_' + col;
             const cfgId = this.gridData[key];
             if (!cfgId) return '';
             const cfg = this.configData[cfgId];
             return cfg ? cfg.order : '';
         },
         getLocationCellStyle(blade, col) {
-            const key = `${blade}_${col}`;
+            const key = blade + '_' + col;
             const loc = this.locationData[key];
             if (loc && locationColors[loc]) {
-                return `background-color: ${locationColors[loc]}; border-color: ${locationColors[loc]};`;
+                return 'background-color: ' + locationColors[loc] + '; border-color: ' + locationColors[loc] + ';';
             }
             const cfgId = this.gridData[key];
             if (cfgId) {
                 const cfg = this.configData[cfgId];
-                return cfg ? `border-color: ${cfg.color}20; background-color: ${cfg.color}10;` : '';
+                return cfg ? 'border-color: ' + cfg.color + '20; background-color: ' + cfg.color + '10;' : '';
             }
             return 'border-color: #e5e7eb;';
         },
         getLocationCode(blade, col) {
-            const key = `${blade}_${col}`;
-            return this.locationData[key] || '';
+            return this.locationData[blade + '_' + col] || '';
         },
         getLocationTooltip(blade, col) {
-            const key = `${blade}_${col}`;
-            const loc = this.locationData[key];
+            const loc = this.locationData[blade + '_' + col];
             const zone = this.locationZones.find(z => z.code === loc);
-            return zone ? `B${blade}P${col} - ${zone.name}` : `B${blade}P${col}`;
+            return zone ? 'B' + blade + 'P' + col + ' - ' + zone.name : 'B' + blade + 'P' + col;
         },
         getPocketSizeCode(blade, col) {
-            const key = `${blade}_${col}`;
-            const cfgId = this.gridData[key];
+            const cfgId = this.gridData[blade + '_' + col];
             if (!cfgId) return '';
             const cfg = this.configData[cfgId];
             return cfg ? cfg.sizeCode : '';
@@ -952,32 +928,29 @@ function pocketsReadonly() {
             return Object.values(this.locationData).filter(v => v === code).length;
         },
         getEngagementCellStyle(blade, col) {
-            const key = `${blade}_${col}`;
-            const cfgId = this.gridData[key];
+            const cfgId = this.gridData[blade + '_' + col];
             if (!cfgId) return 'background: #f9fafb; border-color: #e5e7eb; opacity: 0.3;';
             const cfg = this.configData[cfgId];
             const bgColor = cfg ? cfg.color + '20' : '#f3f4f6';
             const borderColor = cfg ? cfg.color : '#e5e7eb';
-            return `background: ${bgColor}; border-color: ${borderColor};`;
+            return 'background: ' + bgColor + '; border-color: ' + borderColor + ';';
         },
         getEngagementTooltip(blade, col) {
-            const key = `${blade}_${col}`;
-            const eng = this.engagementData[key];
-            return eng ? `B${blade}P${col} - Engagement #${eng}` : `B${blade}P${col}`;
+            const eng = this.engagementData[blade + '_' + col];
+            return eng ? 'B' + blade + 'P' + col + ' - Engagement #' + eng : 'B' + blade + 'P' + col;
         },
         getLocationZoneHeaderStyle(col) {
-            // Get location from first blade that has data for this column
             for (let b = 1; b <= 9; b++) {
-                const loc = this.locationData[`${b}_${col}`];
+                const loc = this.locationData[b + '_' + col];
                 if (loc && locationColors[loc]) {
-                    return `background-color: ${locationColors[loc]}30; color: ${locationColors[loc]};`;
+                    return 'background-color: ' + locationColors[loc] + '30; color: ' + locationColors[loc] + ';';
                 }
             }
             return '';
         },
         getLocationZoneLabel(col) {
             for (let b = 1; b <= 9; b++) {
-                const loc = this.locationData[`${b}_${col}`];
+                const loc = this.locationData[b + '_' + col];
                 if (loc) return loc;
             }
             return '';
