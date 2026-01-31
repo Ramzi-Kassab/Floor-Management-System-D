@@ -1,12 +1,69 @@
 {% extends "base.html" %}
 {% load humanize %}
+{% load inventory_filters %}
 
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* BOM Table */
+    .bom-inline-table { width: 100%; border-collapse: collapse; }
+    .bom-inline-table th {
+        background: #f3f4f6; padding: 10px 14px; text-align: left;
+        font-size: 11px; font-weight: 600; text-transform: uppercase;
+        color: #6b7280; border-bottom: 2px solid #e5e7eb;
+    }
+    .bom-inline-table td { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+    .bom-inline-table tr:hover { background: #f9fafb; }
+    .dark .bom-inline-table th { background: #374151; color: #9ca3af; border-bottom-color: #4b5563; }
+    .dark .bom-inline-table td { border-bottom-color: #374151; }
+    .dark .bom-inline-table tr:hover { background: #374151; }
+
+    .bom-index-badge {
+        width: 32px; height: 32px; border-radius: 6px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 12px; color: white;
+    }
+    .bom-cutter-shape { width: 36px; height: 36px; object-fit: contain; background: #f3f4f6; border-radius: 4px; padding: 2px; }
+
+    /* Blade layout */
+    .blade-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+    .blade-card { background: #f9fafb; border-radius: 8px; padding: 10px; text-align: center; }
+    .dark .blade-card { background: #374151; }
+    .blade-positions { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+    .position-cell {
+        width: 26px; height: 26px; border-radius: 4px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 9px; font-weight: 600; color: white;
+    }
+
+    /* Pocket layout */
+    .pocket-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    .pocket-blade-card { background: #f9fafb; border-radius: 8px; padding: 12px; }
+    .dark .pocket-blade-card { background: #374151; }
+    .pocket-cell {
+        width: 28px; height: 28px; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 9px; font-weight: 600; color: white; margin: 2px;
+    }
+    .pocket-zone-label { font-size: 10px; font-weight: 600; color: #6b7280; text-transform: uppercase; margin-top: 6px; }
+    .dark .pocket-zone-label { color: #9ca3af; }
+
+    /* Tab system */
+    .tab-btn { padding: 8px 16px; font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; cursor: pointer; }
+    .tab-btn.active { border-bottom-color: #3b82f6; color: #3b82f6; }
+    .tab-btn:not(.active) { color: #6b7280; }
+    .tab-btn:not(.active):hover { color: #374151; }
+    .dark .tab-btn:not(.active) { color: #9ca3af; }
+    .dark .tab-btn:not(.active):hover { color: #d1d5db; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+</style>
+{% endblock %}
 
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
     <div class="flex items-start">
-        <!-- Back Link -->
         <a href="{% url 'workorders:drillbit_list_enhanced' %}"
            class="mr-3 inline-flex items-center px-2 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg"
            title="Back to Drill Bits">
@@ -71,24 +128,32 @@
                     <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.size.size_display|default:"--" }}</p>
                 </div>
                 <div>
-                    <p class="text-gray-500 dark:text-gray-400">🔧 Brazing BOM (L5)</p>
-                    {% if drill_bit.brazing_bom %}
-                    <a href="{% url 'technology:bom_detail' drill_bit.brazing_bom.pk %}"
-                       class="font-medium text-orange-600 dark:text-orange-400 font-mono hover:underline">{{ drill_bit.brazing_bom.code }}</a>
+                    <p class="text-gray-500 dark:text-gray-400">Brazing BOM (L5)</p>
+                    {% with bom=drill_bit.brazing_bom|default:drill_bit.bom %}
+                    {% if bom %}
+                    <p class="font-medium text-orange-600 dark:text-orange-400 font-mono">{{ bom.code }}</p>
+                    {% else %}
+                    <p class="font-medium text-gray-400 dark:text-gray-500">--</p>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">System MAT (L5)</p>
+                    {% if drill_bit.brazing_bom.system_mat_no %}
+                    <p class="font-medium text-blue-600 dark:text-blue-400 font-mono">{{ drill_bit.brazing_bom.system_mat_no }}</p>
+                    {% elif drill_bit.bom.system_mat_no %}
+                    <p class="font-medium text-blue-600 dark:text-blue-400 font-mono">{{ drill_bit.bom.system_mat_no }}</p>
+                    {% elif drill_bit.system_bom %}
+                    <p class="font-medium text-blue-600 dark:text-blue-400 font-mono">{{ drill_bit.system_bom.code }}</p>
                     {% else %}
                     <p class="font-medium text-gray-400 dark:text-gray-500">--</p>
                     {% endif %}
                 </div>
                 <div>
-                    <p class="text-gray-500 dark:text-gray-400">📋 System BOM (L5)</p>
-                    {% if drill_bit.system_bom %}
-                    <a href="{% url 'technology:bom_detail' drill_bit.system_bom.pk %}"
-                       class="font-medium text-blue-600 dark:text-blue-400 font-mono hover:underline">{{ drill_bit.system_bom.code }}</a>
-                    {% elif drill_bit.brazing_bom.system_mat_no %}
-                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.brazing_bom.system_mat_no }}</p>
-                    {% else %}
-                    <p class="font-medium text-gray-400 dark:text-gray-500">--</p>
-                    {% endif %}
+                    <p class="text-gray-500 dark:text-gray-400">SMI Type</p>
+                    {% with smi=drill_bit.brazing_bom.smi_type|default:drill_bit.bom.smi_type %}
+                    <p class="font-medium text-gray-900 dark:text-white">{% if smi %}{{ smi.smi_name }}{% else %}{{ drill_bit.design.smi_type|default:"--" }}{% endif %}</p>
+                    {% endwith %}
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Customer</p>
@@ -105,53 +170,115 @@
             </div>
         </div>
 
-        <!-- BOM Actions -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- BILL OF MATERIALS SECTION                                      -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
                     <i data-lucide="file-text" class="w-5 h-5 inline mr-2 text-purple-600"></i>
                     Bill of Materials
                 </h3>
+                {% if active_bom %}
+                <a href="{% url 'cutter_map:bom_view' active_bom.pk %}?edit=1"
+                   class="inline-flex items-center px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                   title="Open in Cutter Map">
+                    <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>Open in Cutter Map
+                </a>
+                {% endif %}
             </div>
 
-            {% if drill_bit.brazing_bom or drill_bit.system_bom %}
-            <!-- Has BOM - Show view options -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {% if drill_bit.brazing_bom %}
-                <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
-                    <p class="text-xs text-orange-600 dark:text-orange-400 font-medium uppercase mb-1">Brazing BOM</p>
-                    <p class="font-mono font-bold text-lg text-orange-700 dark:text-orange-300 mb-3">{{ drill_bit.brazing_bom.code }}</p>
-                    <div class="flex gap-2">
-                        <a href="{% url 'cutter_map:bom_readonly' drill_bit.brazing_bom.pk %}?from=drillbit&db_id={{ drill_bit.pk }}"
-                           class="inline-flex items-center px-3 py-1.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded text-sm hover:bg-orange-200">
-                            <i data-lucide="eye" class="w-3.5 h-3.5 mr-1"></i>View Layout
-                        </a>
-                        <a href="{% url 'cutter_map:bom_view' drill_bit.brazing_bom.pk %}?edit=1"
-                           class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded text-sm hover:bg-gray-50">
-                            <i data-lucide="edit" class="w-3.5 h-3.5 mr-1"></i>Edit
-                        </a>
-                    </div>
+            {% if bom_source_data and bom_source_data.summary %}
+            <!-- Tabs: BOM Lines | Cutter Layout -->
+            <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
+                <div class="flex">
+                    <button class="tab-btn active" onclick="switchBomTab('lines')">BOM Lines</button>
+                    <button class="tab-btn" onclick="switchBomTab('layout')">Cutter Layout</button>
                 </div>
-                {% endif %}
-                {% if drill_bit.system_bom %}
-                <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                    <p class="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase mb-1">System BOM</p>
-                    <p class="font-mono font-bold text-lg text-blue-700 dark:text-blue-300 mb-3">{{ drill_bit.system_bom.code }}</p>
-                    <div class="flex gap-2">
-                        <a href="{% url 'cutter_map:bom_readonly' drill_bit.system_bom.pk %}?from=drillbit&db_id={{ drill_bit.pk }}"
-                           class="inline-flex items-center px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-sm hover:bg-blue-200">
-                            <i data-lucide="eye" class="w-3.5 h-3.5 mr-1"></i>View Layout
-                        </a>
-                        <a href="{% url 'cutter_map:bom_view' drill_bit.system_bom.pk %}?edit=1"
-                           class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded text-sm hover:bg-gray-50">
-                            <i data-lucide="edit" class="w-3.5 h-3.5 mr-1"></i>Edit
-                        </a>
-                    </div>
+            </div>
+
+            <!-- BOM Lines Tab -->
+            <div id="bom-tab-lines" class="tab-panel active">
+                <div class="overflow-x-auto">
+                    <table class="bom-inline-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">#</th>
+                                <th>Shape</th>
+                                <th>Size</th>
+                                <th>Chamfer</th>
+                                <th>Type</th>
+                                <th>MAT #</th>
+                                <th style="text-align: center;">Qty</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in bom_source_data.summary %}
+                            <tr>
+                                <td>
+                                    <div class="bom-index-badge" style="background: {{ item.fill_color|default:'#3b82f6' }};">{{ item.index }}</div>
+                                </td>
+                                <td>
+                                    {% if cutter_shapes and item.index in cutter_shapes %}
+                                    <img src="{{ cutter_shapes|get_item:item.index }}" class="bom-cutter-shape" alt="Shape">
+                                    {% else %}
+                                    <div class="w-9 h-9 bg-gray-200 dark:bg-gray-600 rounded flex items-center justify-center text-xs text-gray-400">--</div>
+                                    {% endif %}
+                                </td>
+                                <td class="font-mono">{{ item.size }}</td>
+                                <td>{{ item.chamfer|default:"--" }}</td>
+                                <td class="font-medium">{{ item.type }}</td>
+                                <td class="font-mono text-blue-600 dark:text-blue-400">{{ item.mat_number|default:"--" }}</td>
+                                <td style="text-align: center;" class="font-bold text-lg">{{ item.count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
+            </div>
+
+            <!-- Cutter Layout Tab -->
+            <div id="bom-tab-layout" class="tab-panel">
+                {% if bom_source_data.blades %}
+                <div class="blade-grid">
+                    {% for blade in bom_source_data.blades %}
+                    <div class="blade-card">
+                        <div class="font-bold text-sm text-gray-900 dark:text-white mb-2">{{ blade.name }}</div>
+                        <div class="blade-positions">
+                            {% for row_key in 'r1,r2,r3,r4'|split:',' %}
+                            {% if blade|get_item:row_key %}
+                            {% for pos, cells in blade|get_item:row_key|items %}
+                            {% for cell in cells %}
+                            {% if cell.group %}
+                            <div class="position-cell" style="background: {{ cell.fill_color|default:'#6b7280' }};" title="{{ pos }} - Group {{ cell.group }}">
+                                {{ cell.group }}
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-500 dark:text-gray-400 text-center py-4">No blade layout data available</p>
                 {% endif %}
             </div>
+
+            {% elif active_bom %}
+            <!-- BOM exists but no source_data -->
+            <div class="text-center py-6 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                <i data-lucide="file-text" class="w-10 h-10 mx-auto text-gray-400 mb-2"></i>
+                <p class="text-gray-500 dark:text-gray-400 mb-3">BOM linked but no cutter data extracted yet</p>
+                <a href="{% url 'cutter_map:bom_view' active_bom.pk %}?edit=1"
+                   class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+                    <i data-lucide="external-link" class="w-4 h-4 mr-1"></i>Open in Cutter Map
+                </a>
+            </div>
             {% else %}
-            <!-- No BOM - Show create option -->
+            <!-- No BOM linked -->
             <div class="text-center py-6 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
                 <i data-lucide="file-plus" class="w-12 h-12 mx-auto text-gray-400 mb-3"></i>
                 <p class="text-gray-600 dark:text-gray-400 mb-4">No BOM linked to this drill bit</p>
@@ -166,6 +293,148 @@
             </div>
             {% endif %}
         </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- DESIGN DETAILS SECTION                                         -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        {% if drill_bit.design %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    <i data-lucide="drafting-compass" class="w-5 h-5 inline mr-2 text-blue-600"></i>
+                    Design Details
+                </h3>
+                <a href="{% url 'technology:design_detail' drill_bit.design.pk %}"
+                   class="inline-flex items-center px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                   title="View Full Design">
+                    <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>View Design
+                </a>
+            </div>
+
+            <!-- Design specs grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-6">
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Design MAT</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.design.mat_no }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Ref Design MAT</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.design.ref_mat_no|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">HDBS Type</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.hdbs_type|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Level</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit.design.order_level %}L{{ drill_bit.design.order_level }}{% else %}--{% endif %}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Size</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.size.size_display|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Category</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.get_category_display|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Body Material</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.get_body_material_display|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Blades</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.no_of_blades|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Total Pockets</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.total_pockets_count|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Connection</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.design.connection_ref.mat_no|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">IADC</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.iadc_code_ref.code|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Breaker Slot</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.design.breaker_slot.mat_no|default:"--" }}</p>
+                </div>
+                {% if drill_bit.design.nozzle_count %}
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Nozzles</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.nozzle_count }} x {{ drill_bit.design.nozzle_bore_size|default:"--" }}</p>
+                </div>
+                {% endif %}
+                {% if drill_bit.design.gage_length %}
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Gage Length</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.gage_length }}"</p>
+                </div>
+                {% endif %}
+                {% if drill_bit.design.application_ref %}
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Application</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.application_ref.name }}{% if drill_bit.design.formation_type_ref %} / {{ drill_bit.design.formation_type_ref.name }}{% endif %}</p>
+                </div>
+                {% endif %}
+                {% if drill_bit.design.special_technologies.exists %}
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Special Tech</p>
+                    <p class="font-medium text-gray-900 dark:text-white">
+                        {% for tech in drill_bit.design.special_technologies.all %}
+                            <span class="inline-block px-1.5 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 rounded text-xs mr-0.5">{{ tech.code }}</span>
+                        {% endfor %}
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Pocket Layout -->
+            {% if pocket_configs %}
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    <i data-lucide="grid-3x3" class="w-4 h-4 inline mr-1 text-gray-500"></i>
+                    Pocket Configurations
+                </h4>
+
+                <!-- Config legend -->
+                <div class="flex flex-wrap gap-3 mb-4">
+                    {% for cfg in pocket_configs %}
+                    <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 rounded-lg px-3 py-1.5 text-xs">
+                        <div class="w-5 h-5 rounded" style="background: {{ cfg.color_code|default:'#6b7280' }};"></div>
+                        <span class="font-mono font-medium">{{ cfg.pocket_size.code }}</span>
+                        <span class="text-gray-500 dark:text-gray-400">{{ cfg.pocket_shape }}</span>
+                        <span class="text-gray-500 dark:text-gray-400">R{{ cfg.row_number }}</span>
+                        <span class="font-bold">x{{ cfg.count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Pocket grid by blade -->
+                {% if pockets_by_blade %}
+                <div class="pocket-grid">
+                    {% for blade_num, pockets in pockets_by_blade.items %}
+                    <div class="pocket-blade-card">
+                        <div class="font-bold text-sm text-gray-900 dark:text-white mb-2 text-center">Blade {{ blade_num }}</div>
+                        <div class="text-center">
+                            {% for pocket in pockets %}
+                            <div class="pocket-cell"
+                                 style="background: {{ pocket.pocket_config.color_code|default:'#6b7280' }};"
+                                 title="B{{ pocket.blade_number }}R{{ pocket.row_number }}P{{ pocket.position_in_row }} - {{ pocket.get_blade_location_display|default:'—' }} - {{ pocket.pocket_config.pocket_size.code }}">
+                                {{ pocket.position_in_blade }}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
 
         <!-- Work Orders -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
@@ -283,20 +552,6 @@
             </div>
         </div>
 
-        <!-- Design Info -->
-        {% if drill_bit.design %}
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
-            <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Design</h4>
-            <div class="space-y-2 text-sm">
-                <div class="flex justify-between">
-                    <span class="text-gray-600 dark:text-gray-400">MAT#</span>
-                    <span class="text-gray-900 dark:text-white font-mono">{{ drill_bit.design.mat_no }}</span>
-                </div>
-                <a href="{% url 'technology:design_detail' drill_bit.design.pk %}" class="text-blue-600 dark:text-blue-400 text-sm hover:underline block">View Design &rarr;</a>
-            </div>
-        </div>
-        {% endif %}
-
         <!-- Quick Links -->
         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
             <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Quick Actions</h4>
@@ -325,4 +580,17 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function switchBomTab(tab) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('bom-tab-' + tab).classList.add('active');
+    event.target.classList.add('active');
+}
+
+if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+</script>
 {% endblock %}

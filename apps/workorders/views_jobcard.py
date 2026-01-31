@@ -393,10 +393,18 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return DrillBit.objects.select_related(
-            "design", "customer", "rig", "well", "current_location",
-            "bit_location", "bit_size_ref", "product_type", "created_by"
+            "design", "design__size", "design__connection_ref",
+            "design__iadc_code_ref", "design__breaker_slot",
+            "design__application_ref", "design__formation_type_ref",
+            "design__upper_section_type", "design__connection_type_ref",
+            "design__connection_size_ref",
+            "customer", "rig", "well", "current_location",
+            "bit_location", "bit_size_ref", "product_type", "created_by",
+            "bom", "bom__smi_type", "brazing_bom", "brazing_bom__smi_type",
+            "system_bom", "system_bom__smi_type",
         ).prefetch_related(
-            "work_orders", "evaluations", "bit_events", "repair_history"
+            "work_orders", "evaluations", "bit_events", "repair_history",
+            "design__special_technologies",
         )
 
     def get_context_data(self, **kwargs):
@@ -420,6 +428,59 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
 
         # Evaluations
         context["evaluations"] = bit.evaluations.order_by('-evaluation_date')
+
+        # ── BOM source_data for inline display ──
+        active_bom = bit.brazing_bom or bit.bom or bit.system_bom
+        if active_bom and active_bom.source_data:
+            source_data = active_bom.source_data
+            # Enrich cutter shapes from inventory
+            try:
+                from apps.cutter_map.views import _enrich_cutter_shapes_from_inventory
+                _enrich_cutter_shapes_from_inventory(source_data)
+            except Exception:
+                pass
+            context["bom_source_data"] = source_data
+            # Build cutter_shapes dict {int(index): base64_data}
+            cutter_shapes = {}
+            raw_shapes = source_data.get("cutter_shapes", {})
+            for k, v in raw_shapes.items():
+                try:
+                    idx = int(k)
+                    if isinstance(v, dict):
+                        cutter_shapes[idx] = v.get("data", "")
+                    elif isinstance(v, str):
+                        cutter_shapes[idx] = v
+                except (ValueError, TypeError):
+                    pass
+            context["cutter_shapes"] = cutter_shapes
+        context["active_bom"] = active_bom
+
+        # ── Design pocket layout ──
+        design = bit.design
+        if design:
+            from apps.technology.models import DesignPocket, DesignPocketConfig
+            pockets = DesignPocket.objects.filter(
+                design=design
+            ).select_related(
+                'pocket_config', 'pocket_config__pocket_size', 'pocket_config__pocket_shape'
+            ).order_by('blade_number', 'row_number', 'position_in_row')
+            context["design_pockets"] = pockets
+
+            pocket_configs = DesignPocketConfig.objects.filter(
+                design=design
+            ).select_related(
+                'pocket_size', 'pocket_shape'
+            ).order_by('order')
+            context["pocket_configs"] = pocket_configs
+
+            # Group pockets by blade for layout display
+            blades_dict = {}
+            for p in pockets:
+                blade_key = p.blade_number
+                if blade_key not in blades_dict:
+                    blades_dict[blade_key] = []
+                blades_dict[blade_key].append(p)
+            context["pockets_by_blade"] = dict(sorted(blades_dict.items()))
 
         return context
 
