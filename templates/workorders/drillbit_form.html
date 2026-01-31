@@ -132,6 +132,7 @@
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_iadc" onclick="toggleFilterDropdown(event, 'd_iadc')">IADC<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_status" onclick="toggleFilterDropdown(event, 'd_status')">Status<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_boms" onclick="toggleFilterDropdown(event, 'd_boms')">BOMs<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase w-10"></th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -156,9 +157,14 @@
                                         <span class="px-1.5 py-0.5 rounded text-xs font-medium {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">{{ design.status }}</span>
                                     </td>
                                     <td class="px-3 py-2 text-gray-500" data-col="d_boms" data-val="{{ design.boms.count }}">{{ design.boms.count }}</td>
+                                    <td class="px-3 py-1 text-center">
+                                        <a href="{% url 'technology:design_detail' design.pk %}" target="_blank" onclick="event.stopPropagation();" class="inline-flex items-center text-gray-400 hover:text-blue-600" title="View Design">
+                                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                        </a>
+                                    </td>
                                 </tr>
                                 {% empty %}
-                                <tr><td colspan="9" class="px-3 py-8 text-center text-gray-500">No designs found.</td></tr>
+                                <tr><td colspan="10" class="px-3 py-8 text-center text-gray-500">No designs found.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -183,6 +189,7 @@
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_size" onclick="toggleFilterDropdown(event, 'b_size')">Size<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_iadc" onclick="toggleFilterDropdown(event, 'b_iadc')">IADC<span class="sort-icon"></span></th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_status" onclick="toggleFilterDropdown(event, 'b_status')">Status<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase w-10"></th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -207,9 +214,14 @@
                                     <td class="px-3 py-2" data-col="b_status" data-val="{{ bom.status }}">
                                         <span class="px-1.5 py-0.5 rounded text-xs font-medium {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% elif bom.status == 'DRAFT' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ bom.status }}</span>
                                     </td>
+                                    <td class="px-3 py-1 text-center">
+                                        <a href="{% url 'technology:bom_detail' bom.pk %}" target="_blank" onclick="event.stopPropagation();" class="inline-flex items-center text-gray-400 hover:text-green-600" title="View BOM">
+                                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                        </a>
+                                    </td>
                                 </tr>
                                 {% empty %}
-                                <tr><td colspan="10" class="px-3 py-8 text-center text-gray-500">No BOMs found.</td></tr>
+                                <tr><td colspan="11" class="px-3 py-8 text-center text-gray-500">No BOMs found.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>

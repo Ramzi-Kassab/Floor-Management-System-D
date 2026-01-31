@@ -1213,6 +1213,89 @@
         ];
     </script>
 
+    <!-- SMI Type Picker Modal (replicates design_form.html pattern) -->
+    <div id="smi-picker-modal" class="mat-dialog" style="display: none; z-index: 10001;">
+        <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.5);" onclick="closeSmiPicker();"></div>
+        <div style="position: fixed; inset: 40px; max-width: 700px; margin: auto; background: white; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+            <!-- Header with tabs -->
+            <div style="padding: 12px 20px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <h3 style="font-size: 16px; font-weight: 600; margin: 0;">Select SMI Type</h3>
+                    <div style="display: flex; border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden;">
+                        <button type="button" id="smi-tab-select" onclick="switchSmiTab('select')" style="padding: 5px 14px; font-size: 13px; font-weight: 500; background: #2563eb; color: white; border: none; cursor: pointer;">
+                            Select Existing
+                        </button>
+                        <button type="button" id="smi-tab-create" onclick="switchSmiTab('create')" style="padding: 5px 14px; font-size: 13px; font-weight: 500; background: #f3f4f6; color: #374151; border: none; cursor: pointer;">
+                            Quick Create
+                        </button>
+                    </div>
+                </div>
+                <button type="button" onclick="closeSmiPicker();" style="background: none; border: none; cursor: pointer; font-size: 18px; color: #6b7280;">✕</button>
+            </div>
+
+            <!-- Select Existing Tab -->
+            <div id="smi-content-select">
+                <!-- Size filter info -->
+                <div id="smi-size-filter-info" style="display: none; margin: 12px 20px 0; padding: 8px 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px;">
+                    <span style="font-size: 12px; color: #1e40af;">🔍 Showing types for size: <strong id="smi-size-filter-value"></strong></span>
+                </div>
+                <!-- Search -->
+                <div style="padding: 12px 20px; border-bottom: 1px solid #e5e7eb; background: #f9fafb;">
+                    <input type="text" id="smi-picker-search" placeholder="Search HDBS or SMI name... (type or paste)"
+                           style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;"
+                           oninput="loadSmiPickerResults();">
+                </div>
+                <!-- Results table -->
+                <div style="flex: 1; overflow-y: auto; padding: 0 20px; max-height: 400px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead style="position: sticky; top: 0; background: #f3f4f6;">
+                            <tr>
+                                <th style="padding: 8px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #6b7280;">HDBS Type</th>
+                                <th style="padding: 8px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #6b7280;">SMI Name</th>
+                                <th style="padding: 8px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #6b7280;">Sizes</th>
+                                <th style="padding: 8px 12px; width: 60px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="smi-picker-results">
+                            <tr><td colspan="4" style="padding: 30px; text-align: center; color: #9ca3af;">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Quick Create Tab -->
+            <div id="smi-content-create" style="display: none; padding: 20px; overflow-y: auto; max-height: 450px;">
+                <div style="max-width: 500px; margin: 0 auto;">
+                    <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                        <p style="font-size: 12px; color: #1e40af;">Create a new SMI Type. The size is auto-selected from the current design.</p>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; font-size: 12px; font-weight: 500; color: #374151; margin-bottom: 4px;">Select HDBS Type <span style="color: #ef4444;">*</span></label>
+                        <select id="smi-create-hdbs" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+                            <option value="">Select HDBS Type...</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; font-size: 12px; font-weight: 500; color: #374151; margin-bottom: 4px;">SMI Name <span style="color: #ef4444;">*</span></label>
+                        <input type="text" id="smi-create-name" placeholder="e.g. GT65RHs-1" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; font-size: 12px; font-weight: 500; color: #374151; margin-bottom: 4px;">Size (auto from design)</label>
+                        <input type="text" id="smi-create-size-display" readonly style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: #f9fafb; color: #6b7280;">
+                        <input type="hidden" id="smi-create-size-id" value="">
+                    </div>
+                    <div id="smi-create-error" style="display: none; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px;">
+                        <p style="font-size: 12px; color: #dc2626;"></p>
+                    </div>
+                    <div style="display: flex; gap: 10px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+                        <button type="button" onclick="switchSmiTab('select');" style="flex: 1; padding: 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 13px;">Cancel</button>
+                        <button type="button" onclick="submitSmiCreate();" style="flex: 1; padding: 8px; background: #16a34a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">Create & Select</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <!-- Upload -->
         <div class="upload-section" id="uploadSection">
@@ -8087,6 +8170,7 @@
             const currentSmiTypeId = payload.smi_type_id || document.getElementById('smiTypeId')?.value || '';
             const currentIadcCodeId = payload.iadc_code_id || document.getElementById('iadcCodeId')?.value || '';
             const currentBomStatus = payload.bom_status || document.getElementById('bomStatus')?.value || 'ACTIVE';
+            const currentSmiLabel = currentSmiTypeId ? ((window._smiTypes || []).find(s => String(s.id) === String(currentSmiTypeId))?.label || '') : '';
 
             // Get linked serial numbers (only available when editing existing BOM)
             let existingLinkedSNs = [];
@@ -8232,13 +8316,19 @@
                             </div>
                             <!-- SMI Type -->
                             <div style="grid-column: 1 / -1;">
-                                <label style="color: #666; font-size: 11px; display: block; margin-bottom: 4px;">SMI Type:
-                                    <a href="#" onclick="event.preventDefault(); showQuickAddSMI();" style="font-size: 10px; color: #1565c0; margin-left: 4px;">+ Quick Add</a>
-                                </label>
-                                <select id="previewSmiType" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; background: white;">
-                                    <option value="">-- None --</option>
-                                    ${(window._smiTypes || []).map(s => '<option value="' + s.id + '"' + (String(currentSmiTypeId) === String(s.id) ? ' selected' : '') + '>' + s.label + '</option>').join('')}
-                                </select>
+                                <label style="color: #666; font-size: 11px; display: block; margin-bottom: 4px;">SMI Type:</label>
+                                <div style="display: flex; gap: 6px;">
+                                    <input type="hidden" id="previewSmiType" value="${currentSmiTypeId}">
+                                    <input type="text" id="previewSmiTypeDisplay" value="${currentSmiLabel}" readonly
+                                           style="flex: 1; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; background: #fafafa; cursor: pointer;"
+                                           onclick="openSmiTypePicker();" placeholder="Click to select SMI Type...">
+                                    <button type="button" onclick="openSmiTypePicker();" style="padding: 5px 10px; background: #e3f2fd; border: 1px solid #bbdefb; border-radius: 3px; cursor: pointer; font-size: 12px; color: #1565c0;" title="Select SMI Type">
+                                        🔍
+                                    </button>
+                                    <button type="button" onclick="clearSmiSelection();" style="padding: 5px 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 3px; cursor: pointer; font-size: 12px; color: #666;" title="Clear">
+                                        ✕
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -8373,80 +8463,171 @@
             document.body.appendChild(dialog);
         }
 
-        // Quick-add SMI Type dialog
-        function showQuickAddSMI() {
-            // Fetch dropdown data for HDBS Types and Sizes
-            fetch('/cutter-map/api/dropdown-data/', { headers: { 'X-CSRFToken': getCSRFToken() } })
+        // SMI Type Picker (replicates design_form.html type-picker pattern)
+        let _smiPickerDebounce = null;
+
+        function openSmiTypePicker() {
+            const modal = document.getElementById('smi-picker-modal');
+            modal.style.display = 'block';
+            document.getElementById('smi-picker-search').value = '';
+
+            // Resolve design size from context
+            const designSize = document.getElementById('designSize')?.value || '';
+            const sizeInfo = document.getElementById('smi-size-filter-info');
+            const sizeVal = document.getElementById('smi-size-filter-value');
+            if (designSize && sizeInfo && sizeVal) {
+                sizeVal.textContent = designSize;
+                sizeInfo.style.display = 'block';
+            } else if (sizeInfo) {
+                sizeInfo.style.display = 'none';
+            }
+
+            // Populate HDBS dropdown for Quick Create tab
+            fetch('/technology/api/hdbs-types/', { headers: { 'X-CSRFToken': getCSRFToken() } })
+            .then(r => r.json())
+            .then(data => {
+                const sel = document.getElementById('smi-create-hdbs');
+                if (sel && data.hdbs_types) {
+                    sel.innerHTML = '<option value="">Select HDBS Type...</option>';
+                    data.hdbs_types.forEach(h => {
+                        sel.innerHTML += `<option value="${h.id}">${h.hdbs_name}</option>`;
+                    });
+                }
+            });
+
+            // Set size in Quick Create tab
+            const sizeDisplay = document.getElementById('smi-create-size-display');
+            const sizeIdInput = document.getElementById('smi-create-size-id');
+            if (sizeDisplay) sizeDisplay.value = designSize || '(no size selected)';
+            // We need the size ID — look it up from context
+            fetch('/cutter-map/api/dropdown-data/')
             .then(r => r.json())
             .then(dd => {
-                const hdbs_opts = dd.hdbs_types.map(h => `<option value="${h.id}">${h.hdbs_name}</option>`).join('');
-                const size_opts = dd.bit_sizes.map(s => `<option value="${s.id}">${s.size_display} (${s.size_decimal}")</option>`).join('');
+                if (designSize && dd.bit_sizes) {
+                    const match = dd.bit_sizes.find(s => s.size_display === designSize || String(s.size_decimal) === designSize);
+                    if (match && sizeIdInput) sizeIdInput.value = match.id;
+                }
+            });
 
-                const dlg = document.createElement('div');
-                dlg.className = 'mat-dialog';
-                dlg.id = 'quickAddSmiDialog';
-                dlg.style.zIndex = '10001';
-                dlg.innerHTML = `
-                    <div class="mat-dialog-box" style="max-width: 400px;">
-                        <div class="mat-dialog-title" style="color: #1565c0; background: #e3f2fd; padding: 10px 15px; margin: -15px -15px 15px -15px; border-radius: 4px 4px 0 0;">
-                            Quick Add SMI Type
-                        </div>
-                        <div style="display: grid; gap: 10px; font-size: 13px;">
-                            <div>
-                                <label style="color: #666; font-size: 11px; display: block; margin-bottom: 3px;">SMI Name *</label>
-                                <input type="text" id="qaSmName" placeholder="e.g. GT65RHs-1" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px;">
-                            </div>
-                            <div>
-                                <label style="color: #666; font-size: 11px; display: block; margin-bottom: 3px;">HDBS Type *</label>
-                                <select id="qaSmHdbs" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px;">
-                                    <option value="">-- Select --</option>${hdbs_opts}
-                                </select>
-                            </div>
-                            <div>
-                                <label style="color: #666; font-size: 11px; display: block; margin-bottom: 3px;">Size *</label>
-                                <select id="qaSmSize" style="width: 100%; padding: 5px 8px; border: 1px solid #ddd; border-radius: 3px;">
-                                    <option value="">-- Select --</option>${size_opts}
-                                </select>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 10px; margin-top: 15px;">
-                            <button onclick="document.getElementById('quickAddSmiDialog').remove();" style="flex: 1; padding: 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">Cancel</button>
-                            <button onclick="submitQuickAddSMI();" style="flex: 1; padding: 8px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;">Add</button>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(dlg);
+            switchSmiTab('select');
+            loadSmiPickerResults();
+        }
+
+        function closeSmiPicker() {
+            document.getElementById('smi-picker-modal').style.display = 'none';
+        }
+
+        function clearSmiSelection() {
+            document.getElementById('previewSmiType').value = '';
+            document.getElementById('previewSmiTypeDisplay').value = '';
+        }
+
+        function switchSmiTab(tab) {
+            const tabSelect = document.getElementById('smi-tab-select');
+            const tabCreate = document.getElementById('smi-tab-create');
+            const contentSelect = document.getElementById('smi-content-select');
+            const contentCreate = document.getElementById('smi-content-create');
+            if (tab === 'select') {
+                tabSelect.style.background = '#2563eb'; tabSelect.style.color = 'white';
+                tabCreate.style.background = '#f3f4f6'; tabCreate.style.color = '#374151';
+                contentSelect.style.display = ''; contentCreate.style.display = 'none';
+            } else {
+                tabCreate.style.background = '#2563eb'; tabCreate.style.color = 'white';
+                tabSelect.style.background = '#f3f4f6'; tabSelect.style.color = '#374151';
+                contentCreate.style.display = ''; contentSelect.style.display = 'none';
+            }
+        }
+
+        function loadSmiPickerResults() {
+            clearTimeout(_smiPickerDebounce);
+            _smiPickerDebounce = setTimeout(_loadSmiPickerResultsNow, 200);
+        }
+
+        function _loadSmiPickerResultsNow() {
+            const search = (document.getElementById('smi-picker-search')?.value || '').trim();
+            const params = new URLSearchParams();
+            if (search) params.append('q', search);
+
+            fetch(`/technology/api/hdbs-types/?${params.toString()}`)
+            .then(r => r.json())
+            .then(data => {
+                const tbody = document.getElementById('smi-picker-results');
+                if (!data.hdbs_types || data.hdbs_types.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="padding: 30px; text-align: center; color: #9ca3af;">No types found</td></tr>';
+                    return;
+                }
+
+                // Build rows: one row per SMI type (flat list)
+                let rows = [];
+                data.hdbs_types.forEach(h => {
+                    if (h.smi_types && h.smi_types.length > 0) {
+                        h.smi_types.forEach(s => {
+                            rows.push(`
+                                <tr style="cursor: pointer; border-bottom: 1px solid #f3f4f6;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
+                                    <td style="padding: 8px 12px; color: #6b7280; font-size: 13px;">${h.hdbs_name}</td>
+                                    <td style="padding: 8px 12px; font-weight: 500; color: #2563eb; font-size: 13px;">${s.smi_name}</td>
+                                    <td style="padding: 8px 12px; color: #6b7280; font-size: 12px;">${h.sizes ? h.sizes.map(sz => sz.display).join(', ') : 'Any'}</td>
+                                    <td style="padding: 8px 12px;">
+                                        <button type="button" onclick="selectSmiFromPicker(${s.id}, '${s.smi_name.replace(/'/g, "\\'")} (${h.hdbs_name})');" style="padding: 4px 12px; background: #2563eb; color: white; font-size: 12px; border: none; border-radius: 4px; cursor: pointer;">Select</button>
+                                    </td>
+                                </tr>
+                            `);
+                        });
+                    } else {
+                        rows.push(`
+                            <tr style="border-bottom: 1px solid #f3f4f6;">
+                                <td style="padding: 8px 12px; font-weight: 500; color: #7c3aed; font-size: 13px;">${h.hdbs_name}</td>
+                                <td style="padding: 8px 12px; color: #9ca3af; font-size: 12px; font-style: italic;">No SMI types</td>
+                                <td style="padding: 8px 12px; color: #6b7280; font-size: 12px;">${h.sizes ? h.sizes.map(sz => sz.display).join(', ') : 'Any'}</td>
+                                <td></td>
+                            </tr>
+                        `);
+                    }
+                });
+                tbody.innerHTML = rows.join('');
+            })
+            .catch(err => {
+                document.getElementById('smi-picker-results').innerHTML = '<tr><td colspan="4" style="padding: 20px; text-align: center; color: #ef4444;">Error loading types</td></tr>';
             });
         }
 
-        function submitQuickAddSMI() {
-            const name = document.getElementById('qaSmName')?.value.trim();
-            const hdbs = document.getElementById('qaSmHdbs')?.value;
-            const size = document.getElementById('qaSmSize')?.value;
-            if (!name || !hdbs || !size) { showMsg('All fields are required', 'error'); return; }
+        function selectSmiFromPicker(smiId, smiLabel) {
+            document.getElementById('previewSmiType').value = smiId;
+            document.getElementById('previewSmiTypeDisplay').value = smiLabel;
+            // Also update _smiTypes cache
+            if (!window._smiTypes.find(s => s.id === smiId)) {
+                window._smiTypes.push({ id: smiId, label: smiLabel });
+            }
+            closeSmiPicker();
+        }
+
+        function submitSmiCreate() {
+            const hdbsId = document.getElementById('smi-create-hdbs')?.value;
+            const smiName = document.getElementById('smi-create-name')?.value.trim();
+            const sizeId = document.getElementById('smi-create-size-id')?.value;
+            const errorDiv = document.getElementById('smi-create-error');
+            errorDiv.style.display = 'none';
+
+            if (!hdbsId) { errorDiv.style.display = ''; errorDiv.querySelector('p').textContent = 'Please select an HDBS type'; return; }
+            if (!smiName) { errorDiv.style.display = ''; errorDiv.querySelector('p').textContent = 'SMI Name is required'; return; }
+            if (!sizeId) { errorDiv.style.display = ''; errorDiv.querySelector('p').textContent = 'Size not available - select a size in the design first'; return; }
 
             fetch('/cutter-map/api/quick-add-smi-type/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
-                body: JSON.stringify({ smi_name: name, hdbs_type_id: hdbs, size_id: size })
+                body: JSON.stringify({ smi_name: smiName, hdbs_type_id: hdbsId, size_id: sizeId })
             })
             .then(r => r.json())
             .then(result => {
                 if (result.success) {
-                    // Add to dropdown and select it
-                    const sel = document.getElementById('previewSmiType');
-                    if (sel) {
-                        const opt = new Option(result.label, result.id, true, true);
-                        sel.appendChild(opt);
-                    }
+                    selectSmiFromPicker(result.id, result.label);
                     window._smiTypes.push({ id: result.id, label: result.label });
-                    document.getElementById('quickAddSmiDialog')?.remove();
-                    showMsg(result.message || 'SMI Type added', 'success');
+                    showMsg(result.message || 'SMI Type created & selected', 'success');
                 } else {
-                    showMsg(result.error, 'error');
+                    errorDiv.style.display = ''; errorDiv.querySelector('p').textContent = result.error;
                 }
             })
-            .catch(err => showMsg(err.message, 'error'));
+            .catch(err => { errorDiv.style.display = ''; errorDiv.querySelector('p').textContent = err.message; });
         }
 
         // Quick-add IADC Code dialog
