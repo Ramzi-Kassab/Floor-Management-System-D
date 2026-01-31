@@ -78,12 +78,12 @@
 <!-- Column Filter Dropdown -->
 <div id="col-filter-dropdown" class="filter-dropdown">
     <div class="p-3 border-b border-gray-200 dark:border-gray-600">
-        <div class="flex gap-1 mb-2">
-            <button onclick="sortColumn('asc')" class="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-gray-100 hover:bg-blue-100 hover:text-blue-700 dark:bg-gray-600 dark:hover:bg-blue-900 dark:text-gray-200 dark:hover:text-blue-300 transition-colors flex items-center justify-center gap-1">
-                <span>▲</span> Asc
+        <div class="space-y-0.5 mb-2">
+            <button onclick="sortColumn('asc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
+                <i data-lucide="arrow-up-a-z" class="w-4 h-4 text-gray-500"></i> <span>Sort A to Z</span>
             </button>
-            <button onclick="sortColumn('desc')" class="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-gray-100 hover:bg-blue-100 hover:text-blue-700 dark:bg-gray-600 dark:hover:bg-blue-900 dark:text-gray-200 dark:hover:text-blue-300 transition-colors flex items-center justify-center gap-1">
-                <span>▼</span> Desc
+            <button onclick="sortColumn('desc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
+                <i data-lucide="arrow-down-z-a" class="w-4 h-4 text-gray-500"></i> <span>Sort Z to A</span>
             </button>
         </div>
         <input type="text" id="filter-search-input" placeholder="Search values..."
@@ -875,6 +875,7 @@
         }).join('');
 
         updateSelectAllState();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
     function filterCheckboxList(search) {

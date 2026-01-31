@@ -309,6 +309,13 @@
                    class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
                     <i data-lucide="printer" class="w-4 h-4 text-gray-500 mr-2"></i>Print Label
                 </a>
+                {% if drill_bit.status != 'SCRAPPED' %}
+                <a href="{% url 'workorders:drillbit_delete' drill_bit.pk %}"
+                   class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-sm text-red-600 dark:text-red-400"
+                   onclick="return confirm('Are you sure you want to scrap this drill bit?')">
+                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Scrap / Delete
+                </a>
+                {% endif %}
             </div>
         </div>
     </div>
