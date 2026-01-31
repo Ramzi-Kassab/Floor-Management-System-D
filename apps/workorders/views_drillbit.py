@@ -200,9 +200,23 @@ class DrillBitCreateView(LoginRequiredMixin, CreateView):
 
         from apps.technology.models import BOM, Design
 
-        # Get Designs for JavaScript
+        # Designs for table display
+        designs = Design.objects.select_related(
+            "size", "iadc_code_ref"
+        ).prefetch_related("boms").order_by("mat_no")
+        context["designs"] = designs
+
+        # BOMs for table display
+        boms = BOM.objects.filter(
+            design__isnull=False
+        ).select_related(
+            "design", "design__size", "design__iadc_code_ref", "smi_type"
+        ).order_by("design__mat_no", "code")
+        context["boms"] = boms
+
+        # Get Designs for JavaScript (legacy — keep for form fallback)
         designs_data = []
-        for design in Design.objects.select_related("size").order_by("mat_no"):
+        for design in designs:
             designs_data.append({
                 "id": design.id,
                 "mat_no": design.mat_no,
@@ -214,13 +228,14 @@ class DrillBitCreateView(LoginRequiredMixin, CreateView):
 
         # Get BOMs with design_id for JavaScript filtering
         boms_data = []
-        for bom in BOM.objects.filter(status="ACTIVE", design__isnull=False).select_related("design", "design__size"):
+        for bom in boms.filter(status="ACTIVE"):
             boms_data.append({
                 "id": bom.id,
                 "code": bom.code,
                 "name": bom.name or "",
                 "design_id": bom.design.id if bom.design else None,
                 "design_mat_no": bom.design.mat_no if bom.design else "",
+                "system_mat_no": bom.system_mat_no or "",
             })
         context["boms_json"] = boms_data
 
