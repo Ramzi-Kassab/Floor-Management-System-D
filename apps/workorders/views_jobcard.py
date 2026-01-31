@@ -328,7 +328,8 @@ class DrillBitListEnhancedView(LoginRequiredMixin, ListView):
             "design", "design__size", "design__connection_ref",
             "design__iadc_code_ref", "design__breaker_slot",
             "design__application_ref", "design__formation_type_ref",
-            "bom", "brazing_bom", "system_bom",
+            "bom", "brazing_bom", "brazing_bom__smi_type",
+            "system_bom", "system_bom__smi_type",
             "customer", "rig", "well", "current_location", "bit_location"
         ).prefetch_related(
             "design__special_technologies"

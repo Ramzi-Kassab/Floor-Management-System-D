@@ -338,7 +338,7 @@
                     </th>
                     <th class="px-3 py-2 font-medium bg-green-50 dark:bg-green-900/20" data-column="systembom">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'systembom')">
-                            <span>System BOM</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                            <span>System MAT</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
                     <!-- Status Section -->
@@ -394,8 +394,8 @@
                     <td class="px-3 py-2 font-mono bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.ref_mat_no|default:'' }}">{{ bit.design.ref_mat_no|default:"--" }}</td>
                     <!-- HDBS Type -->
                     <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.hdbs_type|default:'' }}">{{ bit.design.hdbs_type|default:"--" }}</td>
-                    <!-- SMI Type -->
-                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.smi_type|default:'' }}">{{ bit.design.smi_type|default:"--" }}</td>
+                    <!-- SMI Type (from BOM FK, fallback to design CharField) -->
+                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.design.smi_type '' %}">{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.design.smi_type "--" %}</td>
                     <!-- Size -->
                     <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.size.size_display|default:'' }}">{{ bit.design.size.size_display|default:"--" }}</td>
                     <!-- Connection -->
@@ -422,13 +422,19 @@
                             <span class="text-gray-400">--</span>
                         {% endif %}
                     </td>
-                    <!-- Brazing BOM -->
+                    <!-- Brazing BOM (MAT#) -->
                     <td class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{{ bit.brazing_bom.code|default:'' }}">
-                        {% if bit.brazing_bom %}<a href="{% url 'technology:bom_detail' bit.brazing_bom.pk %}" class="text-green-600 hover:underline">{{ bit.brazing_bom.code }}</a>{% else %}<span class="text-gray-400">--</span>{% endif %}
+                        {% if bit.brazing_bom %}<a href="{% url 'technology:bom_detail' bit.brazing_bom.pk %}" class="text-green-600 hover:underline" title="BOM: {{ bit.brazing_bom.name }}">{{ bit.brazing_bom.code }}</a>{% else %}<span class="text-gray-400">--</span>{% endif %}
                     </td>
-                    <!-- System BOM -->
-                    <td class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{{ bit.system_bom.code|default:'' }}">
-                        {% if bit.system_bom %}<a href="{% url 'technology:bom_detail' bit.system_bom.pk %}" class="text-green-600 hover:underline">{{ bit.system_bom.code }}</a>{% else %}<span class="text-gray-400">--</span>{% endif %}
+                    <!-- System MAT# -->
+                    <td class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{% firstof bit.brazing_bom.system_mat_no bit.system_bom.code '' %}">
+                        {% if bit.brazing_bom.system_mat_no %}
+                            <span title="System MAT from Brazing BOM">{{ bit.brazing_bom.system_mat_no }}</span>
+                        {% elif bit.system_bom %}
+                            <a href="{% url 'technology:bom_detail' bit.system_bom.pk %}" class="text-green-600 hover:underline" title="System BOM: {{ bit.system_bom.name }}">{{ bit.system_bom.code }}</a>
+                        {% else %}
+                            <span class="text-gray-400">--</span>
+                        {% endif %}
                     </td>
                     <!-- Type -->
                     <td class="px-3 py-2" data-value="{{ bit.get_bit_type_display }}">{{ bit.get_bit_type_display }}</td>
