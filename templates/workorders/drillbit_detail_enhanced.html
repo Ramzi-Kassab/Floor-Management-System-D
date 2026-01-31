@@ -178,9 +178,9 @@
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">System MAT (L5)</p>
-                    {% if drill_bit.brazing_bom.system_mat_no %}
+                    {% if drill_bit.brazing_bom and drill_bit.brazing_bom.system_mat_no %}
                     <p class="font-medium text-blue-600 dark:text-blue-400 font-mono">{{ drill_bit.brazing_bom.system_mat_no }}</p>
-                    {% elif drill_bit.bom.system_mat_no %}
+                    {% elif drill_bit.bom and drill_bit.bom.system_mat_no %}
                     <p class="font-medium text-blue-600 dark:text-blue-400 font-mono">{{ drill_bit.bom.system_mat_no }}</p>
                     {% elif drill_bit.system_bom %}
                     <p class="font-medium text-blue-600 dark:text-blue-400 font-mono">{{ drill_bit.system_bom.code }}</p>
@@ -190,9 +190,7 @@
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">SMI Type</p>
-                    {% with smi=drill_bit.brazing_bom.smi_type|default:drill_bit.bom.smi_type %}
-                    <p class="font-medium text-gray-900 dark:text-white">{% if smi %}{{ smi.smi_name }}{% else %}{{ drill_bit.design.smi_type|default:"--" }}{% endif %}</p>
-                    {% endwith %}
+                    <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit.brazing_bom and drill_bit.brazing_bom.smi_type %}{{ drill_bit.brazing_bom.smi_type.smi_name }}{% elif drill_bit.bom and drill_bit.bom.smi_type %}{{ drill_bit.bom.smi_type.smi_name }}{% elif drill_bit.design %}{{ drill_bit.design.smi_type|default:"--" }}{% else %}--{% endif %}</p>
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Customer</p>

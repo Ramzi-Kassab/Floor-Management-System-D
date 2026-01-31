@@ -8438,9 +8438,12 @@
                     // If "Save & go to BOMs List" was clicked, redirect immediately
                     if (window._saveAndGoToBomsList) {
                         window._saveAndGoToBomsList = false;
+                        hasUnsavedChanges = false;
                         window.location.href = '/technology/boms/';
                         return;
                     }
+                    // Mark as saved so beforeunload doesn't warn
+                    hasUnsavedChanges = false;
                     // Show success dialog with options instead of redirecting to old builder
                     showBOMSuccessDialog(result);
                 } else {
