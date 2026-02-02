@@ -1135,13 +1135,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const url = cb.dataset.url;
             if (activeUrls.has(url)) {
                 cb.checked = true;
-                cb.disabled = true;
-                cb.closest('label').classList.add('opacity-60');
                 count++;
             } else {
                 cb.checked = false;
-                cb.disabled = false;
-                cb.closest('label').classList.remove('opacity-60');
             }
         });
         const countEl = document.getElementById('pages-selected-count');
@@ -1274,17 +1270,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const widgetId = this.dataset.widgetId;
                 const isPageShortcut = widgetId.startsWith('custom_page_') || widgetId.startsWith('shortcut_');
                 if (isPageShortcut) {
-                    // Find the URL to uncheck the corresponding checkbox
                     const w = widgetLayout.find(wl => wl.id === widgetId);
                     const url = w ? w.url : (card.dataset.pageUrl || '');
                     card.remove();
                     widgetLayout = widgetLayout.filter(wl => wl.id !== widgetId);
                     checkEmptyState();
-                    // Uncheck the corresponding page checkbox
-                    if (url) {
-                        const cb = document.querySelector(`.page-checkbox[data-url="${url}"]`);
-                        if (cb) { cb.checked = false; cb.disabled = false; cb.closest('label').classList.remove('opacity-60'); }
-                    }
                     syncPageCheckboxes();
                     return;
                 }
@@ -1318,6 +1308,23 @@ document.addEventListener('DOMContentLoaded', function() {
         attachStyleHandlers();
     }
 
+    // Remove a page widget by URL (from checkbox uncheck or trash button)
+    function removePageWidgetByUrl(url) {
+        // Find the widget in layout
+        const idx = widgetLayout.findIndex(w => w.url === url);
+        if (idx === -1) return;
+        const widgetId = widgetLayout[idx].id;
+
+        // Remove from DOM
+        const card = activeWidgetsContainer.querySelector(`.widget-card[data-widget-id="${widgetId}"]`);
+        if (card) card.remove();
+
+        // Remove from layout
+        widgetLayout.splice(idx, 1);
+        checkEmptyState();
+        syncPageCheckboxes();
+    }
+
     // Handle page checkbox changes
     document.querySelectorAll('.page-checkbox').forEach(cb => {
         cb.addEventListener('change', function() {
@@ -1326,14 +1333,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const pageIcon = this.dataset.pageIcon;
 
             if (this.checked) {
-                // Duplicate check: don't add if URL already in layout
-                const alreadyExists = widgetLayout.some(w => w.url === url);
-                if (alreadyExists) {
-                    this.checked = true;
-                    this.disabled = true;
-                    this.closest('label').classList.add('opacity-60');
-                    return;
-                }
+                // Duplicate check
+                if (widgetLayout.some(w => w.url === url)) return;
 
                 const newId = nextCustomPageId();
                 const card = createPageWidgetCard(newId, pageName, pageIcon, url);
@@ -1349,9 +1350,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     border_radius: 'rounded', show_header: true,
                     url: url, page_name: pageName, page_icon: pageIcon
                 });
-
-                this.disabled = true;
-                this.closest('label').classList.add('opacity-60');
+                syncPageCheckboxes();
+            } else {
+                // Uncheck = remove the widget
+                removePageWidgetByUrl(url);
             }
         });
     });
