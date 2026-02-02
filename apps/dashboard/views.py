@@ -223,6 +223,12 @@ WIDGET_CATEGORIES = {
         "icon": "grid-3x3",
         "color": "gray",
     },
+    "shortcuts": {
+        "name": "Page Shortcuts",
+        "description": "Quick navigation links to specific pages",
+        "icon": "external-link",
+        "color": "violet",
+    },
 }
 
 # Available widgets configuration - Enhanced with categories
@@ -701,6 +707,257 @@ AVAILABLE_WIDGETS = {
         "default_size": "large",
         "category": "quality",
     },
+    # =========================================================================
+    # PAGE SHORTCUT WIDGETS
+    # =========================================================================
+    "shortcut_designs": {
+        "name": "Designs",
+        "description": "Go to Designs (L3/L4) list",
+        "icon": "pen-tool",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "technology:design_list",
+    },
+    "shortcut_boms": {
+        "name": "Bills of Materials",
+        "description": "Go to BOMs list",
+        "icon": "package",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "technology:bom_list",
+    },
+    "shortcut_bom_create": {
+        "name": "Create BOM",
+        "description": "Go to BOM creation wizard",
+        "icon": "file-plus",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "technology:bom_create_builder",
+    },
+    "shortcut_cutter_map": {
+        "name": "Cutter Map",
+        "description": "Go to Cutter Map tool",
+        "icon": "scan",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "cutter_map:index",
+    },
+    "shortcut_cutter_inventory": {
+        "name": "Cutter Inventory",
+        "description": "Go to PDC Cutter Inventory",
+        "icon": "circle-dot",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "inventory:cutter_inventory_list",
+    },
+    "shortcut_items": {
+        "name": "Inventory Items",
+        "description": "Go to Inventory Items list",
+        "icon": "package",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "inventory:item_list",
+    },
+    "shortcut_stock_import": {
+        "name": "Stock Import (ERP)",
+        "description": "Go to ERP Stock Import tool",
+        "icon": "upload",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "inventory:stock_import",
+    },
+    "shortcut_drill_bits": {
+        "name": "Drill Bits",
+        "description": "Go to Drill Bits list",
+        "icon": "disc",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "workorders:drillbit_list_enhanced",
+    },
+    "shortcut_register_bit": {
+        "name": "Register New Bit",
+        "description": "Register a new drill bit",
+        "icon": "plus-circle",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "workorders:drillbit_create",
+    },
+    "shortcut_job_cards": {
+        "name": "Job Cards",
+        "description": "Go to Job Cards (Work Orders) list",
+        "icon": "file-text",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "workorders:workorder_list_enhanced",
+    },
+    "shortcut_create_wo": {
+        "name": "Create Work Order",
+        "description": "Create a new work order",
+        "icon": "file-plus-2",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "workorders:create",
+    },
+    "shortcut_work_orders": {
+        "name": "Work Orders",
+        "description": "Go to Work Orders list",
+        "icon": "clipboard-list",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "workorders:list",
+    },
+    "shortcut_accounts": {
+        "name": "Accounts",
+        "description": "Go to Accounts list",
+        "icon": "building-2",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "sales:account_list",
+    },
+    "shortcut_customers": {
+        "name": "Customers",
+        "description": "Go to Customers list",
+        "icon": "users",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "sales:customer_list",
+    },
+    "shortcut_vendors": {
+        "name": "Vendors",
+        "description": "Go to Vendors list",
+        "icon": "building-2",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "supplychain:supplier_list",
+    },
+    "shortcut_purchase_orders": {
+        "name": "Purchase Orders",
+        "description": "Go to Purchase Orders list",
+        "icon": "file-output",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "supplychain:po_list",
+    },
+    "shortcut_grn": {
+        "name": "Goods Receipt (GRN)",
+        "description": "Go to GRN list",
+        "icon": "download",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "inventory:grn_list",
+    },
+    "shortcut_hdbs_types": {
+        "name": "Types (HDBS/SMI)",
+        "description": "Go to HDBS & SMI Types list",
+        "icon": "layers",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "technology:hdbs_type_list",
+    },
+    "shortcut_ncrs": {
+        "name": "NCRs",
+        "description": "Go to Non-Conformance Reports",
+        "icon": "alert-triangle",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "quality:ncr_list",
+    },
+    "shortcut_inspections": {
+        "name": "Inspections",
+        "description": "Go to Quality Inspections",
+        "icon": "search",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "quality:inspection_list",
+    },
+    "shortcut_process_routes": {
+        "name": "Process Routes",
+        "description": "Go to Process Routes list",
+        "icon": "git-branch",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "workorders:processroute_list",
+    },
+    "shortcut_bit_events": {
+        "name": "Bit Events",
+        "description": "Go to Bit Events list",
+        "icon": "activity",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "workorders:bitevent_list",
+    },
+    "shortcut_stock_ledger": {
+        "name": "Stock Ledger",
+        "description": "Go to Stock Ledger",
+        "icon": "book",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "inventory:stock_ledger_list",
+    },
+    "shortcut_locations": {
+        "name": "Locations",
+        "description": "Go to Locations list",
+        "icon": "map-pin",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "workorders:location_list",
+    },
+    "shortcut_rigs": {
+        "name": "Rigs",
+        "description": "Go to Rigs list",
+        "icon": "anchor",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "sales:rig_list",
+    },
+    "shortcut_wells": {
+        "name": "Wells",
+        "description": "Go to Wells list",
+        "icon": "target",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "sales:well_list",
+    },
+    "shortcut_sales_orders": {
+        "name": "Sales Orders",
+        "description": "Go to Sales Orders list",
+        "icon": "shopping-cart",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "sales:salesorder_list",
+    },
+    "shortcut_pockets_layout": {
+        "name": "Pockets Layout",
+        "description": "Go to Design Pockets Layout",
+        "icon": "grid-3x3",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "technology:pockets_layout_list",
+    },
+    "shortcut_connections": {
+        "name": "Connections",
+        "description": "Go to Connections list",
+        "icon": "link",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "technology:connection_list",
+    },
+    "shortcut_equipment": {
+        "name": "Equipment",
+        "description": "Go to Equipment list",
+        "icon": "cpu",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "maintenance:equipment_list",
+    },
+    "shortcut_procedures": {
+        "name": "Procedures",
+        "description": "Go to Procedures list",
+        "icon": "book-open",
+        "default_size": "small",
+        "category": "shortcuts",
+        "url": "procedures:procedure_list",
+    },
 }
 
 # Default widget layouts for each dashboard type
@@ -1103,6 +1360,16 @@ def get_widget_data(widget_id, user):
     elif widget_id == "qc_recent_ncrs_list":
         return {
             "ncrs": NCR.objects.select_related("work_order", "detected_by").order_by("-created_at")[:10],
+        }
+
+    # =========================================================================
+    # PAGE SHORTCUT WIDGETS
+    # =========================================================================
+    elif widget_id.startswith("shortcut_"):
+        widget_def = AVAILABLE_WIDGETS.get(widget_id, {})
+        return {
+            "url": widget_def.get("url", ""),
+            "page_name": widget_def.get("name", "Page"),
         }
 
     return {}

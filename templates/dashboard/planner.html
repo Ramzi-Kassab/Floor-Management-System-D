@@ -217,6 +217,18 @@
                 </div>
                 {% endif %}
 
+            {% elif widget.id|slice:":9" == 'shortcut_' %}
+                <a href="{% url widget.data.url %}" class="block group">
+                    <div class="flex flex-col items-center justify-center text-center py-4">
+                        <div class="w-14 h-14 flex items-center justify-center rounded-xl mb-3 transition-transform group-hover:scale-110
+                            {% if widget.color == 'blue' %}bg-blue-100 dark:bg-blue-900/30{% elif widget.color == 'violet' %}bg-violet-100 dark:bg-violet-900/30{% elif widget.color == 'green' %}bg-green-100 dark:bg-green-900/30{% elif widget.color == 'purple' %}bg-purple-100 dark:bg-purple-900/30{% elif widget.color == 'orange' %}bg-orange-100 dark:bg-orange-900/30{% elif widget.color == 'red' %}bg-red-100 dark:bg-red-900/30{% else %}bg-violet-100 dark:bg-violet-900/30{% endif %}">
+                            <i data-lucide="{{ widget.icon }}" class="w-7 h-7
+                                {% if widget.color == 'blue' %}text-blue-600 dark:text-blue-400{% elif widget.color == 'violet' %}text-violet-600 dark:text-violet-400{% elif widget.color == 'green' %}text-green-600 dark:text-green-400{% elif widget.color == 'purple' %}text-purple-600 dark:text-purple-400{% elif widget.color == 'orange' %}text-orange-600 dark:text-orange-400{% elif widget.color == 'red' %}text-red-600 dark:text-red-400{% else %}text-violet-600 dark:text-violet-400{% endif %}"></i>
+                        </div>
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{{ widget.data.page_name }}</p>
+                    </div>
+                </a>
+
             {% else %}
                 <!-- Generic widget placeholder -->
                 <div class="text-center py-6 text-gray-500 dark:text-gray-400">
