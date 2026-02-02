@@ -223,13 +223,170 @@ WIDGET_CATEGORIES = {
         "icon": "grid-3x3",
         "color": "gray",
     },
-    "shortcuts": {
-        "name": "Page Shortcuts",
-        "description": "Quick navigation links to specific pages",
-        "icon": "external-link",
-        "color": "violet",
+    "shortcuts_sales": {
+        "name": "Sales",
+        "description": "Accounts, customers, rigs, wells, orders",
+        "icon": "trending-up",
+        "color": "emerald",
+        "is_shortcut": True,
+    },
+    "shortcuts_production": {
+        "name": "Production",
+        "description": "Job cards, work orders, process routes",
+        "icon": "factory",
+        "color": "orange",
+        "is_shortcut": True,
+    },
+    "shortcuts_technical": {
+        "name": "Technical",
+        "description": "Designs, BOMs, cutter map, types",
+        "icon": "cog",
+        "color": "slate",
+        "is_shortcut": True,
+    },
+    "shortcuts_quality": {
+        "name": "Quality",
+        "description": "Inspections, NCRs, procedures",
+        "icon": "check-circle",
+        "color": "green",
+        "is_shortcut": True,
+    },
+    "shortcuts_logistics": {
+        "name": "Logistics",
+        "description": "Inventory, cutters, stock, purchasing, drill bits",
+        "icon": "truck",
+        "color": "blue",
+        "is_shortcut": True,
     },
 }
+
+# Master registry of all navigable pages, organized by sidebar section.
+# Used by the "Add Page Shortcut" feature in Customize.
+PAGE_REGISTRY = [
+    {
+        "section": "Sales",
+        "icon": "trending-up",
+        "color": "emerald",
+        "pages": [
+            {"name": "Accounts", "url": "sales:account_list", "icon": "building-2"},
+            {"name": "Customers", "url": "sales:customer_list", "icon": "users"},
+            {"name": "Rigs", "url": "sales:rig_list", "icon": "anchor"},
+            {"name": "Wells", "url": "sales:well_list", "icon": "target"},
+            {"name": "Sales Orders", "url": "sales:salesorder_list", "icon": "shopping-cart"},
+            {"name": "Service Sites", "url": "sales:servicesite_list", "icon": "map-pin"},
+            {"name": "Service Requests", "url": "sales:fieldservicerequest_list", "icon": "clipboard"},
+            {"name": "Site Visits", "url": "sales:sitevisit_list", "icon": "car"},
+            {"name": "Service Reports", "url": "sales:servicereport_list", "icon": "file-text"},
+            {"name": "Field Engineers", "url": "sales:fieldtechnician_list", "icon": "hard-hat"},
+            {"name": "Field Work Orders", "url": "sales:fieldworkorder_list", "icon": "file-check"},
+            {"name": "Drill Runs", "url": "sales:fielddrillstringrun_list", "icon": "activity"},
+            {"name": "Run Data", "url": "sales:fieldrundata_list", "icon": "database"},
+            {"name": "Run Hours", "url": "sales:runhours_list", "icon": "clock"},
+            {"name": "Performance Logs", "url": "sales:fieldperformancelog_list", "icon": "line-chart"},
+            {"name": "Warehouses", "url": "sales:warehouse_list", "icon": "warehouse"},
+        ],
+    },
+    {
+        "section": "Production",
+        "icon": "factory",
+        "color": "orange",
+        "pages": [
+            {"name": "Production Dashboard", "url": "workorders:dashboard", "icon": "layout-dashboard"},
+            {"name": "Job Cards", "url": "workorders:workorder_list_enhanced", "icon": "file-text"},
+            {"name": "Work Orders", "url": "workorders:list", "icon": "clipboard-list"},
+            {"name": "Create Work Order", "url": "workorders:create", "icon": "file-plus-2"},
+            {"name": "WIP", "url": "execution:list", "icon": "play-circle"},
+            {"name": "Instructions", "url": "workorders:instruction_rule_list", "icon": "book-text"},
+            {"name": "Process Routes", "url": "workorders:processroute_list", "icon": "git-branch"},
+            {"name": "WO Costs", "url": "workorders:workordercost_list", "icon": "dollar-sign"},
+            {"name": "Evaluations", "url": "workorders:repairevaluation_list", "icon": "search"},
+            {"name": "Repair BOM", "url": "workorders:repairbom_list", "icon": "list"},
+            {"name": "Bit History", "url": "workorders:bitrepairhistory_list", "icon": "history"},
+            {"name": "Salvage", "url": "workorders:salvageitem_list", "icon": "recycle"},
+        ],
+    },
+    {
+        "section": "Technical",
+        "icon": "cog",
+        "color": "slate",
+        "pages": [
+            {"name": "Designs", "url": "technology:design_list", "icon": "pen-tool"},
+            {"name": "Connections", "url": "technology:connection_list", "icon": "link"},
+            {"name": "Breaker Slots", "url": "technology:breaker_slot_list", "icon": "wrench"},
+            {"name": "Pockets Layout", "url": "technology:pockets_layout_list", "icon": "grid-3x3"},
+            {"name": "Bills of Materials", "url": "technology:bom_list", "icon": "package"},
+            {"name": "Create BOM", "url": "technology:bom_create", "icon": "file-plus"},
+            {"name": "Cutter Map", "url": "cutter_map:index", "icon": "scan"},
+            {"name": "Bit Sizes", "url": "technology:bit_size_list", "icon": "ruler"},
+            {"name": "Types (HDBS/SMI)", "url": "technology:hdbs_type_list", "icon": "layers"},
+            {"name": "Design Import (ERP)", "url": "technology:design_import", "icon": "upload"},
+            {"name": "Design Stock (On-hand)", "url": "technology:design_stock_import", "icon": "package"},
+        ],
+    },
+    {
+        "section": "Quality",
+        "icon": "check-circle",
+        "color": "green",
+        "pages": [
+            {"name": "Inspections", "url": "quality:inspection_list", "icon": "search"},
+            {"name": "NCRs", "url": "quality:ncr_list", "icon": "alert-triangle"},
+            {"name": "CAPA", "url": "supplychain:capa_list", "icon": "shield-check"},
+            {"name": "Procedures", "url": "procedures:procedure_list", "icon": "book-open"},
+            {"name": "Form Templates", "url": "forms_engine:template-list", "icon": "file-check"},
+            {"name": "Requirements", "url": "compliance:compliancerequirement_list", "icon": "list-checks"},
+            {"name": "Checklists", "url": "compliance:inspectionchecklist_list", "icon": "clipboard-check"},
+            {"name": "Audits", "url": "compliance:audittrail_list", "icon": "eye"},
+            {"name": "Certifications", "url": "compliance:certification_list", "icon": "award"},
+            {"name": "Training", "url": "compliance:trainingrecord_list", "icon": "graduation-cap"},
+        ],
+    },
+    {
+        "section": "Logistics",
+        "icon": "truck",
+        "color": "blue",
+        "pages": [
+            {"name": "Inventory Dashboard", "url": "inventory:dashboard", "icon": "layout-dashboard"},
+            {"name": "Items", "url": "inventory:item_list", "icon": "package"},
+            {"name": "Stock Balances", "url": "inventory:stock_balance_list", "icon": "scale"},
+            {"name": "Variant Stock", "url": "inventory:variant_stock_list", "icon": "git-branch"},
+            {"name": "Stock Ledger", "url": "inventory:stock_ledger_list", "icon": "book"},
+            {"name": "Assets", "url": "inventory:asset_list", "icon": "hard-drive"},
+            {"name": "Reservations", "url": "inventory:reservation_list", "icon": "bookmark"},
+            {"name": "Cutter Inventory", "url": "inventory:cutter_inventory_list", "icon": "circle-dot"},
+            {"name": "Cutter Orders", "url": "inventory:cutter_order_list", "icon": "shopping-cart"},
+            {"name": "Stock Import (ERP)", "url": "inventory:stock_import", "icon": "upload"},
+            {"name": "Drill Bit Inv. Dashboard", "url": "workorders:drillbit_inventory_dashboard", "icon": "layout-dashboard"},
+            {"name": "Drill Bits", "url": "workorders:drillbit_list_enhanced", "icon": "disc"},
+            {"name": "Register New Bit", "url": "workorders:drillbit_create", "icon": "plus-circle"},
+            {"name": "Locations", "url": "workorders:location_list", "icon": "map-pin"},
+            {"name": "Bit Events", "url": "workorders:bitevent_list", "icon": "activity"},
+            {"name": "Export Drill Bits", "url": "workorders:drillbit_export_excel", "icon": "file-spreadsheet"},
+            {"name": "Goods Receipt (GRN)", "url": "inventory:grn_list", "icon": "download"},
+            {"name": "Issues", "url": "inventory:issue_list", "icon": "upload"},
+            {"name": "Transfers", "url": "inventory:transfer_list", "icon": "arrow-right-left"},
+            {"name": "Adjustments", "url": "inventory:adjustment_list", "icon": "settings-2"},
+            {"name": "Vendors", "url": "supplychain:supplier_list", "icon": "building-2"},
+            {"name": "Requisitions (PR)", "url": "supplychain:pr_list", "icon": "file-input"},
+            {"name": "Purchase Orders", "url": "supplychain:po_list", "icon": "file-output"},
+            {"name": "Cycle Count", "url": "inventory:cyclecount_plan_list", "icon": "clipboard-check"},
+            {"name": "Price Lists", "url": "inventory:pricelist_list", "icon": "tags"},
+            {"name": "Stock Valuation", "url": "inventory:report_stock_valuation", "icon": "dollar-sign"},
+            {"name": "Movement History", "url": "inventory:report_movement_history", "icon": "activity"},
+            {"name": "Low Stock", "url": "inventory:report_low_stock", "icon": "alert-triangle"},
+        ],
+    },
+    {
+        "section": "Maintenance",
+        "icon": "wrench",
+        "color": "amber",
+        "pages": [
+            {"name": "Equipment", "url": "maintenance:equipment_list", "icon": "cpu"},
+            {"name": "Maintenance Requests", "url": "maintenance:request_list", "icon": "alert-circle"},
+            {"name": "MWOs", "url": "maintenance:mwo_list", "icon": "tool"},
+            {"name": "PM Schedule", "url": "maintenance:pm_schedule", "icon": "calendar-check"},
+        ],
+    },
+]
 
 # Available widgets configuration - Enhanced with categories
 AVAILABLE_WIDGETS = {
@@ -715,7 +872,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Designs (L3/L4) list",
         "icon": "pen-tool",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_technical",
         "url": "technology:design_list",
     },
     "shortcut_boms": {
@@ -723,7 +880,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to BOMs list",
         "icon": "package",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_technical",
         "url": "technology:bom_list",
     },
     "shortcut_bom_create": {
@@ -731,15 +888,15 @@ AVAILABLE_WIDGETS = {
         "description": "Go to BOM creation wizard",
         "icon": "file-plus",
         "default_size": "small",
-        "category": "shortcuts",
-        "url": "technology:bom_create_builder",
+        "category": "shortcuts_technical",
+        "url": "technology:bom_create",
     },
     "shortcut_cutter_map": {
         "name": "Cutter Map",
         "description": "Go to Cutter Map tool",
         "icon": "scan",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_technical",
         "url": "cutter_map:index",
     },
     "shortcut_cutter_inventory": {
@@ -747,7 +904,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to PDC Cutter Inventory",
         "icon": "circle-dot",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_logistics",
         "url": "inventory:cutter_inventory_list",
     },
     "shortcut_items": {
@@ -755,7 +912,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Inventory Items list",
         "icon": "package",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_logistics",
         "url": "inventory:item_list",
     },
     "shortcut_stock_import": {
@@ -763,7 +920,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to ERP Stock Import tool",
         "icon": "upload",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_logistics",
         "url": "inventory:stock_import",
     },
     "shortcut_drill_bits": {
@@ -771,7 +928,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Drill Bits list",
         "icon": "disc",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_logistics",
         "url": "workorders:drillbit_list_enhanced",
     },
     "shortcut_register_bit": {
@@ -779,7 +936,7 @@ AVAILABLE_WIDGETS = {
         "description": "Register a new drill bit",
         "icon": "plus-circle",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_logistics",
         "url": "workorders:drillbit_create",
     },
     "shortcut_job_cards": {
@@ -787,7 +944,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Job Cards (Work Orders) list",
         "icon": "file-text",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_production",
         "url": "workorders:workorder_list_enhanced",
     },
     "shortcut_create_wo": {
@@ -795,7 +952,7 @@ AVAILABLE_WIDGETS = {
         "description": "Create a new work order",
         "icon": "file-plus-2",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_production",
         "url": "workorders:create",
     },
     "shortcut_work_orders": {
@@ -803,7 +960,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Work Orders list",
         "icon": "clipboard-list",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_production",
         "url": "workorders:list",
     },
     "shortcut_accounts": {
@@ -811,7 +968,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Accounts list",
         "icon": "building-2",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_sales",
         "url": "sales:account_list",
     },
     "shortcut_customers": {
@@ -819,7 +976,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Customers list",
         "icon": "users",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_sales",
         "url": "sales:customer_list",
     },
     "shortcut_vendors": {
@@ -827,7 +984,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Vendors list",
         "icon": "building-2",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_logistics",
         "url": "supplychain:supplier_list",
     },
     "shortcut_purchase_orders": {
@@ -835,7 +992,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Purchase Orders list",
         "icon": "file-output",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_logistics",
         "url": "supplychain:po_list",
     },
     "shortcut_grn": {
@@ -843,7 +1000,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to GRN list",
         "icon": "download",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_logistics",
         "url": "inventory:grn_list",
     },
     "shortcut_hdbs_types": {
@@ -851,7 +1008,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to HDBS & SMI Types list",
         "icon": "layers",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_technical",
         "url": "technology:hdbs_type_list",
     },
     "shortcut_ncrs": {
@@ -859,7 +1016,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Non-Conformance Reports",
         "icon": "alert-triangle",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_quality",
         "url": "quality:ncr_list",
     },
     "shortcut_inspections": {
@@ -867,7 +1024,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Quality Inspections",
         "icon": "search",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_quality",
         "url": "quality:inspection_list",
     },
     "shortcut_process_routes": {
@@ -875,7 +1032,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Process Routes list",
         "icon": "git-branch",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_production",
         "url": "workorders:processroute_list",
     },
     "shortcut_bit_events": {
@@ -883,7 +1040,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Bit Events list",
         "icon": "activity",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_production",
         "url": "workorders:bitevent_list",
     },
     "shortcut_stock_ledger": {
@@ -891,7 +1048,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Stock Ledger",
         "icon": "book",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_logistics",
         "url": "inventory:stock_ledger_list",
     },
     "shortcut_locations": {
@@ -899,7 +1056,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Locations list",
         "icon": "map-pin",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_logistics",
         "url": "workorders:location_list",
     },
     "shortcut_rigs": {
@@ -907,7 +1064,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Rigs list",
         "icon": "anchor",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_sales",
         "url": "sales:rig_list",
     },
     "shortcut_wells": {
@@ -915,7 +1072,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Wells list",
         "icon": "target",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_sales",
         "url": "sales:well_list",
     },
     "shortcut_sales_orders": {
@@ -923,7 +1080,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Sales Orders list",
         "icon": "shopping-cart",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_sales",
         "url": "sales:salesorder_list",
     },
     "shortcut_pockets_layout": {
@@ -931,7 +1088,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Design Pockets Layout",
         "icon": "grid-3x3",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_technical",
         "url": "technology:pockets_layout_list",
     },
     "shortcut_connections": {
@@ -939,7 +1096,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Connections list",
         "icon": "link",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_technical",
         "url": "technology:connection_list",
     },
     "shortcut_equipment": {
@@ -947,7 +1104,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Equipment list",
         "icon": "cpu",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_production",
         "url": "maintenance:equipment_list",
     },
     "shortcut_procedures": {
@@ -955,7 +1112,7 @@ AVAILABLE_WIDGETS = {
         "description": "Go to Procedures list",
         "icon": "book-open",
         "default_size": "small",
-        "category": "shortcuts",
+        "category": "shortcuts_quality",
         "url": "procedures:procedure_list",
     },
 }
@@ -1060,14 +1217,26 @@ def build_widgets_from_layout(widget_layout, user):
         if widget_config.get("visible", True):
             widget_id = widget_config["id"]
             widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
+
+            # For custom page shortcuts, read info from the config itself
+            if widget_id.startswith("custom_page_"):
+                name = widget_config.get("page_name", "Page")
+                icon = widget_config.get("page_icon", "external-link")
+                url = widget_config.get("url", "")
+                widget_data = {"url": url, "page_name": name}
+            else:
+                name = widget_info.get("name", widget_id)
+                icon = widget_info.get("icon", "square")
+                widget_data = get_widget_data(widget_id, user)
+
             widgets.append({
                 "id": widget_id,
-                "name": widget_info.get("name", widget_id),
-                "description": widget_info.get("description", ""),
-                "icon": widget_info.get("icon", "square"),
+                "name": name,
+                "description": widget_info.get("description", "") if not widget_id.startswith("custom_page_") else f"Shortcut to {name}",
+                "icon": icon,
                 "size": widget_config.get("size", "medium"),
                 "category": widget_info.get("category", "utilities"),
-                "data": get_widget_data(widget_id, user),
+                "data": widget_data,
                 # Style properties
                 "color": widget_config.get("color", "blue"),
                 "color_intensity": widget_config.get("color_intensity", "medium"),
@@ -1372,6 +1541,10 @@ def get_widget_data(widget_id, user):
             "page_name": widget_def.get("name", "Page"),
         }
 
+    elif widget_id.startswith("custom_page_"):
+        # Custom page shortcuts - data comes from layout config, not here
+        return {}
+
     return {}
 
 
@@ -1439,12 +1612,19 @@ def customize_dashboard(request, dashboard_type="main"):
 
     # Add widget metadata to current layout
     for widget in current_layout:
-        widget_info = AVAILABLE_WIDGETS.get(widget["id"], {})
-        widget["name"] = widget_info.get("name", widget["id"])
-        widget["description"] = widget_info.get("description", "")
-        widget["icon"] = widget_info.get("icon", "square")
-        widget["category"] = widget_info.get("category", "utilities")
-        # Ensure visible field is True (force it for customize page)
+        widget_id = widget["id"]
+        if widget_id.startswith("custom_page_"):
+            # Custom shortcuts store their own metadata
+            widget["name"] = widget.get("page_name", "Page")
+            widget["description"] = f"Shortcut to {widget.get('page_name', 'Page')}"
+            widget["icon"] = widget.get("page_icon", "external-link")
+            widget["category"] = "shortcuts_custom"
+        else:
+            widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
+            widget["name"] = widget_info.get("name", widget_id)
+            widget["description"] = widget_info.get("description", "")
+            widget["icon"] = widget_info.get("icon", "square")
+            widget["category"] = widget_info.get("category", "utilities")
         widget["visible"] = True
 
     # Get list of active widget IDs
@@ -1495,6 +1675,7 @@ def customize_dashboard(request, dashboard_type="main"):
         "current_layout_json": json.dumps(current_layout),
         "total_widgets": len(AVAILABLE_WIDGETS),
         "active_widget_count": len(active_widget_ids),
+        "page_registry": PAGE_REGISTRY,
     }
     return render(request, "dashboard/customize.html", context)
 

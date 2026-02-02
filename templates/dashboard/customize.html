@@ -62,6 +62,9 @@
                          data-text-size="{{ widget.text_size|default:'normal' }}"
                          data-border-radius="{{ widget.border_radius|default:'rounded' }}"
                          data-show-header="{{ widget.show_header|default:'true' }}"
+                         {% if widget.url %}data-page-url="{{ widget.url }}"{% endif %}
+                         {% if widget.page_name %}data-page-name="{{ widget.page_name }}"{% endif %}
+                         {% if widget.page_icon %}data-page-icon="{{ widget.page_icon }}"{% endif %}
                          draggable="true">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
@@ -252,6 +255,17 @@
                 <i data-lucide="chevron-right" class="w-5 h-5 ml-auto"></i>
             </button>
 
+            <!-- Add Page Shortcut -->
+            <button type="button" id="open-page-shortcut-modal"
+                    class="w-full flex items-center justify-center px-6 py-4 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white rounded-xl shadow-lg transition-all transform hover:scale-[1.02]">
+                <i data-lucide="external-link" class="w-6 h-6 mr-3"></i>
+                <div class="text-left">
+                    <p class="font-semibold text-lg">Add Page Shortcut</p>
+                    <p class="text-sm text-violet-200">Create shortcut to any page</p>
+                </div>
+                <i data-lucide="chevron-right" class="w-5 h-5 ml-auto"></i>
+            </button>
+
             <!-- Quick Add by Category -->
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Add</h2>
@@ -268,6 +282,9 @@
                             {% if cat_info.color == 'cyan' %}bg-cyan-100 dark:bg-cyan-900/30{% endif %}
                             {% if cat_info.color == 'pink' %}bg-pink-100 dark:bg-pink-900/30{% endif %}
                             {% if cat_info.color == 'gray' %}bg-gray-100 dark:bg-gray-700{% endif %}
+                            {% if cat_info.color == 'violet' %}bg-violet-100 dark:bg-violet-900/30{% endif %}
+                            {% if cat_info.color == 'emerald' %}bg-emerald-100 dark:bg-emerald-900/30{% endif %}
+                            {% if cat_info.color == 'slate' %}bg-slate-100 dark:bg-slate-900/30{% endif %}
                             flex items-center justify-center mr-3">
                             <i data-lucide="{{ cat_info.icon }}" class="w-4 h-4
                                 {% if cat_info.color == 'blue' %}text-blue-600 dark:text-blue-400{% endif %}
@@ -278,6 +295,9 @@
                                 {% if cat_info.color == 'cyan' %}text-cyan-600 dark:text-cyan-400{% endif %}
                                 {% if cat_info.color == 'pink' %}text-pink-600 dark:text-pink-400{% endif %}
                                 {% if cat_info.color == 'gray' %}text-gray-600 dark:text-gray-400{% endif %}
+                                {% if cat_info.color == 'violet' %}text-violet-600 dark:text-violet-400{% endif %}
+                                {% if cat_info.color == 'emerald' %}text-emerald-600 dark:text-emerald-400{% endif %}
+                                {% if cat_info.color == 'slate' %}text-slate-600 dark:text-slate-400{% endif %}
                             "></i>
                         </div>
                         <div class="flex-1 min-w-0">
@@ -513,6 +533,11 @@
                                     {% if cat_id == 'analytics' %}bg-cyan-100 dark:bg-cyan-900/30{% endif %}
                                     {% if cat_id == 'team' %}bg-pink-100 dark:bg-pink-900/30{% endif %}
                                     {% if cat_id == 'utilities' %}bg-gray-100 dark:bg-gray-700{% endif %}
+                                    {% if cat_id == 'shortcuts_sales' %}bg-emerald-100 dark:bg-emerald-900/30{% endif %}
+                                    {% if cat_id == 'shortcuts_production' %}bg-orange-100 dark:bg-orange-900/30{% endif %}
+                                    {% if cat_id == 'shortcuts_technical' %}bg-slate-100 dark:bg-slate-900/30{% endif %}
+                                    {% if cat_id == 'shortcuts_quality' %}bg-green-100 dark:bg-green-900/30{% endif %}
+                                    {% if cat_id == 'shortcuts_logistics' %}bg-blue-100 dark:bg-blue-900/30{% endif %}
                                     flex items-center justify-center mr-3">
                                     <i data-lucide="{{ widget.icon }}" class="w-6 h-6
                                         {% if cat_id == 'operations' %}text-blue-600 dark:text-blue-400{% endif %}
@@ -523,6 +548,11 @@
                                         {% if cat_id == 'analytics' %}text-cyan-600 dark:text-cyan-400{% endif %}
                                         {% if cat_id == 'team' %}text-pink-600 dark:text-pink-400{% endif %}
                                         {% if cat_id == 'utilities' %}text-gray-600 dark:text-gray-400{% endif %}
+                                        {% if cat_id == 'shortcuts_sales' %}text-emerald-600 dark:text-emerald-400{% endif %}
+                                        {% if cat_id == 'shortcuts_production' %}text-orange-600 dark:text-orange-400{% endif %}
+                                        {% if cat_id == 'shortcuts_technical' %}text-slate-600 dark:text-slate-400{% endif %}
+                                        {% if cat_id == 'shortcuts_quality' %}text-green-600 dark:text-green-400{% endif %}
+                                        {% if cat_id == 'shortcuts_logistics' %}text-blue-600 dark:text-blue-400{% endif %}
                                     "></i>
                                 </div>
                             </div>
@@ -590,6 +620,61 @@
                     </button>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Page Shortcut Modal -->
+<div id="page-shortcut-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" id="page-shortcut-backdrop"></div>
+    <div class="absolute inset-4 md:inset-8 lg:inset-16 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div>
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white">Add Page Shortcut</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Select a page to add as a shortcut widget on your dashboard</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                    <input type="text" id="page-shortcut-search"
+                           placeholder="Search pages..."
+                           class="pl-10 pr-4 py-2 w-64 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-violet-500">
+                </div>
+                <button type="button" id="close-page-shortcut" class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Body -->
+        <div class="flex-1 overflow-y-auto p-6">
+            {% for section in page_registry %}
+            <div class="mb-6 page-section" data-section="{{ section.section|lower }}">
+                <div class="flex items-center mb-3">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3
+                        {% if section.color == 'emerald' %}bg-emerald-100 dark:bg-emerald-900/30{% elif section.color == 'orange' %}bg-orange-100 dark:bg-orange-900/30{% elif section.color == 'slate' %}bg-slate-100 dark:bg-slate-900/30{% elif section.color == 'green' %}bg-green-100 dark:bg-green-900/30{% elif section.color == 'blue' %}bg-blue-100 dark:bg-blue-900/30{% elif section.color == 'amber' %}bg-amber-100 dark:bg-amber-900/30{% else %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i data-lucide="{{ section.icon }}" class="w-4 h-4
+                            {% if section.color == 'emerald' %}text-emerald-600 dark:text-emerald-400{% elif section.color == 'orange' %}text-orange-600 dark:text-orange-400{% elif section.color == 'slate' %}text-slate-600 dark:text-slate-400{% elif section.color == 'green' %}text-green-600 dark:text-green-400{% elif section.color == 'blue' %}text-blue-600 dark:text-blue-400{% elif section.color == 'amber' %}text-amber-600 dark:text-amber-400{% else %}text-gray-600 dark:text-gray-400{% endif %}"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ section.section }}</h3>
+                    <span class="ml-2 text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">{{ section.pages|length }}</span>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {% for page in section.pages %}
+                    <button type="button"
+                            class="page-shortcut-item flex items-center p-3 rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-violet-400 dark:hover:border-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-all text-left group"
+                            data-url="{{ page.url }}"
+                            data-page-name="{{ page.name }}"
+                            data-page-icon="{{ page.icon }}"
+                            data-section="{{ section.section }}">
+                        <i data-lucide="{{ page.icon }}" class="w-5 h-5 mr-3 text-gray-400 group-hover:text-violet-500 dark:group-hover:text-violet-400 flex-shrink-0"></i>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-violet-700 dark:group-hover:text-violet-300 truncate">{{ page.name }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
         </div>
     </div>
 </div>
@@ -707,7 +792,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cards.forEach((card, index) => {
             const widgetId = card.dataset.widgetId;
             const sizeSelect = card.querySelector('.size-select');
-            visibleWidgets.push({
+            const wConfig = {
                 id: widgetId,
                 size: sizeSelect ? sizeSelect.value : 'medium',
                 order: index + 1,
@@ -720,7 +805,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 text_size: card.dataset.textSize || 'normal',
                 border_radius: card.dataset.borderRadius || 'rounded',
                 show_header: card.dataset.showHeader !== 'false'
-            });
+            };
+            if (widgetId.startsWith('custom_page_')) {
+                wConfig.url = card.dataset.pageUrl || '';
+                wConfig.page_name = card.dataset.pageName || 'Page';
+                wConfig.page_icon = card.dataset.pageIcon || 'external-link';
+            }
+            visibleWidgets.push(wConfig);
         });
 
         // Keep hidden widgets with their style properties
@@ -1093,6 +1184,212 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     attachRestoreHandlers();
 
+    // =========================================================================
+    // PAGE SHORTCUT MODAL
+    // =========================================================================
+    const pageShortcutModal = document.getElementById('page-shortcut-modal');
+    const pageShortcutBackdrop = document.getElementById('page-shortcut-backdrop');
+    const openPageShortcutBtn = document.getElementById('open-page-shortcut-modal');
+    const closePageShortcutBtn = document.getElementById('close-page-shortcut');
+    const pageShortcutSearch = document.getElementById('page-shortcut-search');
+
+    if (openPageShortcutBtn) {
+        openPageShortcutBtn.addEventListener('click', () => {
+            pageShortcutModal.classList.remove('hidden');
+            setTimeout(() => lucide.createIcons(), 100);
+        });
+    }
+
+    function closePageShortcutModal() {
+        pageShortcutModal.classList.add('hidden');
+        if (pageShortcutSearch) pageShortcutSearch.value = '';
+        // Reset visibility
+        document.querySelectorAll('.page-shortcut-item').forEach(i => i.style.display = '');
+        document.querySelectorAll('.page-section').forEach(s => s.style.display = '');
+    }
+    if (closePageShortcutBtn) closePageShortcutBtn.addEventListener('click', closePageShortcutModal);
+    if (pageShortcutBackdrop) pageShortcutBackdrop.addEventListener('click', closePageShortcutModal);
+
+    // Search filter
+    if (pageShortcutSearch) {
+        pageShortcutSearch.addEventListener('input', (e) => {
+            const q = e.target.value.toLowerCase();
+            document.querySelectorAll('.page-shortcut-item').forEach(item => {
+                const name = item.dataset.pageName.toLowerCase();
+                const section = item.dataset.section.toLowerCase();
+                item.style.display = (!q || name.includes(q) || section.includes(q)) ? '' : 'none';
+            });
+            // Hide empty sections
+            document.querySelectorAll('.page-section').forEach(sec => {
+                const visible = sec.querySelectorAll('.page-shortcut-item:not([style*="display: none"])');
+                sec.style.display = visible.length > 0 ? '' : 'none';
+            });
+        });
+    }
+
+    // Helper to bind events on a single widget card
+    function bindWidgetCardEvents(card) {
+        // Size select
+        const sizeSelect = card.querySelector('.size-select');
+        if (sizeSelect) {
+            sizeSelect.addEventListener('change', updateLayoutFromDOM);
+        }
+        // Toggle visibility (remove for custom shortcuts)
+        const toggleBtn = card.querySelector('.toggle-visibility');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function() {
+                const widgetId = this.dataset.widgetId;
+                // For custom page shortcuts, just remove entirely (no hidden section)
+                if (widgetId.startsWith('custom_page_')) {
+                    card.remove();
+                    // Also remove from widgetLayout
+                    widgetLayout = widgetLayout.filter(w => w.id !== widgetId);
+                    checkEmptyState();
+                    return;
+                }
+                const widgetName = card.querySelector('.font-medium').textContent;
+                const widgetIcon = card.querySelector('[data-lucide]').getAttribute('data-lucide');
+                const widget = widgetLayout.find(w => w.id === widgetId);
+                if (widget) widget.visible = false;
+                card.remove();
+                checkEmptyState();
+                const hiddenContainer = document.getElementById('hidden-widgets');
+                const emptyMsg = hiddenContainer.querySelector('p');
+                if (emptyMsg) emptyMsg.remove();
+                const hiddenCard = document.createElement('div');
+                hiddenCard.className = 'hidden-widget-card flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600';
+                hiddenCard.dataset.widgetId = widgetId;
+                hiddenCard.innerHTML = `
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="${widgetIcon}" class="w-4 h-4 text-gray-400"></i>
+                        <span class="text-sm text-gray-600 dark:text-gray-400">${widgetName}</span>
+                    </div>
+                    <button type="button" class="restore-widget text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium" data-widget-id="${widgetId}">
+                        Restore
+                    </button>
+                `;
+                hiddenContainer.appendChild(hiddenCard);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                attachRestoreHandlers();
+            });
+        }
+        // Attach style handlers for the card
+        attachStyleHandlers();
+    }
+
+    // Click to add custom shortcut
+    document.querySelectorAll('.page-shortcut-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const url = item.dataset.url;
+            const pageName = item.dataset.pageName;
+            const pageIcon = item.dataset.pageIcon;
+
+            // Generate unique ID
+            const existing = document.querySelectorAll('#active-widgets .widget-card');
+            let maxIdx = -1;
+            existing.forEach(w => {
+                const wid = w.dataset.widgetId;
+                if (wid && wid.startsWith('custom_page_')) {
+                    const idx = parseInt(wid.replace('custom_page_', ''));
+                    if (idx > maxIdx) maxIdx = idx;
+                }
+            });
+            // Also check widgetLayout for hidden custom pages
+            widgetLayout.forEach(w => {
+                if (w.id && w.id.startsWith('custom_page_')) {
+                    const idx = parseInt(w.id.replace('custom_page_', ''));
+                    if (idx > maxIdx) maxIdx = idx;
+                }
+            });
+            const newId = 'custom_page_' + (maxIdx + 1);
+
+            // Create widget card
+            const card = document.createElement('div');
+            card.className = 'widget-card bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-4 cursor-move';
+            card.dataset.widgetId = newId;
+            card.dataset.visible = 'true';
+            card.dataset.color = 'violet';
+            card.dataset.intensity = 'medium';
+            card.dataset.bgStyle = 'solid';
+            card.dataset.borderStyle = 'none';
+            card.dataset.borderSize = 'medium';
+            card.dataset.textSize = 'normal';
+            card.dataset.borderRadius = 'rounded';
+            card.dataset.showHeader = 'true';
+            card.dataset.pageUrl = url;
+            card.dataset.pageName = pageName;
+            card.dataset.pageIcon = pageIcon;
+            card.draggable = true;
+
+            card.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="drag-handle p-1 text-gray-400 cursor-grab hover:text-gray-600 dark:hover:text-gray-300">
+                            <i data-lucide="grip-vertical" class="w-5 h-5"></i>
+                        </div>
+                        <div class="widget-icon-preview flex-shrink-0 w-10 h-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+                            <i data-lucide="${pageIcon}" class="w-5 h-5 text-violet-600 dark:text-violet-400"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-900 dark:text-white">${pageName}</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Shortcut to ${pageName}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <select class="size-select text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300" data-widget-id="${newId}">
+                            <option value="small" selected>Small</option>
+                            <option value="medium">Medium</option>
+                            <option value="large">Large</option>
+                            <option value="full">Full Width</option>
+                        </select>
+                        <button type="button" class="toggle-visibility p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                data-widget-id="${newId}" title="Remove shortcut">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('active-widgets').appendChild(card);
+            lucide.createIcons();
+            bindWidgetCardEvents(card);
+            checkEmptyState();
+
+            // Also add to widgetLayout so save picks it up
+            widgetLayout.push({
+                id: newId,
+                size: 'small',
+                visible: true,
+                color: 'violet',
+                color_intensity: 'medium',
+                bg_style: 'solid',
+                border_style: 'none',
+                border_size: 'medium',
+                text_size: 'normal',
+                border_radius: 'rounded',
+                show_header: true,
+                url: url,
+                page_name: pageName,
+                page_icon: pageIcon
+            });
+
+            // Visual feedback
+            item.classList.add('border-violet-500', 'bg-violet-50', 'dark:bg-violet-900/20');
+            setTimeout(() => {
+                item.classList.remove('border-violet-500', 'bg-violet-50', 'dark:bg-violet-900/20');
+            }, 500);
+
+            closePageShortcutModal();
+        });
+    });
+
+    // Close page shortcut modal on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && pageShortcutModal && !pageShortcutModal.classList.contains('hidden')) {
+            closePageShortcutModal();
+        }
+    });
+
     // Modal handling
     function openModal() {
         modal.classList.remove('hidden');
@@ -1287,7 +1584,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const widgetId = card.dataset.widgetId;
             const sizeSelect = card.querySelector('.size-select');
             domWidgetIds.push(widgetId);
-            domWidgets.push({
+            const config = {
                 id: widgetId,
                 size: sizeSelect ? sizeSelect.value : 'medium',
                 order: index + 1,
@@ -1300,7 +1597,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 text_size: card.dataset.textSize || 'normal',
                 border_radius: card.dataset.borderRadius || 'rounded',
                 show_header: card.dataset.showHeader !== 'false'
-            });
+            };
+            // Custom page shortcut data
+            if (widgetId.startsWith('custom_page_')) {
+                config.url = card.dataset.pageUrl || '';
+                config.page_name = card.dataset.pageName || 'Page';
+                config.page_icon = card.dataset.pageIcon || 'external-link';
+            }
+            domWidgets.push(config);
         });
 
         // Add widgets that were added from modal but not yet in DOM
