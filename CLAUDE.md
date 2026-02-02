@@ -603,6 +603,18 @@ python manage.py check
 - **Repair Tracking**: `DrillBit.repair_count` separate from serial number. ARAMCO: max 2 repairs (R, R2 then scrap), 8-digit serials. R suffixes are events, not part of serial identity.
 - **11 Accounts Seeded**: LSTK (NUMERIC seq 1001), UR (STANDARD seq 1001), L3 (STANDARD ARDT-LV3), L4 (STANDARD ARDT-LV4), ARDT (STANDARD), WFD (STANDARD seq 1001), ARAMCO (STANDARD AR prefix, max 2 repairs, R{n} suffix), RC-LSTK (STANDARD RC), HALLIBURTON (SUFFIX HDBSC seq 1001), HAL_REGIONAL (SUFFIX REG seq 1001), SUB (STANDARD SUB prefix).
 
+### Recent Enhancements (Feb 2, 2026)
+- **Evaluation System Expanded to 9 Types**: `CutterEvaluationMatrix.EvaluationType` now has: RECEIVING, ARDT, ENGINEER (Tech Rep), QC, DIE_CHECK, FINAL_DIE_CHECK, FINAL_QC, FINAL_INSPECTION, REWORK. Evaluation create form (`cutter_evaluation_form.html`) shows all 9 in dropdown; job card detail (`workorder_detail_enhanced.html`) loops over all 9 with Start/Edit links.
+- **7 Decision Choices**: `CutterEvaluationMatrix.Decision` choices: REPAIR, RERUN, SCRAP, DEBRAZE, CUTTER_RETROFIT, NEW_BUILD, BODY_RETROFIT. Dropdown on evaluation matrix form replaces old checkboxes.
+- **Cutters Details JSONField**: `CutterEvaluationMatrix.cutters_details` (JSONField) stores the "For Plant Use Only" table rows (qty, size_mm, part_no, description, remarks). Saved/loaded via bulk JSON save in `cutter_evaluation_matrix.html`.
+- **Cutters Details Pre-Population from BOM**: On first load (no saved data), the cutters details table auto-fills from BOM lines (`active_bom.lines`) — qty, cutter_size, hdbs_code/mat_number, item name. View: `CutterEvaluationEditView` in `views_jobcard.py`.
+- **Per-Action Breakdown in Totals**: Evaluation grid totals row shows counts per action (e.g., "X:5 | R:3 | O:20 | L:2") via `updateTotals()` in template JS.
+- **Cutter State Tracking Across Evaluations**: `CutterEvaluationEditView` builds cumulative cutter state from all prior evaluations for the WO. Passed as `cutter_state_json` (keyed by "blade,position"). Grid cells with prior history get amber bottom border + tooltip showing chain (e.g., "Prior: Receiving Evaluation: R → ARDT Evaluation: X").
+- **Expanded CutterEvaluationEntry Actions**: Added F (Fill), L (Lost), P (Pocket Build Up), I (Impact Arrestor), V (Fin Build Up). Removed D (Damaged), M (Missing).
+- **BOM List API**: `GET /technology/api/boms/?design_id=X` returns BOMs for a design. Used by WO create form's BOM selector ("Change" button next to L5 MAT).
+- **WO Create Serial-Number-Driven**: WO create form (`workorder_create.html`) redesigned — enter serial number → debounced API lookup (`/workorders/api/drill-bits/lookup/`) auto-populates size, type, HDBS, SMI, design MAT level, L5 MAT/BOM, repair/rerun counts, received date, from location.
+- **Migration**: `0014_cutterevaluationmatrix_cutters_details_and_more.py` — adds `decision`, `cutters_details` fields and updates `EvaluationType`/`Action` choices.
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
@@ -662,6 +674,10 @@ extract_pdf_data(pdf_path)            # Main entry point
 | Router sheet | `templates/workorders/router_sheet.html` |
 | Seed accounts command | `apps/sales/management/commands/seed_accounts.py` |
 | Seed router steps | `apps/workorders/management/commands/seed_router_steps.py` |
+| Eval create form | `templates/workorders/cutter_evaluation_form.html` |
+| Eval matrix editor | `templates/workorders/cutter_evaluation_matrix.html` |
+| Drillbit lookup API | `apps/workorders/views.py` (api_drillbit_lookup) |
+| BOM list API | `apps/technology/views.py` (api_boms_list) |
 
 ### Key View Classes
 
@@ -676,6 +692,10 @@ extract_pdf_data(pdf_path)            # Main entry point
 | WorkOrderListEnhancedView | `apps/workorders/views_jobcard.py:99` | `/workorders/enhanced/` |
 | WorkOrderDetailEnhancedView | `apps/workorders/views_jobcard.py:197` | `/workorders/enhanced/<pk>/` |
 | RouterSheetView | `apps/workorders/views_jobcard.py:656` | `/workorders/<pk>/router-sheet/` |
+| CutterEvaluationCreateView | `apps/workorders/views_jobcard.py:548` | `/workorders/<wo_pk>/cutter-evaluation/create/` |
+| CutterEvaluationEditView | `apps/workorders/views_jobcard.py:591` | `/workorders/<wo_pk>/cutter-evaluation/<pk>/edit/` |
+| api_drillbit_lookup | `apps/workorders/views.py` | `/workorders/api/drill-bits/lookup/` |
+| api_boms_list | `apps/technology/views.py` | `/technology/api/boms/` |
 
 ### Database Queries
 ```python
