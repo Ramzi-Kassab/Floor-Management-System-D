@@ -623,15 +623,44 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
 
         context['rows'] = rows
         context['max_cutters'] = max_cutters
+        context['cutter_positions'] = list(range(1, max_cutters + 1))
+        context['total_grid_height'] = max_blades * 30
         context['action_choices'] = CutterEvaluationEntry.Action.choices
         context['source_choices'] = CutterEvaluationEntry.CutterSource.choices
 
         return context
 
     def post(self, request, *args, **kwargs):
-        """Handle grid updates via AJAX."""
+        """Handle grid updates via AJAX — supports both single-cell and bulk JSON."""
         matrix = get_object_or_404(CutterEvaluationMatrix, pk=kwargs['pk'])
 
+        content_type = request.content_type or ''
+        if 'application/json' in content_type:
+            import json
+            data = json.loads(request.body)
+            entries_data = data.get('entries', [])
+            remarks = data.get('remarks', '')
+            decision_repair = data.get('repair', False)
+            decision_rerun = data.get('rerun', False)
+            decision_scrap = data.get('scrap', False)
+
+            # Clear existing entries and re-create
+            matrix.entries.all().delete()
+            for e in entries_data:
+                CutterEvaluationEntry.objects.create(
+                    matrix=matrix,
+                    blade_number=e['blade'],
+                    cutter_position=e['position'],
+                    action=e.get('action', ''),
+                )
+
+            # Update matrix remarks
+            matrix.general_remark = remarks
+            matrix.save(update_fields=['general_remark', 'updated_at'])
+
+            return JsonResponse({'success': True, 'count': len(entries_data)})
+
+        # Legacy single-cell POST
         blade = int(request.POST.get('blade'))
         position = int(request.POST.get('position'))
         action = request.POST.get('action', '')

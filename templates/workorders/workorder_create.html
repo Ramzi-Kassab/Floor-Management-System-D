@@ -6,7 +6,7 @@
 <div class="flex items-center justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">New Work Order</h1>
-        <p class="text-gray-600 dark:text-gray-400">Create a new work order with account-based numbering</p>
+        <p class="text-gray-600 dark:text-gray-400">Create a new work order — serial number auto-populates bit data</p>
     </div>
     <a href="{% url 'workorders:workorder_list_enhanced' %}"
        class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm">
@@ -18,23 +18,38 @@
 
 {% block content %}
 <div x-data="woCreateForm()" x-init="init()">
-    <form method="post" class="space-y-6">
+    <form method="post" class="space-y-5">
         {% csrf_token %}
+        {{ form.drill_bit }}
+        {{ form.design }}
+        {{ form.bom }}
 
-        <!-- Account Selection (Primary) -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                <i data-lucide="building-2" class="w-5 h-5 mr-2 text-blue-500"></i>
-                Account & Type
+        <!-- Row 1: Account + Serial Number -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                <i data-lucide="clipboard-list" class="w-5 h-5 mr-2 text-blue-500"></i>
+                Work Order Setup
             </h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <!-- Account -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account *</label>
                     {{ form.account }}
                     {% if form.account.errors %}<p class="mt-1 text-sm text-red-600">{{ form.account.errors.0 }}</p>{% endif %}
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" x-show="selectedAccount">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" x-show="selectedAccount" x-cloak>
                         Format: <span x-text="accountInfo.legacy_format" class="font-mono"></span>
+                    </p>
+                </div>
+                <!-- Serial Number -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Serial Number *</label>
+                    {{ form.serial_number }}
+                    {% if form.serial_number.errors %}<p class="mt-1 text-sm text-red-600">{{ form.serial_number.errors.0 }}</p>{% endif %}
+                    <p class="mt-1 text-xs" :class="lookupStatus === 'found' ? 'text-green-600' : lookupStatus === 'not_found' ? 'text-amber-600' : 'text-gray-400'">
+                        <span x-show="lookupStatus === 'loading'"><i data-lucide="loader-2" class="w-3 h-3 inline animate-spin"></i> Looking up...</span>
+                        <span x-show="lookupStatus === 'found'" x-cloak>Drill bit found — data populated</span>
+                        <span x-show="lookupStatus === 'not_found'" x-cloak>Serial not found — will create new drill bit on save</span>
+                        <span x-show="lookupStatus === 'idle'">Enter serial to auto-populate fields</span>
                     </p>
                 </div>
                 <!-- WO Type -->
@@ -52,7 +67,7 @@
 
             <!-- Account Info Card -->
             <div x-show="selectedAccount" x-cloak
-                 class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                 class="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                     <div>
                         <span class="text-blue-600 dark:text-blue-400 font-medium">Workflow:</span>
@@ -74,54 +89,123 @@
             </div>
         </div>
 
-        <!-- Drill Bit & Design -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+        <!-- Row 2: Auto-Populated Bit Info (read-only display + hidden fields) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5" x-show="bitData.serial_number" x-cloak>
+            <h2 class="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
                 <i data-lucide="disc" class="w-5 h-5 mr-2 text-green-500"></i>
-                Drill Bit & Design
+                Bit Information
+                <span class="ml-2 text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full">Auto-populated</span>
             </h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <!-- Size -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Drill Bit (Serial #)</label>
-                    {{ form.drill_bit }}
-                    {% if form.drill_bit.errors %}<p class="mt-1 text-sm text-red-600">{{ form.drill_bit.errors.0 }}</p>{% endif %}
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Size</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.size_display || '—'"></p>
                 </div>
+                <!-- Type -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Design (L3/L4)</label>
-                    {{ form.design }}
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.bit_type_display || '—'"></p>
                 </div>
+                <!-- HDBS Type -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">BOM (L5)</label>
-                    {{ form.bom }}
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">HDBS Type</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.hdbs_type || '—'"></p>
+                </div>
+                <!-- SMI Type -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">SMI Type</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.smi_type || '—'"></p>
+                </div>
+                <!-- Design MAT Level -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Design MAT Level</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.design_level || '—'"></p>
+                </div>
+                <!-- Design MAT No. -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Design MAT No.</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white font-mono" x-text="bitData.design_mat_no || '—'"></p>
+                </div>
+            </div>
+
+            <!-- Second row: BOM + Counts -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                <!-- L5 MAT No (BOM) -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">L5 MAT No. (BOM)</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white font-mono" x-text="bitData.bom_code || '—'"></p>
+                    <p class="text-xs text-gray-400" x-text="bitData.bom_name || ''" x-show="bitData.bom_name"></p>
+                </div>
+                <!-- Repair Count -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Repairs</label>
+                    <p class="text-sm font-semibold" :class="bitData.repair_count > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-white'" x-text="bitData.repair_count ?? '0'"></p>
+                </div>
+                <!-- Rerun Count -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Reruns</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="(bitData.rerun_count_factory || 0) + (bitData.rerun_count_field || 0)"></p>
+                </div>
+                <!-- USA Repairs -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">USA Repairs</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.repair_count_usa ?? '0'"></p>
+                </div>
+                <!-- Customer -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Customer</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.customer_name || '—'"></p>
+                </div>
+                <!-- Account -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Bit Account</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.account_code || '—'"></p>
                 </div>
             </div>
         </div>
 
-        <!-- Customer & Schedule -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                <i data-lucide="calendar" class="w-5 h-5 mr-2 text-purple-500"></i>
-                Customer & Schedule
+        <!-- Row 3: Received & From -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                <i data-lucide="truck" class="w-5 h-5 mr-2 text-purple-500"></i>
+                Receipt Details
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Received Date -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Received Date</label>
+                    {{ form.bit_received_date }}
+                    {% if form.bit_received_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.bit_received_date.errors.0 }}</p>{% endif %}
+                </div>
+                <!-- From -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From</label>
+                    {{ form.from_location_text }}
+                    {% if form.from_location_text.errors %}<p class="mt-1 text-sm text-red-600">{{ form.from_location_text.errors.0 }}</p>{% endif %}
+                </div>
+                <!-- Customer -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Customer</label>
                     {{ form.customer }}
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date</label>
-                    {{ form.due_date }}
-                </div>
             </div>
         </div>
 
-        <!-- Description -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+        <!-- Row 4: Schedule & Notes (collapsed) -->
+        <details class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <summary class="p-5 cursor-pointer flex items-center text-base font-semibold text-gray-900 dark:text-white">
                 <i data-lucide="file-text" class="w-5 h-5 mr-2 text-gray-500"></i>
-                Description
-            </h2>
-            <div class="space-y-4">
+                Schedule &amp; Notes
+                <i data-lucide="chevron-down" class="w-4 h-4 ml-auto text-gray-400"></i>
+            </summary>
+            <div class="px-5 pb-5 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date</label>
+                        {{ form.due_date }}
+                    </div>
+                </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Work Description</label>
                     {{ form.description }}
@@ -131,7 +215,7 @@
                     {{ form.notes }}
                 </div>
             </div>
-        </div>
+        </details>
 
         <!-- Submit -->
         <div class="flex justify-end gap-3">
@@ -155,6 +239,9 @@ function woCreateForm() {
     return {
         selectedAccount: null,
         accountInfo: {},
+        lookupStatus: 'idle',  // idle, loading, found, not_found
+        bitData: {},
+        lookupTimer: null,
         accounts: {
             {% for acc in accounts %}
             '{{ acc.pk }}': {
@@ -174,12 +261,93 @@ function woCreateForm() {
                 accountSelect.addEventListener('change', () => this.onAccountChange(accountSelect.value));
                 if (accountSelect.value) this.onAccountChange(accountSelect.value);
             }
+
+            const serialInput = document.getElementById('id_serial_number');
+            if (serialInput) {
+                serialInput.addEventListener('input', (e) => {
+                    clearTimeout(this.lookupTimer);
+                    const val = e.target.value.trim();
+                    if (val.length >= 4) {
+                        this.lookupStatus = 'loading';
+                        this.lookupTimer = setTimeout(() => this.lookupSerial(val), 500);
+                    } else {
+                        this.lookupStatus = 'idle';
+                        this.bitData = {};
+                        this.clearHiddenFields();
+                    }
+                });
+                // Lookup on blur too for paste
+                serialInput.addEventListener('change', (e) => {
+                    const val = e.target.value.trim();
+                    if (val.length >= 4) {
+                        this.lookupSerial(val);
+                    }
+                });
+            }
         },
 
         onAccountChange(val) {
             this.selectedAccount = val;
             this.accountInfo = this.accounts[val] || {};
-        }
+        },
+
+        async lookupSerial(serial) {
+            this.lookupStatus = 'loading';
+            try {
+                const resp = await fetch(`/workorders/api/drill-bits/lookup/?serial=${encodeURIComponent(serial)}`);
+                const data = await resp.json();
+                if (data.found) {
+                    this.lookupStatus = 'found';
+                    this.bitData = data;
+                    this.populateFromBitData(data);
+                } else {
+                    this.lookupStatus = 'not_found';
+                    this.bitData = {};
+                    this.clearHiddenFields();
+                }
+            } catch (err) {
+                console.error('Lookup failed:', err);
+                this.lookupStatus = 'not_found';
+                this.bitData = {};
+            }
+        },
+
+        populateFromBitData(data) {
+            // Set hidden fields
+            if (data.drill_bit_id) {
+                document.getElementById('id_drill_bit').value = data.drill_bit_id;
+            }
+            if (data.design_id) {
+                document.getElementById('id_design').value = data.design_id;
+            }
+            if (data.bom_id) {
+                document.getElementById('id_bom').value = data.bom_id;
+            }
+            // Auto-set account from bit if form account is empty
+            const acctSelect = document.getElementById('id_account');
+            if (acctSelect && !acctSelect.value && data.account_id) {
+                acctSelect.value = data.account_id;
+                this.onAccountChange(String(data.account_id));
+            }
+            // Auto-set received date
+            const recvDate = document.getElementById('id_bit_received_date');
+            if (recvDate && !recvDate.value && data.received_date) {
+                recvDate.value = data.received_date;
+            }
+            // Auto-set from location
+            const fromLoc = document.getElementById('id_from_location_text');
+            if (fromLoc && !fromLoc.value && data.from_location) {
+                fromLoc.value = data.from_location;
+            }
+        },
+
+        clearHiddenFields() {
+            const ids = ['id_drill_bit', 'id_design', 'id_bom'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+        },
     };
 }
 </script>

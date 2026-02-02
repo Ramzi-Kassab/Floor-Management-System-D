@@ -146,10 +146,24 @@ class WorkOrderForm(forms.ModelForm):
 
 class WorkOrderCreateEnhancedForm(forms.ModelForm):
     """
-    Enhanced WO creation form with account-driven WO number generation.
+    Enhanced WO creation form with serial-number-driven auto-population.
     Account selection determines: WO number format, workflow type, pricing mode.
+    Serial number lookup auto-populates: size, type, HDBS, SMI, MAT, design, BOM, etc.
     """
     INPUT_CLASS = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+
+    # Serial number as text input (not a dropdown)
+    serial_number = forms.CharField(
+        max_length=50,
+        required=True,
+        widget=forms.TextInput(attrs={
+            'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono text-lg",
+            'placeholder': 'Enter serial number (digits only)',
+            'id': 'id_serial_number',
+            'autocomplete': 'off',
+        }),
+        help_text='Enter the drill bit serial number. Data will auto-populate.',
+    )
 
     class Meta:
         model = WorkOrder
@@ -161,6 +175,8 @@ class WorkOrderCreateEnhancedForm(forms.ModelForm):
             'bom',
             'customer',
             'priority',
+            'bit_received_date',
+            'from_location_text',
             'due_date',
             'description',
             'notes',
@@ -173,27 +189,31 @@ class WorkOrderCreateEnhancedForm(forms.ModelForm):
             'wo_type': forms.Select(attrs={
                 'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
             }),
-            'drill_bit': forms.Select(attrs={
-                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
-            }),
-            'design': forms.Select(attrs={
-                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
-            }),
-            'bom': forms.Select(attrs={
-                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
-            }),
+            'drill_bit': forms.HiddenInput(attrs={'id': 'id_drill_bit'}),
+            'design': forms.HiddenInput(attrs={'id': 'id_design'}),
+            'bom': forms.HiddenInput(attrs={'id': 'id_bom'}),
             'customer': forms.Select(attrs={
                 'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
             }),
             'priority': forms.Select(attrs={
                 'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
             }),
+            'bit_received_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+                'id': 'id_bit_received_date',
+            }),
+            'from_location_text': forms.TextInput(attrs={
+                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
+                'placeholder': 'e.g., LSTK, ARAMCO, Rig #12',
+                'id': 'id_from_location_text',
+            }),
             'due_date': forms.DateInput(attrs={
                 'type': 'date',
                 'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
             }),
             'description': forms.Textarea(attrs={
-                'rows': 3,
+                'rows': 2,
                 'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
                 'placeholder': 'Work description...',
             }),
@@ -214,33 +234,35 @@ class WorkOrderCreateEnhancedForm(forms.ModelForm):
         self.fields['account'].required = True
         self.fields['account'].empty_label = '-- Select Account --'
 
-        # Drill bit - optional
-        self.fields['drill_bit'].queryset = DrillBit.objects.order_by('-created_at')[:200]
+        # Drill bit - hidden, set by JS from serial number lookup
+        self.fields['drill_bit'].queryset = DrillBit.objects.all()
         self.fields['drill_bit'].required = False
-        self.fields['drill_bit'].empty_label = '-- No Drill Bit --'
-        self.fields['drill_bit'].label_from_instance = lambda obj: f"{obj.serial_number} ({obj.get_status_display()})"
 
-        # Design - optional
-        self.fields['design'].queryset = Design.objects.select_related('size').order_by('mat_no')
+        # Design - hidden, set by JS from serial number lookup
+        self.fields['design'].queryset = Design.objects.all()
         self.fields['design'].required = False
-        self.fields['design'].empty_label = '-- No Design --'
-        self.fields['design'].label_from_instance = lambda obj: f"{obj.mat_no} - {obj.hdbs_type or ''}"
 
-        # BOM - optional
-        self.fields['bom'].queryset = BOM.objects.filter(status='ACTIVE').select_related('design').order_by('code')
+        # BOM - hidden, set by JS from serial number lookup
+        self.fields['bom'].queryset = BOM.objects.all()
         self.fields['bom'].required = False
-        self.fields['bom'].empty_label = '-- No BOM --'
-        self.fields['bom'].label_from_instance = lambda obj: f"{obj.code} ({obj.name or 'L5'})"
 
         # Customer - optional
         self.fields['customer'].required = False
 
-        # Due date - optional
+        # Dates - optional
+        self.fields['bit_received_date'].required = False
+        self.fields['from_location_text'].required = False
         self.fields['due_date'].required = False
 
         # Description and notes - optional
         self.fields['description'].required = False
         self.fields['notes'].required = False
+
+    def clean_serial_number(self):
+        serial = self.cleaned_data.get('serial_number', '').strip()
+        if not serial:
+            raise forms.ValidationError("Serial number is required.")
+        return serial
 
 
 class WorkOrderStatusForm(forms.Form):

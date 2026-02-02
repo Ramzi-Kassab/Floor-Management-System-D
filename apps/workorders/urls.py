@@ -65,6 +65,7 @@ urlpatterns = [
 
     # API endpoints
     path("api/drill-bits/search/", views_drillbit.DrillBitSearchAPIView.as_view(), name="drillbit_search_api"),
+    path("api/drill-bits/lookup/", views.api_drillbit_lookup, name="drillbit_lookup_api"),
     path("api/drill-bits/<int:pk>/quick-event/", views_drillbit.DrillBitQuickEventAPIView.as_view(), name="drillbit_quick_event_api"),
 
     # Cutter Evaluation Matrix

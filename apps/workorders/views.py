@@ -13,7 +13,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -121,17 +122,30 @@ class WorkOrderCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         account = form.cleaned_data.get('account')
+        serial_number = form.cleaned_data.get('serial_number', '').strip()
         form.instance.created_by = self.request.user
 
         # Generate WO number from account
         if account:
             form.instance.wo_number = account.generate_wo_number()
-            # Auto-set customer from account if not set
             if not form.instance.customer and account.customer:
                 form.instance.customer = account.customer
         else:
-            # Fallback to old method
             form.instance.wo_number = self.generate_wo_number()
+
+        # Link drill bit from serial number if not already set via hidden field
+        if serial_number and not form.instance.drill_bit_id:
+            bit = DrillBit.objects.filter(serial_number=serial_number).first()
+            if bit:
+                form.instance.drill_bit = bit
+
+        # Sync design/bom from drill bit if not already set
+        if form.instance.drill_bit:
+            bit = form.instance.drill_bit
+            if not form.instance.design and bit.design:
+                form.instance.design = bit.design
+            if not form.instance.bom:
+                form.instance.bom = bit.brazing_bom or bit.system_bom
 
         messages.success(self.request, f"Work order {form.instance.wo_number} created successfully.")
         return super().form_valid(form)
@@ -1165,3 +1179,129 @@ class OperationExecutionListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['page_title'] = 'Operation Executions'
         return context
+
+
+@login_required
+@require_GET
+def api_drillbit_lookup(request):
+    """
+    Look up a drill bit by serial number for WO create form auto-population.
+    GET /workorders/api/drill-bits/lookup/?serial=XXXXXX
+    """
+    serial = request.GET.get("serial", "").strip()
+    if not serial:
+        return JsonResponse({"found": False})
+
+    try:
+        bit = DrillBit.objects.select_related(
+            "design", "design__size", "brazing_bom", "brazing_bom__smi_type",
+            "system_bom", "system_bom__smi_type", "bom", "bom__smi_type",
+            "bit_size_ref", "bit_location", "account", "customer",
+        ).get(serial_number=serial)
+    except DrillBit.DoesNotExist:
+        return JsonResponse({"found": False})
+
+    # --- size ---
+    size_val = None
+    size_display = ""
+    if bit.bit_size_ref:
+        size_val = str(bit.bit_size_ref.size_decimal) if hasattr(bit.bit_size_ref, "size_decimal") and bit.bit_size_ref.size_decimal else None
+        size_display = str(bit.bit_size_ref)
+    elif bit.size:
+        size_val = str(bit.size)
+    if not size_val and bit.design and bit.design.size:
+        size_val = str(bit.design.size.size_decimal) if hasattr(bit.design.size, "size_decimal") and bit.design.size.size_decimal else None
+        if not size_display:
+            size_display = str(bit.design.size)
+
+    # --- bit type ---
+    bit_type = bit.bit_type or ""
+    bit_type_display = bit.get_bit_type_display() if bit.bit_type else ""
+
+    # --- hdbs_type ---
+    hdbs_type = ""
+    if bit.design and bit.design.hdbs_type:
+        hdbs_type = bit.design.hdbs_type
+
+    # --- smi_type (from most relevant BOM) ---
+    smi_type = ""
+    active_bom = bit.brazing_bom or bit.system_bom or bit.bom
+    if active_bom and hasattr(active_bom, "smi_type") and active_bom.smi_type:
+        smi_type = str(active_bom.smi_type)
+
+    # --- design ---
+    design_id = bit.design_id
+    design_mat_no = ""
+    design_level = ""
+    if bit.design:
+        design_mat_no = getattr(bit.design, "mat_no", "") or ""
+        design_level = getattr(bit.design, "order_level", "") or ""
+
+    # --- bom ---
+    bom = active_bom
+    bom_id = bom.pk if bom else None
+    bom_code = ""
+    bom_name = ""
+    if bom:
+        bom_code = getattr(bom, "code", "") or getattr(bom, "brazing_mat_no", "") or getattr(bom, "system_mat_no", "") or ""
+        bom_name = str(bom)
+
+    # --- account ---
+    account_id = bit.account_id
+    account_code = bit.account.code if bit.account and hasattr(bit.account, "code") else ""
+
+    # --- customer ---
+    customer_name = str(bit.customer) if bit.customer else ""
+
+    # --- location ---
+    current_location = str(bit.bit_location) if bit.bit_location else ""
+
+    # from_location: use bit_location, fall back to last BitEvent location
+    from_location = current_location
+    if not from_location:
+        from .models import BitEvent
+        last_event = (
+            BitEvent.objects.filter(bit=bit)
+            .select_related("location")
+            .order_by("-event_date", "-id")
+            .first()
+        )
+        if last_event and hasattr(last_event, "location") and last_event.location:
+            from_location = str(last_event.location)
+
+    # --- dates & counts ---
+    received_date = bit.received_date.isoformat() if bit.received_date else None
+    repair_count = bit.repair_count
+    rerun_count = getattr(bit, "rerun_count_factory", 0) + getattr(bit, "rerun_count_field", 0)
+    repair_count_usa = getattr(bit, "repair_count_usa", 0)
+    rerun_count_factory = getattr(bit, "rerun_count_factory", 0)
+    rerun_count_field = getattr(bit, "rerun_count_field", 0)
+
+    return JsonResponse({
+        "found": True,
+        "drill_bit_id": bit.pk,
+        "serial_number": bit.serial_number,
+        "size": size_val,
+        "size_display": size_display,
+        "bit_type": bit_type,
+        "bit_type_display": bit_type_display,
+        "hdbs_type": hdbs_type,
+        "smi_type": smi_type,
+        "design_id": design_id,
+        "design_mat_no": design_mat_no,
+        "design_level": design_level,
+        "bom_id": bom_id,
+        "bom_code": bom_code,
+        "bom_name": bom_name,
+        "account_id": account_id,
+        "account_code": account_code,
+        "customer_name": customer_name,
+        "current_location": current_location,
+        "from_location": from_location,
+        "received_date": received_date,
+        "repair_count": repair_count,
+        "rerun_count": rerun_count,
+        "repair_count_usa": repair_count_usa,
+        "rerun_count_factory": rerun_count_factory,
+        "rerun_count_field": rerun_count_field,
+    })
