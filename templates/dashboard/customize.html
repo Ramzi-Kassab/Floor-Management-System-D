@@ -220,11 +220,11 @@
                                         </div>
                                     </div>
                                 </div>
-                                <!-- Hide Button -->
+                                <!-- Hide/Remove Button -->
                                 <button type="button" class="toggle-visibility p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                                         data-widget-id="{{ widget.id }}"
-                                        title="Hide widget">
-                                    <i data-lucide="eye-off" class="w-4 h-4"></i>
+                                        title="{% if widget.id|slice:':9' == 'shortcut_' or widget.id|slice:':12' == 'custom_page_' %}Remove shortcut{% else %}Hide widget{% endif %}">
+                                    <i data-lucide="{% if widget.id|slice:':9' == 'shortcut_' or widget.id|slice:':12' == 'custom_page_' %}trash-2{% else %}eye-off{% endif %}" class="w-4 h-4"></i>
                                 </button>
                             </div>
                         </div>
