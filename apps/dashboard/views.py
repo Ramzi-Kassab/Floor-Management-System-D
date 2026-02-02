@@ -927,6 +927,42 @@ def get_user_widget_layout(user, dashboard_type="main", default_fallback=None):
     return [w.copy() for w in default_layout]
 
 
+# Legacy shortcut widget mapping for backward compatibility with saved layouts
+# that reference shortcut_* IDs without url/page_name/page_icon in the config.
+LEGACY_SHORTCUT_MAP = {
+    "shortcut_designs": {"url": "technology:design_list", "page_name": "Designs", "page_icon": "pen-tool"},
+    "shortcut_boms": {"url": "technology:bom_list", "page_name": "Bills of Materials", "page_icon": "package"},
+    "shortcut_bom_create": {"url": "technology:bom_create", "page_name": "Create BOM", "page_icon": "file-plus"},
+    "shortcut_cutter_map": {"url": "cutter_map:index", "page_name": "Cutter Map", "page_icon": "scan"},
+    "shortcut_cutter_inventory": {"url": "inventory:cutter_inventory_list", "page_name": "Cutter Inventory", "page_icon": "circle-dot"},
+    "shortcut_items": {"url": "inventory:item_list", "page_name": "Inventory Items", "page_icon": "package"},
+    "shortcut_stock_import": {"url": "inventory:stock_import", "page_name": "Stock Import (ERP)", "page_icon": "upload"},
+    "shortcut_drill_bits": {"url": "workorders:drillbit_list_enhanced", "page_name": "Drill Bits", "page_icon": "disc"},
+    "shortcut_register_bit": {"url": "workorders:drillbit_create", "page_name": "Register New Bit", "page_icon": "plus-circle"},
+    "shortcut_job_cards": {"url": "workorders:workorder_list_enhanced", "page_name": "Job Cards", "page_icon": "file-text"},
+    "shortcut_create_wo": {"url": "workorders:create", "page_name": "Create Work Order", "page_icon": "file-plus-2"},
+    "shortcut_work_orders": {"url": "workorders:list", "page_name": "Work Orders", "page_icon": "clipboard-list"},
+    "shortcut_accounts": {"url": "sales:account_list", "page_name": "Accounts", "page_icon": "building-2"},
+    "shortcut_customers": {"url": "sales:customer_list", "page_name": "Customers", "page_icon": "users"},
+    "shortcut_vendors": {"url": "supplychain:supplier_list", "page_name": "Vendors", "page_icon": "building-2"},
+    "shortcut_purchase_orders": {"url": "supplychain:po_list", "page_name": "Purchase Orders", "page_icon": "file-output"},
+    "shortcut_grn": {"url": "inventory:grn_list", "page_name": "Goods Receipt (GRN)", "page_icon": "download"},
+    "shortcut_hdbs_types": {"url": "technology:hdbs_type_list", "page_name": "Types (HDBS/SMI)", "page_icon": "layers"},
+    "shortcut_ncrs": {"url": "quality:ncr_list", "page_name": "NCRs", "page_icon": "alert-triangle"},
+    "shortcut_inspections": {"url": "quality:inspection_list", "page_name": "Inspections", "page_icon": "search"},
+    "shortcut_process_routes": {"url": "workorders:processroute_list", "page_name": "Process Routes", "page_icon": "git-branch"},
+    "shortcut_bit_events": {"url": "workorders:bitevent_list", "page_name": "Bit Events", "page_icon": "activity"},
+    "shortcut_stock_ledger": {"url": "inventory:stock_ledger_list", "page_name": "Stock Ledger", "page_icon": "book"},
+    "shortcut_locations": {"url": "workorders:location_list", "page_name": "Locations", "page_icon": "map-pin"},
+    "shortcut_rigs": {"url": "sales:rig_list", "page_name": "Rigs", "page_icon": "anchor"},
+    "shortcut_wells": {"url": "sales:well_list", "page_name": "Wells", "page_icon": "target"},
+    "shortcut_sales_orders": {"url": "sales:salesorder_list", "page_name": "Sales Orders", "page_icon": "shopping-cart"},
+    "shortcut_pockets_layout": {"url": "technology:pockets_layout_list", "page_name": "Pockets Layout", "page_icon": "grid-3x3"},
+    "shortcut_connections": {"url": "technology:connection_list", "page_name": "Connections", "page_icon": "link"},
+    "shortcut_equipment": {"url": "maintenance:equipment_list", "page_name": "Equipment", "page_icon": "cpu"},
+    "shortcut_procedures": {"url": "procedures:procedure_list", "page_name": "Procedures", "page_icon": "book-open"},
+}
+
 def build_widgets_from_layout(widget_layout, user):
     """Build widgets with data and styles from a layout configuration."""
     widgets = []
@@ -938,9 +974,10 @@ def build_widgets_from_layout(widget_layout, user):
             # Page shortcuts (custom_page_* and legacy shortcut_*) read from config
             is_page_shortcut = widget_id.startswith("custom_page_") or widget_id.startswith("shortcut_")
             if is_page_shortcut:
-                name = widget_config.get("page_name", widget_info.get("name", "Page"))
-                icon = widget_config.get("page_icon", widget_info.get("icon", "external-link"))
-                url = widget_config.get("url", widget_info.get("url", ""))
+                legacy = LEGACY_SHORTCUT_MAP.get(widget_id, {})
+                name = widget_config.get("page_name") or legacy.get("page_name", "Page")
+                icon = widget_config.get("page_icon") or legacy.get("page_icon", "external-link")
+                url = widget_config.get("url") or legacy.get("url", "")
                 widget_data = {"url": url, "page_name": name}
             else:
                 name = widget_info.get("name", widget_id)
@@ -1333,11 +1370,13 @@ def customize_dashboard(request, dashboard_type="main"):
         widget_id = widget["id"]
         is_page_shortcut = widget_id.startswith("custom_page_") or widget_id.startswith("shortcut_")
         if is_page_shortcut:
-            widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
-            widget["name"] = widget.get("page_name", widget_info.get("name", "Page"))
-            widget["description"] = f"Shortcut to {widget.get('page_name', widget_info.get('name', 'Page'))}"
-            widget["icon"] = widget.get("page_icon", widget_info.get("icon", "external-link"))
-            widget["url"] = widget.get("url", widget_info.get("url", ""))
+            legacy = LEGACY_SHORTCUT_MAP.get(widget_id, {})
+            widget["name"] = widget.get("page_name") or legacy.get("page_name", "Page")
+            widget["description"] = f"Shortcut to {widget['name']}"
+            widget["icon"] = widget.get("page_icon") or legacy.get("page_icon", "external-link")
+            widget["url"] = widget.get("url") or legacy.get("url", "")
+            widget["page_name"] = widget["name"]
+            widget["page_icon"] = widget["icon"]
             widget["category"] = "pages"
         else:
             widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
