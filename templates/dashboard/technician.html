@@ -177,7 +177,7 @@
                 </div>
                 {% endif %}
 
-            {% elif widget.id|slice:":9" == 'shortcut_' or widget.id|slice:":12" == 'custom_page_' %}
+            {% elif widget.id|slice:":12" == 'custom_page_' %}
                 {% if widget.data.url %}
                 <a href="{% url widget.data.url %}" class="block group">
                     <div class="flex flex-col items-center justify-center text-center py-4">

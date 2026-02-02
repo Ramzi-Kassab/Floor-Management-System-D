@@ -886,6 +886,36 @@ DEFAULT_LAYOUTS = {
 }
 
 
+def _migrate_shortcut_widgets(widget_list):
+    """Convert legacy shortcut_* widgets to custom_page_* format in-place."""
+    counter = 0
+    # Find max existing custom_page_ index
+    for w in widget_list:
+        if isinstance(w, dict) and w.get("id", "").startswith("custom_page_"):
+            idx = int(w["id"].replace("custom_page_", ""), 10)
+            if idx >= counter:
+                counter = idx + 1
+
+    changed = False
+    for w in widget_list:
+        if not isinstance(w, dict):
+            continue
+        wid = w.get("id", "")
+        if not wid.startswith("shortcut_"):
+            continue
+        legacy = LEGACY_SHORTCUT_MAP.get(wid, {})
+        if not legacy:
+            continue
+        # Convert to custom_page_
+        w["id"] = f"custom_page_{counter}"
+        w.setdefault("url", legacy["url"])
+        w.setdefault("page_name", legacy["page_name"])
+        w.setdefault("page_icon", legacy["page_icon"])
+        counter += 1
+        changed = True
+    return changed
+
+
 def get_user_widget_layout(user, dashboard_type="main", default_fallback=None):
     """Get the widget layout for a user and dashboard type, or return default.
 
@@ -894,35 +924,34 @@ def get_user_widget_layout(user, dashboard_type="main", default_fallback=None):
         dashboard_type: The dashboard type (main, manager, planner, etc., or saved_<id>)
         default_fallback: Optional custom default to use instead of global defaults
     """
-    print(f"[DEBUG] get_user_widget_layout: user={user.username}, dashboard_type={dashboard_type}")
     try:
         preferences = UserPreference.objects.get(user=user)
         widgets = preferences.dashboard_widgets
-        print(f"[DEBUG] UserPreference found, dashboard_widgets keys: {list(widgets.keys()) if isinstance(widgets, dict) else 'NOT A DICT'}")
 
         # New format: dict with dashboard_type keys
         if widgets and isinstance(widgets, dict):
             dashboard_widgets = widgets.get(dashboard_type)
-            print(f"[DEBUG] Looking for key '{dashboard_type}', found: {dashboard_widgets is not None}")
             if dashboard_widgets and isinstance(dashboard_widgets, list) and len(dashboard_widgets) > 0:
-                print(f"[DEBUG] Returning user's saved layout ({len(dashboard_widgets)} widgets)")
-                if dashboard_widgets:
-                    print(f"[DEBUG] First widget from UserPreference: {dashboard_widgets[0]}")
+                # Auto-migrate shortcut_* to custom_page_*
+                if _migrate_shortcut_widgets(dashboard_widgets):
+                    preferences.dashboard_widgets = widgets
+                    preferences.save(update_fields=["dashboard_widgets"])
                 return dashboard_widgets
         # Legacy format: just a list (treat as main dashboard)
         elif widgets and isinstance(widgets, list) and len(widgets) > 0:
             if dashboard_type == "main":
+                if _migrate_shortcut_widgets(widgets):
+                    preferences.dashboard_widgets = {"main": widgets}
+                    preferences.save(update_fields=["dashboard_widgets"])
                 return widgets
     except UserPreference.DoesNotExist:
-        print(f"[DEBUG] No UserPreference found for user {user.username}")
+        pass
 
     # Use custom default fallback if provided
     if default_fallback is not None:
-        print(f"[DEBUG] Using default_fallback ({len(default_fallback)} widgets)")
         return [w.copy() if isinstance(w, dict) else w for w in default_fallback]
 
     # Return appropriate default layout for dashboard type
-    print(f"[DEBUG] Using DEFAULT_LAYOUTS for {dashboard_type}")
     default_layout = DEFAULT_LAYOUTS.get(dashboard_type, DEFAULT_WIDGET_LAYOUT)
     return [w.copy() for w in default_layout]
 
@@ -971,13 +1000,12 @@ def build_widgets_from_layout(widget_layout, user):
             widget_id = widget_config["id"]
             widget_info = AVAILABLE_WIDGETS.get(widget_id, {})
 
-            # Page shortcuts (custom_page_* and legacy shortcut_*) read from config
-            is_page_shortcut = widget_id.startswith("custom_page_") or widget_id.startswith("shortcut_")
+            # Page shortcuts read from config
+            is_page_shortcut = widget_id.startswith("custom_page_")
             if is_page_shortcut:
-                legacy = LEGACY_SHORTCUT_MAP.get(widget_id, {})
-                name = widget_config.get("page_name") or legacy.get("page_name", "Page")
-                icon = widget_config.get("page_icon") or legacy.get("page_icon", "external-link")
-                url = widget_config.get("url") or legacy.get("url", "")
+                name = widget_config.get("page_name", "Page")
+                icon = widget_config.get("page_icon", "external-link")
+                url = widget_config.get("url", "")
                 widget_data = {"url": url, "page_name": name}
             else:
                 name = widget_info.get("name", widget_id)
@@ -1289,15 +1317,8 @@ def get_widget_data(widget_id, user):
     # =========================================================================
     # PAGE SHORTCUT WIDGETS
     # =========================================================================
-    elif widget_id.startswith("shortcut_"):
-        widget_def = AVAILABLE_WIDGETS.get(widget_id, {})
-        return {
-            "url": widget_def.get("url", ""),
-            "page_name": widget_def.get("name", "Page"),
-        }
-
     elif widget_id.startswith("custom_page_"):
-        # Custom page shortcuts - data comes from layout config, not here
+        # Page shortcuts - data comes from layout config, not here
         return {}
 
     return {}
@@ -1368,15 +1389,11 @@ def customize_dashboard(request, dashboard_type="main"):
     # Add widget metadata to current layout
     for widget in current_layout:
         widget_id = widget["id"]
-        is_page_shortcut = widget_id.startswith("custom_page_") or widget_id.startswith("shortcut_")
-        if is_page_shortcut:
-            legacy = LEGACY_SHORTCUT_MAP.get(widget_id, {})
-            widget["name"] = widget.get("page_name") or legacy.get("page_name", "Page")
+        if widget_id.startswith("custom_page_"):
+            widget["name"] = widget.get("page_name", "Page")
             widget["description"] = f"Shortcut to {widget['name']}"
-            widget["icon"] = widget.get("page_icon") or legacy.get("page_icon", "external-link")
-            widget["url"] = widget.get("url") or legacy.get("url", "")
-            widget["page_name"] = widget["name"]
-            widget["page_icon"] = widget["icon"]
+            widget["icon"] = widget.get("page_icon", "external-link")
+            widget["url"] = widget.get("url", "")
             widget["category"] = "pages"
         else:
             widget_info = AVAILABLE_WIDGETS.get(widget_id, {})

@@ -223,8 +223,8 @@
                                 <!-- Hide/Remove Button -->
                                 <button type="button" class="toggle-visibility p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                                         data-widget-id="{{ widget.id }}"
-                                        title="{% if widget.id|slice:':9' == 'shortcut_' or widget.id|slice:':12' == 'custom_page_' %}Remove shortcut{% else %}Hide widget{% endif %}">
-                                    <i data-lucide="{% if widget.id|slice:':9' == 'shortcut_' or widget.id|slice:':12' == 'custom_page_' %}trash-2{% else %}eye-off{% endif %}" class="w-4 h-4"></i>
+                                        title="{% if widget.id|slice:':12' == 'custom_page_' %}Remove shortcut{% else %}Hide widget{% endif %}">
+                                    <i data-lucide="{% if widget.id|slice:':12' == 'custom_page_' %}trash-2{% else %}eye-off{% endif %}" class="w-4 h-4"></i>
                                 </button>
                             </div>
                         </div>
@@ -733,7 +733,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 border_radius: card.dataset.borderRadius || 'rounded',
                 show_header: card.dataset.showHeader !== 'false'
             };
-            if (widgetId.startsWith('custom_page_') || widgetId.startsWith('shortcut_')) {
+            if (widgetId.startsWith('custom_page_')) {
                 wConfig.url = card.dataset.pageUrl || '';
                 wConfig.page_name = card.dataset.pageName || 'Page';
                 wConfig.page_icon = card.dataset.pageIcon || 'external-link';
@@ -1120,7 +1120,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const urls = new Set();
         widgetLayout.forEach(w => {
             if (w.url) urls.add(w.url);
-            // Also check AVAILABLE_WIDGETS for shortcut_ entries
+            // Also check AVAILABLE_WIDGETS for widget url entries
             const info = availableWidgets[w.id];
             if (info && info.url) urls.add(info.url);
         });
@@ -1268,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (toggleBtn) {
             toggleBtn.addEventListener('click', function() {
                 const widgetId = this.dataset.widgetId;
-                const isPageShortcut = widgetId.startsWith('custom_page_') || widgetId.startsWith('shortcut_');
+                const isPageShortcut = widgetId.startsWith('custom_page_');
                 if (isPageShortcut) {
                     const w = widgetLayout.find(wl => wl.id === widgetId);
                     const url = w ? w.url : (card.dataset.pageUrl || '');
@@ -1547,8 +1547,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 border_radius: card.dataset.borderRadius || 'rounded',
                 show_header: card.dataset.showHeader !== 'false'
             };
-            // Page shortcut data (custom_page_* and legacy shortcut_*)
-            if (widgetId.startsWith('custom_page_') || widgetId.startsWith('shortcut_')) {
+            // Page shortcut data
+            if (widgetId.startsWith('custom_page_')) {
                 config.url = card.dataset.pageUrl || '';
                 config.page_name = card.dataset.pageName || 'Page';
                 config.page_icon = card.dataset.pageIcon || 'external-link';
