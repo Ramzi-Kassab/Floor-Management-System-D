@@ -51,9 +51,15 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
                     <select name="evaluation_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
-                        <option value="ARDT" {% if request.GET.type == 'ARDT' %}selected{% endif %}>ARDT Cutter Entry</option>
-                        <option value="ENGINEER" {% if request.GET.type == 'ENGINEER' %}selected{% endif %}>Engineering Cutter Entry</option>
-                        <option value="REWORK" {% if request.GET.type == 'REWORK' %}selected{% endif %}>Rework Cutter Entry</option>
+                        <option value="RECEIVING" {% if request.GET.type == 'RECEIVING' %}selected{% endif %}>Receiving Evaluation</option>
+                        <option value="ARDT" {% if request.GET.type == 'ARDT' %}selected{% endif %}>ARDT Evaluation</option>
+                        <option value="ENGINEER" {% if request.GET.type == 'ENGINEER' %}selected{% endif %}>Technical Rep. Evaluation</option>
+                        <option value="QC" {% if request.GET.type == 'QC' %}selected{% endif %}>QC Evaluation</option>
+                        <option value="DIE_CHECK" {% if request.GET.type == 'DIE_CHECK' %}selected{% endif %}>Die Check</option>
+                        <option value="FINAL_DIE_CHECK" {% if request.GET.type == 'FINAL_DIE_CHECK' %}selected{% endif %}>Final Die Check</option>
+                        <option value="FINAL_QC" {% if request.GET.type == 'FINAL_QC' %}selected{% endif %}>Final QC Evaluation</option>
+                        <option value="FINAL_INSPECTION" {% if request.GET.type == 'FINAL_INSPECTION' %}selected{% endif %}>Final Inspection</option>
+                        <option value="REWORK" {% if request.GET.type == 'REWORK' %}selected{% endif %}>Rework Evaluation</option>
                     </select>
                 </div>
                 <div>
@@ -68,17 +74,15 @@
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Matrix/Buildup</h3>
             <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ARDT Matrix Buildup</label>
-                    <textarea name="ardt_matrix_buildup" rows="3"
-                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"
-                              placeholder="Matrix buildup notes..."></textarea>
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" name="ardt_matrix_buildup" id="id_ardt_matrix_buildup" value="true"
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <label for="id_ardt_matrix_buildup" class="text-sm font-medium text-gray-700 dark:text-gray-300">ARDT Matrix Build Up Required</label>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Engineering Matrix Buildup</label>
-                    <textarea name="eng_matrix_buildup" rows="3"
-                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"
-                              placeholder="Engineering buildup notes..."></textarea>
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" name="eng_matrix_buildup" id="id_eng_matrix_buildup" value="true"
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <label for="id_eng_matrix_buildup" class="text-sm font-medium text-gray-700 dark:text-gray-300">Engineering Matrix Build Up Required</label>
                 </div>
             </div>
         </div>

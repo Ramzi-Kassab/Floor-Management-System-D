@@ -131,11 +131,22 @@
 
             <!-- Second row: BOM + Counts -->
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                <!-- L5 MAT No (BOM) -->
-                <div>
+                <!-- L5 MAT No (BOM) - editable -->
+                <div class="col-span-2">
                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">L5 MAT No. (BOM)</label>
-                    <p class="text-sm font-semibold text-gray-900 dark:text-white font-mono" x-text="bitData.bom_code || '—'"></p>
-                    <p class="text-xs text-gray-400" x-text="bitData.bom_name || ''" x-show="bitData.bom_name"></p>
+                    <div class="flex items-center gap-2">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white font-mono" x-text="bitData.bom_code || '—'" x-show="!showBomSelector"></p>
+                        <select id="id_bom_selector" x-show="showBomSelector" x-cloak
+                                class="flex-1 text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                                @change="onBomChange($event.target.value)">
+                            <option value="">-- Current BOM --</option>
+                        </select>
+                        <button type="button" @click="showBomSelector = !showBomSelector; if(showBomSelector) loadBoms()"
+                                class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <span x-text="showBomSelector ? 'Cancel' : 'Change'"></span>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-0.5" x-text="bitData.bom_name || ''" x-show="bitData.bom_name && !showBomSelector"></p>
                 </div>
                 <!-- Repair Count -->
                 <div>
@@ -241,6 +252,7 @@ function woCreateForm() {
         accountInfo: {},
         lookupStatus: 'idle',  // idle, loading, found, not_found
         bitData: {},
+        showBomSelector: false,
         lookupTimer: null,
         accounts: {
             {% for acc in accounts %}
@@ -338,6 +350,35 @@ function woCreateForm() {
             const fromLoc = document.getElementById('id_from_location_text');
             if (fromLoc && !fromLoc.value && data.from_location) {
                 fromLoc.value = data.from_location;
+            }
+        },
+
+        async loadBoms() {
+            // Load BOMs for the current design
+            if (!this.bitData.design_id) return;
+            try {
+                const resp = await fetch(`/technology/api/boms/?design_id=${this.bitData.design_id}`);
+                const data = await resp.json();
+                const sel = document.getElementById('id_bom_selector');
+                sel.innerHTML = '<option value="">-- Select BOM --</option>';
+                (data.boms || []).forEach(b => {
+                    const opt = document.createElement('option');
+                    opt.value = b.id;
+                    opt.textContent = `${b.code} - ${b.name || 'L5'}`;
+                    if (b.id == this.bitData.bom_id) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+            } catch(e) { console.error('Load BOMs failed:', e); }
+        },
+
+        onBomChange(bomId) {
+            document.getElementById('id_bom').value = bomId;
+            if (bomId) {
+                const sel = document.getElementById('id_bom_selector');
+                const opt = sel.options[sel.selectedIndex];
+                this.bitData.bom_code = opt.textContent.split(' - ')[0];
+                this.bitData.bom_name = opt.textContent.split(' - ').slice(1).join(' - ');
+                this.bitData.bom_id = bomId;
             }
         },
 

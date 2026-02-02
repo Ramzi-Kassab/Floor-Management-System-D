@@ -256,63 +256,46 @@
             <div class="space-y-4">
                 <div class="flex items-center justify-between">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Cutter Evaluation Matrices</h3>
-                    <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}"
-                       class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Evaluation
-                    </a>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <!-- ARDT Evaluation -->
-                    <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
-                        <h4 class="font-medium text-orange-800 dark:text-orange-200 mb-2">ARDT Cutter Entry</h4>
-                        {% if ardt_evaluation %}
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                            {{ ardt_evaluation.entries.count }} entries
-                            <br>By: {{ ardt_evaluation.evaluated_by.get_short_name|default:"--" }}
-                        </p>
-                        <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk ardt_evaluation.pk %}"
-                           class="text-orange-600 dark:text-orange-400 text-sm hover:underline">Edit Matrix &rarr;</a>
+                <!-- Cutter Evaluation Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {% for eval in evaluations %}
+                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ eval.type_label }}</h4>
+                            {% if eval.exists %}
+                            <span class="text-xs px-2 py-0.5 rounded-full {% if eval.evaluation.is_complete %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400{% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
+                                {% if eval.evaluation.is_complete %}Complete{% else %}In Progress{% endif %}
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% if eval.exists %}
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 space-y-1">
+                            {% if eval.evaluation.decision %}
+                            <p>Decision: <span class="font-medium text-gray-700 dark:text-gray-300">{{ eval.evaluation.get_decision_display }}</span></p>
+                            {% endif %}
+                            {% if eval.evaluation.evaluated_by %}
+                            <p>By: {{ eval.evaluation.evaluated_by.get_full_name|default:eval.evaluation.evaluated_by.username }}</p>
+                            {% endif %}
+                            {% if eval.evaluation.evaluated_at %}
+                            <p>Date: {{ eval.evaluation.evaluated_at|date:"M d, Y" }}</p>
+                            {% endif %}
+                            <p>Entries: {{ eval.evaluation.entries.count }}</p>
+                        </div>
+                        <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk eval.evaluation.pk %}"
+                           class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <i data-lucide="edit-3" class="w-3.5 h-3.5 mr-1"></i>Edit
+                        </a>
                         {% else %}
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Not started</p>
-                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type=ARDT"
-                           class="text-orange-600 dark:text-orange-400 text-sm hover:underline">Start Evaluation &rarr;</a>
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">Not started</p>
+                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type={{ eval.type_code }}"
+                           class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>Start
+                        </a>
                         {% endif %}
                     </div>
-
-                    <!-- Engineer Evaluation -->
-                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                        <h4 class="font-medium text-blue-800 dark:text-blue-200 mb-2">Eng. Cutter Entry</h4>
-                        {% if eng_evaluation %}
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                            {{ eng_evaluation.entries.count }} entries
-                            <br>By: {{ eng_evaluation.evaluated_by.get_short_name|default:"--" }}
-                        </p>
-                        <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk eng_evaluation.pk %}"
-                           class="text-blue-600 dark:text-blue-400 text-sm hover:underline">Edit Matrix &rarr;</a>
-                        {% else %}
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Not started</p>
-                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type=ENGINEER"
-                           class="text-blue-600 dark:text-blue-400 text-sm hover:underline">Start Evaluation &rarr;</a>
-                        {% endif %}
-                    </div>
-
-                    <!-- Rework Evaluation -->
-                    <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-                        <h4 class="font-medium text-purple-800 dark:text-purple-200 mb-2">Rework Cutter Entry</h4>
-                        {% if rework_evaluation %}
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                            {{ rework_evaluation.entries.count }} entries
-                            <br>By: {{ rework_evaluation.evaluated_by.get_short_name|default:"--" }}
-                        </p>
-                        <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk rework_evaluation.pk %}"
-                           class="text-purple-600 dark:text-purple-400 text-sm hover:underline">Edit Matrix &rarr;</a>
-                        {% else %}
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Not started</p>
-                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type=REWORK"
-                           class="text-purple-600 dark:text-purple-400 text-sm hover:underline">Start Evaluation &rarr;</a>
-                        {% endif %}
-                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>

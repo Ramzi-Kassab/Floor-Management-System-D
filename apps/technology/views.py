@@ -6,8 +6,10 @@ Views for Design, BOM, and Cutter Layout management.
 """
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import models
+from django.http import JsonResponse
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -3706,6 +3708,24 @@ class DesignStockImportView(LoginRequiredMixin, TemplateView):
 # =============================================================================
 # BOM LIST API ENDPOINTS
 # =============================================================================
+
+
+@login_required
+def api_boms_list(request):
+    """Return BOMs for a given design_id as JSON. Used by WO create form BOM selector."""
+    design_id = request.GET.get('design_id')
+    if not design_id:
+        return JsonResponse({'boms': []})
+    boms = BOM.objects.filter(design_id=design_id).order_by('-status', 'code')
+    result = []
+    for b in boms:
+        result.append({
+            'id': b.pk,
+            'code': b.code or b.brazing_mat_no or b.system_mat_no or str(b),
+            'name': b.name or f"L5 ({b.get_status_display()})",
+            'status': b.status,
+        })
+    return JsonResponse({'boms': result})
 
 
 class APIBOMUpdateFieldView(LoginRequiredMixin, View):

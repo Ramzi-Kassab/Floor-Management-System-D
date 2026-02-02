@@ -240,7 +240,7 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         except EvaluationChecklist.DoesNotExist:
             context["e_checklist"] = None
 
-        # Cutter evaluations by type
+        # Cutter evaluations by type (legacy individual variables)
         context["ardt_evaluation"] = wo.cutter_evaluations.filter(
             evaluation_type=CutterEvaluationMatrix.EvaluationType.ARDT
         ).first()
@@ -250,6 +250,19 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         context["rework_evaluation"] = wo.cutter_evaluations.filter(
             evaluation_type=CutterEvaluationMatrix.EvaluationType.REWORK
         ).first()
+
+        # Build evaluations list with all types
+        eval_types = CutterEvaluationMatrix.EvaluationType.choices
+        evaluations = []
+        for type_code, type_label in eval_types:
+            eval_obj = wo.cutter_evaluations.filter(evaluation_type=type_code).first()
+            evaluations.append({
+                'type_code': type_code,
+                'type_label': type_label,
+                'evaluation': eval_obj,
+                'exists': eval_obj is not None,
+            })
+        context['evaluations'] = evaluations
 
         # Router sheet entries
         context["router_entries"] = wo.router_entries.order_by('step_number')
@@ -628,6 +641,76 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
         context['action_choices'] = CutterEvaluationEntry.Action.choices
         context['source_choices'] = CutterEvaluationEntry.CutterSource.choices
 
+        # Saved cutters details (from previous save or BOM data)
+        context['saved_cutters_details'] = matrix.cutters_details or []
+
+        # BOM lines for pre-populating cutters details (if no saved data)
+        import json as _json
+        bom_lines_json = []
+        active_bom = None
+        if wo.bom:
+            active_bom = wo.bom
+        elif wo.drill_bit:
+            active_bom = getattr(wo.drill_bit, 'brazing_bom', None) or getattr(wo.drill_bit, 'bom', None)
+        if active_bom:
+            for line in active_bom.lines.select_related('inventory_item').order_by('order_number', 'line_number'):
+                part_no = line.hdbs_code or ''
+                desc = ''
+                if line.inventory_item:
+                    part_no = part_no or line.inventory_item.mat_number or line.inventory_item.code
+                    desc = line.inventory_item.name
+                else:
+                    desc = line.cutter_type or ''
+                bom_lines_json.append({
+                    'qty': line.quantity,
+                    'size_mm': line.cutter_size or '',
+                    'part_no': part_no,
+                    'description': desc,
+                    'remarks': '',
+                })
+        context['bom_lines_json'] = _json.dumps(bom_lines_json)
+
+        # Cutter state history: all prior evaluations for this WO
+        prior_evals = wo.cutter_evaluations.exclude(pk=matrix.pk).order_by(
+            'evaluation_type', 'evaluation_number'
+        ).prefetch_related('entries')
+        eval_history = []
+        for ev in prior_evals:
+            eval_history.append({
+                'type': ev.get_evaluation_type_display(),
+                'number': ev.evaluation_number,
+                'decision': ev.get_decision_display() if ev.decision else '',
+                'date': ev.evaluated_at.isoformat() if ev.evaluated_at else '',
+                'entry_count': ev.entries.count(),
+            })
+        context['eval_history'] = eval_history
+
+        # Build cumulative cutter state from all prior evaluations
+        # Track per position: last action across all evaluations
+        cutter_state = {}
+        all_evals_ordered = wo.cutter_evaluations.order_by('created_at').prefetch_related('entries')
+        for ev in all_evals_ordered:
+            if ev.pk == matrix.pk:
+                continue
+            for entry in ev.entries.all():
+                key = (entry.blade_number, entry.cutter_position)
+                if entry.action:
+                    prev = cutter_state.get(key, {})
+                    history = prev.get('history', [])
+                    history.append({
+                        'eval_type': ev.get_evaluation_type_display(),
+                        'action': entry.action,
+                    })
+                    cutter_state[key] = {
+                        'last_action': entry.action,
+                        'history': history,
+                    }
+        # Convert tuple keys to string for JSON serialization
+        cutter_state_serializable = {}
+        for (blade, pos), val in cutter_state.items():
+            cutter_state_serializable[f"{blade},{pos}"] = val
+        context['cutter_state_json'] = _json.dumps(cutter_state_serializable)
+
         return context
 
     def post(self, request, *args, **kwargs):
@@ -640,9 +723,8 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
             data = json.loads(request.body)
             entries_data = data.get('entries', [])
             remarks = data.get('remarks', '')
-            decision_repair = data.get('repair', False)
-            decision_rerun = data.get('rerun', False)
-            decision_scrap = data.get('scrap', False)
+            decision = data.get('decision', '')
+            cutters_details = data.get('cutters_details', None)
 
             # Clear existing entries and re-create
             matrix.entries.all().delete()
@@ -654,9 +736,12 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
                     action=e.get('action', ''),
                 )
 
-            # Update matrix remarks
+            # Update matrix fields
             matrix.general_remark = remarks
-            matrix.save(update_fields=['general_remark', 'updated_at'])
+            matrix.decision = decision
+            if cutters_details is not None:
+                matrix.cutters_details = cutters_details
+            matrix.save(update_fields=['general_remark', 'decision', 'cutters_details', 'updated_at'])
 
             return JsonResponse({'success': True, 'count': len(entries_data)})
 

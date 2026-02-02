@@ -1622,20 +1622,41 @@ class WorkOrderCost(models.Model):
 class CutterEvaluationMatrix(models.Model):
     """
     Cutter evaluation matrix for a work order.
-    Links to the design's pocket layout and tracks ARDT/Engineer evaluations
+    Links to the design's pocket layout and tracks evaluations
     for each cutter position (blade × cutter position from ID to Gauge).
+    Tracks decision outcome and cutter state across multiple evaluation stages.
     """
     class EvaluationType(models.TextChoices):
+        RECEIVING = "RECEIVING", "Receiving Evaluation"
         ARDT = "ARDT", "ARDT Evaluation"
-        ENGINEER = "ENGINEER", "Engineer Evaluation"
-        REWORK = "REWORK", "Rework Evaluation"
+        ENGINEER = "ENGINEER", "Technical Rep. Evaluation"
+        QC = "QC", "QC Evaluation"
         DIE_CHECK = "DIE_CHECK", "Die Check"
+        FINAL_DIE_CHECK = "FINAL_DIE_CHECK", "Final Die Check"
+        FINAL_QC = "FINAL_QC", "Final QC Evaluation"
+        FINAL_INSPECTION = "FINAL_INSPECTION", "Final Inspection"
+        REWORK = "REWORK", "Rework Evaluation"
+
+    class Decision(models.TextChoices):
+        REPAIR = "REPAIR", "For Repair"
+        RERUN = "RERUN", "For Rerun"
+        SCRAP = "SCRAP", "For Scrap"
+        DEBRAZE = "DEBRAZE", "De-braze"
+        CUTTER_RETROFIT = "CUTTER_RETROFIT", "Cutter Retrofit"
+        NEW_BUILD = "NEW_BUILD", "New Build"
+        BODY_RETROFIT = "BODY_RETROFIT", "Body Retrofit"
 
     work_order = models.ForeignKey(
         WorkOrder, on_delete=models.CASCADE, related_name="cutter_evaluations"
     )
     evaluation_type = models.CharField(max_length=20, choices=EvaluationType.choices)
     evaluation_number = models.IntegerField(default=1, help_text="Evaluation sequence (for multiple evaluations)")
+
+    # Decision outcome
+    decision = models.CharField(
+        max_length=20, choices=Decision.choices,
+        blank=True, help_text="Evaluation outcome decision"
+    )
 
     # Evaluator info
     evaluated_by = models.ForeignKey(
@@ -1660,6 +1681,12 @@ class CutterEvaluationMatrix(models.Model):
 
     # NCR reference for rework
     ncr_ref_no = models.CharField(max_length=50, blank=True, help_text="NCR Reference Number for rework")
+
+    # Cutters details JSON (plant use table)
+    cutters_details = models.JSONField(
+        null=True, blank=True,
+        help_text="Cutters details for plant use: [{qty, size_mm, part_no, description, remarks}]"
+    )
 
     # Status
     is_complete = models.BooleanField(default=False)
@@ -1688,8 +1715,11 @@ class CutterEvaluationEntry(models.Model):
         REPLACE = "X", "Replace"
         ROTATE = "R", "Rotate"
         SPIN = "S", "Spin"
-        DAMAGED = "D", "Damaged"
-        MISSING = "M", "Missing"
+        FILL = "F", "Fill"
+        LOST = "L", "Lost"
+        POCKET_BUILDUP = "P", "Pocket Build Up"
+        IMPACT_ARRESTOR = "I", "Impact Arrestor Build Up"
+        FIN_BUILDUP = "V", "Fin Build Up"
         BLANK = "", "Not evaluated"
 
     class CutterSource(models.TextChoices):
