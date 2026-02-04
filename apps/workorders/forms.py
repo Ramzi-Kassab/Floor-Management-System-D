@@ -173,10 +173,7 @@ class WorkOrderCreateEnhancedForm(forms.ModelForm):
             'drill_bit',
             'design',
             'bom',
-            'customer',
-            'priority',
             'bit_received_date',
-            'from_location_text',
             'due_date',
             'description',
             'notes',
@@ -192,21 +189,10 @@ class WorkOrderCreateEnhancedForm(forms.ModelForm):
             'drill_bit': forms.HiddenInput(attrs={'id': 'id_drill_bit'}),
             'design': forms.HiddenInput(attrs={'id': 'id_design'}),
             'bom': forms.HiddenInput(attrs={'id': 'id_bom'}),
-            'customer': forms.Select(attrs={
-                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
-            }),
-            'priority': forms.Select(attrs={
-                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
-            }),
-            'bit_received_date': forms.DateInput(attrs={
-                'type': 'date',
+            'bit_received_date': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
                 'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
                 'id': 'id_bit_received_date',
-            }),
-            'from_location_text': forms.TextInput(attrs={
-                'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
-                'placeholder': 'e.g., LSTK, ARAMCO, Rig #12',
-                'id': 'id_from_location_text',
             }),
             'due_date': forms.DateInput(attrs={
                 'type': 'date',

@@ -1225,6 +1225,19 @@ def api_drillbit_lookup(request):
     rerun_count_factory = getattr(bit, "rerun_count_factory", 0)
     rerun_count_field = getattr(bit, "rerun_count_field", 0)
 
+    # --- bit state ---
+    bit_state = "Unknown"
+    if bit.status:
+        status_map = {
+            "NEW": "Component",
+            "IN_STOCK": "Finished Good",
+            "IN_PRODUCTION": "Component",
+            "AT_RIG": "Used",
+            "RETURNED": "Used",
+            "SCRAPPED": "Scrapped",
+        }
+        bit_state = status_map.get(bit.status, bit.get_status_display() if hasattr(bit, "get_status_display") else "Unknown")
+
     return JsonResponse({
         "found": True,
         "drill_bit_id": bit.pk,
@@ -1252,4 +1265,66 @@ def api_drillbit_lookup(request):
         "repair_count_usa": repair_count_usa,
         "rerun_count_factory": rerun_count_factory,
         "rerun_count_field": rerun_count_field,
+        "bit_state": bit_state,
     })
+
+
+@login_required
+@require_GET
+def api_drillbit_list(request):
+    """
+    List all drill bits for the serial number picker modal.
+    GET /workorders/api/drill-bits/list/
+    Returns JSON array of drill bits with key fields for selection.
+    """
+    bits = DrillBit.objects.select_related(
+        "design", "design__size", "account", "brazing_bom", "system_bom", "bom"
+    ).order_by("-created_at")[:500]  # Limit to 500 most recent
+
+    result = []
+    for bit in bits:
+        # Determine design level
+        design_level = ""
+        if bit.design:
+            design_level = getattr(bit.design, "order_level", "") or ""
+
+        # Determine HDBS type
+        hdbs_type = ""
+        if bit.design and bit.design.hdbs_type:
+            hdbs_type = bit.design.hdbs_type
+
+        # Determine size
+        size = ""
+        if bit.bit_size_ref:
+            size = str(bit.bit_size_ref)
+        elif bit.design and bit.design.size:
+            size = str(bit.design.size)
+
+        # Determine bit state (Component, Finished Good, Used)
+        bit_state = "Unknown"
+        if bit.status:
+            status_map = {
+                "NEW": "Component",
+                "IN_STOCK": "Finished Good",
+                "IN_PRODUCTION": "Component",
+                "AT_RIG": "Used",
+                "RETURNED": "Used",
+                "SCRAPPED": "Scrapped",
+            }
+            bit_state = status_map.get(bit.status, bit.get_status_display() if hasattr(bit, "get_status_display") else "Unknown")
+
+        # Rerun count
+        rerun_count = getattr(bit, "rerun_count_factory", 0) + getattr(bit, "rerun_count_field", 0)
+
+        result.append({
+            "serial_number": bit.serial_number,
+            "size": size,
+            "hdbs_type": hdbs_type,
+            "account_code": bit.account.code if bit.account else "",
+            "bit_state": bit_state,
+            "design_level": design_level,
+            "repair_count": bit.repair_count or 0,
+            "rerun_count": rerun_count,
+        })
+
+    return JsonResponse({"bits": result})
