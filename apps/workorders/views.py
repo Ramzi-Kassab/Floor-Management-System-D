@@ -25,81 +25,29 @@ from .models import DrillBit, WorkOrder
 from .utils import generate_drill_bit_qr, generate_work_order_qr
 
 
+# =============================================================================
+# LEGACY VIEWS - DEPRECATED
+# These views have been replaced by enhanced versions in views_jobcard.py.
+# URLs now redirect to the enhanced views. Kept for reference only.
+# =============================================================================
+
+
 class WorkOrderListView(LoginRequiredMixin, ListView):
     """
-    List all work orders with filtering and pagination.
+    DEPRECATED: Use WorkOrderListEnhancedView in views_jobcard.py instead.
+    This class is kept for backward compatibility but the URL route now
+    points to the enhanced view.
     """
-
-    model = WorkOrder
-    template_name = "workorders/workorder_list.html"
-    context_object_name = "work_orders"
-    paginate_by = 25
-
-    def get_queryset(self):
-        queryset = WorkOrder.objects.select_related("customer", "drill_bit", "assigned_to", "design").order_by("-created_at")
-
-        # Filter by status
-        status = self.request.GET.get("status")
-        if status:
-            queryset = queryset.filter(status=status)
-
-        # Filter by priority
-        priority = self.request.GET.get("priority")
-        if priority:
-            queryset = queryset.filter(priority=priority)
-
-        # Search
-        search = self.request.GET.get("q")
-        if search:
-            queryset = queryset.filter(
-                Q(wo_number__icontains=search)
-                | Q(customer__name__icontains=search)
-                | Q(drill_bit__serial_number__icontains=search)
-            )
-
-        return queryset
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Work Orders"
-        context["status_choices"] = WorkOrder.Status.choices
-        context["priority_choices"] = WorkOrder.Priority.choices
-        context["current_status"] = self.request.GET.get("status", "")
-        context["current_priority"] = self.request.GET.get("priority", "")
-        context["search_query"] = self.request.GET.get("q", "")
-        return context
+    pass  # Not used - URL routes to WorkOrderListEnhancedView
 
 
 class WorkOrderDetailView(LoginRequiredMixin, DetailView):
     """
-    View work order details.
+    DEPRECATED: Use WorkOrderDetailEnhancedView in views_jobcard.py instead.
+    This class is kept for backward compatibility but the URL route now
+    points to the enhanced view.
     """
-
-    model = WorkOrder
-    template_name = "workorders/workorder_detail.html"
-    context_object_name = "work_order"
-
-    def get_queryset(self):
-        return WorkOrder.objects.select_related(
-            "customer",
-            "drill_bit",
-            "assigned_to",
-            "design",
-            "sales_order",
-            "rig",
-            "well",
-            "procedure",
-            "department",
-            "created_by",
-        ).prefetch_related("documents", "photos", "materials", "time_logs")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Work Order {self.object.wo_number}"
-        # Generate QR code for the work order
-        base_url = getattr(settings, "SITE_URL", None)
-        context["qr_code"] = generate_work_order_qr(self.object, base_url)
-        return context
+    pass  # Not used - URL routes to WorkOrderDetailEnhancedView
 
 
 class WorkOrderCreateView(LoginRequiredMixin, CreateView):

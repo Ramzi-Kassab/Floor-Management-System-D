@@ -257,8 +257,7 @@ PAGE_REGISTRY = [
         "color": "orange",
         "pages": [
             {"name": "Production Dashboard", "url": "workorders:dashboard", "icon": "layout-dashboard"},
-            {"name": "Job Cards", "url": "workorders:workorder_list_enhanced", "icon": "file-text"},
-            {"name": "Work Orders", "url": "workorders:list", "icon": "clipboard-list"},
+            {"name": "Work Orders", "url": "workorders:workorder_list_enhanced", "icon": "clipboard-list"},
             {"name": "Create Work Order", "url": "workorders:create", "icon": "file-plus-2"},
             {"name": "WIP", "url": "execution:list", "icon": "play-circle"},
             {"name": "Instructions", "url": "workorders:instruction_rule_list", "icon": "book-text"},
@@ -968,9 +967,8 @@ LEGACY_SHORTCUT_MAP = {
     "shortcut_stock_import": {"url": "inventory:stock_import", "page_name": "Stock Import (ERP)", "page_icon": "upload"},
     "shortcut_drill_bits": {"url": "workorders:drillbit_list_enhanced", "page_name": "Drill Bits", "page_icon": "disc"},
     "shortcut_register_bit": {"url": "workorders:drillbit_create", "page_name": "Register New Bit", "page_icon": "plus-circle"},
-    "shortcut_job_cards": {"url": "workorders:workorder_list_enhanced", "page_name": "Job Cards", "page_icon": "file-text"},
+    "shortcut_work_orders": {"url": "workorders:workorder_list_enhanced", "page_name": "Work Orders", "page_icon": "clipboard-list"},
     "shortcut_create_wo": {"url": "workorders:create", "page_name": "Create Work Order", "page_icon": "file-plus-2"},
-    "shortcut_work_orders": {"url": "workorders:list", "page_name": "Work Orders", "page_icon": "clipboard-list"},
     "shortcut_accounts": {"url": "sales:account_list", "page_name": "Accounts", "page_icon": "building-2"},
     "shortcut_customers": {"url": "sales:customer_list", "page_name": "Customers", "page_icon": "users"},
     "shortcut_vendors": {"url": "supplychain:supplier_list", "page_name": "Vendors", "page_icon": "building-2"},
@@ -1143,7 +1141,7 @@ def get_widget_data(widget_id, user):
     elif widget_id == "quick_links":
         return {
             "links": [
-                {"name": "Work Orders", "url": "workorders:list", "icon": "clipboard-list"},
+                {"name": "Work Orders", "url": "workorders:workorder_list_enhanced", "icon": "clipboard-list"},
                 {"name": "Inventory", "url": "inventory:item_list", "icon": "package"},
                 {"name": "Quality", "url": "quality:ncr_list", "icon": "shield-check"},
                 {"name": "Reports", "url": "reports:dashboard", "icon": "bar-chart"},

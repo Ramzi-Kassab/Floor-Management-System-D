@@ -112,7 +112,7 @@
                     </div>
                 </div>
                 <div class="mt-4">
-                    <a href="{% url 'workorders:list' %}" class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-blue-600 dark:text-blue-400 hover:underline">View all work orders</a>
+                    <a href="{% url 'workorders:workorder_list_enhanced' %}" class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-blue-600 dark:text-blue-400 hover:underline">View all work orders</a>
                 </div>
 
             {% elif widget.id == 'drill_bits_status' %}
@@ -163,7 +163,7 @@
                     </p>
                     <p class="{% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-gray-500 dark:text-gray-400 mt-1">work orders past due</p>
                     {% if widget.data.overdue > 0 %}
-                    <a href="{% url 'workorders:list' %}?status=overdue" class="inline-flex items-center mt-3 {% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-red-600 dark:text-red-400 hover:underline">
+                    <a href="{% url 'workorders:workorder_list_enhanced' %}?status=overdue" class="inline-flex items-center mt-3 {% if widget.text_size == 'small' %}text-xs{% elif widget.text_size == 'large' %}text-base{% else %}text-sm{% endif %} text-red-600 dark:text-red-400 hover:underline">
                         <i data-lucide="alert-circle" class="w-4 h-4 mr-1"></i>
                         View overdue
                     </a>

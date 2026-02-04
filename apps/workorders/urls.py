@@ -89,12 +89,12 @@ urlpatterns = [
     path("instruction-rules/<int:pk>/delete/", views_jobcard.InstructionRuleDeleteView.as_view(), name="instruction_rule_delete"),
 
     # ========================================================================
-    # ORIGINAL WORK ORDER VIEWS
+    # WORK ORDER VIEWS (Consolidated)
     # ========================================================================
-    # Work Order - List and CRUD
-    path("", views.WorkOrderListView.as_view(), name="list"),
+    # Work Order - List (redirects to enhanced view for backward compatibility)
+    path("", views_jobcard.WorkOrderListEnhancedView.as_view(), name="list"),
     path("create/", views.WorkOrderCreateView.as_view(), name="create"),
-    path("<int:pk>/", views.WorkOrderDetailView.as_view(), name="detail"),
+    path("<int:pk>/", views_jobcard.WorkOrderDetailEnhancedView.as_view(), name="detail"),
     path("<int:pk>/edit/", views.WorkOrderUpdateView.as_view(), name="update"),
     # Work Order - Actions
     path("<int:pk>/start/", views.start_work_view, name="start"),
