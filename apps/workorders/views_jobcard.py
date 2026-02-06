@@ -1355,6 +1355,10 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
         planned_data = []
         for entry in planned_qs:
             bit = entry.drill_bit
+            # Calculate is_overdue
+            is_overdue = False
+            if entry.due_date:
+                is_overdue = entry.due_date < timezone.now().date()
             planned_data.append({
                 'entry': entry,
                 'serial': bit.serial_number,
@@ -1365,6 +1369,8 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
                 'account': entry.account.code if entry.account else (bit.account.code if bit.account else '-'),
                 'priority': entry.get_priority_display(),
                 'planned_date': entry.planned_date,
+                'due_date': entry.due_date,
+                'is_overdue': is_overdue,
                 'notes': entry.notes,
                 'intended_type': entry.get_intended_wo_type_display() if entry.intended_wo_type else '-',
             })
@@ -1674,12 +1680,23 @@ def api_add_to_plan(request):
     elif drill_bit.account:
         account = drill_bit.account
 
+    # Parse due_date if provided
+    due_date_str = data.get('due_date', '')
+    due_date = None
+    if due_date_str:
+        try:
+            from datetime import datetime
+            due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            pass  # Will auto-calculate
+
     # Add to plan
     entry, created = ProductionPlanEntry.add_to_plan(
         drill_bit=drill_bit,
         account=account,
         priority=data.get('priority', 'NORMAL'),
         planned_date=data.get('planned_date') or None,
+        due_date=due_date,
         intended_wo_type=data.get('intended_wo_type', ''),
         notes=data.get('notes', ''),
         user=request.user

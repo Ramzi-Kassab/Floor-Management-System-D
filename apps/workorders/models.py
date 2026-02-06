@@ -2319,6 +2319,7 @@ class ProductionPlanEntry(models.Model):
     # Planning fields
     priority = models.CharField(max_length=20, choices=Priority.choices, default=Priority.NORMAL)
     planned_date = models.DateField(null=True, blank=True, help_text='Target date for starting work')
+    due_date = models.DateField(null=True, blank=True, help_text='Target date for completing work (auto-calculated: 6 days, 4 for UR)')
     sequence = models.IntegerField(default=0, help_text='Sequence order in the plan')
 
     # Intended work type
@@ -2387,8 +2388,11 @@ class ProductionPlanEntry(models.Model):
 
     @classmethod
     def add_to_plan(cls, drill_bit, account=None, priority='NORMAL', planned_date=None,
-                    intended_wo_type='', notes='', user=None):
+                    due_date=None, intended_wo_type='', notes='', user=None):
         """Add a drill bit to the production plan."""
+        from datetime import timedelta
+        from django.utils import timezone
+
         # Check for existing active plan entry
         existing = cls.objects.filter(
             drill_bit=drill_bit,
@@ -2403,11 +2407,21 @@ class ProductionPlanEntry(models.Model):
             max_seq=models.Max('sequence')
         )['max_seq'] or 0
 
+        # Determine effective account
+        effective_account = account or drill_bit.account
+
+        # Auto-calculate due_date if not provided
+        # UR account gets 4 days, all others get 6 days
+        if due_date is None:
+            days_offset = 4 if effective_account and effective_account.code == 'UR' else 6
+            due_date = timezone.now().date() + timedelta(days=days_offset)
+
         entry = cls.objects.create(
             drill_bit=drill_bit,
-            account=account or drill_bit.account,
+            account=effective_account,
             priority=priority,
             planned_date=planned_date,
+            due_date=due_date,
             intended_wo_type=intended_wo_type,
             sequence=max_seq + 1,
             notes=notes,

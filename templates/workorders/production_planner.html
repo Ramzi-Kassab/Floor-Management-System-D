@@ -3,29 +3,67 @@
 
 {% block title %}Production Planner - ARDT FMS{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Column filter menu */
+    .column-menu {
+        position: fixed;
+        z-index: 100;
+        min-width: 220px;
+        max-height: 350px;
+    }
+    .filter-active { color: #2563eb !important; font-weight: 600; }
+    .filter-active i { color: #2563eb !important; }
+
+    /* Picker modal table */
+    .picker-table-wrapper {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+    .picker-table thead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: white;
+    }
+    .dark .picker-table thead {
+        background: #1f2937;
+    }
+    .picker-row-selected {
+        background-color: #dbeafe !important;
+    }
+    .dark .picker-row-selected {
+        background-color: #1e3a5f !important;
+    }
+</style>
+{% endblock %}
+
 {% block page_header %}
-<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-        <p class="text-gray-600 dark:text-gray-400">Plan work and track progress - add bits to plan before creating Work Orders</p>
-    </div>
-    <div class="mt-4 md:mt-0 flex space-x-2">
-        <button @click="showAddToPlanModal = true"
-                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-            Add to Plan
-        </button>
-        <a href="{% url 'workorders:workorder_list_enhanced' %}"
-           class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-            <i data-lucide="list" class="w-4 h-4 mr-2"></i>
-            All Work Orders
-        </a>
-    </div>
-</div>
+<!-- Page header is inside the Alpine scope defined in content block -->
 {% endblock %}
 
 {% block content %}
 <div x-data="productionPlanner()" x-init="init()">
+    <!-- Page Header (inside Alpine scope now) -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+            <p class="text-gray-600 dark:text-gray-400">Plan work and track progress - add bits to plan before creating Work Orders</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex space-x-2">
+            <button @click="openBitPickerModal()"
+                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                Add to Plan
+            </button>
+            <a href="{% url 'workorders:workorder_list_enhanced' %}"
+               class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                <i data-lucide="list" class="w-4 h-4 mr-2"></i>
+                All Work Orders
+            </a>
+        </div>
+    </div>
+
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <!-- Planned (No WO) -->
@@ -149,6 +187,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Priority</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Planned Date</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-yellow-50 dark:bg-yellow-900/20">Due Date</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Intended Type</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Notes</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
@@ -185,6 +224,13 @@
                         <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                             {% if item.planned_date %}{{ item.planned_date|date:"M d" }}{% else %}-{% endif %}
                         </td>
+                        <td class="px-4 py-3 text-sm bg-yellow-50/50 dark:bg-yellow-900/10">
+                            {% if item.due_date %}
+                                <span class="{% if item.is_overdue %}text-red-600 dark:text-red-400 font-semibold{% else %}text-gray-600 dark:text-gray-400{% endif %}">
+                                    {{ item.due_date|date:"M d" }}
+                                </span>
+                            {% else %}-{% endif %}
+                        </td>
                         <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{{ item.intended_type }}</td>
                         <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate" title="{{ item.notes }}">
                             {{ item.notes|truncatewords:5 }}
@@ -207,10 +253,10 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="11" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                        <td colspan="12" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                             <i data-lucide="calendar-plus" class="w-12 h-12 mx-auto mb-2 text-gray-300 dark:text-gray-600"></i>
                             <p>No bits planned for work</p>
-                            <button @click="showAddToPlanModal = true"
+                            <button @click="openBitPickerModal()"
                                     class="mt-3 text-blue-600 dark:text-blue-400 hover:underline">
                                 Add drill bit to plan
                             </button>
@@ -366,122 +412,175 @@
     {% endif %}
 
     <!-- ========================================
-         ADD TO PLAN MODAL
+         DRILL BIT PICKER MODAL
          ======================================== -->
-    <div x-show="showAddToPlanModal" x-cloak
+    <div x-show="showBitPickerModal" x-cloak
          class="fixed inset-0 z-50 overflow-y-auto"
-         @keydown.escape.window="showAddToPlanModal = false">
+         @keydown.escape.window="showBitPickerModal = false">
         <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
             <!-- Backdrop -->
             <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity"
-                 @click="showAddToPlanModal = false"></div>
+                 @click="showBitPickerModal = false"></div>
 
             <!-- Modal -->
-            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl transform transition-all sm:max-w-xl w-full">
+            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl transform transition-all w-full max-w-6xl mx-4">
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Add Drill Bit to Plan</h3>
-                    <button @click="showAddToPlanModal = false" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Select Drill Bit to Add to Plan</h3>
+                    <button @click="showBitPickerModal = false" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
                 </div>
 
-                <form @submit.prevent="submitAddToPlan()" class="p-6">
-                    <!-- Serial Number Lookup -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Serial Number
-                        </label>
-                        <div class="relative">
-                            <input type="text" x-model="planForm.serialNumber"
-                                   @input.debounce.300ms="lookupBit()"
-                                   placeholder="Enter 6-8 digit serial number"
-                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <div x-show="lookingUp" class="absolute right-3 top-2.5">
-                                <i data-lucide="loader-2" class="w-5 h-5 text-gray-400 animate-spin"></i>
-                            </div>
+                <div class="p-4">
+                    <!-- Filters Bar -->
+                    <div class="flex flex-wrap gap-3 items-center mb-4">
+                        <div class="flex-1 min-w-[200px]">
+                            <input type="text" x-model="pickerSearch" @input="filterPickerTable()"
+                                   placeholder="Search by serial, HDBS, account..."
+                                   class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                         </div>
-                        <p x-show="bitInfo" x-text="bitInfo" class="mt-1 text-sm text-green-600 dark:text-green-400"></p>
-                        <p x-show="bitError" x-text="bitError" class="mt-1 text-sm text-red-600 dark:text-red-400"></p>
-                    </div>
-
-                    <!-- Account -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Account
-                        </label>
-                        <select x-model="planForm.account"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="">-- Select Account --</option>
+                        <select x-model="pickerAccountFilter" @change="filterPickerTable()"
+                                class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <option value="">All Accounts</option>
                             {% for acct in accounts %}
-                            <option value="{{ acct.code }}">{{ acct.code }} - {{ acct.name }}</option>
+                            <option value="{{ acct.code }}">{{ acct.code }}</option>
                             {% endfor %}
                         </select>
-                    </div>
-
-                    <!-- Priority -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Priority
-                        </label>
-                        <select x-model="planForm.priority"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="LOW">Low</option>
-                            <option value="NORMAL" selected>Normal</option>
-                            <option value="HIGH">High</option>
-                            <option value="URGENT">Urgent</option>
+                        <select x-model="pickerStateFilter" @change="filterPickerTable()"
+                                class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <option value="">All States</option>
+                            <option value="Component">Component</option>
+                            <option value="Finished Good">Finished Good</option>
+                            <option value="Used">Used</option>
                         </select>
-                    </div>
-
-                    <!-- Planned Date -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Planned Date (Optional)
+                        <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            <input type="checkbox" x-model="pickerHideInPlan" @change="filterPickerTable()"
+                                   class="rounded border-gray-300 dark:border-gray-600">
+                            Hide already in plan
                         </label>
-                        <input type="date" x-model="planForm.plannedDate"
-                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <span class="text-sm text-gray-500" x-text="`${pickerVisibleCount} of ${pickerTotalCount} bits`"></span>
                     </div>
 
-                    <!-- Intended WO Type -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Intended Work Type
-                        </label>
-                        <select x-model="planForm.intendedType"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="">-- Not Specified --</option>
-                            <option value="FC_REPAIR">FC Repair</option>
-                            <option value="FC_REWORK">FC Rework</option>
-                            <option value="FC_NEW">FC New Build</option>
-                            <option value="RC_REPAIR">RC Repair</option>
-                            <option value="RC_REWORK">RC Rework</option>
-                            <option value="RERUN">Rerun</option>
-                        </select>
+                    <!-- Loading indicator -->
+                    <div x-show="pickerLoading" class="text-center py-8">
+                        <i data-lucide="loader-2" class="w-8 h-8 text-blue-600 animate-spin mx-auto"></i>
+                        <p class="text-gray-500 mt-2">Loading drill bits...</p>
                     </div>
 
-                    <!-- Notes -->
-                    <div class="mb-6">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Notes (Optional)
-                        </label>
-                        <textarea x-model="planForm.notes" rows="2"
-                                  placeholder="Any planning notes..."
-                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
-                    </div>
+                    <!-- Table -->
+                    <div x-show="!pickerLoading" class="picker-table-wrapper border border-gray-200 dark:border-gray-700 rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 picker-table text-sm">
+                            <thead class="bg-gray-50 dark:bg-gray-700/50">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('serial_number')">
+                                        <span class="flex items-center gap-1">Serial # <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
+                                    </th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('size')">
+                                        <span class="flex items-center gap-1">Size <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
+                                    </th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('hdbs_type')">
+                                        <span class="flex items-center gap-1">HDBS Type <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
+                                    </th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('account_code')">
+                                        <span class="flex items-center gap-1">Account <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
+                                    </th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('bit_state')">
+                                        <span class="flex items-center gap-1">State <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
+                                    </th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('design_level')">
+                                        <span class="flex items-center gap-1">Level <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
+                                    </th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Repair/Rerun</th>
+                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase bg-yellow-50 dark:bg-yellow-900/20">Due Date</th>
+                                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                <template x-for="bit in pickerFilteredBits" :key="bit.serial_number">
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                        :class="{ 'picker-row-selected': selectedBit && selectedBit.serial_number === bit.serial_number }">
+                                        <td class="px-3 py-2 font-mono font-medium text-blue-600 dark:text-blue-400" x-text="bit.serial_number"></td>
+                                        <td class="px-3 py-2 text-gray-600 dark:text-gray-400" x-text="bit.size ? bit.size + '\"' : '-'"></td>
+                                        <td class="px-3 py-2 text-gray-600 dark:text-gray-400" x-text="bit.hdbs_type || '-'"></td>
+                                        <td class="px-3 py-2">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300"
+                                                  x-text="bit.account_code || '-'"></span>
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                                  :class="{
+                                                      'bg-blue-100 text-blue-800': bit.bit_state === 'Component',
+                                                      'bg-green-100 text-green-800': bit.bit_state === 'Finished Good',
+                                                      'bg-yellow-100 text-yellow-800': bit.bit_state === 'Used',
+                                                      'bg-gray-100 text-gray-800': !['Component', 'Finished Good', 'Used'].includes(bit.bit_state)
+                                                  }"
+                                                  x-text="bit.bit_state || '-'"></span>
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <span x-show="bit.design_level" class="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs" x-text="'L' + bit.design_level"></span>
+                                            <span x-show="!bit.design_level" class="text-gray-400">-</span>
+                                        </td>
+                                        <td class="px-3 py-2 text-gray-600 dark:text-gray-400">
+                                            <span x-text="'R' + bit.repair_count"></span> / <span x-text="'RR' + bit.rerun_count"></span>
+                                        </td>
+                                        <td class="px-3 py-2 text-center bg-yellow-50/50 dark:bg-yellow-900/10 text-gray-600 dark:text-gray-400"
+                                            x-text="calculateDueDate(bit.account_code)"></td>
+                                        <td class="px-3 py-2 text-right">
+                                            <button @click="selectAndAddBit(bit)"
+                                                    class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors">
+                                                <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>
+                                                Add
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
 
-                    <!-- Actions -->
-                    <div class="flex justify-end space-x-3">
-                        <button type="button" @click="showAddToPlanModal = false"
-                                class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-                            Cancel
-                        </button>
-                        <button type="submit" :disabled="!planForm.serialNumber || !bitFound"
-                                class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                            <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>
-                            Add to Plan
-                        </button>
+                        <!-- Empty state -->
+                        <div x-show="pickerFilteredBits.length === 0 && !pickerLoading" class="text-center py-8">
+                            <i data-lucide="search-x" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600"></i>
+                            <p class="text-gray-500 mt-2">No drill bits match your filters</p>
+                        </div>
                     </div>
-                </form>
+                </div>
+
+                <!-- Footer -->
+                <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                    <button @click="showBitPickerModal = false"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                        Close
+                    </button>
+                </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Column Filter Menu (for picker table) -->
+    <div id="pickerColumnMenu" class="column-menu hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 z-[200]">
+        <div class="space-y-0.5 mb-2">
+            <button type="button" onclick="sortPickerColumn('asc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
+                <i data-lucide="arrow-up-a-z" class="w-4 h-4 text-gray-500"></i> Sort A to Z
+            </button>
+            <button type="button" onclick="sortPickerColumn('desc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
+                <i data-lucide="arrow-down-z-a" class="w-4 h-4 text-gray-500"></i> Sort Z to A
+            </button>
+        </div>
+        <div class="mb-2">
+            <input type="text" id="pickerColumnFilterSearch" placeholder="Search values..." oninput="filterPickerColumnValues(this.value)"
+                   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+        </div>
+        <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+        <div class="mb-2">
+            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded">
+                <input type="checkbox" id="pickerSelectAllValues" onchange="togglePickerAllValues(this.checked)" checked>
+                <span class="text-gray-700 dark:text-gray-300">(Select All)</span>
+            </label>
+        </div>
+        <div id="pickerColumnValuesList" class="max-h-48 overflow-y-auto space-y-1"></div>
+        <div class="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2 flex justify-between">
+            <button type="button" onclick="clearPickerColumnFilter()" class="text-xs text-gray-500 hover:text-gray-700">Clear</button>
+            <button type="button" onclick="applyPickerColumnFilter()" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">Apply</button>
         </div>
     </div>
 </div>
@@ -493,20 +592,21 @@ function productionPlanner() {
         lastUpdate: 'Now',
         pollInterval: null,
 
-        // Add to Plan Modal
-        showAddToPlanModal: false,
-        lookingUp: false,
-        bitFound: false,
-        bitInfo: '',
-        bitError: '',
-        planForm: {
-            serialNumber: '',
-            account: '',
-            priority: 'NORMAL',
-            plannedDate: '',
-            intendedType: '',
-            notes: ''
-        },
+        // Bit Picker Modal
+        showBitPickerModal: false,
+        pickerLoading: false,
+        pickerBits: [],
+        pickerFilteredBits: [],
+        pickerSearch: '',
+        pickerAccountFilter: '',
+        pickerStateFilter: '',
+        pickerHideInPlan: true,
+        pickerSortColumn: 'serial_number',
+        pickerSortDir: 'asc',
+        pickerVisibleCount: 0,
+        pickerTotalCount: 0,
+        selectedBit: null,
+        bitsInPlan: new Set([{% for item in planned_data %}'{{ item.serial }}',{% endfor %}]),
 
         init() {
             // Poll for updates every 30 seconds
@@ -528,43 +628,90 @@ function productionPlanner() {
             }
         },
 
-        async lookupBit() {
-            const serial = this.planForm.serialNumber.trim();
-            if (serial.length < 6) {
-                this.bitFound = false;
-                this.bitInfo = '';
-                this.bitError = '';
-                return;
-            }
-
-            this.lookingUp = true;
-            this.bitError = '';
-            this.bitInfo = '';
+        async openBitPickerModal() {
+            this.showBitPickerModal = true;
+            this.pickerLoading = true;
+            this.selectedBit = null;
 
             try {
-                const response = await fetch(`{% url "workorders:drillbit_lookup_api" %}?serial=${encodeURIComponent(serial)}`);
+                const response = await fetch('{% url "workorders:drillbit_list_api" %}');
                 const data = await response.json();
-
-                if (data.found) {
-                    this.bitFound = true;
-                    this.bitInfo = `Found: ${data.serial} | ${data.size}" ${data.type || 'FC'} | ${data.hdbs || '-'}`;
-                    if (data.account && !this.planForm.account) {
-                        this.planForm.account = data.account;
-                    }
-                } else {
-                    this.bitFound = false;
-                    this.bitError = 'Drill bit not found. Register it first.';
-                }
+                this.pickerBits = data.bits || [];
+                this.pickerTotalCount = this.pickerBits.length;
+                this.filterPickerTable();
             } catch (e) {
-                this.bitError = 'Lookup failed. Please try again.';
-                console.error('Bit lookup error:', e);
+                console.error('Failed to load drill bits:', e);
+                this.pickerBits = [];
             } finally {
-                this.lookingUp = false;
+                this.pickerLoading = false;
+                this.$nextTick(() => {
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                });
             }
         },
 
-        async submitAddToPlan() {
-            if (!this.planForm.serialNumber || !this.bitFound) return;
+        filterPickerTable() {
+            let filtered = [...this.pickerBits];
+            const search = this.pickerSearch.toLowerCase();
+
+            // Text search
+            if (search) {
+                filtered = filtered.filter(bit =>
+                    bit.serial_number.toLowerCase().includes(search) ||
+                    (bit.hdbs_type || '').toLowerCase().includes(search) ||
+                    (bit.account_code || '').toLowerCase().includes(search) ||
+                    (bit.bit_state || '').toLowerCase().includes(search)
+                );
+            }
+
+            // Account filter
+            if (this.pickerAccountFilter) {
+                filtered = filtered.filter(bit => bit.account_code === this.pickerAccountFilter);
+            }
+
+            // State filter
+            if (this.pickerStateFilter) {
+                filtered = filtered.filter(bit => bit.bit_state === this.pickerStateFilter);
+            }
+
+            // Hide already in plan
+            if (this.pickerHideInPlan) {
+                filtered = filtered.filter(bit => !this.bitsInPlan.has(bit.serial_number));
+            }
+
+            // Sort
+            filtered.sort((a, b) => {
+                let va = a[this.pickerSortColumn] || '';
+                let vb = b[this.pickerSortColumn] || '';
+                if (typeof va === 'string') va = va.toLowerCase();
+                if (typeof vb === 'string') vb = vb.toLowerCase();
+                let cmp = va < vb ? -1 : va > vb ? 1 : 0;
+                return this.pickerSortDir === 'desc' ? -cmp : cmp;
+            });
+
+            this.pickerFilteredBits = filtered;
+            this.pickerVisibleCount = filtered.length;
+        },
+
+        sortPickerTable(column) {
+            if (this.pickerSortColumn === column) {
+                this.pickerSortDir = this.pickerSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.pickerSortColumn = column;
+                this.pickerSortDir = 'asc';
+            }
+            this.filterPickerTable();
+        },
+
+        calculateDueDate(accountCode) {
+            const days = accountCode === 'UR' ? 4 : 6;
+            const date = new Date();
+            date.setDate(date.getDate() + days);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        },
+
+        async selectAndAddBit(bit) {
+            if (!confirm(`Add drill bit ${bit.serial_number} to production plan?\n\nDue date will be automatically calculated based on account.`)) return;
 
             try {
                 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
@@ -577,19 +724,23 @@ function productionPlanner() {
                         'X-CSRFToken': csrfToken
                     },
                     body: JSON.stringify({
-                        serial_number: this.planForm.serialNumber,
-                        account: this.planForm.account,
-                        priority: this.planForm.priority,
-                        planned_date: this.planForm.plannedDate,
-                        intended_wo_type: this.planForm.intendedType,
-                        notes: this.planForm.notes
+                        serial_number: bit.serial_number,
+                        account: bit.account_code || '',
+                        priority: 'NORMAL',
+                        planned_date: '',
+                        intended_wo_type: '',
+                        notes: ''
                     })
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
-                    this.showAddToPlanModal = false;
+                    this.bitsInPlan.add(bit.serial_number);
+                    this.filterPickerTable();
+                    alert(`Added ${bit.serial_number} to production plan!`);
+                    // Optionally close modal and refresh
+                    this.showBitPickerModal = false;
                     window.location.reload();
                 } else {
                     alert(data.error || 'Failed to add to plan');
@@ -605,7 +756,7 @@ function productionPlanner() {
 
             try {
                 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                                 document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+                                 document.cookie.match(/csrftoken=([^;]+]/)?.[1];
 
                 const response = await fetch(`{% url "workorders:api_create_wo_from_plan" %}?entry_id=${entryId}`, {
                     method: 'POST',
