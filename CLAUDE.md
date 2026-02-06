@@ -615,6 +615,20 @@ python manage.py check
 - **WO Create Serial-Number-Driven**: WO create form (`workorder_create.html`) redesigned — enter serial number → debounced API lookup (`/workorders/api/drill-bits/lookup/`) auto-populates size, type, HDBS, SMI, design MAT level, L5 MAT/BOM, repair/rerun counts, received date, from location.
 - **Migration**: `0014_cutterevaluationmatrix_cutters_details_and_more.py` — adds `decision`, `cutters_details` fields and updates `EvaluationType`/`Action` choices.
 
+### Recent Enhancements (Feb 6, 2026)
+- **Production Planner Drill Bit Picker Modal**: The "+ Add to Plan" button now opens a full drill bits table modal (similar to `/work-orders/drill-bits/enhanced/`) instead of a simple form. Features: search, account filter, state filter, sortable columns, "Hide already in plan" toggle.
+- **Due Date Field on ProductionPlanEntry**: Added `due_date` field to track when work should be completed. Auto-calculated when adding bits to plan.
+- **Planner Settings Control Page** (`/work-orders/production-planner/settings/`): New admin page to configure:
+  - **Working Days**: Default 6 days for regular accounts, 4 days for UR account
+  - **Weekend Days**: Multi-select (default: Friday=4, Saturday=5 for Saudi Arabia work week)
+  - **Holidays**: Add/edit/delete holidays that are excluded from due date calculations
+  - **Due Date Preview**: Calculator to test settings with different account types
+- **PlannerSettings Model** (singleton): Stores `default_due_days`, `ur_due_days`, `weekend_days` (JSONField). Method `calculate_due_date(start_date, account_code)` computes due date skipping weekends and holidays.
+- **PlannerHoliday Model**: Stores holidays with `date`, `name`, `is_active` fields. Holidays are excluded from working day calculations.
+- **Smart Due Date Calculation**: `PlannerSettings.calculate_due_date()` counts only working days, skipping configured weekend days (Fri/Sat) and active holidays.
+- **Settings Link on Production Planner**: Added "Settings" button in header linking to `/work-orders/production-planner/settings/`.
+- **Migrations**: `0016_add_due_date_to_productionplanentry.py` (due_date field), `0017_add_planner_settings_and_holidays.py` (PlannerSettings, PlannerHoliday models).
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
@@ -672,6 +686,8 @@ extract_pdf_data(pdf_path)            # Main entry point
 | WO list page | `templates/workorders/workorder_list_enhanced.html` |
 | Job card detail | `templates/workorders/workorder_detail_enhanced.html` |
 | Router sheet | `templates/workorders/router_sheet.html` |
+| Production planner | `templates/workorders/production_planner.html` |
+| Planner settings | `templates/workorders/planner_settings.html` |
 | Seed accounts command | `apps/sales/management/commands/seed_accounts.py` |
 | Seed router steps | `apps/workorders/management/commands/seed_router_steps.py` |
 | Eval create form | `templates/workorders/cutter_evaluation_form.html` |
@@ -694,8 +710,12 @@ extract_pdf_data(pdf_path)            # Main entry point
 | RouterSheetView | `apps/workorders/views_jobcard.py:656` | `/workorders/<pk>/router-sheet/` |
 | CutterEvaluationCreateView | `apps/workorders/views_jobcard.py:548` | `/workorders/<wo_pk>/cutter-evaluation/create/` |
 | CutterEvaluationEditView | `apps/workorders/views_jobcard.py:591` | `/workorders/<wo_pk>/cutter-evaluation/<pk>/edit/` |
+| ProductionPlannerView | `apps/workorders/views_jobcard.py:1312` | `/work-orders/production-planner/` |
+| PlannerSettingsView | `apps/workorders/views_jobcard.py` | `/work-orders/production-planner/settings/` |
 | api_drillbit_lookup | `apps/workorders/views.py` | `/workorders/api/drill-bits/lookup/` |
 | api_boms_list | `apps/technology/views.py` | `/technology/api/boms/` |
+| api_add_to_plan | `apps/workorders/views_jobcard.py` | `/workorders/api/add-to-plan/` |
+| api_preview_due_date | `apps/workorders/views_jobcard.py` | `/workorders/api/preview-due-date/` |
 
 ### Database Queries
 ```python
