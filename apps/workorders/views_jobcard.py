@@ -1693,16 +1693,24 @@ def api_add_to_plan(request):
             pass  # Will auto-calculate
 
     # Add to plan
-    entry, created = ProductionPlanEntry.add_to_plan(
-        drill_bit=drill_bit,
-        account=account,
-        priority=data.get('priority', 'NORMAL'),
-        planned_date=data.get('planned_date') or None,
-        due_date=due_date,
-        intended_wo_type=data.get('intended_wo_type', ''),
-        notes=data.get('notes', ''),
-        user=request.user
-    )
+    try:
+        entry, created = ProductionPlanEntry.add_to_plan(
+            drill_bit=drill_bit,
+            account=account,
+            priority=data.get('priority', 'NORMAL'),
+            planned_date=data.get('planned_date') or None,
+            due_date=due_date,
+            intended_wo_type=data.get('intended_wo_type', ''),
+            notes=data.get('notes', ''),
+            user=request.user
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Database error: {str(e)}'
+        }, status=500)
 
     if not created:
         return JsonResponse({
@@ -1713,6 +1721,7 @@ def api_add_to_plan(request):
     return JsonResponse({
         'success': True,
         'entry_id': entry.pk,
+        'serial_number': serial_number,
         'message': f'Added {serial_number} to production plan'
     })
 

@@ -598,6 +598,110 @@
         </div>
     </div>
 
+    <!-- ========================================
+         ADD TO PLAN CONFIRMATION MODAL
+         ======================================== -->
+    <div x-show="showAddConfirmModal" x-cloak
+         class="fixed inset-0 z-[60] overflow-y-auto"
+         @keydown.escape.window="showAddConfirmModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <!-- Backdrop -->
+            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75"
+                 @click="showAddConfirmModal = false"></div>
+
+            <!-- Modal -->
+            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Add to Production Plan</h3>
+                    <button @click="showAddConfirmModal = false" class="text-gray-400 hover:text-gray-500">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- Bit Info -->
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 mb-4" x-show="bitToAdd">
+                    <div class="flex items-center gap-3">
+                        <div class="flex-1">
+                            <p class="text-sm font-mono font-medium text-gray-900 dark:text-white" x-text="bitToAdd?.serial_number"></p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                <span x-text="bitToAdd?.size || 'N/A'"></span> |
+                                <span x-text="bitToAdd?.hdbs_type || 'N/A'"></span>
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded text-xs font-medium"
+                                  x-text="bitToAdd?.account_code || 'No Account'"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Account Selection -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account <span class="text-red-500">*</span></label>
+                    <select x-model="addPlanAccount"
+                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option value="">Select Account...</option>
+                        {% for acct in accounts %}
+                        <option value="{{ acct.code }}">{{ acct.code }}{% if acct.name %} - {{ acct.name }}{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Account determines WO numbering and workflow</p>
+                </div>
+
+                <!-- Priority Selection -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
+                    <select x-model="addPlanPriority"
+                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option value="NORMAL">Normal</option>
+                        <option value="HIGH">High</option>
+                        <option value="URGENT">Urgent</option>
+                        <option value="LOW">Low</option>
+                    </select>
+                </div>
+
+                <!-- Notes -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes (optional)</label>
+                    <textarea x-model="addPlanNotes" rows="2"
+                              class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                              placeholder="Optional planning notes..."></textarea>
+                </div>
+
+                <!-- Due Date Preview -->
+                <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="calendar" class="w-4 h-4 text-yellow-600 dark:text-yellow-400"></i>
+                        <span class="text-sm text-gray-700 dark:text-gray-300">
+                            Due Date: <span class="font-medium" x-text="calculateDueDate(addPlanAccount || bitToAdd?.account_code)"></span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div x-show="addPlanError" class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg p-3 mb-4 text-sm">
+                    <span x-text="addPlanError"></span>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex gap-3">
+                    <button @click="showAddConfirmModal = false"
+                            class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">
+                        Cancel
+                    </button>
+                    <button @click="confirmAddToPlan()"
+                            :disabled="addPlanSaving || !addPlanAccount"
+                            class="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span x-show="!addPlanSaving">Add to Plan</span>
+                        <span x-show="addPlanSaving" class="flex items-center justify-center gap-2">
+                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Adding...
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Column Filter Menu (for picker table) -->
     <div id="pickerColumnMenu" class="column-menu hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 z-[200]">
         <div class="space-y-0.5 mb-2">
@@ -651,6 +755,15 @@ function productionPlanner() {
         pickerTotalCount: 0,
         selectedBit: null,
         bitsInPlan: new Set([{% for item in planned_data %}'{{ item.serial }}',{% endfor %}]),
+
+        // Add to Plan Confirmation Modal
+        showAddConfirmModal: false,
+        bitToAdd: null,
+        addPlanAccount: '',
+        addPlanPriority: 'NORMAL',
+        addPlanNotes: '',
+        addPlanSaving: false,
+        addPlanError: '',
 
         init() {
             // Poll for updates every 30 seconds
@@ -783,8 +896,29 @@ function productionPlanner() {
             return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         },
 
-        async selectAndAddBit(bit) {
-            if (!confirm(`Add drill bit ${bit.serial_number} to production plan?\n\nDue date will be automatically calculated based on account.`)) return;
+        selectAndAddBit(bit) {
+            // Open confirmation modal instead of direct add
+            this.bitToAdd = bit;
+            this.addPlanAccount = bit.account_code || '';
+            this.addPlanPriority = 'NORMAL';
+            this.addPlanNotes = '';
+            this.addPlanError = '';
+            this.addPlanSaving = false;
+            this.showAddConfirmModal = true;
+            this.$nextTick(() => {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            });
+        },
+
+        async confirmAddToPlan() {
+            if (!this.bitToAdd) return;
+            if (!this.addPlanAccount) {
+                this.addPlanError = 'Please select an account';
+                return;
+            }
+
+            this.addPlanSaving = true;
+            this.addPlanError = '';
 
             try {
                 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
@@ -797,30 +931,32 @@ function productionPlanner() {
                         'X-CSRFToken': csrfToken
                     },
                     body: JSON.stringify({
-                        serial_number: bit.serial_number,
-                        account: bit.account_code || '',
-                        priority: 'NORMAL',
+                        serial_number: this.bitToAdd.serial_number,
+                        account: this.addPlanAccount,
+                        priority: this.addPlanPriority,
                         planned_date: '',
                         intended_wo_type: '',
-                        notes: ''
+                        notes: this.addPlanNotes
                     })
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
-                    this.bitsInPlan.add(bit.serial_number);
+                    this.bitsInPlan.add(this.bitToAdd.serial_number);
                     this.filterPickerTable();
-                    alert(`Added ${bit.serial_number} to production plan!`);
-                    // Optionally close modal and refresh
+                    this.showAddConfirmModal = false;
                     this.showBitPickerModal = false;
+                    // Reload page to show the new entry
                     window.location.reload();
                 } else {
-                    alert(data.error || 'Failed to add to plan');
+                    this.addPlanError = data.error || 'Failed to add to plan';
                 }
             } catch (e) {
-                alert('Error adding to plan');
+                this.addPlanError = 'Error adding to plan. Please try again.';
                 console.error('Add to plan error:', e);
+            } finally {
+                this.addPlanSaving = false;
             }
         },
 
