@@ -255,7 +255,7 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         # Build evaluations list with account-aware filtering
         # Flow: PDC Evaluation → QC (repair only) → Engineer/Aramco Rep (optional) → Final Die Check → Final QC → Final Inspection
         account_code = wo.account.code if wo.account else ''
-        is_new_bit = wo.wo_type in [WorkOrder.WOType.L3_MANUFACTURE, WorkOrder.WOType.L4_MANUFACTURE, WorkOrder.WOType.L5_MANUFACTURE]
+        is_new_bit = wo.wo_type in [WorkOrder.WOType.FC_NEW, WorkOrder.WOType.RC_NEW]
         is_ur = account_code == 'UR'
         is_aramco = account_code == 'ARAMCO'
 
