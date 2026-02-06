@@ -2,361 +2,428 @@
 
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
+{% block extra_css %}
+<style>
+    .check-group { display: inline-flex; gap: 0.5rem; }
+    .check-group label { cursor: pointer; }
+    .check-group input[type="radio"] { display: none; }
+    .check-group .check-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.375rem;
+        border: 1px solid #d1d5db;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: all 0.15s;
+        min-width: 2.5rem;
+    }
+    .check-group input[type="radio"]:checked + .check-btn.ok { background: #10b981; color: white; border-color: #10b981; }
+    .check-group input[type="radio"]:checked + .check-btn.not-ok { background: #ef4444; color: white; border-color: #ef4444; }
+    .check-group input[type="radio"]:checked + .check-btn.na { background: #6b7280; color: white; border-color: #6b7280; }
+    .dark .check-group .check-btn { border-color: #4b5563; }
+    .checklist-row { transition: background 0.15s; }
+    .checklist-row:hover { background: rgba(59, 130, 246, 0.05); }
+    .dark .checklist-row:hover { background: rgba(59, 130, 246, 0.1); }
+    .timestamp-badge { font-size: 0.65rem; color: #9ca3af; }
+</style>
+{% endblock %}
+
 {% block page_header %}
-<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
     <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-        <p class="text-gray-600 dark:text-gray-400">FC Bit Evaluation Checklist</p>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400">FC Bit Evaluation Checklist</p>
     </div>
-    <div class="mt-4 md:mt-0">
-        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
-           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 text-sm">
-            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Job Card
-        </a>
-    </div>
+    <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+       class="inline-flex items-center px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 text-sm mt-2 md:mt-0">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-1.5"></i>Back to Job Card
+    </a>
 </div>
 {% endblock %}
 
 {% block content %}
-<form method="post" class="space-y-6">
+<form method="post">
     {% csrf_token %}
 
-    <!-- Header Info -->
-    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-                <p class="text-gray-500 dark:text-gray-400">WO Number</p>
-                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.wo_number }}</p>
-            </div>
-            <div>
-                <p class="text-gray-500 dark:text-gray-400">Serial #</p>
-                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.serial_number|default:"--" }}</p>
-            </div>
-            <div>
-                <p class="text-gray-500 dark:text-gray-400">Customer</p>
-                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.customer.name|default:"--" }}</p>
-            </div>
-            <div>
-                <p class="text-gray-500 dark:text-gray-400">Date</p>
-                <p class="font-medium text-gray-900 dark:text-white">{{ "now"|date:"M d, Y" }}</p>
-            </div>
+    <!-- Header Info (Compact) -->
+    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 mb-4">
+        <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <div><span class="text-gray-500 dark:text-gray-400">WO:</span> <span class="font-medium">{{ work_order.wo_number }}</span></div>
+            <div><span class="text-gray-500 dark:text-gray-400">S/N:</span> <span class="font-mono font-medium">{{ work_order.drill_bit.serial_number|default:"--" }}</span></div>
+            <div><span class="text-gray-500 dark:text-gray-400">Customer:</span> <span class="font-medium">{{ work_order.customer.name|default:"--" }}</span></div>
+            <div><span class="text-gray-500 dark:text-gray-400">Date:</span> <span class="font-medium">{{ "now"|date:"M d, Y" }}</span></div>
         </div>
     </div>
 
-    <!-- Checklist Items -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Inspection Checklist</h3>
+    <!-- Checklist Table (Compact) -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden mb-4">
+        <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h3 class="font-semibold text-gray-900 dark:text-white">Inspection Items</h3>
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+                <span class="inline-block w-3 h-3 bg-green-500 rounded mr-1"></span>OK
+                <span class="inline-block w-3 h-3 bg-red-500 rounded mx-1 ml-3"></span>Not OK
+                <span class="inline-block w-3 h-3 bg-gray-500 rounded mx-1 ml-3"></span>N/A
+            </div>
         </div>
 
-        <div class="divide-y divide-gray-200 dark:divide-gray-700">
-            {% with checkpoints="bit_cleanliness,paperwork,bit_stamping,die_check,ring_gauge_go,ring_gauge_no_go,nozzle_bore_liner,nozzle_threads,apex,junk_slot,breaker_slot,body_condition,mud_seal_surface,api_pin,inner_diameter" %}
-            {% for checkpoint in checkpoints|make_list %}
+        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+            {% with items="bit_cleanliness:Bit Cleanliness:Bit is clean and free of debris,paperwork:Paperwork:All documentation complete,bit_stamping:Bit Stamping:Serial number visible and correct,die_check:Die Check:Die penetrant inspection,ring_gauge_go:Ring Gauge GO:GO gauge check,ring_gauge_no_go:Ring Gauge NO-GO:NO-GO gauge check,nozzle_bore_liner:Nozzle Bore/Liner:Bore and liner condition,nozzle_threads:Nozzle Threads:Thread condition,apex:Apex:Apex condition,junk_slot:Junk Slot:Junk slot condition,breaker_slot:Breaker Slot:Breaker slot condition,body_condition:Body Condition:Overall body condition,mud_seal_surface:Mud Seal Surface:Seal surface condition,api_pin:API Pin:Pin thread condition,inner_diameter:Inner Diameter:ID measurement" %}
+
+            {% for idx, item in items|make_list|enumerate %}
             {% endfor %}
+
+            <!-- 1. Bit Cleanliness -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">1.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Bit Cleanliness</span>
+                    {% if form.instance.item_timestamps.bit_cleanliness %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.bit_cleanliness|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="bit_cleanliness" value="OK" {% if form.bit_cleanliness.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="bit_cleanliness" value="NOT_OK" {% if form.bit_cleanliness.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="bit_cleanliness" value="NA" {% if form.bit_cleanliness.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="bit_cleanliness_remarks" value="{{ form.bit_cleanliness_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 2. Paperwork -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">2.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Paperwork</span>
+                    {% if form.instance.item_timestamps.paperwork %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.paperwork|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="paperwork" value="OK" {% if form.paperwork.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="paperwork" value="NOT_OK" {% if form.paperwork.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="paperwork" value="NA" {% if form.paperwork.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="paperwork_remarks" value="{{ form.paperwork_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 3. Bit Stamping -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">3.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Bit Stamping</span>
+                    {% if form.instance.item_timestamps.bit_stamping %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.bit_stamping|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="bit_stamping" value="OK" {% if form.bit_stamping.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="bit_stamping" value="NOT_OK" {% if form.bit_stamping.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="bit_stamping" value="NA" {% if form.bit_stamping.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="bit_stamping_remarks" value="{{ form.bit_stamping_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 4. Die Check -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">4.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Die Check</span>
+                    {% if form.instance.item_timestamps.die_check %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.die_check|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="die_check" value="OK" {% if form.die_check.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="die_check" value="NOT_OK" {% if form.die_check.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="die_check" value="NA" {% if form.die_check.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="die_check_remarks" value="{{ form.die_check_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 5. Ring Gauge GO -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">5.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Ring Gauge (GO)</span>
+                    {% if form.instance.item_timestamps.ring_gauge_go %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.ring_gauge_go|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="ring_gauge_go" value="OK" {% if form.ring_gauge_go.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="ring_gauge_go" value="NOT_OK" {% if form.ring_gauge_go.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="ring_gauge_go" value="NA" {% if form.ring_gauge_go.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="ring_gauge_go_remarks" value="{{ form.ring_gauge_go_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 6. Ring Gauge NO-GO -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">6.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Ring Gauge (NO-GO)</span>
+                    {% if form.instance.item_timestamps.ring_gauge_no_go %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.ring_gauge_no_go|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="ring_gauge_no_go" value="OK" {% if form.ring_gauge_no_go.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="ring_gauge_no_go" value="NOT_OK" {% if form.ring_gauge_no_go.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="ring_gauge_no_go" value="NA" {% if form.ring_gauge_no_go.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="ring_gauge_no_go_remarks" value="{{ form.ring_gauge_no_go_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 7. Nozzle Bore/Liner -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">7.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Nozzle Bore/Liner</span>
+                    {% if form.instance.item_timestamps.nozzle_bore_liner %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.nozzle_bore_liner|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="nozzle_bore_liner" value="OK" {% if form.nozzle_bore_liner.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="nozzle_bore_liner" value="NOT_OK" {% if form.nozzle_bore_liner.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="nozzle_bore_liner" value="NA" {% if form.nozzle_bore_liner.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="nozzle_bore_liner_remarks" value="{{ form.nozzle_bore_liner_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 8. Nozzle Threads -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">8.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Nozzle Threads</span>
+                    {% if form.instance.item_timestamps.nozzle_threads %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.nozzle_threads|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="nozzle_threads" value="OK" {% if form.nozzle_threads.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="nozzle_threads" value="NOT_OK" {% if form.nozzle_threads.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="nozzle_threads" value="NA" {% if form.nozzle_threads.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="nozzle_threads_remarks" value="{{ form.nozzle_threads_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 9. Apex -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">9.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Apex</span>
+                    {% if form.instance.item_timestamps.apex %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.apex|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="apex" value="OK" {% if form.apex.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="apex" value="NOT_OK" {% if form.apex.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="apex" value="NA" {% if form.apex.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="apex_remarks" value="{{ form.apex_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 10. Junk Slot -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">10.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Junk Slot</span>
+                    {% if form.instance.item_timestamps.junk_slot %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.junk_slot|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="junk_slot" value="OK" {% if form.junk_slot.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="junk_slot" value="NOT_OK" {% if form.junk_slot.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="junk_slot" value="NA" {% if form.junk_slot.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="junk_slot_remarks" value="{{ form.junk_slot_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 11. Breaker Slot -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">11.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Breaker Slot</span>
+                    {% if form.instance.item_timestamps.breaker_slot %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.breaker_slot|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="breaker_slot" value="OK" {% if form.breaker_slot.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="breaker_slot" value="NOT_OK" {% if form.breaker_slot.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="breaker_slot" value="NA" {% if form.breaker_slot.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="breaker_slot_remarks" value="{{ form.breaker_slot_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 12. Body Condition -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">12.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Body Condition</span>
+                    {% if form.instance.item_timestamps.body_condition %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.body_condition|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="body_condition" value="OK" {% if form.body_condition.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="body_condition" value="NOT_OK" {% if form.body_condition.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="body_condition" value="NA" {% if form.body_condition.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="body_condition_remarks" value="{{ form.body_condition_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 13. Mud Seal Surface -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">13.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Mud Seal Surface</span>
+                    {% if form.instance.item_timestamps.mud_seal_surface %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.mud_seal_surface|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="mud_seal_surface" value="OK" {% if form.mud_seal_surface.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="mud_seal_surface" value="NOT_OK" {% if form.mud_seal_surface.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="mud_seal_surface" value="NA" {% if form.mud_seal_surface.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="mud_seal_surface_remarks" value="{{ form.mud_seal_surface_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 14. API Pin -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">14.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">API Pin</span>
+                    {% if form.instance.item_timestamps.api_pin %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.api_pin|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="api_pin" value="OK" {% if form.api_pin.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="api_pin" value="NOT_OK" {% if form.api_pin.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="api_pin" value="NA" {% if form.api_pin.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="api_pin_remarks" value="{{ form.api_pin_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
+
+            <!-- 15. Inner Diameter -->
+            <div class="checklist-row px-4 py-2 grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-4 md:col-span-3">
+                    <span class="text-gray-500 dark:text-gray-400 text-xs">15.</span>
+                    <span class="font-medium text-sm text-gray-900 dark:text-white ml-1">Inner Diameter</span>
+                    {% if form.instance.item_timestamps.inner_diameter %}
+                    <span class="timestamp-badge block">{{ form.instance.item_timestamps.inner_diameter|slice:":16"|stringformat:"s" }}</span>
+                    {% endif %}
+                </div>
+                <div class="col-span-4 md:col-span-3">
+                    <div class="check-group">
+                        <label><input type="radio" name="inner_diameter" value="OK" {% if form.inner_diameter.value == "OK" %}checked{% endif %}><span class="check-btn ok">OK</span></label>
+                        <label><input type="radio" name="inner_diameter" value="NOT_OK" {% if form.inner_diameter.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok">NOK</span></label>
+                        <label><input type="radio" name="inner_diameter" value="NA" {% if form.inner_diameter.value == "NA" %}checked{% endif %}><span class="check-btn na">N/A</span></label>
+                    </div>
+                </div>
+                <div class="col-span-4 md:col-span-6">
+                    <input type="text" name="inner_diameter_remarks" value="{{ form.inner_diameter_remarks.value|default:'' }}" placeholder="Remarks..."
+                           class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                </div>
+            </div>
             {% endwith %}
-
-            <!-- Bit Cleanliness -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">1. Bit Cleanliness</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Bit is clean and free of debris</p>
-                </div>
-                <div>
-                    <select name="bit_cleanliness" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.bit_cleanliness.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="bit_cleanliness_remarks" value="{{ form.bit_cleanliness_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Paperwork -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">2. Paperwork</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">All documentation complete</p>
-                </div>
-                <div>
-                    <select name="paperwork" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.paperwork.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="paperwork_remarks" value="{{ form.paperwork_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Bit Stamping -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">3. Bit Stamping</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Serial number visible and correct</p>
-                </div>
-                <div>
-                    <select name="bit_stamping" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.bit_stamping.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="bit_stamping_remarks" value="{{ form.bit_stamping_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Die Check -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">4. Die Check</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Die penetrant inspection</p>
-                </div>
-                <div>
-                    <select name="die_check" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.die_check.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="die_check_remarks" value="{{ form.die_check_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Ring Gauge GO -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">5. Ring Gauge (GO)</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">GO gauge check</p>
-                </div>
-                <div>
-                    <select name="ring_gauge_go" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.ring_gauge_go.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="ring_gauge_go_remarks" value="{{ form.ring_gauge_go_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Ring Gauge NO-GO -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">6. Ring Gauge (NO-GO)</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">NO-GO gauge check</p>
-                </div>
-                <div>
-                    <select name="ring_gauge_no_go" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.ring_gauge_no_go.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="ring_gauge_no_go_remarks" value="{{ form.ring_gauge_no_go_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Nozzle Bore Liner -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">7. Nozzle Bore/Liner</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Bore and liner condition</p>
-                </div>
-                <div>
-                    <select name="nozzle_bore_liner" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.nozzle_bore_liner.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="nozzle_bore_liner_remarks" value="{{ form.nozzle_bore_liner_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Nozzle Threads -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">8. Nozzle Threads</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Thread condition</p>
-                </div>
-                <div>
-                    <select name="nozzle_threads" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.nozzle_threads.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="nozzle_threads_remarks" value="{{ form.nozzle_threads_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Apex -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">9. Apex</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Apex condition</p>
-                </div>
-                <div>
-                    <select name="apex" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.apex.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="apex_remarks" value="{{ form.apex_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Junk Slot -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">10. Junk Slot</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Junk slot condition</p>
-                </div>
-                <div>
-                    <select name="junk_slot" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.junk_slot.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="junk_slot_remarks" value="{{ form.junk_slot_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Breaker Slot -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">11. Breaker Slot</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Breaker slot condition</p>
-                </div>
-                <div>
-                    <select name="breaker_slot" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.breaker_slot.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="breaker_slot_remarks" value="{{ form.breaker_slot_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Body Condition -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">12. Body Condition</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Overall body condition</p>
-                </div>
-                <div>
-                    <select name="body_condition" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.body_condition.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="body_condition_remarks" value="{{ form.body_condition_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Mud Seal Surface -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">13. Mud Seal Surface</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Seal surface condition</p>
-                </div>
-                <div>
-                    <select name="mud_seal_surface" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.mud_seal_surface.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="mud_seal_surface_remarks" value="{{ form.mud_seal_surface_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- API Pin -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">14. API Pin</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Pin thread condition</p>
-                </div>
-                <div>
-                    <select name="api_pin" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.api_pin.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="api_pin_remarks" value="{{ form.api_pin_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
-
-            <!-- Inner Diameter -->
-            <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div>
-                    <label class="block font-medium text-gray-900 dark:text-white">15. Inner Diameter</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">ID measurement</p>
-                </div>
-                <div>
-                    <select name="inner_diameter" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                        {% for value, label in result_choices %}
-                        <option value="{{ value }}" {% if form.inner_diameter.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="inner_diameter_remarks" value="{{ form.inner_diameter_remarks.value|default:'' }}"
-                           placeholder="Remarks..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                </div>
-            </div>
         </div>
     </div>
 
-    <!-- Overall Result -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Overall Result</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Overall Result (Compact) -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Final Result</label>
-                <select name="overall_pass" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                    {% for value, label in result_choices %}
-                    <option value="{{ value }}" {% if form.overall_pass.value == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
+                <div class="check-group">
+                    <label><input type="radio" name="overall_pass" value="OK" {% if form.overall_pass.value == "OK" %}checked{% endif %}><span class="check-btn ok px-4">PASS</span></label>
+                    <label><input type="radio" name="overall_pass" value="NOT_OK" {% if form.overall_pass.value == "NOT_OK" %}checked{% endif %}><span class="check-btn not-ok px-4">FAIL</span></label>
+                    <label><input type="radio" name="overall_pass" value="NA" {% if form.overall_pass.value == "NA" %}checked{% endif %}><span class="check-btn na px-4">N/A</span></label>
+                </div>
+                {% if form.instance.item_timestamps.overall_pass %}
+                <span class="timestamp-badge">{{ form.instance.item_timestamps.overall_pass|slice:":16"|stringformat:"s" }}</span>
+                {% endif %}
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">General Remarks</label>
-                <textarea name="general_remarks" rows="3" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">{{ form.general_remarks.value|default:'' }}</textarea>
+                <textarea name="general_remarks" rows="2" class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">{{ form.general_remarks.value|default:'' }}</textarea>
             </div>
         </div>
     </div>
@@ -364,12 +431,13 @@
     <!-- Submit -->
     <div class="flex justify-end space-x-3">
         <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
-           class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+           class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
             Cancel
         </a>
-        <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            <i data-lucide="save" class="w-4 h-4 inline mr-2"></i>Save Checklist
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="save" class="w-4 h-4 inline mr-1"></i>Save
         </button>
     </div>
 </form>
+
 {% endblock %}

@@ -252,18 +252,47 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
             evaluation_type=CutterEvaluationMatrix.EvaluationType.REWORK
         ).first()
 
-        # Build evaluations list with all types
-        eval_types = CutterEvaluationMatrix.EvaluationType.choices
+        # Build evaluations list with account-aware filtering
+        # Flow: PDC Evaluation → QC (repair only) → Engineer/Aramco Rep (optional) → Final Die Check → Final QC → Final Inspection
+        account_code = wo.account.code if wo.account else ''
+        is_new_bit = wo.wo_type in [WorkOrder.WOType.L3_MANUFACTURE, WorkOrder.WOType.L4_MANUFACTURE, WorkOrder.WOType.L5_MANUFACTURE]
+        is_ur = account_code == 'UR'
+        is_aramco = account_code == 'ARAMCO'
+
+        # Define evaluation flow order with applicability rules
+        eval_flow = [
+            # (type_code, type_label, show_condition, help_text)
+            ('PDC_EVAL', 'PDC Evaluation', True, 'Starting point - includes Die Check + E-Checklist'),
+            ('ARDT', 'ARDT Evaluation (Legacy)', False, 'Legacy - use PDC Evaluation'),  # Hidden, legacy support
+            ('QC', 'QC Evaluation', not is_new_bit, 'N/A for new bits, required for repair'),
+            ('ENGINEER', 'Technical Rep. Evaluation', not is_new_bit and not is_ur and not is_aramco, 'N/A for new bits, UR, or Aramco'),
+            ('ARAMCO_REP', 'Aramco Rep. Evaluation', is_aramco, 'Aramco inspector evaluation'),
+            ('DIE_CHECK', 'Die Check', True, 'Pre-processing die check'),
+            ('FINAL_DIE_CHECK', 'Final Die Check', True, 'Post-processing die check'),
+            ('FINAL_QC', 'Final QC Evaluation', True, 'Final quality check'),
+            ('FINAL_INSPECTION', 'Final Inspection', True, 'Final sign-off'),
+            ('REWORK', 'Rework Evaluation', False, 'Only shown when rework is needed'),  # Hidden unless needed
+            ('RECEIVING', 'Receiving Evaluation', False, 'Component receiving - tracked separately'),  # Hidden - separate workflow
+        ]
+
         evaluations = []
-        for type_code, type_label in eval_types:
+        for type_code, type_label, show_by_default, help_text in eval_flow:
             eval_obj = wo.cutter_evaluations.filter(evaluation_type=type_code).first()
-            evaluations.append({
-                'type_code': type_code,
-                'type_label': type_label,
-                'evaluation': eval_obj,
-                'exists': eval_obj is not None,
-            })
+            # Show if: (show_by_default) OR (evaluation exists)
+            show = show_by_default or (eval_obj is not None)
+            if show:
+                evaluations.append({
+                    'type_code': type_code,
+                    'type_label': type_label,
+                    'evaluation': eval_obj,
+                    'exists': eval_obj is not None,
+                    'help_text': help_text,
+                    'is_na': not show_by_default and eval_obj is None,  # Would be N/A if not filled
+                })
         context['evaluations'] = evaluations
+        context['is_new_bit'] = is_new_bit
+        context['is_ur'] = is_ur
+        context['is_aramco'] = is_aramco
 
         # Router sheet entries
         context["router_entries"] = wo.router_entries.order_by('step_number')
@@ -563,7 +592,7 @@ class CutterEvaluationCreateView(LoginRequiredMixin, CreateView):
 
         # Get pocket layout from design if available
         if wo.design:
-            context['pocket_layout'] = wo.design.pockets.order_by('blade_number', 'position_number')
+            context['pocket_layout'] = wo.design.pockets.order_by('blade_number', 'row_number', 'position_in_row')
 
         return context
 
@@ -615,7 +644,7 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
             pockets = wo.design.pockets.all()
             if pockets.exists():
                 max_blades = max(p.blade_number for p in pockets)
-                max_cutters = max(p.position_number for p in pockets)
+                max_cutters = max(p.position_in_blade for p in pockets)
 
         # Build evaluation grid
         grid = {}
@@ -976,6 +1005,26 @@ class EvaluationChecklistView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         form.instance.inspector = self.request.user
         form.instance.inspection_date = timezone.now().date()
+
+        # Track item timestamps for auditing
+        old_instance = EvaluationChecklist.objects.filter(pk=form.instance.pk).first()
+        item_timestamps = form.instance.item_timestamps or {}
+        now = timezone.now().isoformat()
+
+        # Check which fields changed and update their timestamps
+        checklist_fields = [
+            'bit_cleanliness', 'paperwork', 'bit_stamping', 'die_check',
+            'ring_gauge_go', 'ring_gauge_no_go', 'nozzle_bore_liner', 'nozzle_threads',
+            'apex', 'junk_slot', 'breaker_slot', 'body_condition',
+            'mud_seal_surface', 'api_pin', 'inner_diameter', 'overall_pass'
+        ]
+        for field in checklist_fields:
+            new_value = form.cleaned_data.get(field)
+            old_value = getattr(old_instance, field, '') if old_instance else ''
+            if new_value and new_value != old_value:
+                item_timestamps[field] = now
+
+        form.instance.item_timestamps = item_timestamps
         messages.success(self.request, "E-Checklist saved successfully")
         return super().form_valid(form)
 
@@ -1449,8 +1498,8 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
             for step_key, step_name in key_steps:
                 # Find matching router entry
                 entry = router_entries.filter(
-                    Q(step_name__icontains=step_name) |
-                    Q(step_name__icontains=step_key)
+                    Q(step_description__icontains=step_name) |
+                    Q(step_description__icontains=step_key)
                 ).first()
                 if entry:
                     if entry.qr_scan_end:
@@ -1472,7 +1521,7 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
                 'account': wo.account.code if wo.account else '-',
                 'status': wo.get_status_display(),
                 'progress': progress,
-                'current_step': current_step.step_name if current_step else None,
+                'current_step': current_step.step_description if current_step else None,
                 'estimated_completion': estimated_completion,
                 'step_status': step_status,
                 'completed_steps': completed_steps,
@@ -1563,7 +1612,7 @@ def api_production_wip_status(request):
             'account': wo.account.code if wo.account else None,
             'status': wo.status,
             'progress': int((completed / total * 100)) if total > 0 else 0,
-            'current_step': current.step_name if current else None,
+            'current_step': current.step_description if current else None,
             'completed_steps': completed,
             'total_steps': total,
         })

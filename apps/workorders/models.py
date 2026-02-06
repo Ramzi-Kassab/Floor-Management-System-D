@@ -1627,15 +1627,20 @@ class CutterEvaluationMatrix(models.Model):
     Tracks decision outcome and cutter state across multiple evaluation stages.
     """
     class EvaluationType(models.TextChoices):
+        # Component receiving (separate from WO flow - updates drill bit inventory)
         RECEIVING = "RECEIVING", "Receiving Evaluation"
-        ARDT = "ARDT", "ARDT Evaluation"
-        ENGINEER = "ENGINEER", "Technical Rep. Evaluation"
-        QC = "QC", "QC Evaluation"
+        # Main WO flow - PDC Evaluation is the starting point (includes Die Check + E-Checklist)
+        PDC_EVAL = "PDC_EVAL", "PDC Evaluation"       # Renamed from ARDT - starting point for production WO
+        QC = "QC", "QC Evaluation"                     # N/A for new bits, required for repair
+        ENGINEER = "ENGINEER", "Technical Rep. Evaluation"  # N/A for new/UR, optional for Aramco
+        ARAMCO_REP = "ARAMCO_REP", "Aramco Rep. Evaluation"  # Aramco inspector evaluation
         DIE_CHECK = "DIE_CHECK", "Die Check"
         FINAL_DIE_CHECK = "FINAL_DIE_CHECK", "Final Die Check"
         FINAL_QC = "FINAL_QC", "Final QC Evaluation"
         FINAL_INSPECTION = "FINAL_INSPECTION", "Final Inspection"
         REWORK = "REWORK", "Rework Evaluation"
+        # Legacy support
+        ARDT = "ARDT", "ARDT Evaluation (Legacy)"
 
     class Decision(models.TextChoices):
         REPAIR = "REPAIR", "For Repair"
@@ -2236,8 +2241,11 @@ class EvaluationChecklist(models.Model):
     inner_diameter_remarks = models.CharField(max_length=200, blank=True)
 
     # Overall result
-    overall_pass = models.BooleanField(null=True, blank=True)
+    overall_pass = models.CharField(max_length=10, choices=Result.choices, blank=True, default='')
     general_remarks = models.TextField(blank=True)
+
+    # Item timestamps for auditing (JSONField: {"bit_cleanliness": "2026-02-06T12:30:00Z", ...})
+    item_timestamps = models.JSONField(default=dict, blank=True, help_text='Timestamps when each item was last updated')
 
     # Inspector info
     inspector = models.ForeignKey(
@@ -2302,7 +2310,7 @@ class ProductionPlanEntry(models.Model):
         URGENT = "URGENT", "Urgent"
 
     drill_bit = models.ForeignKey(
-        DrillBit, on_delete=models.CASCADE, related_name='plan_entries',
+        DrillBit, on_delete=models.PROTECT, related_name='plan_entries',
         help_text='Drill bit to be planned for production'
     )
     account = models.ForeignKey(

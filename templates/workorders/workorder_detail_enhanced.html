@@ -271,7 +271,7 @@
                                 <i data-lucide="disc" class="w-4 h-4 text-blue-500"></i>
                                 Drill Bit
                             </h3>
-                            <a href="{% url 'workorders:drillbit_detail_enhanced' work_order.drill_bit.pk %}"
+                            <a href="{% url 'workorders:drillbit_detail_enhanced' work_order.drill_bit.pk %}?from=wo&wo_pk={{ work_order.pk }}"
                                class="text-blue-600 dark:text-blue-400 text-xs hover:underline flex items-center gap-1">
                                 View Details <i data-lucide="external-link" class="w-3 h-3"></i>
                             </a>
@@ -512,124 +512,89 @@
                     </h3>
                 </div>
 
-                <!-- Evaluation Flow Explanation -->
+                <!-- Evaluation Flow Explanation (context-aware) -->
                 <div class="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-lg p-4">
                     <p class="text-sm text-blue-700 dark:text-blue-300">
-                        <strong>Evaluation Flow:</strong> Receiving → ARDT → Engineer (Tech Rep) → QC → Die Check → Final Inspections
+                        <strong>Evaluation Flow:</strong>
+                        PDC Evaluation (Start + E-Checklist)
+                        {% if not is_new_bit %} → QC{% endif %}
+                        {% if not is_new_bit and not is_ur and not is_aramco %} → Tech Rep{% endif %}
+                        {% if is_aramco %} → Aramco Rep{% endif %}
+                        → Die Check → Final QC → Final Inspection
                     </p>
+                    {% if is_new_bit %}
+                    <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        <i data-lucide="info" class="w-3 h-3 inline"></i>
+                        New bit manufacture - QC and Tech Rep evaluations are N/A
+                    </p>
+                    {% elif is_ur %}
+                    <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        <i data-lucide="info" class="w-3 h-3 inline"></i>
+                        UR account - Tech Rep evaluation is N/A
+                    </p>
+                    {% elif is_aramco %}
+                    <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        <i data-lucide="info" class="w-3 h-3 inline"></i>
+                        ARAMCO account - Aramco Rep inspection available
+                    </p>
+                    {% endif %}
                 </div>
 
-                <!-- Group: Initial Evaluations -->
-                <div>
-                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Initial Evaluations</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {% for eval in evaluations %}
-                        {% if eval.type_code == 'RECEIVING' or eval.type_code == 'ARDT' or eval.type_code == 'ENGINEER' %}
-                        <div class="eval-card bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-colors {% if eval.exists %}{% if eval.evaluation.is_complete %}complete{% else %}in-progress{% endif %}{% else %}not-started{% endif %}">
-                            <div class="flex items-center justify-between mb-2">
-                                <h5 class="text-sm font-semibold text-gray-900 dark:text-white">{{ eval.type_label }}</h5>
-                                {% if eval.exists %}
-                                <span class="text-xs px-2 py-0.5 rounded-full {% if eval.evaluation.is_complete %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400{% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
-                                    {% if eval.evaluation.is_complete %}Complete{% else %}In Progress{% endif %}
-                                </span>
-                                {% endif %}
-                            </div>
+                <!-- All Evaluations in Flow Order -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {% for eval in evaluations %}
+                    <div class="eval-card bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-colors {% if eval.exists %}{% if eval.evaluation.is_complete %}complete{% else %}in-progress{% endif %}{% elif eval.is_na %}opacity-50{% else %}not-started{% endif %}">
+                        <div class="flex items-center justify-between mb-2">
+                            <h5 class="text-sm font-semibold text-gray-900 dark:text-white">{{ eval.type_label }}</h5>
                             {% if eval.exists %}
-                            <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 space-y-0.5">
-                                {% if eval.evaluation.decision %}
-                                <p>Decision: <span class="font-medium text-gray-700 dark:text-gray-300">{{ eval.evaluation.get_decision_display }}</span></p>
-                                {% endif %}
-                                {% if eval.evaluation.evaluated_by %}
-                                <p>By: {{ eval.evaluation.evaluated_by.get_full_name|default:eval.evaluation.evaluated_by.username }}</p>
-                                {% endif %}
-                                <p>Entries: {{ eval.evaluation.entries.count }}</p>
-                            </div>
-                            <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk eval.evaluation.pk %}"
-                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                                <i data-lucide="pencil" class="w-3.5 h-3.5 mr-1"></i>Edit
-                            </a>
-                            {% else %}
-                            <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">Not started</p>
-                            <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type={{ eval.type_code }}"
-                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                                <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>Start
-                            </a>
+                            <span class="text-xs px-2 py-0.5 rounded-full {% if eval.evaluation.is_complete %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400{% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
+                                {% if eval.evaluation.is_complete %}Complete{% else %}In Progress{% endif %}
+                            </span>
+                            {% elif eval.is_na %}
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">N/A</span>
                             {% endif %}
                         </div>
+                        {% if eval.help_text %}
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">{{ eval.help_text }}</p>
                         {% endif %}
-                        {% endfor %}
+                        {% if eval.exists %}
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 space-y-0.5">
+                            {% if eval.evaluation.decision %}
+                            <p>Decision: <span class="font-medium text-gray-700 dark:text-gray-300">{{ eval.evaluation.get_decision_display }}</span></p>
+                            {% endif %}
+                            {% if eval.evaluation.evaluated_by %}
+                            <p>By: {{ eval.evaluation.evaluated_by.get_full_name|default:eval.evaluation.evaluated_by.username }}</p>
+                            {% endif %}
+                            <p>Entries: {{ eval.evaluation.entries.count }}</p>
+                        </div>
+                        <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk eval.evaluation.pk %}"
+                           class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5 mr-1"></i>Edit
+                        </a>
+                        {% elif not eval.is_na %}
+                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type={{ eval.type_code }}"
+                           class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>Start
+                        </a>
+                        {% else %}
+                        <p class="text-xs text-gray-400 dark:text-gray-500 italic">Not applicable for this work order</p>
+                        {% endif %}
                     </div>
+                    {% endfor %}
                 </div>
 
-                <!-- Group: QC & Die Checks -->
-                <div>
-                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Quality Control</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {% for eval in evaluations %}
-                        {% if eval.type_code == 'QC' or eval.type_code == 'DIE_CHECK' or eval.type_code == 'FINAL_DIE_CHECK' %}
-                        <div class="eval-card bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-colors {% if eval.exists %}{% if eval.evaluation.is_complete %}complete{% else %}in-progress{% endif %}{% else %}not-started{% endif %}">
-                            <div class="flex items-center justify-between mb-2">
-                                <h5 class="text-sm font-semibold text-gray-900 dark:text-white">{{ eval.type_label }}</h5>
-                                {% if eval.exists %}
-                                <span class="text-xs px-2 py-0.5 rounded-full {% if eval.evaluation.is_complete %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400{% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
-                                    {% if eval.evaluation.is_complete %}Complete{% else %}In Progress{% endif %}
-                                </span>
-                                {% endif %}
-                            </div>
-                            {% if eval.exists %}
-                            <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                <p>Entries: {{ eval.evaluation.entries.count }}</p>
-                            </div>
-                            <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk eval.evaluation.pk %}"
-                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                                <i data-lucide="pencil" class="w-3.5 h-3.5 mr-1"></i>Edit
-                            </a>
-                            {% else %}
-                            <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">Not started</p>
-                            <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type={{ eval.type_code }}"
-                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                                <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>Start
-                            </a>
-                            {% endif %}
+                <!-- E-Checklist Quick Link -->
+                <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">FC Bit Evaluation Checklist (E-Checklist)</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">15-point inspection checklist - part of PDC Evaluation</p>
                         </div>
-                        {% endif %}
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <!-- Group: Final Inspections -->
-                <div>
-                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Final Inspections</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {% for eval in evaluations %}
-                        {% if eval.type_code == 'FINAL_QC' or eval.type_code == 'FINAL_INSPECTION' or eval.type_code == 'REWORK' %}
-                        <div class="eval-card bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-colors {% if eval.exists %}{% if eval.evaluation.is_complete %}complete{% else %}in-progress{% endif %}{% else %}not-started{% endif %}">
-                            <div class="flex items-center justify-between mb-2">
-                                <h5 class="text-sm font-semibold text-gray-900 dark:text-white">{{ eval.type_label }}</h5>
-                                {% if eval.exists %}
-                                <span class="text-xs px-2 py-0.5 rounded-full {% if eval.evaluation.is_complete %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400{% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
-                                    {% if eval.evaluation.is_complete %}Complete{% else %}In Progress{% endif %}
-                                </span>
-                                {% endif %}
-                            </div>
-                            {% if eval.exists %}
-                            <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                <p>Entries: {{ eval.evaluation.entries.count }}</p>
-                            </div>
-                            <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk eval.evaluation.pk %}"
-                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                                <i data-lucide="pencil" class="w-3.5 h-3.5 mr-1"></i>Edit
-                            </a>
-                            {% else %}
-                            <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">Not started</p>
-                            <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type={{ eval.type_code }}"
-                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                                <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>Start
-                            </a>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-                        {% endfor %}
+                        <a href="{% url 'workorders:evaluation_checklist' work_order.pk %}"
+                           class="inline-flex items-center px-3 py-1.5 {% if e_checklist %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400{% else %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400{% endif %} rounded-lg text-sm font-medium hover:opacity-80">
+                            <i data-lucide="{% if e_checklist %}check-circle{% else %}clipboard-list{% endif %}" class="w-4 h-4 mr-1.5"></i>
+                            {% if e_checklist %}View / Edit{% else %}Start Checklist{% endif %}
+                        </a>
                     </div>
                 </div>
             </div>
