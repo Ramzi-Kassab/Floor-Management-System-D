@@ -16,7 +16,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q, Count, Sum, F
+from django.db.models import Q, Count, Sum, F, Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy, reverse
@@ -33,7 +33,8 @@ from .models import (
     InstructionRule, InstructionRuleCondition,
     ProcessRoute, ProcessRouteOperation, OperationExecution,
     RepairEvaluation, WorkOrderCost, ProductionPlanEntry,
-    PlannerSettings, PlannerHoliday
+    PlannerSettings, PlannerHoliday,
+    EvaluationRoute, EvaluationRouteStep
 )
 from .utils import generate_work_order_qr, generate_drill_bit_qr
 
@@ -252,43 +253,71 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
             evaluation_type=CutterEvaluationMatrix.EvaluationType.REWORK
         ).first()
 
-        # Build evaluations list with account-aware filtering
-        # Flow: PDC Evaluation → QC (repair only) → Engineer/Aramco Rep (optional) → Final Die Check → Final QC → Final Inspection
+        # Build evaluations list
         account_code = wo.account.code if wo.account else ''
         is_new_bit = wo.wo_type in [WorkOrder.WOType.FC_NEW, WorkOrder.WOType.RC_NEW]
         is_ur = account_code == 'UR'
         is_aramco = account_code == 'ARAMCO'
 
-        # Define evaluation flow order with applicability rules
-        eval_flow = [
-            # (type_code, type_label, show_condition, help_text)
-            ('PDC_EVAL', 'PDC Evaluation', True, 'Starting point - includes Die Check + E-Checklist'),
-            ('ARDT', 'ARDT Evaluation (Legacy)', False, 'Legacy - use PDC Evaluation'),  # Hidden, legacy support
-            ('QC', 'QC Evaluation', not is_new_bit, 'N/A for new bits, required for repair'),
-            ('ENGINEER', 'Technical Rep. Evaluation', not is_new_bit and not is_ur and not is_aramco, 'N/A for new bits, UR, or Aramco'),
-            ('ARAMCO_REP', 'Aramco Rep. Evaluation', is_aramco, 'Aramco inspector evaluation'),
-            ('DIE_CHECK', 'Die Check', True, 'Pre-processing die check'),
-            ('FINAL_DIE_CHECK', 'Final Die Check', True, 'Post-processing die check'),
-            ('FINAL_QC', 'Final QC Evaluation', True, 'Final quality check'),
-            ('FINAL_INSPECTION', 'Final Inspection', True, 'Final sign-off'),
-            ('REWORK', 'Rework Evaluation', False, 'Only shown when rework is needed'),  # Hidden unless needed
-            ('RECEIVING', 'Receiving Evaluation', False, 'Component receiving - tracked separately'),  # Hidden - separate workflow
-        ]
+        # Try to get configured evaluation route for this WO
+        evaluation_route = EvaluationRoute.get_route_for_workorder(wo)
 
         evaluations = []
-        for type_code, type_label, show_by_default, help_text in eval_flow:
-            eval_obj = wo.cutter_evaluations.filter(evaluation_type=type_code).first()
-            # Show if: (show_by_default) OR (evaluation exists)
-            show = show_by_default or (eval_obj is not None)
-            if show:
+
+        if evaluation_route:
+            # Use configured route steps
+            context['evaluation_route'] = evaluation_route
+            for step in evaluation_route.steps.all().order_by('order'):
+                eval_obj = wo.cutter_evaluations.filter(evaluation_type=step.evaluation_type).first()
                 evaluations.append({
-                    'type_code': type_code,
-                    'type_label': type_label,
+                    'type_code': step.evaluation_type,
+                    'type_label': step.get_evaluation_type_display(),
                     'evaluation': eval_obj,
                     'exists': eval_obj is not None,
-                    'help_text': help_text,
-                    'is_na': not show_by_default and eval_obj is None,  # Would be N/A if not filled
+                    'help_text': step.condition_description if step.is_conditional else '',
+                    'is_na': False,
+                    'is_required': step.is_required,
+                    'is_conditional': step.is_conditional,
+                    'show_decision_field': step.show_decision_field,
+                    'show_cutter_matrix': step.show_cutter_matrix,
+                    'show_cutters_details': step.show_cutters_details,
                 })
+        else:
+            # Fallback: Legacy hardcoded flow
+            context['evaluation_route'] = None
+            eval_flow = [
+                # (type_code, type_label, show_condition, help_text)
+                ('PDC_EVAL', 'PDC Evaluation', True, 'Starting point - includes Die Check + E-Checklist'),
+                ('ARDT', 'ARDT Evaluation (Legacy)', False, 'Legacy - use PDC Evaluation'),
+                ('QC', 'QC Evaluation', not is_new_bit, 'N/A for new bits, required for repair'),
+                ('ENGINEER', 'Technical Rep. Evaluation', not is_new_bit and not is_ur and not is_aramco, 'N/A for new bits, UR, or Aramco'),
+                ('ARAMCO_REP', 'Aramco Rep. Evaluation', is_aramco, 'Aramco inspector evaluation'),
+                ('DIE_CHECK', 'Die Check', True, 'Pre-processing die check'),
+                ('FINAL_DIE_CHECK', 'Final Die Check', True, 'Post-processing die check'),
+                ('FINAL_QC', 'Final QC Evaluation', True, 'Final quality check'),
+                ('FINAL_INSPECTION', 'Final Inspection', True, 'Final sign-off'),
+                ('REWORK', 'Rework Evaluation', False, 'Only shown when rework is needed'),
+                ('RECEIVING', 'Receiving Evaluation', False, 'Component receiving - tracked separately'),
+            ]
+
+            for type_code, type_label, show_by_default, help_text in eval_flow:
+                eval_obj = wo.cutter_evaluations.filter(evaluation_type=type_code).first()
+                show = show_by_default or (eval_obj is not None)
+                if show:
+                    evaluations.append({
+                        'type_code': type_code,
+                        'type_label': type_label,
+                        'evaluation': eval_obj,
+                        'exists': eval_obj is not None,
+                        'help_text': help_text,
+                        'is_na': not show_by_default and eval_obj is None,
+                        'is_required': True,
+                        'is_conditional': False,
+                        'show_decision_field': True,
+                        'show_cutter_matrix': True,
+                        'show_cutters_details': True,
+                    })
+
         context['evaluations'] = evaluations
         context['is_new_bit'] = is_new_bit
         context['is_ur'] = is_ur
@@ -2026,4 +2055,404 @@ def api_preview_due_date(request):
         'due_date_display': due_date.strftime('%b %d, %Y'),
         'working_days': days_used,
         'account': account_code or 'Default'
+    })
+
+
+# =============================================================================
+# EVALUATION ROUTE BUILDER
+# =============================================================================
+
+class EvaluationRouteBuilderView(LoginRequiredMixin, TemplateView):
+    """
+    Dashboard to configure evaluation routes for different account + bit type combinations.
+    Allows drag-and-drop arrangement of evaluation steps.
+    """
+    template_name = "workorders/evaluation_route_builder.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Import Account model here to avoid circular imports
+        from apps.sales.models import Account
+
+        # Get all accounts
+        accounts = Account.objects.filter(is_active=True).order_by('sort_order', 'code')
+
+        # Build data structure: account -> bit_type -> route
+        route_matrix = {}
+        for account in accounts:
+            route_matrix[account.code] = {
+                'account': account,
+                'new_route': None,
+                'used_route': None,
+            }
+
+        # Get all routes
+        routes = EvaluationRoute.objects.filter(is_active=True).select_related('account').prefetch_related('steps')
+        for route in routes:
+            if route.account.code in route_matrix:
+                if route.bit_type == EvaluationRoute.BitType.NEW:
+                    route_matrix[route.account.code]['new_route'] = route
+                else:
+                    route_matrix[route.account.code]['used_route'] = route
+
+        context['route_matrix'] = route_matrix
+        context['accounts'] = accounts
+
+        # All available evaluation types
+        context['evaluation_types'] = CutterEvaluationMatrix.EvaluationType.choices
+
+        context['page_title'] = 'Evaluation Route Builder'
+        context['breadcrumbs'] = [
+            {'title': 'Work Orders', 'url': reverse('workorders:enhanced_list')},
+            {'title': 'Route Builder', 'url': None}
+        ]
+        return context
+
+
+class EvaluationRouteDetailView(LoginRequiredMixin, View):
+    """
+    View/Edit a specific evaluation route.
+    """
+    def get(self, request, pk):
+        route = get_object_or_404(EvaluationRoute.objects.prefetch_related('steps'), pk=pk)
+
+        # Get steps in order
+        steps = route.steps.all().order_by('order')
+
+        # All available evaluation types
+        evaluation_types = CutterEvaluationMatrix.EvaluationType.choices
+
+        # Types already in the route
+        used_types = set(step.evaluation_type for step in steps)
+
+        # Available types (not yet in route)
+        available_types = [(code, label) for code, label in evaluation_types if code not in used_types]
+
+        return render(request, 'workorders/evaluation_route_detail.html', {
+            'route': route,
+            'steps': steps,
+            'evaluation_types': evaluation_types,
+            'available_types': available_types,
+            'page_title': f'Edit Route: {route.name}',
+            'breadcrumbs': [
+                {'title': 'Work Orders', 'url': reverse('workorders:enhanced_list')},
+                {'title': 'Route Builder', 'url': reverse('workorders:evaluation_route_builder')},
+                {'title': route.name, 'url': None}
+            ]
+        })
+
+
+@login_required
+def api_create_route(request):
+    """API to create a new evaluation route."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'})
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    account_id = data.get('account_id')
+    bit_type = data.get('bit_type')
+    name = data.get('name', '')
+
+    if not account_id or not bit_type:
+        return JsonResponse({'success': False, 'error': 'account_id and bit_type required'})
+
+    from apps.sales.models import Account
+    try:
+        account = Account.objects.get(pk=account_id)
+    except Account.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Account not found'})
+
+    # Create default name if not provided
+    if not name:
+        type_label = 'New Build' if bit_type == 'NEW' else 'Repair'
+        name = f"{account.code} {type_label} Standard"
+
+    # Check if route already exists
+    existing = EvaluationRoute.objects.filter(account=account, bit_type=bit_type, is_active=True).first()
+    if existing:
+        return JsonResponse({
+            'success': False,
+            'error': f'Route already exists for {account.code} - {bit_type}',
+            'route_id': existing.id
+        })
+
+    # Create the route
+    route = EvaluationRoute.objects.create(
+        name=name,
+        account=account,
+        bit_type=bit_type,
+        is_default=True,
+        created_by=request.user
+    )
+
+    return JsonResponse({
+        'success': True,
+        'route_id': route.id,
+        'route_name': route.name,
+        'message': f'Route created: {route.name}'
+    })
+
+
+@login_required
+def api_update_route(request, pk):
+    """API to update a route (name, description, etc.)."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'})
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    try:
+        route = EvaluationRoute.objects.get(pk=pk)
+    except EvaluationRoute.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Route not found'})
+
+    # Update fields
+    if 'name' in data:
+        route.name = data['name']
+    if 'description' in data:
+        route.description = data['description']
+    if 'is_active' in data:
+        route.is_active = data['is_active']
+    if 'is_default' in data:
+        # If setting as default, unset others
+        if data['is_default']:
+            EvaluationRoute.objects.filter(
+                account=route.account,
+                bit_type=route.bit_type,
+                is_default=True
+            ).exclude(pk=route.pk).update(is_default=False)
+        route.is_default = data['is_default']
+
+    route.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Route updated'
+    })
+
+
+@login_required
+def api_delete_route(request, pk):
+    """API to delete (deactivate) a route."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'})
+
+    try:
+        route = EvaluationRoute.objects.get(pk=pk)
+    except EvaluationRoute.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Route not found'})
+
+    # Soft delete - deactivate
+    route.is_active = False
+    route.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Route "{route.name}" deleted'
+    })
+
+
+@login_required
+def api_add_route_step(request, pk):
+    """API to add a step to a route."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'})
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    try:
+        route = EvaluationRoute.objects.get(pk=pk)
+    except EvaluationRoute.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Route not found'})
+
+    evaluation_type = data.get('evaluation_type')
+    if not evaluation_type:
+        return JsonResponse({'success': False, 'error': 'evaluation_type required'})
+
+    # Check if already exists
+    if route.steps.filter(evaluation_type=evaluation_type).exists():
+        return JsonResponse({'success': False, 'error': 'Step already exists in route'})
+
+    # Get next order number
+    max_order = route.steps.aggregate(max_order=models.Max('order'))['max_order'] or 0
+
+    # Create step
+    step = EvaluationRouteStep.objects.create(
+        route=route,
+        evaluation_type=evaluation_type,
+        order=max_order + 1,
+        is_required=data.get('is_required', True),
+        is_conditional=data.get('is_conditional', False),
+        condition_description=data.get('condition_description', ''),
+        show_decision_field=data.get('show_decision_field', True),
+        show_cutter_matrix=data.get('show_cutter_matrix', True),
+        show_cutters_details=data.get('show_cutters_details', True),
+    )
+
+    return JsonResponse({
+        'success': True,
+        'step_id': step.id,
+        'message': f'Step added: {step.get_evaluation_type_display()}'
+    })
+
+
+@login_required
+def api_update_route_step(request, pk, step_pk):
+    """API to update a step in a route."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'})
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    try:
+        step = EvaluationRouteStep.objects.get(pk=step_pk, route_id=pk)
+    except EvaluationRouteStep.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Step not found'})
+
+    # Update fields
+    if 'is_required' in data:
+        step.is_required = data['is_required']
+    if 'is_conditional' in data:
+        step.is_conditional = data['is_conditional']
+    if 'condition_description' in data:
+        step.condition_description = data['condition_description']
+    if 'show_decision_field' in data:
+        step.show_decision_field = data['show_decision_field']
+    if 'show_cutter_matrix' in data:
+        step.show_cutter_matrix = data['show_cutter_matrix']
+    if 'show_cutters_details' in data:
+        step.show_cutters_details = data['show_cutters_details']
+    if 'order' in data:
+        step.order = data['order']
+
+    step.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Step updated'
+    })
+
+
+@login_required
+def api_delete_route_step(request, pk, step_pk):
+    """API to delete a step from a route."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'})
+
+    try:
+        step = EvaluationRouteStep.objects.get(pk=step_pk, route_id=pk)
+    except EvaluationRouteStep.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Step not found'})
+
+    step_name = step.get_evaluation_type_display()
+    step.delete()
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Step "{step_name}" removed'
+    })
+
+
+@login_required
+def api_reorder_route_steps(request, pk):
+    """API to reorder steps in a route."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'})
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    step_order = data.get('step_order', [])  # List of step IDs in new order
+
+    try:
+        route = EvaluationRoute.objects.get(pk=pk)
+    except EvaluationRoute.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Route not found'})
+
+    # Update order for each step
+    for index, step_id in enumerate(step_order):
+        EvaluationRouteStep.objects.filter(pk=step_id, route=route).update(order=index)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Steps reordered'
+    })
+
+
+@login_required
+def api_get_route(request, pk):
+    """API to get route data including all steps."""
+    try:
+        route = EvaluationRoute.objects.prefetch_related('steps').get(pk=pk)
+    except EvaluationRoute.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Route not found'})
+
+    steps = []
+    for step in route.steps.all().order_by('order'):
+        steps.append({
+            'id': step.id,
+            'evaluation_type': step.evaluation_type,
+            'evaluation_type_display': step.get_evaluation_type_display(),
+            'order': step.order,
+            'is_required': step.is_required,
+            'is_conditional': step.is_conditional,
+            'condition_description': step.condition_description,
+            'show_decision_field': step.show_decision_field,
+            'show_cutter_matrix': step.show_cutter_matrix,
+            'show_cutters_details': step.show_cutters_details,
+        })
+
+    return JsonResponse({
+        'success': True,
+        'route': {
+            'id': route.id,
+            'name': route.name,
+            'description': route.description,
+            'bit_type': route.bit_type,
+            'bit_type_display': route.get_bit_type_display(),
+            'account_code': route.account.code,
+            'is_default': route.is_default,
+            'is_active': route.is_active,
+            'steps': steps,
+        }
+    })
+
+
+@login_required
+def api_get_evaluation_types(request):
+    """API to get all available evaluation types."""
+    types = []
+    for code, label in CutterEvaluationMatrix.EvaluationType.choices:
+        # Skip legacy types
+        if code == 'ARDT':
+            continue
+        types.append({
+            'code': code,
+            'label': label,
+        })
+
+    return JsonResponse({
+        'success': True,
+        'evaluation_types': types
     })

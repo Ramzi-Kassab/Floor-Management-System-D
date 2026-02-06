@@ -33,6 +33,20 @@ urlpatterns = [
     path("api/holiday/<int:pk>/toggle/", views_jobcard.api_toggle_holiday, name="api_toggle_holiday"),
     path("api/preview-due-date/", views_jobcard.api_preview_due_date, name="api_preview_due_date"),
 
+    # Evaluation Route Builder
+    path("evaluation-routes/", views_jobcard.EvaluationRouteBuilderView.as_view(), name="evaluation_route_builder"),
+    path("evaluation-routes/<int:pk>/", views_jobcard.EvaluationRouteDetailView.as_view(), name="evaluation_route_detail"),
+    # Evaluation Route API
+    path("api/evaluation-routes/create/", views_jobcard.api_create_route, name="api_create_route"),
+    path("api/evaluation-routes/<int:pk>/update/", views_jobcard.api_update_route, name="api_update_route"),
+    path("api/evaluation-routes/<int:pk>/delete/", views_jobcard.api_delete_route, name="api_delete_route"),
+    path("api/evaluation-routes/<int:pk>/", views_jobcard.api_get_route, name="api_get_route"),
+    path("api/evaluation-routes/<int:pk>/steps/add/", views_jobcard.api_add_route_step, name="api_add_route_step"),
+    path("api/evaluation-routes/<int:pk>/steps/<int:step_pk>/update/", views_jobcard.api_update_route_step, name="api_update_route_step"),
+    path("api/evaluation-routes/<int:pk>/steps/<int:step_pk>/delete/", views_jobcard.api_delete_route_step, name="api_delete_route_step"),
+    path("api/evaluation-routes/<int:pk>/steps/reorder/", views_jobcard.api_reorder_route_steps, name="api_reorder_route_steps"),
+    path("api/evaluation-types/", views_jobcard.api_get_evaluation_types, name="api_get_evaluation_types"),
+
     # Enhanced Work Order List & Detail
     path("enhanced/", views_jobcard.WorkOrderListEnhancedView.as_view(), name="workorder_list_enhanced"),
     path("enhanced/<int:pk>/", views_jobcard.WorkOrderDetailEnhancedView.as_view(), name="workorder_detail_enhanced"),

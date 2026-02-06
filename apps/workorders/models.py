@@ -2726,3 +2726,167 @@ class PlannerHoliday(models.Model):
     def __str__(self):
         return f"{self.name} ({self.date})"
 
+
+# =============================================================================
+# EVALUATION ROUTE BUILDER
+# =============================================================================
+
+class EvaluationRoute(models.Model):
+    """
+    Configurable evaluation route for different bit types and accounts.
+    Defines which evaluation steps are needed and in what order.
+    """
+    class BitType(models.TextChoices):
+        NEW = 'NEW', 'New Build'
+        USED = 'USED', 'Used/Repair'
+
+    name = models.CharField(
+        max_length=100,
+        help_text='Route name (e.g., "LSTK Repair Standard", "ARAMCO New Build")'
+    )
+    description = models.TextField(blank=True, help_text='Description of when this route applies')
+
+    bit_type = models.CharField(
+        max_length=10,
+        choices=BitType.choices,
+        help_text='New build or repair/used'
+    )
+
+    account = models.ForeignKey(
+        'sales.Account',
+        on_delete=models.CASCADE,
+        related_name='evaluation_routes',
+        help_text='Account this route applies to'
+    )
+
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(
+        default=False,
+        help_text='If true, this is the default route for the account+bit_type combination'
+    )
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_eval_routes'
+    )
+
+    class Meta:
+        db_table = "evaluation_routes"
+        verbose_name = "Evaluation Route"
+        verbose_name_plural = "Evaluation Routes"
+        ordering = ['account__code', 'bit_type', 'name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['account', 'bit_type'],
+                condition=models.Q(is_default=True),
+                name='unique_default_route_per_account_bittype'
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.account.code} - {self.get_bit_type_display()} - {self.name}"
+
+    @classmethod
+    def get_route_for_workorder(cls, work_order):
+        """
+        Get the applicable evaluation route for a work order.
+        Determines bit_type from WO type and finds matching route.
+        """
+        # Determine bit type from WO type
+        wo_type = work_order.wo_type
+        if wo_type in ['NEW', 'L3', 'L4', 'NEW_BUILD']:
+            bit_type = cls.BitType.NEW
+        else:
+            bit_type = cls.BitType.USED
+
+        account = work_order.account
+        if not account:
+            return None
+
+        # Find default route for account + bit_type
+        route = cls.objects.filter(
+            account=account,
+            bit_type=bit_type,
+            is_default=True,
+            is_active=True
+        ).first()
+
+        # Fallback to any active route for account + bit_type
+        if not route:
+            route = cls.objects.filter(
+                account=account,
+                bit_type=bit_type,
+                is_active=True
+            ).first()
+
+        return route
+
+
+class EvaluationRouteStep(models.Model):
+    """
+    Individual step in an evaluation route.
+    Maps to CutterEvaluationMatrix.EvaluationType values.
+    """
+    route = models.ForeignKey(
+        EvaluationRoute,
+        on_delete=models.CASCADE,
+        related_name='steps'
+    )
+
+    evaluation_type = models.CharField(
+        max_length=20,
+        choices=CutterEvaluationMatrix.EvaluationType.choices,
+        help_text='The type of evaluation'
+    )
+
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text='Order in the evaluation sequence (lower = first)'
+    )
+
+    is_required = models.BooleanField(
+        default=True,
+        help_text='If true, this step must be completed'
+    )
+
+    is_conditional = models.BooleanField(
+        default=False,
+        help_text='If true, step may be skipped based on conditions'
+    )
+
+    condition_description = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text='Describe when this step is needed (e.g., "Only if customer requests")'
+    )
+
+    # Display options
+    show_decision_field = models.BooleanField(
+        default=True,
+        help_text='Show decision dropdown (Repair/Scrap/etc.)'
+    )
+
+    show_cutter_matrix = models.BooleanField(
+        default=True,
+        help_text='Show the blade × position cutter matrix'
+    )
+
+    show_cutters_details = models.BooleanField(
+        default=True,
+        help_text='Show the cutters details table (plant use)'
+    )
+
+    class Meta:
+        db_table = "evaluation_route_steps"
+        verbose_name = "Evaluation Route Step"
+        verbose_name_plural = "Evaluation Route Steps"
+        ordering = ['route', 'order']
+        unique_together = ['route', 'evaluation_type']
+
+    def __str__(self):
+        req = "Required" if self.is_required else "Optional"
+        return f"{self.route.name} - Step {self.order}: {self.get_evaluation_type_display()} ({req})"
+
