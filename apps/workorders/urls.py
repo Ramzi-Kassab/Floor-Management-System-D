@@ -21,11 +21,17 @@ urlpatterns = [
     # Production Planner (WIP Dashboard)
     path("production-planner/", views_jobcard.ProductionPlannerView.as_view(), name="production_planner"),
     path("production-planner/create-wo/", views_jobcard.ProductionPlannerCreateWOView.as_view(), name="production_planner_create_wo"),
+    path("production-planner/settings/", views_jobcard.PlannerSettingsView.as_view(), name="planner_settings"),
     path("api/production-wip-status/", views_jobcard.api_production_wip_status, name="api_production_wip_status"),
     # Production Plan API
     path("api/add-to-plan/", views_jobcard.api_add_to_plan, name="api_add_to_plan"),
     path("api/create-wo-from-plan/", views_jobcard.api_create_wo_from_plan, name="api_create_wo_from_plan"),
     path("api/remove-from-plan/", views_jobcard.api_remove_from_plan, name="api_remove_from_plan"),
+    # Planner Settings API
+    path("api/holiday/add/", views_jobcard.api_add_holiday, name="api_add_holiday"),
+    path("api/holiday/<int:pk>/delete/", views_jobcard.api_delete_holiday, name="api_delete_holiday"),
+    path("api/holiday/<int:pk>/toggle/", views_jobcard.api_toggle_holiday, name="api_toggle_holiday"),
+    path("api/preview-due-date/", views_jobcard.api_preview_due_date, name="api_preview_due_date"),
 
     # Enhanced Work Order List & Detail
     path("enhanced/", views_jobcard.WorkOrderListEnhancedView.as_view(), name="workorder_list_enhanced"),

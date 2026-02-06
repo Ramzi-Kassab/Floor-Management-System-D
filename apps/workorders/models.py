@@ -2411,10 +2411,13 @@ class ProductionPlanEntry(models.Model):
         effective_account = account or drill_bit.account
 
         # Auto-calculate due_date if not provided
-        # UR account gets 4 days, all others get 6 days
+        # Uses PlannerSettings to consider working days, weekends, and holidays
         if due_date is None:
-            days_offset = 4 if effective_account and effective_account.code == 'UR' else 6
-            due_date = timezone.now().date() + timedelta(days=days_offset)
+            account_code = effective_account.code if effective_account else None
+            due_date = PlannerSettings.calculate_due_date(
+                start_date=timezone.now().date(),
+                account_code=account_code
+            )
 
         entry = cls.objects.create(
             drill_bit=drill_bit,
@@ -2428,4 +2431,143 @@ class ProductionPlanEntry(models.Model):
             created_by=user,
         )
         return entry, True  # Created new entry
+
+
+class PlannerSettings(models.Model):
+    """
+    Singleton model for Production Planner settings.
+    Controls due date calculation, weekend days, and working hours.
+    """
+    # Due date settings per account type
+    default_due_days = models.PositiveIntegerField(
+        default=6,
+        help_text='Default working days for due date calculation'
+    )
+    ur_due_days = models.PositiveIntegerField(
+        default=4,
+        help_text='Working days for UR account due date'
+    )
+
+    # Weekend configuration (multi-select stored as JSON)
+    # 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday
+    weekend_days = models.JSONField(
+        default=list,
+        help_text='Days of the week that are weekends (0=Mon, 4=Fri, 5=Sat, 6=Sun)'
+    )
+
+    # Audit
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    class Meta:
+        db_table = "planner_settings"
+        verbose_name = "Planner Settings"
+        verbose_name_plural = "Planner Settings"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one instance exists (singleton pattern)
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        # Prevent deletion of singleton
+        pass
+
+    @classmethod
+    def get_settings(cls):
+        """Get or create the singleton settings instance."""
+        obj, created = cls.objects.get_or_create(
+            pk=1,
+            defaults={
+                'default_due_days': 6,
+                'ur_due_days': 4,
+                'weekend_days': [4, 5],  # Friday=4, Saturday=5 (Sunday=6 is first working day)
+            }
+        )
+        return obj
+
+    @classmethod
+    def calculate_due_date(cls, start_date, account_code=None):
+        """
+        Calculate due date considering working days, weekends, and holidays.
+        Weekend: Friday (4) and Saturday (5). First working day: Sunday (6).
+
+        Args:
+            start_date: The starting date (usually today)
+            account_code: Account code to determine number of days (UR gets fewer days)
+
+        Returns:
+            due_date: The calculated due date
+        """
+        from datetime import timedelta
+
+        settings_obj = cls.get_settings()
+
+        # Determine number of working days based on account
+        if account_code == 'UR':
+            working_days_needed = settings_obj.ur_due_days
+        else:
+            working_days_needed = settings_obj.default_due_days
+
+        # Get weekend days (convert to set for faster lookup)
+        # Default: Friday (4), Saturday (5)
+        weekend_days = set(settings_obj.weekend_days or [4, 5])
+
+        # Get holidays for the relevant period (next 30 days should be enough)
+        end_search = start_date + timedelta(days=working_days_needed + 30)
+        holidays = set(
+            PlannerHoliday.objects.filter(
+                date__gte=start_date,
+                date__lte=end_search,
+                is_active=True
+            ).values_list('date', flat=True)
+        )
+
+        # Count working days
+        current_date = start_date
+        working_days_counted = 0
+
+        while working_days_counted < working_days_needed:
+            current_date += timedelta(days=1)
+
+            # Check if it's a working day
+            # weekday(): 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday
+            weekday = current_date.weekday()
+
+            if weekday not in weekend_days and current_date not in holidays:
+                working_days_counted += 1
+
+        return current_date
+
+    def get_weekend_display(self):
+        """Return human-readable weekend days."""
+        day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        return [day_names[d] for d in (self.weekend_days or [])]
+
+
+class PlannerHoliday(models.Model):
+    """
+    Holidays that should be excluded from due date calculations.
+    """
+    date = models.DateField(unique=True)
+    name = models.CharField(max_length=100, help_text='Holiday name')
+    is_active = models.BooleanField(default=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_holidays'
+    )
+
+    class Meta:
+        db_table = "planner_holidays"
+        verbose_name = "Planner Holiday"
+        verbose_name_plural = "Planner Holidays"
+        ordering = ['date']
+
+    def __str__(self):
+        return f"{self.name} ({self.date})"
 

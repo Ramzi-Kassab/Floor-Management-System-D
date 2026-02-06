@@ -32,7 +32,8 @@ from .models import (
     LPTReport, APIThreadInspection,
     InstructionRule, InstructionRuleCondition,
     ProcessRoute, ProcessRouteOperation, OperationExecution,
-    RepairEvaluation, WorkOrderCost, ProductionPlanEntry
+    RepairEvaluation, WorkOrderCost, ProductionPlanEntry,
+    PlannerSettings, PlannerHoliday
 )
 from .utils import generate_work_order_qr, generate_drill_bit_qr
 
@@ -1777,4 +1778,185 @@ def api_remove_from_plan(request):
     return JsonResponse({
         'success': True,
         'message': 'Removed from plan'
+    })
+
+
+# =============================================================================
+# PLANNER SETTINGS - Due Date Configuration
+# =============================================================================
+
+class PlannerSettingsView(LoginRequiredMixin, TemplateView):
+    """
+    Control page for Production Planner settings.
+    Manage due date calculation, weekends, and holidays.
+    """
+    template_name = "workorders/planner_settings.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Get singleton settings
+        settings_obj = PlannerSettings.get_settings()
+
+        # Get upcoming holidays
+        today = timezone.now().date()
+        upcoming_holidays = PlannerHoliday.objects.filter(
+            date__gte=today,
+            is_active=True
+        ).order_by('date')[:20]
+
+        # All holidays for editing
+        all_holidays = PlannerHoliday.objects.all().order_by('-date')
+
+        context['settings'] = settings_obj
+        context['upcoming_holidays'] = upcoming_holidays
+        context['all_holidays'] = all_holidays
+        context['page_title'] = 'Planner Settings'
+
+        # Day options for weekend selector
+        context['day_options'] = [
+            (0, 'Monday'),
+            (1, 'Tuesday'),
+            (2, 'Wednesday'),
+            (3, 'Thursday'),
+            (4, 'Friday'),
+            (5, 'Saturday'),
+            (6, 'Sunday'),
+        ]
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        """Handle settings update."""
+        import json
+
+        settings_obj = PlannerSettings.get_settings()
+
+        # Update due days settings
+        default_due_days = request.POST.get('default_due_days')
+        ur_due_days = request.POST.get('ur_due_days')
+
+        if default_due_days:
+            try:
+                settings_obj.default_due_days = int(default_due_days)
+            except ValueError:
+                pass
+
+        if ur_due_days:
+            try:
+                settings_obj.ur_due_days = int(ur_due_days)
+            except ValueError:
+                pass
+
+        # Update weekend days
+        weekend_days = request.POST.getlist('weekend_days')
+        settings_obj.weekend_days = [int(d) for d in weekend_days]
+
+        settings_obj.updated_by = request.user
+        settings_obj.save()
+
+        messages.success(request, 'Planner settings updated successfully.')
+        return redirect('workorders:planner_settings')
+
+
+@login_required
+def api_add_holiday(request):
+    """API endpoint to add a new holiday."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        data = request.POST
+
+    date_str = data.get('date', '')
+    name = data.get('name', '').strip()
+
+    if not date_str or not name:
+        return JsonResponse({'success': False, 'error': 'Date and name are required'})
+
+    try:
+        from datetime import datetime
+        holiday_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'success': False, 'error': 'Invalid date format'})
+
+    # Check for duplicate
+    if PlannerHoliday.objects.filter(date=holiday_date).exists():
+        return JsonResponse({'success': False, 'error': 'Holiday already exists for this date'})
+
+    holiday = PlannerHoliday.objects.create(
+        date=holiday_date,
+        name=name,
+        created_by=request.user
+    )
+
+    return JsonResponse({
+        'success': True,
+        'holiday_id': holiday.pk,
+        'message': f'Added holiday: {name}'
+    })
+
+
+@login_required
+def api_delete_holiday(request, pk):
+    """API endpoint to delete a holiday."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        holiday = PlannerHoliday.objects.get(pk=pk)
+        holiday_name = holiday.name
+        holiday.delete()
+        return JsonResponse({
+            'success': True,
+            'message': f'Deleted holiday: {holiday_name}'
+        })
+    except PlannerHoliday.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Holiday not found'})
+
+
+@login_required
+def api_toggle_holiday(request, pk):
+    """API endpoint to toggle holiday active status."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        holiday = PlannerHoliday.objects.get(pk=pk)
+        holiday.is_active = not holiday.is_active
+        holiday.save(update_fields=['is_active'])
+        return JsonResponse({
+            'success': True,
+            'is_active': holiday.is_active,
+            'message': f'Holiday {"enabled" if holiday.is_active else "disabled"}'
+        })
+    except PlannerHoliday.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Holiday not found'})
+
+
+@login_required
+def api_preview_due_date(request):
+    """API endpoint to preview due date calculation."""
+    account_code = request.GET.get('account', '')
+    today = timezone.now().date()
+
+    due_date = PlannerSettings.calculate_due_date(
+        start_date=today,
+        account_code=account_code if account_code else None
+    )
+
+    # Get settings for display
+    settings_obj = PlannerSettings.get_settings()
+    days_used = settings_obj.ur_due_days if account_code == 'UR' else settings_obj.default_due_days
+
+    return JsonResponse({
+        'success': True,
+        'start_date': today.strftime('%Y-%m-%d'),
+        'due_date': due_date.strftime('%Y-%m-%d'),
+        'due_date_display': due_date.strftime('%b %d, %Y'),
+        'working_days': days_used,
+        'account': account_code or 'Default'
     })

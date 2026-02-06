@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Planner Settings - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Configure due date calculation, weekends, and holidays</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'workorders:production_planner' %}"
+           class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back to Planner
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="plannerSettings()" x-init="init()">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Due Date Settings -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                <i data-lucide="calendar-clock" class="w-5 h-5 inline mr-2 text-blue-600"></i>
+                Due Date Settings
+            </h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Configure the number of working days for due date calculation.
+            </p>
+
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+
+                <!-- Default Due Days -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Default Working Days
+                    </label>
+                    <input type="number" name="default_due_days" value="{{ settings.default_due_days }}"
+                           min="1" max="30"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <p class="text-xs text-gray-500 mt-1">Number of working days for most accounts</p>
+                </div>
+
+                <!-- UR Due Days -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        UR Account Working Days
+                    </label>
+                    <input type="number" name="ur_due_days" value="{{ settings.ur_due_days }}"
+                           min="1" max="30"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <p class="text-xs text-gray-500 mt-1">Shorter deadline for UR (urgent) account</p>
+                </div>
+
+                <!-- Weekend Days -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Weekend Days
+                    </label>
+                    <div class="grid grid-cols-4 gap-2">
+                        {% for value, label in day_options %}
+                        <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <input type="checkbox" name="weekend_days" value="{{ value }}"
+                                   {% if value in settings.weekend_days %}checked{% endif %}
+                                   class="rounded border-gray-300 dark:border-gray-600 text-blue-600">
+                            <span class="text-gray-700 dark:text-gray-300">{{ label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">
+                        Currently: <strong>{{ settings.get_weekend_display|join:", "|default:"None selected" }}</strong>
+                    </p>
+                </div>
+
+                <div class="pt-4 flex justify-end">
+                    <button type="submit"
+                            class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                        Save Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Due Date Preview -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                <i data-lucide="calculator" class="w-5 h-5 inline mr-2 text-green-600"></i>
+                Due Date Preview
+            </h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Test how due dates are calculated with current settings.
+            </p>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Select Account Type
+                    </label>
+                    <select x-model="previewAccount" @change="calculatePreview()"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option value="">Default ({{ settings.default_due_days }} days)</option>
+                        <option value="UR">UR - Urgent ({{ settings.ur_due_days }} days)</option>
+                        <option value="LSTK">LSTK</option>
+                        <option value="ARAMCO">ARAMCO</option>
+                    </select>
+                </div>
+
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <p class="text-gray-500 dark:text-gray-400">Start Date</p>
+                            <p class="font-medium text-gray-900 dark:text-white" x-text="previewResult.start_date || 'Today'"></p>
+                        </div>
+                        <div>
+                            <p class="text-gray-500 dark:text-gray-400">Working Days</p>
+                            <p class="font-medium text-gray-900 dark:text-white" x-text="previewResult.working_days || '-'"></p>
+                        </div>
+                        <div class="col-span-2">
+                            <p class="text-gray-500 dark:text-gray-400">Calculated Due Date</p>
+                            <p class="text-2xl font-bold text-green-600 dark:text-green-400" x-text="previewResult.due_date_display || 'Click to calculate'"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <button @click="calculatePreview()"
+                        class="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 inline mr-2"></i>
+                    Calculate
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Holidays Section -->
+    <div class="mt-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    <i data-lucide="calendar-x" class="w-5 h-5 inline mr-2 text-red-600"></i>
+                    Holidays
+                </h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Holidays are excluded from due date calculations
+                </p>
+            </div>
+            <button @click="showAddHoliday = true"
+                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                Add Holiday
+            </button>
+        </div>
+
+        <!-- Upcoming Holidays -->
+        {% if upcoming_holidays %}
+        <div class="mb-6">
+            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Upcoming Holidays</h3>
+            <div class="flex flex-wrap gap-2">
+                {% for holiday in upcoming_holidays %}
+                <div class="inline-flex items-center px-3 py-1.5 rounded-full text-sm
+                            {% if holiday.is_active %}bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300{% else %}bg-gray-100 dark:bg-gray-700 text-gray-500 line-through{% endif %}">
+                    <i data-lucide="calendar-off" class="w-3.5 h-3.5 mr-1.5"></i>
+                    {{ holiday.date|date:"M d" }} - {{ holiday.name }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- All Holidays Table -->
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for holiday in all_holidays %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 {% if not holiday.is_active %}opacity-50{% endif %}">
+                        <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
+                            {{ holiday.date|date:"M d, Y" }}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            {{ holiday.name }}
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if holiday.is_active %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300{% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+                                {% if holiday.is_active %}Active{% else %}Disabled{% endif %}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <div class="flex items-center justify-end space-x-2">
+                                <button @click="toggleHoliday({{ holiday.pk }})"
+                                        class="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                                        title="{% if holiday.is_active %}Disable{% else %}Enable{% endif %}">
+                                    <i data-lucide="{% if holiday.is_active %}toggle-right{% else %}toggle-left{% endif %}" class="w-4 h-4"></i>
+                                </button>
+                                <button @click="deleteHoliday({{ holiday.pk }}, '{{ holiday.name }}')"
+                                        class="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                                        title="Delete">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                            <i data-lucide="calendar" class="w-12 h-12 mx-auto mb-2 text-gray-300"></i>
+                            <p>No holidays configured</p>
+                            <button @click="showAddHoliday = true"
+                                    class="mt-2 text-blue-600 hover:underline">
+                                Add your first holiday
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Add Holiday Modal -->
+    <div x-show="showAddHoliday" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         @keydown.escape.window="showAddHoliday = false">
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+            <!-- Backdrop -->
+            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity"
+                 @click="showAddHoliday = false"></div>
+
+            <!-- Modal -->
+            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl transform transition-all sm:max-w-md w-full mx-4">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Add Holiday</h3>
+                    <button @click="showAddHoliday = false" class="text-gray-400 hover:text-gray-500">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <form @submit.prevent="addHoliday()" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Date
+                        </label>
+                        <input type="date" x-model="newHoliday.date" required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Holiday Name
+                        </label>
+                        <input type="text" x-model="newHoliday.name" required
+                               placeholder="e.g., National Day, Eid Al-Fitr"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-4">
+                        <button type="button" @click="showAddHoliday = false"
+                                class="px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            Add Holiday
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function plannerSettings() {
+    return {
+        showAddHoliday: false,
+        newHoliday: {
+            date: '',
+            name: ''
+        },
+        previewAccount: '',
+        previewResult: {},
+
+        init() {
+            this.calculatePreview();
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        },
+
+        async calculatePreview() {
+            try {
+                const response = await fetch(`{% url "workorders:api_preview_due_date" %}?account=${encodeURIComponent(this.previewAccount)}`);
+                const data = await response.json();
+                if (data.success) {
+                    this.previewResult = data;
+                }
+            } catch (e) {
+                console.error('Preview failed:', e);
+            }
+        },
+
+        async addHoliday() {
+            if (!this.newHoliday.date || !this.newHoliday.name) return;
+
+            try {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                                 document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+
+                const response = await fetch('{% url "workorders:api_add_holiday" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify(this.newHoliday)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    this.showAddHoliday = false;
+                    this.newHoliday = { date: '', name: '' };
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Failed to add holiday');
+                }
+            } catch (e) {
+                alert('Error adding holiday');
+                console.error('Add holiday error:', e);
+            }
+        },
+
+        async toggleHoliday(pk) {
+            try {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                                 document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+
+                const response = await fetch(`{% url "workorders:api_toggle_holiday" pk=0 %}`.replace('0', pk), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Failed to toggle holiday');
+                }
+            } catch (e) {
+                alert('Error toggling holiday');
+                console.error('Toggle error:', e);
+            }
+        },
+
+        async deleteHoliday(pk, name) {
+            if (!confirm(`Delete holiday "${name}"?`)) return;
+
+            try {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                                 document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+
+                const response = await fetch(`{% url "workorders:api_delete_holiday" pk=0 %}`.replace('0', pk), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Failed to delete holiday');
+                }
+            } catch (e) {
+                alert('Error deleting holiday');
+                console.error('Delete error:', e);
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

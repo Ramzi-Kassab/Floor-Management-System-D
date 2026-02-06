@@ -56,6 +56,12 @@
                 <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
                 Add to Plan
             </button>
+            <a href="{% url 'workorders:planner_settings' %}"
+               class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+               title="Configure due dates, weekends, and holidays">
+                <i data-lucide="settings" class="w-4 h-4 mr-2"></i>
+                Settings
+            </a>
             <a href="{% url 'workorders:workorder_list_enhanced' %}"
                class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
                 <i data-lucide="list" class="w-4 h-4 mr-2"></i>
@@ -756,7 +762,7 @@ function productionPlanner() {
 
             try {
                 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                                 document.cookie.match(/csrftoken=([^;]+]/)?.[1];
+                                 document.cookie.match(/csrftoken=([^;]+)/)?.[1];
 
                 const response = await fetch(`{% url "workorders:api_create_wo_from_plan" %}?entry_id=${entryId}`, {
                     method: 'POST',
