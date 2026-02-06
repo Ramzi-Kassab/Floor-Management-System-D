@@ -337,6 +337,117 @@ class DrillBit(models.Model):
             self.qr_code = f"BIT-{self.serial_number}"
         super().save(*args, **kwargs)
 
+    # =========================================================================
+    # LIFECYCLE MANAGEMENT METHODS
+    # =========================================================================
+
+    # Work Order statuses that indicate active/in-progress work
+    ACTIVE_WO_STATUSES = [
+        'DRAFT', 'PLANNED', 'RELEASED', 'IN_PROGRESS',
+        'ON_HOLD', 'QC_PENDING', 'QC_PASSED', 'QC_FAILED'
+    ]
+
+    # Work Order statuses that indicate completed/finalized work
+    FINAL_WO_STATUSES = ['COMPLETED', 'CANCELLED']
+
+    def has_active_work_order(self):
+        """
+        Check if this drill bit has any active (non-completed, non-cancelled) work order.
+        Returns True if there's an active WO blocking new work.
+        """
+        return self.work_orders.filter(status__in=self.ACTIVE_WO_STATUSES).exists()
+
+    def get_active_work_order(self):
+        """
+        Get the active work order for this drill bit, if any.
+        Returns the WO object or None.
+        """
+        return self.work_orders.filter(status__in=self.ACTIVE_WO_STATUSES).first()
+
+    def is_in_production_plan(self):
+        """
+        Check if this drill bit is currently in the production plan (PLANNED status).
+        """
+        return self.plan_entries.filter(status='PLANNED').exists()
+
+    def get_active_plan_entry(self):
+        """
+        Get the active production plan entry for this drill bit, if any.
+        """
+        return self.plan_entries.filter(status='PLANNED').first()
+
+    def is_available_for_planning(self):
+        """
+        Check if this drill bit can be added to the production plan.
+        Returns True if:
+        - No active work order exists
+        - Not already in the production plan
+        """
+        if self.has_active_work_order():
+            return False
+        if self.is_in_production_plan():
+            return False
+        return True
+
+    def get_blocking_reason(self):
+        """
+        Get the reason why this drill bit cannot be planned.
+        Returns a tuple of (reason_code, message) or (None, None) if available.
+        """
+        # Check for active work order first
+        active_wo = self.get_active_work_order()
+        if active_wo:
+            return (
+                'ACTIVE_WO',
+                f"Active Work Order {active_wo.wo_number} ({active_wo.get_status_display()})"
+            )
+
+        # Check for active plan entry
+        plan_entry = self.get_active_plan_entry()
+        if plan_entry:
+            return (
+                'IN_PLAN',
+                f"Already in production plan (#{plan_entry.pk})"
+            )
+
+        return (None, None)
+
+    def get_availability_status(self):
+        """
+        Get a structured availability status for UI display.
+        Returns dict with: available, status_code, status_label, blocking_reason, blocking_wo
+        """
+        active_wo = self.get_active_work_order()
+        if active_wo:
+            return {
+                'available': False,
+                'status_code': 'ACTIVE_WO',
+                'status_label': 'In WIP',
+                'blocking_reason': f"WO: {active_wo.wo_number}",
+                'blocking_wo': active_wo,
+                'blocking_wo_id': active_wo.pk,
+            }
+
+        plan_entry = self.get_active_plan_entry()
+        if plan_entry:
+            return {
+                'available': False,
+                'status_code': 'IN_PLAN',
+                'status_label': 'Planned',
+                'blocking_reason': f"Plan entry #{plan_entry.pk}",
+                'blocking_wo': None,
+                'blocking_wo_id': None,
+            }
+
+        return {
+            'available': True,
+            'status_code': 'AVAILABLE',
+            'status_label': 'Available',
+            'blocking_reason': None,
+            'blocking_wo': None,
+            'blocking_wo_id': None,
+        }
+
 
 class BitEvent(models.Model):
     """
@@ -2360,9 +2471,28 @@ class ProductionPlanEntry(models.Model):
         return f"Plan: {self.drill_bit.serial_number} ({self.get_status_display()})"
 
     def create_work_order(self, user=None):
-        """Create a Work Order from this plan entry."""
+        """
+        Create a Work Order from this plan entry.
+
+        Returns tuple: (work_order, success, error_code, error_message)
+        - If successful: (work_order, True, None, None)
+        - If WO already exists: (existing_wo, True, None, None)
+        - If drill bit has active WO: (None, False, 'ACTIVE_WO', message)
+        """
         if self.work_order:
-            return self.work_order
+            return (self.work_order, True, None, None)
+
+        # CRITICAL VALIDATION: Check if drill bit already has an active work order
+        # This prevents duplicate WOs even if validation was bypassed at add_to_plan
+        active_wo = self.drill_bit.get_active_work_order()
+        if active_wo:
+            return (
+                None,
+                False,
+                'ACTIVE_WO',
+                f"Cannot create WO: Drill bit {self.drill_bit.serial_number} already has "
+                f"active Work Order {active_wo.wo_number} ({active_wo.get_status_display()})"
+            )
 
         # Determine WO type
         wo_type = self.intended_wo_type or WorkOrder.WOType.FC_REPAIR
@@ -2392,23 +2522,40 @@ class ProductionPlanEntry(models.Model):
         self.status = self.Status.WO_CREATED
         self.save(update_fields=['work_order', 'status', 'updated_at'])
 
-        return work_order
+        return (work_order, True, None, None)
 
     @classmethod
     def add_to_plan(cls, drill_bit, account=None, priority='NORMAL', planned_date=None,
                     due_date=None, intended_wo_type='', notes='', user=None):
-        """Add a drill bit to the production plan."""
+        """
+        Add a drill bit to the production plan.
+
+        Returns tuple: (entry, created, error_code, error_message)
+        - If successful: (entry, True, None, None)
+        - If already in plan: (existing_entry, False, 'IN_PLAN', 'Already in production plan')
+        - If has active WO: (None, False, 'ACTIVE_WO', 'Has active work order WO-XXX')
+        """
         from datetime import timedelta
         from django.utils import timezone
 
-        # Check for existing active plan entry
+        # VALIDATION 1: Check if drill bit has an active work order
+        active_wo = drill_bit.get_active_work_order()
+        if active_wo:
+            return (
+                None,
+                False,
+                'ACTIVE_WO',
+                f"Cannot add to plan: Active Work Order {active_wo.wo_number} ({active_wo.get_status_display()})"
+            )
+
+        # VALIDATION 2: Check for existing active plan entry
         existing = cls.objects.filter(
             drill_bit=drill_bit,
             status=cls.Status.PLANNED
         ).first()
 
         if existing:
-            return existing, False  # Already in plan
+            return (existing, False, 'IN_PLAN', 'This drill bit is already in the production plan')
 
         # Get max sequence for ordering
         max_seq = cls.objects.filter(status=cls.Status.PLANNED).aggregate(
@@ -2438,7 +2585,7 @@ class ProductionPlanEntry(models.Model):
             notes=notes,
             created_by=user,
         )
-        return entry, True  # Created new entry
+        return (entry, True, None, None)  # Created successfully
 
 
 class PlannerSettings(models.Model):

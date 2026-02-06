@@ -459,6 +459,11 @@
                             <option value="Finished Good">Finished Good</option>
                             <option value="Used">Used</option>
                         </select>
+                        <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 font-medium px-2 py-1 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-800">
+                            <input type="checkbox" x-model="pickerAvailableOnly" @change="filterPickerTable()"
+                                   class="rounded border-green-400 dark:border-green-600 text-green-600">
+                            <span class="text-green-700 dark:text-green-400">Available Only</span>
+                        </label>
                         <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                             <input type="checkbox" x-model="pickerHideInPlan" @change="filterPickerTable()"
                                    class="rounded border-gray-300 dark:border-gray-600">
@@ -502,6 +507,7 @@
                                     <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('rerun_count')" title="Number of reruns (factory + field)">
                                         <span class="flex items-center justify-center gap-1">Reruns <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
                                     </th>
+                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Availability</th>
                                     <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase bg-yellow-50 dark:bg-yellow-900/20">Due Date</th>
                                     <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
                                 </tr>
@@ -527,7 +533,7 @@
                                             <option value="2">2+</option>
                                         </select>
                                     </td>
-                                    <td colspan="2"></td>
+                                    <td colspan="3"></td>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -565,14 +571,57 @@
                                                   :class="bit.rerun_count > 0 ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'"
                                                   x-text="bit.rerun_count"></span>
                                         </td>
+                                        <!-- Availability Status -->
+                                        <td class="px-3 py-2 text-center">
+                                            <template x-if="bit.availability?.available">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">
+                                                    <i data-lucide="check-circle" class="w-3 h-3 mr-1"></i>
+                                                    Available
+                                                </span>
+                                            </template>
+                                            <template x-if="bit.availability?.status_code === 'IN_PLAN'">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300"
+                                                      :title="bit.availability.blocking_reason">
+                                                    <i data-lucide="calendar-clock" class="w-3 h-3 mr-1"></i>
+                                                    Planned
+                                                </span>
+                                            </template>
+                                            <template x-if="bit.availability?.status_code === 'ACTIVE_WO'">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300"
+                                                      :title="bit.availability.blocking_reason">
+                                                    <i data-lucide="wrench" class="w-3 h-3 mr-1"></i>
+                                                    In WIP
+                                                </span>
+                                            </template>
+                                        </td>
                                         <td class="px-3 py-2 text-center bg-yellow-50/50 dark:bg-yellow-900/10 text-gray-600 dark:text-gray-400"
                                             x-text="calculateDueDate(bit.account_code)"></td>
                                         <td class="px-3 py-2 text-right">
-                                            <button @click="selectAndAddBit(bit)"
-                                                    class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors">
-                                                <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>
-                                                Add
-                                            </button>
+                                            <!-- Available: Show Add button -->
+                                            <template x-if="bit.availability?.available">
+                                                <button @click="selectAndAddBit(bit)"
+                                                        class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors">
+                                                    <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>
+                                                    Add
+                                                </button>
+                                            </template>
+                                            <!-- In Plan: Show disabled -->
+                                            <template x-if="bit.availability?.status_code === 'IN_PLAN'">
+                                                <span class="inline-flex items-center px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 text-xs font-medium rounded cursor-not-allowed"
+                                                      title="Already in production plan">
+                                                    <i data-lucide="calendar-check" class="w-3.5 h-3.5 mr-1"></i>
+                                                    In Plan
+                                                </span>
+                                            </template>
+                                            <!-- Active WO: Show link to WO -->
+                                            <template x-if="bit.availability?.status_code === 'ACTIVE_WO'">
+                                                <a :href="`/work-orders/enhanced/${bit.availability.blocking_wo_id}/`"
+                                                   class="inline-flex items-center px-3 py-1.5 bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300 text-xs font-medium rounded hover:bg-orange-200 dark:hover:bg-orange-900 transition-colors"
+                                                   :title="`View ${bit.availability.blocking_wo_number}`">
+                                                    <i data-lucide="external-link" class="w-3.5 h-3.5 mr-1"></i>
+                                                    View WO
+                                                </a>
+                                            </template>
                                         </td>
                                     </tr>
                                 </template>
@@ -898,6 +947,7 @@ function productionPlanner() {
         pickerRepairFilter: '',
         pickerRerunFilter: '',
         pickerHideInPlan: true,
+        pickerAvailableOnly: true,  // Default to showing only available bits
         pickerSortColumn: 'serial_number',
         pickerSortDir: 'asc',
         pickerVisibleCount: 0,
@@ -1019,9 +1069,14 @@ function productionPlanner() {
                 }
             }
 
-            // Hide already in plan
+            // Hide already in plan (legacy filter - now handled by availability)
             if (this.pickerHideInPlan) {
                 filtered = filtered.filter(bit => !this.bitsInPlan.has(bit.serial_number));
+            }
+
+            // Available Only filter - show only bits that can be added to plan
+            if (this.pickerAvailableOnly) {
+                filtered = filtered.filter(bit => bit.availability?.available === true);
             }
 
             // Sort

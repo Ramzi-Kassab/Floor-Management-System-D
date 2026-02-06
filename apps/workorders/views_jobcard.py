@@ -1740,9 +1740,9 @@ def api_add_to_plan(request):
         except (ValueError, TypeError):
             pass  # Will auto-calculate
 
-    # Add to plan
+    # Add to plan (returns 4-tuple: entry, created, error_code, error_message)
     try:
-        entry, created = ProductionPlanEntry.add_to_plan(
+        entry, created, error_code, error_message = ProductionPlanEntry.add_to_plan(
             drill_bit=drill_bit,
             account=account,
             priority=data.get('priority', 'NORMAL'),
@@ -1763,7 +1763,8 @@ def api_add_to_plan(request):
     if not created:
         return JsonResponse({
             'success': False,
-            'error': 'This drill bit is already in the plan'
+            'error': error_message or 'This drill bit is already in the plan',
+            'error_code': error_code or 'IN_PLAN'
         })
 
     return JsonResponse({
@@ -1795,9 +1796,17 @@ def api_create_wo_from_plan(request):
     if entry.status != ProductionPlanEntry.Status.PLANNED:
         return JsonResponse({'success': False, 'error': 'Entry already has a Work Order'})
 
-    # Create the work order
+    # Create the work order (returns 4-tuple: wo, success, error_code, error_message)
     try:
-        wo = entry.create_work_order(user=request.user)
+        wo, success, error_code, error_message = entry.create_work_order(user=request.user)
+
+        if not success:
+            return JsonResponse({
+                'success': False,
+                'error': error_message or 'Failed to create work order',
+                'error_code': error_code or 'UNKNOWN'
+            })
+
         return JsonResponse({
             'success': True,
             'wo_id': wo.pk,

@@ -12,7 +12,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404, redirect, render
@@ -1276,9 +1276,30 @@ def api_drillbit_list(request):
     List all drill bits for the serial number picker modal.
     GET /workorders/api/drill-bits/list/
     Returns JSON array of drill bits with key fields for selection.
+
+    Each bit includes availability_status with:
+    - available: bool - True if can be added to plan
+    - status_code: AVAILABLE | IN_PLAN | ACTIVE_WO
+    - status_label: Display label
+    - blocking_reason: Why unavailable (if applicable)
+    - blocking_wo_number: WO number if blocked by active WO
     """
+    from apps.workorders.models import ProductionPlanEntry
+
     bits = DrillBit.objects.select_related(
         "design", "design__size", "account", "brazing_bom", "system_bom", "bom", "bit_size_ref"
+    ).prefetch_related(
+        # Prefetch active work orders and plan entries for efficient availability check
+        Prefetch(
+            'work_orders',
+            queryset=WorkOrder.objects.filter(status__in=DrillBit.ACTIVE_WO_STATUSES),
+            to_attr='_active_work_orders'
+        ),
+        Prefetch(
+            'plan_entries',
+            queryset=ProductionPlanEntry.objects.filter(status='PLANNED'),
+            to_attr='_active_plan_entries'
+        )
     ).order_by("-created_at")[:500]  # Limit to 500 most recent
 
     result = []
@@ -1316,6 +1337,40 @@ def api_drillbit_list(request):
         # Rerun count (factory + field)
         rerun_count = (bit.rerun_count_factory or 0) + (bit.rerun_count_field or 0)
 
+        # Determine availability status using prefetched data
+        active_wos = getattr(bit, '_active_work_orders', [])
+        active_plans = getattr(bit, '_active_plan_entries', [])
+
+        if active_wos:
+            active_wo = active_wos[0]
+            availability_status = {
+                'available': False,
+                'status_code': 'ACTIVE_WO',
+                'status_label': 'In WIP',
+                'blocking_reason': f"WO: {active_wo.wo_number}",
+                'blocking_wo_number': active_wo.wo_number,
+                'blocking_wo_id': active_wo.pk,
+            }
+        elif active_plans:
+            plan = active_plans[0]
+            availability_status = {
+                'available': False,
+                'status_code': 'IN_PLAN',
+                'status_label': 'Planned',
+                'blocking_reason': f"Already in production plan",
+                'blocking_wo_number': None,
+                'blocking_wo_id': None,
+            }
+        else:
+            availability_status = {
+                'available': True,
+                'status_code': 'AVAILABLE',
+                'status_label': 'Available',
+                'blocking_reason': None,
+                'blocking_wo_number': None,
+                'blocking_wo_id': None,
+            }
+
         result.append({
             "serial_number": bit.serial_number,
             "size": size,
@@ -1325,6 +1380,7 @@ def api_drillbit_list(request):
             "design_level": design_level,
             "repair_count": bit.repair_count or 0,
             "rerun_count": rerun_count,
+            "availability": availability_status,
         })
 
     return JsonResponse({"bits": result})
