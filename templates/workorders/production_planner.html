@@ -243,13 +243,13 @@
                         </td>
                         <td class="px-4 py-3 text-right">
                             <div class="flex items-center justify-end space-x-2">
-                                <button @click="createWoFromPlan({{ item.entry.pk }})"
+                                <button @click="openCreateWoModal({{ item.entry.pk }}, '{{ item.serial }}', '{{ item.account }}')"
                                         class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
                                         title="Create Work Order">
                                     <i data-lucide="file-plus" class="w-3.5 h-3.5 mr-1"></i>
                                     Create WO
                                 </button>
-                                <button @click="removePlanEntry({{ item.entry.pk }})"
+                                <button @click="openRemoveModal({{ item.entry.pk }}, '{{ item.serial }}')"
                                         class="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                                         title="Remove from Plan">
                                     <i data-lucide="x" class="w-4 h-4"></i>
@@ -748,6 +748,109 @@
         </div>
     </div>
 
+    <!-- ========================================
+         CREATE WO CONFIRMATION MODAL
+         ======================================== -->
+    <div x-show="showCreateWoConfirmModal" x-cloak
+         class="fixed inset-0 z-[100] overflow-y-auto"
+         @keydown.escape.window="showCreateWoConfirmModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80"
+                 @click="showCreateWoConfirmModal = false"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
+                <!-- Icon -->
+                <div class="flex justify-center mb-4">
+                    <div class="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                        <i data-lucide="file-plus" class="w-8 h-8 text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                </div>
+
+                <!-- Content -->
+                <div class="text-center mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Create Work Order</h3>
+                    <p class="text-gray-600 dark:text-gray-400 mb-3">
+                        You are about to create a Work Order for:
+                    </p>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 inline-block">
+                        <p class="font-mono font-semibold text-gray-900 dark:text-white text-lg" x-text="createWoSerial"></p>
+                        <p class="text-sm text-indigo-600 dark:text-indigo-400 font-medium" x-text="createWoAccount"></p>
+                    </div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">
+                        This will assign a WO number and move the item to Work in Progress.
+                    </p>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex gap-3">
+                    <button @click="showCreateWoConfirmModal = false"
+                            :disabled="createWoLoading"
+                            class="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                        Cancel
+                    </button>
+                    <button @click="confirmCreateWo()"
+                            :disabled="createWoLoading"
+                            class="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                        <template x-if="createWoLoading">
+                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                        </template>
+                        <span x-text="createWoLoading ? 'Creating...' : 'Create Work Order'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================
+         REMOVE FROM PLAN CONFIRMATION MODAL
+         ======================================== -->
+    <div x-show="showRemoveConfirmModal" x-cloak
+         class="fixed inset-0 z-[100] overflow-y-auto"
+         @keydown.escape.window="showRemoveConfirmModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80"
+                 @click="showRemoveConfirmModal = false"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
+                <!-- Icon -->
+                <div class="flex justify-center mb-4">
+                    <div class="w-14 h-14 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+                        <i data-lucide="calendar-x" class="w-8 h-8 text-orange-600 dark:text-orange-400"></i>
+                    </div>
+                </div>
+
+                <!-- Content -->
+                <div class="text-center mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Remove from Plan</h3>
+                    <p class="text-gray-600 dark:text-gray-400 mb-3">
+                        Remove this drill bit from the production plan?
+                    </p>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 inline-block">
+                        <p class="font-mono font-semibold text-gray-900 dark:text-white text-lg" x-text="removeSerial"></p>
+                    </div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">
+                        The drill bit will be available to add again later.
+                    </p>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex gap-3">
+                    <button @click="showRemoveConfirmModal = false"
+                            :disabled="removeLoading"
+                            class="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                        Keep in Plan
+                    </button>
+                    <button @click="confirmRemove()"
+                            :disabled="removeLoading"
+                            class="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center gap-2">
+                        <template x-if="removeLoading">
+                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                        </template>
+                        <span x-text="removeLoading ? 'Removing...' : 'Remove'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Column Filter Menu (for picker table) -->
     <div id="pickerColumnMenu" class="column-menu hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 z-[200]">
         <div class="space-y-0.5 mb-2">
@@ -815,6 +918,19 @@ function productionPlanner() {
         showWoSuccessModal: false,
         createdWoNumber: '',
         createdWoUrl: '',
+
+        // Create WO Confirmation Modal
+        showCreateWoConfirmModal: false,
+        createWoEntryId: null,
+        createWoSerial: '',
+        createWoAccount: '',
+        createWoLoading: false,
+
+        // Remove from Plan Confirmation Modal
+        showRemoveConfirmModal: false,
+        removeEntryId: null,
+        removeSerial: '',
+        removeLoading: false,
 
         init() {
             // Poll for updates every 30 seconds
@@ -1011,14 +1127,23 @@ function productionPlanner() {
             }
         },
 
-        async createWoFromPlan(entryId) {
-            if (!confirm('Create a Work Order for this planned item?')) return;
+        // Open Create WO confirmation modal
+        openCreateWoModal(entryId, serial, account) {
+            this.createWoEntryId = entryId;
+            this.createWoSerial = serial;
+            this.createWoAccount = account;
+            this.showCreateWoConfirmModal = true;
+        },
+
+        async confirmCreateWo() {
+            if (this.createWoLoading) return;
+            this.createWoLoading = true;
 
             try {
                 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
                                  document.cookie.match(/csrftoken=([^;]+)/)?.[1];
 
-                const response = await fetch(`{% url "workorders:api_create_wo_from_plan" %}?entry_id=${entryId}`, {
+                const response = await fetch(`{% url "workorders:api_create_wo_from_plan" %}?entry_id=${this.createWoEntryId}`, {
                     method: 'POST',
                     headers: {
                         'X-CSRFToken': csrfToken
@@ -1028,6 +1153,7 @@ function productionPlanner() {
                 const data = await response.json();
 
                 if (data.success) {
+                    this.showCreateWoConfirmModal = false;
                     // Show success modal with WO details
                     this.createdWoNumber = data.wo_number;
                     this.createdWoUrl = data.redirect_url;
@@ -1038,17 +1164,27 @@ function productionPlanner() {
             } catch (e) {
                 alert('Error creating Work Order');
                 console.error('Create WO error:', e);
+            } finally {
+                this.createWoLoading = false;
             }
         },
 
-        async removePlanEntry(entryId) {
-            if (!confirm('Remove this item from the plan?')) return;
+        // Open Remove from Plan confirmation modal
+        openRemoveModal(entryId, serial) {
+            this.removeEntryId = entryId;
+            this.removeSerial = serial;
+            this.showRemoveConfirmModal = true;
+        },
+
+        async confirmRemove() {
+            if (this.removeLoading) return;
+            this.removeLoading = true;
 
             try {
                 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
                                  document.cookie.match(/csrftoken=([^;]+)/)?.[1];
 
-                const response = await fetch(`{% url "workorders:api_remove_from_plan" %}?entry_id=${entryId}`, {
+                const response = await fetch(`{% url "workorders:api_remove_from_plan" %}?entry_id=${this.removeEntryId}`, {
                     method: 'POST',
                     headers: {
                         'X-CSRFToken': csrfToken
@@ -1065,6 +1201,8 @@ function productionPlanner() {
             } catch (e) {
                 alert('Error removing from plan');
                 console.error('Remove error:', e);
+            } finally {
+                this.removeLoading = false;
             }
         },
 

@@ -5,17 +5,47 @@
 
 {% block extra_css %}
 <style>
-    .tab-btn { transition: all 0.2s; }
-    .tab-btn.active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+    .tab-btn { transition: all 0.2s; border-bottom: 2px solid transparent; }
+    .tab-btn.active { border-bottom-color: #3b82f6; color: #3b82f6; }
     .dark .tab-btn.active { color: #60a5fa; border-color: #60a5fa; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
     .stat-card { transition: transform 0.15s, box-shadow 0.15s; }
     .stat-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    .progress-step { position: relative; }
-    .progress-step::after { content: ''; position: absolute; top: 50%; right: -1rem; width: 1rem; height: 2px; background: #e5e7eb; }
-    .progress-step:last-child::after { display: none; }
-    .dark .progress-step::after { background: #4b5563; }
+
+    /* Workflow progress */
+    .workflow-step { position: relative; }
+    .workflow-step:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 100%;
+        width: 2rem;
+        height: 2px;
+        background: #e5e7eb;
+        transform: translateY(-50%);
+    }
+    .dark .workflow-step:not(:last-child)::after { background: #4b5563; }
+    .workflow-step.completed::after { background: #10b981; }
+    .workflow-step.active::after { background: linear-gradient(to right, #10b981, #e5e7eb); }
+    .dark .workflow-step.active::after { background: linear-gradient(to right, #10b981, #4b5563); }
+
+    /* Section cards */
+    .section-card {
+        background: linear-gradient(to bottom right, rgba(255,255,255,0.8), rgba(255,255,255,0.6));
+        backdrop-filter: blur(10px);
+    }
+    .dark .section-card {
+        background: linear-gradient(to bottom right, rgba(31,41,55,0.8), rgba(31,41,55,0.6));
+    }
+
+    /* Evaluation card states */
+    .eval-card { transition: all 0.2s; }
+    .eval-card:hover { transform: translateY(-2px); }
+    .eval-card.complete { border-left: 3px solid #10b981; }
+    .eval-card.in-progress { border-left: 3px solid #f59e0b; }
+    .eval-card.not-started { border-left: 3px solid #d1d5db; }
+    .dark .eval-card.not-started { border-left-color: #4b5563; }
 </style>
 {% endblock %}
 
@@ -34,8 +64,19 @@
             <div>
                 <div class="flex items-center gap-2 flex-wrap">
                     <h1 class="text-xl font-bold text-gray-900 dark:text-white font-mono">{{ work_order.wo_number }}</h1>
-                    <span class="text-sm text-gray-500 dark:text-gray-400">|</span>
-                    <span class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ work_order.get_wo_type_display }}</span>
+                    <!-- Status Badge -->
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+                        {% if work_order.status == 'DRAFT' %}bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-200
+                        {% elif work_order.status == 'RELEASED' %}bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300
+                        {% elif work_order.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300
+                        {% elif work_order.status == 'QC_PENDING' %}bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300
+                        {% elif work_order.status == 'COMPLETED' %}bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300
+                        {% elif work_order.status == 'ON_HOLD' %}bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300
+                        {% else %}bg-gray-100 text-gray-700{% endif %}">
+                        {{ work_order.get_status_display }}
+                    </span>
+                    <!-- WO Type -->
+                    <span class="text-sm text-gray-500 dark:text-gray-400">{{ work_order.get_wo_type_display }}</span>
                 </div>
                 {% if work_order.drill_bit %}
                 <div class="flex items-center gap-3 mt-1 text-sm">
@@ -63,6 +104,11 @@
                 <i data-lucide="pencil" class="w-4 h-4 mr-1.5"></i>
                 Edit
             </a>
+            <button onclick="window.print()"
+               class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm font-medium transition-colors">
+                <i data-lucide="printer" class="w-4 h-4 mr-1.5"></i>
+                Print
+            </button>
             <a href="{% url 'workorders:workorder_list_enhanced' %}"
                class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm font-medium transition-colors">
                 <i data-lucide="arrow-left" class="w-4 h-4 mr-1.5"></i>
@@ -71,75 +117,49 @@
         </div>
     </div>
 
-    <!-- Quick Stats Row -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mt-4">
-        <!-- Status -->
-        <div class="stat-card bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</p>
-            <span class="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-semibold
-                {% if work_order.status == 'DRAFT' %}bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-200
-                {% elif work_order.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300
-                {% elif work_order.status == 'QC_PENDING' %}bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300
-                {% elif work_order.status == 'COMPLETED' %}bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300
-                {% elif work_order.status == 'ON_HOLD' %}bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300
-                {% else %}bg-gray-100 text-gray-700{% endif %}">
-                {{ work_order.get_status_display }}
-            </span>
-        </div>
-
-        <!-- Priority -->
-        <div class="stat-card bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Priority</p>
-            <span class="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-semibold
-                {% if work_order.priority == 'CRITICAL' %}bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300
-                {% elif work_order.priority == 'URGENT' %}bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300
-                {% elif work_order.priority == 'HIGH' %}bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300
-                {% else %}bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300{% endif %}">
-                {{ work_order.get_priority_display }}
-            </span>
-        </div>
-
-        <!-- Account -->
-        <div class="stat-card bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Account</p>
-            <p class="mt-1 text-sm font-semibold text-indigo-600 dark:text-indigo-400">
-                {% if work_order.account %}{{ work_order.account.code }}{% elif work_order.customer %}{{ work_order.customer.name }}{% else %}--{% endif %}
-            </p>
-        </div>
-
-        <!-- Due Date -->
-        <div class="stat-card bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Due Date</p>
-            <p class="mt-1 text-sm font-semibold {% if work_order.is_overdue %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %}">
-                {{ work_order.due_date|date:"M d"|default:"--" }}
-            </p>
-        </div>
-
-        <!-- Received -->
-        <div class="stat-card bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Received</p>
-            <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-                {{ work_order.bit_received_date|date:"M d"|default:"--" }}
-            </p>
-        </div>
-
-        <!-- Progress -->
-        <div class="stat-card bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Progress</p>
-            {% with completed=router_entries|length total=router_entries|length %}
-            {% if router_entries %}
-            <div class="mt-1 flex items-center gap-2">
-                <div class="flex-1 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                    {% with done_count=0 %}
-                    {% for entry in router_entries %}{% if entry.is_complete %}{% with done_count=done_count|add:1 %}{% endwith %}{% endif %}{% endfor %}
-                    {% endwith %}
-                    <div class="h-full bg-blue-500 rounded-full" style="width: 0%"></div>
+    <!-- Workflow Progress Indicator -->
+    <div class="mt-4 bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+        <div class="flex items-center justify-between overflow-x-auto pb-2">
+            {% with current_step=work_order.status %}
+            <!-- Receiving -->
+            <div class="workflow-step flex flex-col items-center min-w-[80px] {% if current_step != 'DRAFT' %}completed{% endif %}">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center {% if current_step != 'DRAFT' %}bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400{% else %}bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 ring-2 ring-blue-500{% endif %}">
+                    <i data-lucide="{% if current_step != 'DRAFT' %}check{% else %}inbox{% endif %}" class="w-5 h-5"></i>
                 </div>
-                <span class="text-xs text-gray-600 dark:text-gray-400">{{ router_entries|length }} steps</span>
+                <span class="text-xs mt-1 text-gray-600 dark:text-gray-400 font-medium">Receiving</span>
             </div>
-            {% else %}
-            <p class="mt-1 text-sm text-gray-400">--</p>
-            {% endif %}
+
+            <!-- Evaluation -->
+            <div class="workflow-step flex flex-col items-center min-w-[80px] {% if current_step in 'IN_PROGRESS,QC_PENDING,COMPLETED' %}completed{% elif current_step == 'RELEASED' %}active{% endif %}">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center {% if current_step in 'IN_PROGRESS,QC_PENDING,COMPLETED' %}bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400{% elif current_step == 'RELEASED' %}bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 ring-2 ring-blue-500{% else %}bg-gray-100 text-gray-400 dark:bg-gray-700{% endif %}">
+                    <i data-lucide="{% if current_step in 'IN_PROGRESS,QC_PENDING,COMPLETED' %}check{% else %}grid-3x3{% endif %}" class="w-5 h-5"></i>
+                </div>
+                <span class="text-xs mt-1 text-gray-600 dark:text-gray-400 font-medium">Evaluation</span>
+            </div>
+
+            <!-- Processing -->
+            <div class="workflow-step flex flex-col items-center min-w-[80px] {% if current_step in 'QC_PENDING,COMPLETED' %}completed{% elif current_step == 'IN_PROGRESS' %}active{% endif %}">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center {% if current_step in 'QC_PENDING,COMPLETED' %}bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400{% elif current_step == 'IN_PROGRESS' %}bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 ring-2 ring-blue-500{% else %}bg-gray-100 text-gray-400 dark:bg-gray-700{% endif %}">
+                    <i data-lucide="{% if current_step in 'QC_PENDING,COMPLETED' %}check{% else %}cog{% endif %}" class="w-5 h-5"></i>
+                </div>
+                <span class="text-xs mt-1 text-gray-600 dark:text-gray-400 font-medium">Processing</span>
+            </div>
+
+            <!-- QC -->
+            <div class="workflow-step flex flex-col items-center min-w-[80px] {% if current_step == 'COMPLETED' %}completed{% elif current_step == 'QC_PENDING' %}active{% endif %}">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center {% if current_step == 'COMPLETED' %}bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400{% elif current_step == 'QC_PENDING' %}bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 ring-2 ring-blue-500{% else %}bg-gray-100 text-gray-400 dark:bg-gray-700{% endif %}">
+                    <i data-lucide="{% if current_step == 'COMPLETED' %}check{% else %}clipboard-check{% endif %}" class="w-5 h-5"></i>
+                </div>
+                <span class="text-xs mt-1 text-gray-600 dark:text-gray-400 font-medium">QC</span>
+            </div>
+
+            <!-- Complete -->
+            <div class="workflow-step flex flex-col items-center min-w-[80px] {% if current_step == 'COMPLETED' %}completed{% endif %}">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center {% if current_step == 'COMPLETED' %}bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400{% else %}bg-gray-100 text-gray-400 dark:bg-gray-700{% endif %}">
+                    <i data-lucide="{% if current_step == 'COMPLETED' %}check{% else %}flag{% endif %}" class="w-5 h-5"></i>
+                </div>
+                <span class="text-xs mt-1 text-gray-600 dark:text-gray-400 font-medium">Complete</span>
+            </div>
             {% endwith %}
         </div>
     </div>
@@ -151,70 +171,95 @@
     <!-- Tab Navigation -->
     <div class="bg-white dark:bg-gray-800 rounded-t-xl shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div class="flex overflow-x-auto px-2">
-            <button @click="activeTab = 'overview'" class="tab-btn px-5 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'overview' }">
+            <button @click="activeTab = 'overview'" class="tab-btn px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'overview' }">
                 <i data-lucide="file-text" class="w-4 h-4 inline mr-1.5"></i>Overview
             </button>
-            <button @click="activeTab = 'evaluation'" class="tab-btn px-5 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'evaluation' }">
+            <button @click="activeTab = 'receiving'" class="tab-btn px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'receiving' }">
+                <i data-lucide="inbox" class="w-4 h-4 inline mr-1.5"></i>Receiving
+            </button>
+            <button @click="activeTab = 'evaluation'" class="tab-btn px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'evaluation' }">
                 <i data-lucide="grid-3x3" class="w-4 h-4 inline mr-1.5"></i>Evaluations
+                {% with eval_count=evaluations|length %}
+                {% for eval in evaluations %}{% if eval.exists %}<span class="ml-1 w-2 h-2 rounded-full bg-green-500 inline-block"></span>{% endif %}{% endfor %}
+                {% endwith %}
             </button>
-            <button @click="activeTab = 'router'" class="tab-btn px-5 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'router' }">
-                <i data-lucide="route" class="w-4 h-4 inline mr-1.5"></i>Router
+            <button @click="activeTab = 'router'" class="tab-btn px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'router' }">
+                <i data-lucide="route" class="w-4 h-4 inline mr-1.5"></i>Router Sheet
             </button>
-            <button @click="activeTab = 'qc'" class="tab-btn px-5 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'qc' }">
-                <i data-lucide="clipboard-check" class="w-4 h-4 inline mr-1.5"></i>QC
+            <button @click="activeTab = 'qc'" class="tab-btn px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'qc' }">
+                <i data-lucide="clipboard-check" class="w-4 h-4 inline mr-1.5"></i>QC & Inspection
             </button>
-            <button @click="activeTab = 'instructions'" class="tab-btn px-5 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'instructions' }">
+            <button @click="activeTab = 'instructions'" class="tab-btn px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'instructions' }">
                 <i data-lucide="book-text" class="w-4 h-4 inline mr-1.5"></i>Instructions
                 {% if instructions %}<span class="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">{{ instructions|length }}</span>{% endif %}
             </button>
-            <button @click="activeTab = 'history'" class="tab-btn px-5 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'history' }">
+            <button @click="activeTab = 'history'" class="tab-btn px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'history' }">
                 <i data-lucide="history" class="w-4 h-4 inline mr-1.5"></i>History
             </button>
         </div>
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-b-xl shadow-sm p-5">
-        <!-- Overview Tab -->
+        <!-- ======================= OVERVIEW TAB ======================= -->
         <div x-show="activeTab === 'overview'" class="tab-content" :class="{ 'active': activeTab === 'overview' }">
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 <!-- Main Info (2 cols) -->
                 <div class="lg:col-span-2 space-y-5">
-                    <!-- Job Card Details -->
-                    <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4">
-                        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">Job Card Details</h3>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm">
+                    <!-- Job Card Header Info -->
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-5 border border-blue-100 dark:border-blue-800/30">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div>
-                                <p class="text-gray-500 dark:text-gray-400 text-xs">WO Number</p>
-                                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.wo_number }}</p>
+                                <p class="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase tracking-wide">Work Order</p>
+                                <p class="text-lg font-bold text-gray-900 dark:text-white font-mono">{{ work_order.wo_number }}</p>
                             </div>
                             <div>
-                                <p class="text-gray-500 dark:text-gray-400 text-xs">DRSS#</p>
-                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.drss_no|default:"--" }}</p>
+                                <p class="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase tracking-wide">Serial Number</p>
+                                <p class="text-lg font-bold text-gray-900 dark:text-white font-mono">{% if work_order.drill_bit %}{{ work_order.drill_bit.serial_number }}{% else %}--{% endif %}</p>
                             </div>
                             <div>
-                                <p class="text-gray-500 dark:text-gray-400 text-xs">Brazing MAT#</p>
-                                <p class="font-medium text-gray-900 dark:text-white font-mono text-xs">{{ work_order.brazing_mat_no|default:"--" }}</p>
+                                <p class="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase tracking-wide">Account</p>
+                                <p class="text-lg font-bold text-indigo-600 dark:text-indigo-400">{% if work_order.account %}{{ work_order.account.code }}{% else %}--{% endif %}</p>
                             </div>
                             <div>
-                                <p class="text-gray-500 dark:text-gray-400 text-xs">System MAT#</p>
-                                <p class="font-medium text-gray-900 dark:text-white font-mono text-xs">{{ work_order.system_mat_no|default:"--" }}</p>
+                                <p class="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase tracking-wide">Priority</p>
+                                <span class="inline-flex items-center mt-1 px-2.5 py-1 rounded text-sm font-semibold
+                                    {% if work_order.priority == 'CRITICAL' %}bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300
+                                    {% elif work_order.priority == 'URGENT' %}bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300
+                                    {% elif work_order.priority == 'HIGH' %}bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300
+                                    {% else %}bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300{% endif %}">
+                                    {{ work_order.get_priority_display }}
+                                </span>
                             </div>
-                            <div>
-                                <p class="text-gray-500 dark:text-gray-400 text-xs">Contract#</p>
-                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.contract_no|default:"--" }}</p>
-                            </div>
-                            <div>
-                                <p class="text-gray-500 dark:text-gray-400 text-xs">PO Reference</p>
-                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.reference_po_no|default:"--" }}</p>
-                            </div>
-                            <div>
-                                <p class="text-gray-500 dark:text-gray-400 text-xs">From Location</p>
-                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.from_location_text|default:"--" }}</p>
-                            </div>
-                            <div>
-                                <p class="text-gray-500 dark:text-gray-400 text-xs">Bit Received</p>
-                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.bit_received_date|date:"M d, Y"|default:"--" }}</p>
-                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Details Grid -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">DRSS#</p>
+                            <p class="text-sm font-semibold text-gray-900 dark:text-white mt-0.5">{{ work_order.drss_no|default:"--" }}</p>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Contract#</p>
+                            <p class="text-sm font-semibold text-gray-900 dark:text-white mt-0.5">{{ work_order.contract_no|default:"--" }}</p>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">PO Reference</p>
+                            <p class="text-sm font-semibold text-gray-900 dark:text-white mt-0.5">{{ work_order.reference_po_no|default:"--" }}</p>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">From Location</p>
+                            <p class="text-sm font-semibold text-gray-900 dark:text-white mt-0.5">{{ work_order.from_location_text|default:"--" }}</p>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Bit Received</p>
+                            <p class="text-sm font-semibold text-gray-900 dark:text-white mt-0.5">{{ work_order.bit_received_date|date:"M d, Y"|default:"--" }}</p>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Due Date</p>
+                            <p class="text-sm font-semibold {% if work_order.is_overdue %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %} mt-0.5">
+                                {{ work_order.due_date|date:"M d, Y"|default:"--" }}
+                            </p>
                         </div>
                     </div>
 
@@ -222,13 +267,16 @@
                     {% if work_order.drill_bit %}
                     <div class="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-lg p-4">
                         <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Drill Bit</h3>
+                            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide flex items-center gap-2">
+                                <i data-lucide="disc" class="w-4 h-4 text-blue-500"></i>
+                                Drill Bit
+                            </h3>
                             <a href="{% url 'workorders:drillbit_detail_enhanced' work_order.drill_bit.pk %}"
                                class="text-blue-600 dark:text-blue-400 text-xs hover:underline flex items-center gap-1">
                                 View Details <i data-lucide="external-link" class="w-3 h-3"></i>
                             </a>
                         </div>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                             <div>
                                 <p class="text-gray-500 dark:text-gray-400 text-xs">Serial#</p>
                                 <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.serial_number }}</p>
@@ -242,28 +290,43 @@
                                 <p class="font-medium text-gray-900 dark:text-white">{% if work_order.drill_bit.design and work_order.drill_bit.design.size %}{{ work_order.drill_bit.design.size.size_display }}{% else %}--{% endif %}</p>
                             </div>
                             <div>
-                                <p class="text-gray-500 dark:text-gray-400 text-xs">Type</p>
-                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.drill_bit.get_bit_type_display }}</p>
+                                <p class="text-gray-500 dark:text-gray-400 text-xs">Repairs / Reruns</p>
+                                <p class="font-medium text-gray-900 dark:text-white">
+                                    <span class="{% if work_order.drill_bit.repair_count > 0 %}text-orange-600 dark:text-orange-400{% endif %}">{{ work_order.drill_bit.repair_count|default:0 }}</span>
+                                    /
+                                    <span class="{% if work_order.drill_bit.rerun_count_factory > 0 %}text-purple-600 dark:text-purple-400{% endif %}">{{ work_order.drill_bit.rerun_count_factory|default:0 }}</span>
+                                </p>
                             </div>
                         </div>
                     </div>
                     {% endif %}
 
-                    <!-- Description & Notes -->
-                    {% if work_order.description or work_order.notes %}
-                    <div class="space-y-3">
-                        {% if work_order.description %}
-                        <div>
-                            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1">Description</h3>
-                            <p class="text-sm text-gray-600 dark:text-gray-400">{{ work_order.description }}</p>
+                    <!-- MAT Numbers -->
+                    <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4">
+                        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3 flex items-center gap-2">
+                            <i data-lucide="hash" class="w-4 h-4 text-gray-500"></i>
+                            Material Numbers
+                        </h3>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400 text-xs">Brazing MAT#</p>
+                                <p class="font-mono font-medium text-gray-900 dark:text-white">{{ work_order.brazing_mat_no|default:"--" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 dark:text-gray-400 text-xs">System MAT#</p>
+                                <p class="font-mono font-medium text-gray-900 dark:text-white">{{ work_order.system_mat_no|default:"--" }}</p>
+                            </div>
                         </div>
-                        {% endif %}
-                        {% if work_order.notes %}
-                        <div>
-                            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1">Notes</h3>
-                            <p class="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ work_order.notes }}</p>
-                        </div>
-                        {% endif %}
+                    </div>
+
+                    <!-- Notes -->
+                    {% if work_order.notes %}
+                    <div class="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-lg p-4">
+                        <h3 class="text-sm font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide mb-2 flex items-center gap-2">
+                            <i data-lucide="sticky-note" class="w-4 h-4"></i>
+                            Notes
+                        </h3>
+                        <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ work_order.notes }}</p>
                     </div>
                     {% endif %}
                 </div>
@@ -272,57 +335,70 @@
                 <div class="space-y-4">
                     <!-- Signatures -->
                     <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4">
-                        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Signatures</h4>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between">
+                        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+                            <i data-lucide="pen-tool" class="w-4 h-4"></i>
+                            Signatures
+                        </h4>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between items-center">
                                 <span class="text-gray-500 dark:text-gray-400">Evaluated By</span>
-                                <span class="text-gray-900 dark:text-white">{{ work_order.evaluated_by.get_short_name|default:"--" }}</span>
+                                <span class="text-gray-900 dark:text-white font-medium">{{ work_order.evaluated_by.get_short_name|default:"--" }}</span>
                             </div>
-                            <div class="flex justify-between">
+                            <div class="flex justify-between items-center">
                                 <span class="text-gray-500 dark:text-gray-400">QC By</span>
-                                <span class="text-gray-900 dark:text-white">{{ work_order.qc_by.get_short_name|default:"--" }}</span>
+                                <span class="text-gray-900 dark:text-white font-medium">{{ work_order.qc_by.get_short_name|default:"--" }}</span>
                             </div>
-                            <div class="flex justify-between">
+                            <div class="flex justify-between items-center">
                                 <span class="text-gray-500 dark:text-gray-400">Eng. Review</span>
-                                <span class="text-gray-900 dark:text-white">{{ work_order.reviewed_by_eng.get_short_name|default:"--" }}</span>
+                                <span class="text-gray-900 dark:text-white font-medium">{{ work_order.reviewed_by_eng.get_short_name|default:"--" }}</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Assignment -->
                     <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4">
-                        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Assignment</h4>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between">
+                        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+                            <i data-lucide="user" class="w-4 h-4"></i>
+                            Assignment
+                        </h4>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between items-center">
                                 <span class="text-gray-500 dark:text-gray-400">Assigned To</span>
-                                <span class="text-gray-900 dark:text-white">{{ work_order.assigned_to.get_full_name|default:"Unassigned" }}</span>
+                                <span class="text-gray-900 dark:text-white font-medium">{{ work_order.assigned_to.get_full_name|default:"Unassigned" }}</span>
                             </div>
-                            <div class="flex justify-between">
+                            <div class="flex justify-between items-center">
                                 <span class="text-gray-500 dark:text-gray-400">Created By</span>
-                                <span class="text-gray-900 dark:text-white">{{ work_order.created_by.get_short_name|default:"--" }}</span>
+                                <span class="text-gray-900 dark:text-white font-medium">{{ work_order.created_by.get_short_name|default:"--" }}</span>
                             </div>
-                            <div class="flex justify-between">
+                            <div class="flex justify-between items-center">
                                 <span class="text-gray-500 dark:text-gray-400">Created</span>
-                                <span class="text-gray-900 dark:text-white">{{ work_order.created_at|date:"M d, Y" }}</span>
+                                <span class="text-gray-900 dark:text-white font-medium">{{ work_order.created_at|date:"M d, Y" }}</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Quick Links -->
+                    <!-- Quick Actions -->
                     <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4">
-                        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Quick Actions</h4>
+                        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+                            <i data-lucide="zap" class="w-4 h-4"></i>
+                            Quick Actions
+                        </h4>
                         <div class="space-y-2">
                             <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type=RECEIVING"
-                               class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                               class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors">
                                 <i data-lucide="grid-3x3" class="w-4 h-4"></i> Start Evaluation
                             </a>
                             <a href="{% url 'workorders:router_sheet' work_order.pk %}"
-                               class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                               class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors">
                                 <i data-lucide="route" class="w-4 h-4"></i> Open Router Sheet
                             </a>
                             <a href="{% url 'workorders:e_checklist' work_order.pk %}"
-                               class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                               class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors">
                                 <i data-lucide="clipboard-check" class="w-4 h-4"></i> E-Checklist
+                            </a>
+                            <a href="{% url 'workorders:lpt_report_create' work_order.pk %}"
+                               class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors">
+                                <i data-lucide="droplet" class="w-4 h-4"></i> Add LPT Report
                             </a>
                         </div>
                     </div>
@@ -330,62 +406,246 @@
             </div>
         </div>
 
-        <!-- Cutter Evaluation Tab -->
-        <div x-show="activeTab === 'evaluation'" x-cloak>
-            <div class="space-y-4">
+        <!-- ======================= RECEIVING TAB ======================= -->
+        <div x-show="activeTab === 'receiving'" x-cloak>
+            <div class="space-y-5">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Cutter Evaluation Matrices</h3>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="inbox" class="w-5 h-5 text-blue-500"></i>
+                        Receiving & Initial Checks
+                    </h3>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {% for eval in evaluations %}
-                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
-                        <div class="flex items-center justify-between mb-2">
-                            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ eval.type_label }}</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <!-- Receiving Evaluation -->
+                    <div class="eval-card bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 {% for eval in evaluations %}{% if eval.type_code == 'RECEIVING' %}{% if eval.exists %}{% if eval.evaluation.is_complete %}complete{% else %}in-progress{% endif %}{% else %}not-started{% endif %}{% endif %}{% endfor %}">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <i data-lucide="grid-3x3" class="w-5 h-5 text-blue-500"></i>
+                                Receiving Evaluation
+                            </h4>
+                            {% for eval in evaluations %}{% if eval.type_code == 'RECEIVING' %}
                             {% if eval.exists %}
                             <span class="text-xs px-2 py-0.5 rounded-full {% if eval.evaluation.is_complete %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400{% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
                                 {% if eval.evaluation.is_complete %}Complete{% else %}In Progress{% endif %}
                             </span>
+                            {% else %}
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">Not Started</span>
                             {% endif %}
+                            {% endif %}{% endfor %}
                         </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            Initial cutter evaluation when bit is received from field.
+                        </p>
+                        {% for eval in evaluations %}{% if eval.type_code == 'RECEIVING' %}
                         {% if eval.exists %}
-                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 space-y-0.5">
-                            {% if eval.evaluation.decision %}
-                            <p>Decision: <span class="font-medium text-gray-700 dark:text-gray-300">{{ eval.evaluation.get_decision_display }}</span></p>
-                            {% endif %}
-                            {% if eval.evaluation.evaluated_by %}
-                            <p>By: {{ eval.evaluation.evaluated_by.get_full_name|default:eval.evaluation.evaluated_by.username }}</p>
-                            {% endif %}
-                            {% if eval.evaluation.evaluated_at %}
-                            <p>Date: {{ eval.evaluation.evaluated_at|date:"M d, Y" }}</p>
-                            {% endif %}
-                            <p>Entries: {{ eval.evaluation.entries.count }}</p>
-                        </div>
                         <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk eval.evaluation.pk %}"
-                           class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                            <i data-lucide="pencil" class="w-3.5 h-3.5 mr-1"></i>Edit
+                           class="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 text-sm font-medium transition-colors">
+                            <i data-lucide="pencil" class="w-4 h-4 mr-1.5"></i>Edit Evaluation
                         </a>
                         {% else %}
-                        <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">Not started</p>
-                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type={{ eval.type_code }}"
-                           class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                            <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>Start
+                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type=RECEIVING"
+                           class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors">
+                            <i data-lucide="plus" class="w-4 h-4 mr-1.5"></i>Start Evaluation
                         </a>
                         {% endif %}
+                        {% endif %}{% endfor %}
                     </div>
-                    {% endfor %}
+
+                    <!-- E-Checklist -->
+                    <div class="eval-card bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 {% if e_checklist %}{% if e_checklist.overall_pass == 'PASS' %}complete{% else %}in-progress{% endif %}{% else %}not-started{% endif %}">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <i data-lucide="clipboard-check" class="w-5 h-5 text-green-500"></i>
+                                E-Checklist
+                            </h4>
+                            {% if e_checklist %}
+                            <span class="text-xs px-2 py-0.5 rounded-full
+                                {% if e_checklist.overall_pass == 'PASS' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                                {% elif e_checklist.overall_pass == 'FAIL' %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400
+                                {% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
+                                {% if e_checklist.overall_pass == 'PASS' %}PASS{% elif e_checklist.overall_pass == 'FAIL' %}FAIL{% else %}Pending{% endif %}
+                            </span>
+                            {% else %}
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">Not Started</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            Pre-work checklist verifying bit condition and requirements.
+                        </p>
+                        <a href="{% url 'workorders:e_checklist' work_order.pk %}"
+                           class="inline-flex items-center px-3 py-1.5 {% if e_checklist %}bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400{% else %}bg-blue-600 text-white{% endif %} rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 text-sm font-medium transition-colors">
+                            <i data-lucide="{% if e_checklist %}pencil{% else %}plus{% endif %}" class="w-4 h-4 mr-1.5"></i>
+                            {% if e_checklist %}Edit Checklist{% else %}Start Checklist{% endif %}
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Aramco-specific: Eval & Quotation -->
+                {% if work_order.account and work_order.account.code == 'ARAMCO' %}
+                <div class="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-lg p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 dark:text-amber-400"></i>
+                        <h4 class="font-semibold text-amber-800 dark:text-amber-300">ARAMCO Contract</h4>
+                    </div>
+                    <p class="text-sm text-amber-700 dark:text-amber-300 mb-3">
+                        This work order requires API Thread Inspection and special quotation form.
+                    </p>
+                    <div class="flex gap-2">
+                        <a href="{% url 'workorders:api_thread_create' work_order.pk %}"
+                           class="inline-flex items-center px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium transition-colors">
+                            <i data-lucide="circle-dot" class="w-4 h-4 mr-1.5"></i>API Thread Inspection
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ======================= EVALUATIONS TAB ======================= -->
+        <div x-show="activeTab === 'evaluation'" x-cloak>
+            <div class="space-y-5">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="grid-3x3" class="w-5 h-5 text-purple-500"></i>
+                        Cutter Evaluation Matrices
+                    </h3>
+                </div>
+
+                <!-- Evaluation Flow Explanation -->
+                <div class="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-lg p-4">
+                    <p class="text-sm text-blue-700 dark:text-blue-300">
+                        <strong>Evaluation Flow:</strong> Receiving → ARDT → Engineer (Tech Rep) → QC → Die Check → Final Inspections
+                    </p>
+                </div>
+
+                <!-- Group: Initial Evaluations -->
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Initial Evaluations</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {% for eval in evaluations %}
+                        {% if eval.type_code == 'RECEIVING' or eval.type_code == 'ARDT' or eval.type_code == 'ENGINEER' %}
+                        <div class="eval-card bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-colors {% if eval.exists %}{% if eval.evaluation.is_complete %}complete{% else %}in-progress{% endif %}{% else %}not-started{% endif %}">
+                            <div class="flex items-center justify-between mb-2">
+                                <h5 class="text-sm font-semibold text-gray-900 dark:text-white">{{ eval.type_label }}</h5>
+                                {% if eval.exists %}
+                                <span class="text-xs px-2 py-0.5 rounded-full {% if eval.evaluation.is_complete %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400{% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
+                                    {% if eval.evaluation.is_complete %}Complete{% else %}In Progress{% endif %}
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% if eval.exists %}
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 space-y-0.5">
+                                {% if eval.evaluation.decision %}
+                                <p>Decision: <span class="font-medium text-gray-700 dark:text-gray-300">{{ eval.evaluation.get_decision_display }}</span></p>
+                                {% endif %}
+                                {% if eval.evaluation.evaluated_by %}
+                                <p>By: {{ eval.evaluation.evaluated_by.get_full_name|default:eval.evaluation.evaluated_by.username }}</p>
+                                {% endif %}
+                                <p>Entries: {{ eval.evaluation.entries.count }}</p>
+                            </div>
+                            <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk eval.evaluation.pk %}"
+                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                <i data-lucide="pencil" class="w-3.5 h-3.5 mr-1"></i>Edit
+                            </a>
+                            {% else %}
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">Not started</p>
+                            <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type={{ eval.type_code }}"
+                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>Start
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Group: QC & Die Checks -->
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Quality Control</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {% for eval in evaluations %}
+                        {% if eval.type_code == 'QC' or eval.type_code == 'DIE_CHECK' or eval.type_code == 'FINAL_DIE_CHECK' %}
+                        <div class="eval-card bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-colors {% if eval.exists %}{% if eval.evaluation.is_complete %}complete{% else %}in-progress{% endif %}{% else %}not-started{% endif %}">
+                            <div class="flex items-center justify-between mb-2">
+                                <h5 class="text-sm font-semibold text-gray-900 dark:text-white">{{ eval.type_label }}</h5>
+                                {% if eval.exists %}
+                                <span class="text-xs px-2 py-0.5 rounded-full {% if eval.evaluation.is_complete %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400{% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
+                                    {% if eval.evaluation.is_complete %}Complete{% else %}In Progress{% endif %}
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% if eval.exists %}
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                <p>Entries: {{ eval.evaluation.entries.count }}</p>
+                            </div>
+                            <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk eval.evaluation.pk %}"
+                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                <i data-lucide="pencil" class="w-3.5 h-3.5 mr-1"></i>Edit
+                            </a>
+                            {% else %}
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">Not started</p>
+                            <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type={{ eval.type_code }}"
+                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>Start
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Group: Final Inspections -->
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Final Inspections</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {% for eval in evaluations %}
+                        {% if eval.type_code == 'FINAL_QC' or eval.type_code == 'FINAL_INSPECTION' or eval.type_code == 'REWORK' %}
+                        <div class="eval-card bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-colors {% if eval.exists %}{% if eval.evaluation.is_complete %}complete{% else %}in-progress{% endif %}{% else %}not-started{% endif %}">
+                            <div class="flex items-center justify-between mb-2">
+                                <h5 class="text-sm font-semibold text-gray-900 dark:text-white">{{ eval.type_label }}</h5>
+                                {% if eval.exists %}
+                                <span class="text-xs px-2 py-0.5 rounded-full {% if eval.evaluation.is_complete %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400{% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% endif %}">
+                                    {% if eval.evaluation.is_complete %}Complete{% else %}In Progress{% endif %}
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% if eval.exists %}
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                <p>Entries: {{ eval.evaluation.entries.count }}</p>
+                            </div>
+                            <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk eval.evaluation.pk %}"
+                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                <i data-lucide="pencil" class="w-3.5 h-3.5 mr-1"></i>Edit
+                            </a>
+                            {% else %}
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">Not started</p>
+                            <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type={{ eval.type_code }}"
+                               class="inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>Start
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Router Sheet Tab -->
+        <!-- ======================= ROUTER SHEET TAB ======================= -->
         <div x-show="activeTab === 'router'" x-cloak>
             <div class="space-y-4">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Router Sheet Steps</h3>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="route" class="w-5 h-5 text-green-500"></i>
+                        Router Sheet Steps
+                    </h3>
                     <a href="{% url 'workorders:router_sheet' work_order.pk %}"
-                       class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors">
-                        <i data-lucide="scan-line" class="w-4 h-4 mr-1.5"></i>Open Scanner
+                       class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors">
+                        <i data-lucide="scan-line" class="w-4 h-4 mr-1.5"></i>Open QR Scanner
                     </a>
                 </div>
 
@@ -394,25 +654,25 @@
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
-                                <th class="px-3 py-2 font-medium w-12">#</th>
-                                <th class="px-3 py-2 font-medium">Step</th>
-                                <th class="px-3 py-2 font-medium">Operator</th>
-                                <th class="px-3 py-2 font-medium">Start</th>
-                                <th class="px-3 py-2 font-medium">End</th>
-                                <th class="px-3 py-2 font-medium">Duration</th>
-                                <th class="px-3 py-2 font-medium">Status</th>
+                                <th class="px-3 py-2.5 font-medium w-12">#</th>
+                                <th class="px-3 py-2.5 font-medium">Step</th>
+                                <th class="px-3 py-2.5 font-medium">Operator</th>
+                                <th class="px-3 py-2.5 font-medium">Start</th>
+                                <th class="px-3 py-2.5 font-medium">End</th>
+                                <th class="px-3 py-2.5 font-medium">Duration</th>
+                                <th class="px-3 py-2.5 font-medium">Status</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                             {% for entry in router_entries %}
-                            <tr class="{% if entry.is_complete %}bg-green-50/50 dark:bg-green-900/10{% endif %}">
-                                <td class="px-3 py-2 font-medium text-gray-500">{{ entry.step_number }}</td>
-                                <td class="px-3 py-2 text-gray-900 dark:text-white">{{ entry.step_description }}</td>
-                                <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ entry.operator.get_short_name|default:"--" }}</td>
-                                <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ entry.qr_scan_start|date:"M d H:i"|default:"--" }}</td>
-                                <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ entry.qr_scan_end|date:"M d H:i"|default:"--" }}</td>
-                                <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{% if entry.duration_minutes %}{{ entry.duration_minutes }}m{% else %}--{% endif %}</td>
-                                <td class="px-3 py-2">
+                            <tr class="{% if entry.is_complete %}bg-green-50/50 dark:bg-green-900/10{% elif entry.qr_scan_start %}bg-yellow-50/50 dark:bg-yellow-900/10{% endif %}">
+                                <td class="px-3 py-2.5 font-medium text-gray-500">{{ entry.step_number }}</td>
+                                <td class="px-3 py-2.5 text-gray-900 dark:text-white">{{ entry.step_description }}</td>
+                                <td class="px-3 py-2.5 text-gray-600 dark:text-gray-400">{{ entry.operator.get_short_name|default:"--" }}</td>
+                                <td class="px-3 py-2.5 text-gray-600 dark:text-gray-400">{{ entry.qr_scan_start|date:"M d H:i"|default:"--" }}</td>
+                                <td class="px-3 py-2.5 text-gray-600 dark:text-gray-400">{{ entry.qr_scan_end|date:"M d H:i"|default:"--" }}</td>
+                                <td class="px-3 py-2.5 text-gray-600 dark:text-gray-400">{% if entry.duration_minutes %}{{ entry.duration_minutes }}m{% else %}--{% endif %}</td>
+                                <td class="px-3 py-2.5">
                                     {% if entry.is_complete %}
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
                                         <i data-lucide="check" class="w-3 h-3 mr-1"></i>Done
@@ -432,6 +692,22 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Progress Summary -->
+                {% with done_count=0 total=router_entries|length %}
+                <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-600 dark:text-gray-400">Progress</span>
+                        <span class="text-sm font-semibold text-gray-900 dark:text-white">
+                            {% for entry in router_entries %}{% if entry.is_complete %}{% with done=forloop.counter %}{% endwith %}{% endif %}{% endfor %}
+                            {{ router_entries|length }} steps
+                        </span>
+                    </div>
+                    <div class="mt-2 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                        <div class="h-full bg-green-500 rounded-full" style="width: 0%"></div>
+                    </div>
+                </div>
+                {% endwith %}
                 {% else %}
                 <div class="text-center py-8">
                     <i data-lucide="route" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3"></i>
@@ -442,10 +718,13 @@
             </div>
         </div>
 
-        <!-- QC Forms Tab -->
+        <!-- ======================= QC & INSPECTION TAB ======================= -->
         <div x-show="activeTab === 'qc'" x-cloak>
             <div class="space-y-5">
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Quality Control Forms</h3>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="clipboard-check" class="w-5 h-5 text-purple-500"></i>
+                    Quality Control & Inspection
+                </h3>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <!-- E-Checklist -->
@@ -497,7 +776,7 @@
                             <i data-lucide="scan" class="w-5 h-5 text-green-600 dark:text-green-400 mr-2"></i>
                             <h4 class="font-medium text-gray-900 dark:text-white text-sm">Die Check</h4>
                         </div>
-                        <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">Coming soon</p>
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">Via Evaluation tab</p>
                     </div>
                 </div>
 
@@ -538,13 +817,49 @@
                     </div>
                 </div>
                 {% endif %}
+
+                <!-- API Thread Inspections List -->
+                {% if api_inspections %}
+                <div>
+                    <h4 class="font-medium text-gray-900 dark:text-white mb-3 text-sm">API Thread Inspections</h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                                    <th class="px-3 py-2 font-medium">Inspector</th>
+                                    <th class="px-3 py-2 font-medium">Date</th>
+                                    <th class="px-3 py-2 font-medium">Result</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for inspection in api_inspections %}
+                                <tr>
+                                    <td class="px-3 py-2 text-gray-900 dark:text-white">{{ inspection.inspector.get_short_name|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ inspection.inspection_date|date:"M d, Y" }}</td>
+                                    <td class="px-3 py-2">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                            {% if inspection.result == 'PASS' %}bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300
+                                            {% else %}bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300{% endif %}">
+                                            {{ inspection.get_result_display|default:inspection.result }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
 
-        <!-- Instructions Tab -->
+        <!-- ======================= INSTRUCTIONS TAB ======================= -->
         <div x-show="activeTab === 'instructions'" x-cloak>
             <div class="space-y-4">
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Applicable Instructions</h3>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="book-text" class="w-5 h-5 text-amber-500"></i>
+                    Applicable Instructions
+                </h3>
 
                 {% if instructions %}
                 <div class="space-y-3">
@@ -572,10 +887,13 @@
             </div>
         </div>
 
-        <!-- History Tab -->
+        <!-- ======================= HISTORY TAB ======================= -->
         <div x-show="activeTab === 'history'" x-cloak>
             <div class="space-y-4">
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Status History</h3>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="history" class="w-5 h-5 text-gray-500"></i>
+                    Status History
+                </h3>
 
                 {% if status_history %}
                 <div class="relative">
