@@ -1387,7 +1387,7 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
             'drill_bit', 'drill_bit__design', 'account', 'customer',
             'brazing_bom', 'system_bom', 'assigned_to'
         ).prefetch_related(
-            'router_sheet_entries'
+            'router_entries'
         ).order_by('-created_at')
 
         # Apply account filter
@@ -1408,7 +1408,7 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
         wip_data = []
         for wo in work_orders:
             # Get router sheet progress
-            router_entries = wo.router_sheet_entries.all().order_by('step_number')
+            router_entries = wo.router_entries.all().order_by('step_number')
             total_steps = router_entries.count()
             completed_steps = router_entries.filter(
                 qr_scan_end__isnull=False
@@ -1544,11 +1544,11 @@ def api_production_wip_status(request):
 
     work_orders = WorkOrder.objects.filter(
         status__in=wip_statuses
-    ).select_related('drill_bit', 'account').prefetch_related('router_sheet_entries')
+    ).select_related('drill_bit', 'account').prefetch_related('router_entries')
 
     data = []
     for wo in work_orders:
-        router_entries = wo.router_sheet_entries.all()
+        router_entries = wo.router_entries.all()
         total = router_entries.count()
         completed = router_entries.filter(qr_scan_end__isnull=False).count()
         current = router_entries.filter(
