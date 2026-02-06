@@ -1303,3 +1303,288 @@ def export_work_orders_excel(request):
 
     wb.save(response)
     return response
+
+
+# =============================================================================
+# PRODUCTION PLANNER - WIP Dashboard with Real-time Updates
+# =============================================================================
+
+class ProductionPlannerView(LoginRequiredMixin, TemplateView):
+    """
+    Production Planner Dashboard - Excel BITS TRACKING style WIP view.
+    Shows work-in-progress bits grouped by account with real-time process status
+    and estimated completion times.
+    """
+    template_name = "workorders/production_planner.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.sales.models import Account
+
+        # Get all active accounts
+        accounts = Account.objects.filter(is_active=True).order_by('sort_order', 'code')
+
+        # Get filter parameters
+        account_filter = self.request.GET.get('account')
+        status_filter = self.request.GET.get('status', 'wip')  # wip, completed, all
+
+        # Build WIP queryset - work orders in progress
+        wip_statuses = [
+            WorkOrder.Status.RELEASED,
+            WorkOrder.Status.IN_PROGRESS,
+            WorkOrder.Status.QC_PENDING,
+        ]
+
+        completed_statuses = [
+            WorkOrder.Status.QC_PASSED,
+            WorkOrder.Status.COMPLETED,
+        ]
+
+        # Base queryset with all required relations
+        base_qs = WorkOrder.objects.select_related(
+            'drill_bit', 'drill_bit__design', 'account', 'customer',
+            'brazing_bom', 'system_bom', 'assigned_to'
+        ).prefetch_related(
+            'router_sheet_entries'
+        ).order_by('-created_at')
+
+        # Apply account filter
+        if account_filter:
+            base_qs = base_qs.filter(account__code=account_filter)
+
+        # Apply status filter
+        if status_filter == 'wip':
+            work_orders = base_qs.filter(status__in=wip_statuses)
+        elif status_filter == 'completed':
+            work_orders = base_qs.filter(status__in=completed_statuses)
+        else:  # all
+            work_orders = base_qs.exclude(status__in=[WorkOrder.Status.DRAFT, WorkOrder.Status.CANCELLED])
+
+        # Build WIP data with process step tracking
+        wip_data = []
+        for wo in work_orders:
+            # Get router sheet progress
+            router_entries = wo.router_sheet_entries.all().order_by('step_number')
+            total_steps = router_entries.count()
+            completed_steps = router_entries.filter(
+                qr_scan_end__isnull=False
+            ).count()
+            current_step = router_entries.filter(
+                qr_scan_start__isnull=False,
+                qr_scan_end__isnull=True
+            ).first()
+
+            # Calculate progress percentage
+            progress = int((completed_steps / total_steps * 100)) if total_steps > 0 else 0
+
+            # Estimate completion based on remaining steps and average duration
+            estimated_completion = None
+            if current_step and wo.drill_bit and wo.drill_bit.design:
+                # Get process route for this design/account
+                route = ProcessRoute.objects.filter(
+                    accounts=wo.account,
+                    workflow_type=wo.account.workflow_type if wo.account else ProcessRoute.WorkflowType.REPAIR
+                ).first()
+                if route and route.estimated_duration_hours:
+                    remaining_hours = route.estimated_duration_hours * (1 - progress / 100)
+                    estimated_completion = timezone.now() + timedelta(hours=remaining_hours)
+
+            # Get step status for key process steps (matching Excel columns)
+            step_status = {}
+            key_steps = [
+                ('buildup', 'Build Up'),
+                ('braze', 'Braze'),
+                ('grinding', 'Final grinding'),
+                ('tip_grinding', 'Tip Grinding'),
+                ('qc', '1st check'),
+                ('thread_clean', 'Thread Cleaning'),
+                ('body_clean', 'Body Cleaning'),
+                ('usr', 'USR'),
+                ('final', 'Final Inspection'),
+            ]
+            for step_key, step_name in key_steps:
+                # Find matching router entry
+                entry = router_entries.filter(
+                    Q(step_name__icontains=step_name) |
+                    Q(step_name__icontains=step_key)
+                ).first()
+                if entry:
+                    if entry.qr_scan_end:
+                        step_status[step_key] = 'done'
+                    elif entry.qr_scan_start:
+                        step_status[step_key] = 'active'
+                    else:
+                        step_status[step_key] = 'pending'
+                else:
+                    step_status[step_key] = 'na'
+
+            wip_data.append({
+                'wo': wo,
+                'serial': wo.drill_bit.serial_number if wo.drill_bit else '-',
+                'size': wo.drill_bit.size if wo.drill_bit else '-',
+                'type': wo.drill_bit.design.hdbs_type if wo.drill_bit and wo.drill_bit.design else '-',
+                'mat_no': wo.brazing_mat_no or wo.system_mat_no or '-',
+                'received_date': wo.actual_start.date() if wo.actual_start else (wo.created_at.date() if wo.created_at else None),
+                'account': wo.account.code if wo.account else '-',
+                'status': wo.get_status_display(),
+                'progress': progress,
+                'current_step': current_step.step_name if current_step else None,
+                'estimated_completion': estimated_completion,
+                'step_status': step_status,
+                'completed_steps': completed_steps,
+                'total_steps': total_steps,
+            })
+
+        # Group by account for the tabs
+        wip_by_account = {}
+        for item in wip_data:
+            acct = item['account']
+            if acct not in wip_by_account:
+                wip_by_account[acct] = []
+            wip_by_account[acct].append(item)
+
+        # Summary statistics
+        context['accounts'] = accounts
+        context['wip_data'] = wip_data
+        context['wip_by_account'] = wip_by_account
+        context['total_wip'] = len([w for w in wip_data if w['wo'].status in [s.value for s in wip_statuses]])
+        context['completed_today'] = WorkOrder.objects.filter(
+            status=WorkOrder.Status.COMPLETED,
+            actual_end__date=timezone.now().date()
+        ).count()
+
+        # Filter state
+        context['current_account'] = account_filter
+        context['current_status'] = status_filter
+
+        # Account summaries for quick stats
+        account_summary = []
+        for acct in accounts:
+            count = WorkOrder.objects.filter(
+                account=acct,
+                status__in=wip_statuses
+            ).count()
+            if count > 0:
+                account_summary.append({
+                    'code': acct.code,
+                    'name': acct.name,
+                    'wip_count': count,
+                })
+        context['account_summary'] = account_summary
+
+        context['page_title'] = 'Production Planner'
+        return context
+
+
+@login_required
+def api_production_wip_status(request):
+    """
+    API endpoint for real-time WIP status updates.
+    Returns JSON with current WIP counts and active step for each work order.
+    Used for polling/WebSocket updates.
+    """
+    wip_statuses = [
+        WorkOrder.Status.RELEASED,
+        WorkOrder.Status.IN_PROGRESS,
+        WorkOrder.Status.QC_PENDING,
+    ]
+
+    work_orders = WorkOrder.objects.filter(
+        status__in=wip_statuses
+    ).select_related('drill_bit', 'account').prefetch_related('router_sheet_entries')
+
+    data = []
+    for wo in work_orders:
+        router_entries = wo.router_sheet_entries.all()
+        total = router_entries.count()
+        completed = router_entries.filter(qr_scan_end__isnull=False).count()
+        current = router_entries.filter(
+            qr_scan_start__isnull=False,
+            qr_scan_end__isnull=True
+        ).first()
+
+        data.append({
+            'wo_id': wo.pk,
+            'wo_number': wo.wo_number,
+            'serial': wo.drill_bit.serial_number if wo.drill_bit else None,
+            'account': wo.account.code if wo.account else None,
+            'status': wo.status,
+            'progress': int((completed / total * 100)) if total > 0 else 0,
+            'current_step': current.step_name if current else None,
+            'completed_steps': completed,
+            'total_steps': total,
+        })
+
+    return JsonResponse({'wip': data, 'timestamp': timezone.now().isoformat()})
+
+
+class ProductionPlannerCreateWOView(LoginRequiredMixin, TemplateView):
+    """
+    Quick Work Order creation from Production Planner.
+    Lookup by serial number to auto-populate account, design level (L3/L4).
+    """
+    template_name = "workorders/production_planner_create_wo.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.sales.models import Account
+
+        context['accounts'] = Account.objects.filter(is_active=True).order_by('sort_order', 'code')
+        context['page_title'] = 'Create Work Order from Planner'
+        return context
+
+    def post(self, request, *args, **kwargs):
+        from apps.sales.models import Account
+
+        serial_number = request.POST.get('serial_number', '').strip()
+        account_code = request.POST.get('account')
+
+        # Lookup existing drill bit
+        drill_bit = DrillBit.objects.filter(serial_number=serial_number).first()
+
+        if drill_bit:
+            # Drill bit exists - use its account (first time) or provided account
+            account = drill_bit.account
+            if not account and account_code:
+                account = Account.objects.filter(code=account_code).first()
+                # Set account on drill bit for first time
+                if account:
+                    drill_bit.account = account
+                    drill_bit.save(update_fields=['account'])
+        else:
+            # New drill bit - require account
+            if not account_code:
+                messages.error(request, 'Account is required for new drill bits.')
+                return redirect('workorders:production_planner_create_wo')
+            account = Account.objects.filter(code=account_code).first()
+
+        if not account:
+            messages.error(request, 'Invalid account selected.')
+            return redirect('workorders:production_planner_create_wo')
+
+        # Determine WO type based on design level and workflow
+        wo_type = WorkOrder.WOType.FC_REPAIR
+        if account.workflow_type == 'MANUFACTURE':
+            if drill_bit and drill_bit.design:
+                level = getattr(drill_bit.design, 'level', 'L3')
+                if level == 'L4':
+                    wo_type = WorkOrder.WOType.FC_REWORK
+                else:
+                    wo_type = WorkOrder.WOType.FC_NEW
+
+        # Generate WO number
+        wo_number = account.generate_wo_number()
+
+        # Create work order
+        wo = WorkOrder.objects.create(
+            wo_number=wo_number,
+            wo_type=wo_type,
+            drill_bit=drill_bit,
+            design=drill_bit.design if drill_bit else None,
+            account=account,
+            status=WorkOrder.Status.DRAFT,
+            created_by=request.user,
+        )
+
+        messages.success(request, f'Work Order {wo_number} created successfully.')
+        return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)

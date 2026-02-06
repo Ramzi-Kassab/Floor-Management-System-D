@@ -18,6 +18,11 @@ urlpatterns = [
     # Dashboard
     path("dashboard/", views_jobcard.WorkOrderDashboardView.as_view(), name="dashboard"),
 
+    # Production Planner (WIP Dashboard)
+    path("production-planner/", views_jobcard.ProductionPlannerView.as_view(), name="production_planner"),
+    path("production-planner/create-wo/", views_jobcard.ProductionPlannerCreateWOView.as_view(), name="production_planner_create_wo"),
+    path("api/production-wip-status/", views_jobcard.api_production_wip_status, name="api_production_wip_status"),
+
     # Enhanced Work Order List & Detail
     path("enhanced/", views_jobcard.WorkOrderListEnhancedView.as_view(), name="workorder_list_enhanced"),
     path("enhanced/<int:pk>/", views_jobcard.WorkOrderDetailEnhancedView.as_view(), name="workorder_detail_enhanced"),

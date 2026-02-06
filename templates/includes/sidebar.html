@@ -142,8 +142,11 @@
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('production') ? 'rotate-180' : ''"></i>
             </button>
             <div x-show="isOpen('production') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
-                <a href="{% url 'workorders:dashboard' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-orange-600 dark:text-orange-400 font-medium hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="layout-dashboard" class="w-4 h-4 mr-2 text-orange-500"></i><span class="truncate">Dashboard</span>
+                <a href="{% url 'workorders:production_planner' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-orange-600 dark:text-orange-400 font-medium hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="calendar-range" class="w-4 h-4 mr-2 text-orange-500"></i><span class="truncate">Production Planner</span>
+                </a>
+                <a href="{% url 'workorders:dashboard' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4 mr-2 text-orange-400"></i><span class="truncate">Dashboard</span>
                 </a>
                 <a href="{% url 'workorders:workorder_list_enhanced' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                     <i data-lucide="clipboard-list" class="w-4 h-4 mr-2 text-orange-400"></i><span class="truncate">Work Orders</span>
@@ -211,29 +214,6 @@
                         </a>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- FC PRODUCTION -->
-        <div class="space-y-0.5">
-            <button @click="toggle('fc_prod')"
-                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <div class="flex items-center min-w-0">
-                    <i data-lucide="disc-3" class="w-5 h-5 flex-shrink-0 text-amber-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">FC Production</span>
-                </div>
-                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('fc_prod') ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="isOpen('fc_prod') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
-                <a href="{% url 'workorders:workorder_list_enhanced' %}?type=FC" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="clipboard-list" class="w-4 h-4 mr-2 text-amber-400"></i><span class="truncate">FC Work Orders</span>
-                </a>
-                <a href="{% url 'workorders:drillbit_list' %}?type=FC" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="disc" class="w-4 h-4 mr-2 text-amber-400"></i><span class="truncate">FC Drill Bits</span>
-                </a>
-                <a href="{% url 'execution:list' %}?type=FC" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <i data-lucide="play-circle" class="w-4 h-4 mr-2 text-amber-400"></i><span class="truncate">FC WIP</span>
-                </a>
             </div>
         </div>
 
@@ -652,13 +632,13 @@
             </div>
         </div>
 
-        <!-- Planning -->
+        <!-- Project Management (Kanban/Wiki) -->
         <div class="space-y-0.5">
             <button @click="toggle('planning')"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center min-w-0">
                     <i data-lucide="kanban" class="w-5 h-5 flex-shrink-0 text-teal-500"></i>
-                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Planning</span>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Project Mgmt</span>
                 </div>
                 <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('planning') ? 'rotate-180' : ''"></i>
             </button>
