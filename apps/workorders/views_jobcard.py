@@ -1329,8 +1329,9 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
         account_filter = self.request.GET.get('account')
         status_filter = self.request.GET.get('status', 'planned')  # planned, wip, completed, all
 
-        # Build WIP queryset - work orders in progress
+        # Build WIP queryset - work orders in progress (includes DRAFT since they come from planner)
         wip_statuses = [
+            WorkOrder.Status.DRAFT,
             WorkOrder.Status.RELEASED,
             WorkOrder.Status.IN_PROGRESS,
             WorkOrder.Status.QC_PENDING,
@@ -1402,7 +1403,7 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
         elif status_filter == 'planned':
             work_orders = WorkOrder.objects.none()  # No WOs for planned view
         else:  # all
-            work_orders = base_qs.exclude(status__in=[WorkOrder.Status.DRAFT, WorkOrder.Status.CANCELLED])
+            work_orders = base_qs.exclude(status=WorkOrder.Status.CANCELLED)
 
         # Build WIP data with process step tracking
         wip_data = []

@@ -1278,7 +1278,7 @@ def api_drillbit_list(request):
     Returns JSON array of drill bits with key fields for selection.
     """
     bits = DrillBit.objects.select_related(
-        "design", "design__size", "account", "brazing_bom", "system_bom", "bom"
+        "design", "design__size", "account", "brazing_bom", "system_bom", "bom", "bit_size_ref"
     ).order_by("-created_at")[:500]  # Limit to 500 most recent
 
     result = []
@@ -1293,12 +1293,12 @@ def api_drillbit_list(request):
         if bit.design and bit.design.hdbs_type:
             hdbs_type = bit.design.hdbs_type
 
-        # Determine size
+        # Determine size - get display value from BitSize model
         size = ""
         if bit.bit_size_ref:
-            size = str(bit.bit_size_ref)
+            size = bit.bit_size_ref.size_display or bit.bit_size_ref.size_inches or str(bit.bit_size_ref.size_decimal)
         elif bit.design and bit.design.size:
-            size = str(bit.design.size)
+            size = bit.design.size.size_display or bit.design.size.size_inches or str(bit.design.size.size_decimal)
 
         # Determine bit state (Component, Finished Good, Used)
         bit_state = "Unknown"
@@ -1313,8 +1313,8 @@ def api_drillbit_list(request):
             }
             bit_state = status_map.get(bit.status, bit.get_status_display() if hasattr(bit, "get_status_display") else "Unknown")
 
-        # Rerun count
-        rerun_count = getattr(bit, "rerun_count_factory", 0) + getattr(bit, "rerun_count_field", 0)
+        # Rerun count (factory + field)
+        rerun_count = (bit.rerun_count_factory or 0) + (bit.rerun_count_field or 0)
 
         result.append({
             "serial_number": bit.serial_number,
