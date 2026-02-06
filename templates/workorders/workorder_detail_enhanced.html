@@ -40,10 +40,10 @@
                 {% if work_order.drill_bit %}
                 <div class="flex items-center gap-3 mt-1 text-sm">
                     <span class="font-mono text-gray-900 dark:text-white">S/N: {{ work_order.drill_bit.serial_number }}</span>
-                    {% if work_order.drill_bit.design.size %}
+                    {% if work_order.drill_bit.design and work_order.drill_bit.design.size %}
                     <span class="text-gray-500 dark:text-gray-400">{{ work_order.drill_bit.design.size.size_display }}</span>
                     {% endif %}
-                    {% if work_order.drill_bit.design.hdbs_type %}
+                    {% if work_order.drill_bit.design and work_order.drill_bit.design.hdbs_type %}
                     <span class="text-gray-500 dark:text-gray-400">{{ work_order.drill_bit.design.hdbs_type }}</span>
                     {% endif %}
                 </div>
@@ -235,11 +235,11 @@
                             </div>
                             <div>
                                 <p class="text-gray-500 dark:text-gray-400 text-xs">Design MAT</p>
-                                <p class="font-medium text-gray-900 dark:text-white font-mono text-xs">{{ work_order.drill_bit.design.mat_no|default:"--" }}</p>
+                                <p class="font-medium text-gray-900 dark:text-white font-mono text-xs">{% if work_order.drill_bit.design %}{{ work_order.drill_bit.design.mat_no|default:"--" }}{% else %}--{% endif %}</p>
                             </div>
                             <div>
                                 <p class="text-gray-500 dark:text-gray-400 text-xs">Size</p>
-                                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.drill_bit.design.size.size_display|default:"--" }}</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{% if work_order.drill_bit.design and work_order.drill_bit.design.size %}{{ work_order.drill_bit.design.size.size_display }}{% else %}--{% endif %}</p>
                             </div>
                             <div>
                                 <p class="text-gray-500 dark:text-gray-400 text-xs">Type</p>

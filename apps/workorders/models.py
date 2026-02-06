@@ -2366,14 +2366,14 @@ class ProductionPlanEntry(models.Model):
             from django.utils import timezone
             wo_number = f"WO-{timezone.now().strftime('%Y%m%d%H%M%S')}"
 
-        # Create the work order
+        # Create the work order with RELEASED status (ready to start)
         work_order = WorkOrder.objects.create(
             wo_number=wo_number,
             wo_type=wo_type,
             drill_bit=self.drill_bit,
             design=self.drill_bit.design,
             account=self.account or self.drill_bit.account,
-            status=WorkOrder.Status.DRAFT,
+            status=WorkOrder.Status.RELEASED,
             priority=self.priority,
             planned_start=self.planned_date,
             created_by=user,

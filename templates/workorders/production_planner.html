@@ -642,7 +642,7 @@
                             class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                         <option value="">Select Account...</option>
                         {% for acct in accounts %}
-                        <option value="{{ acct.code }}">{{ acct.code }}{% if acct.name %} - {{ acct.name }}{% endif %}</option>
+                        <option value="{{ acct.code }}">{{ acct.code }}</option>
                         {% endfor %}
                     </select>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Account determines WO numbering and workflow</p>
@@ -697,6 +697,52 @@
                             <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Adding...
                         </span>
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WO Created Success Modal -->
+    <div x-show="showWoSuccessModal" x-cloak
+         class="fixed inset-0 z-[100] overflow-y-auto"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80" @click="showWoSuccessModal = false; window.location.reload();"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100">
+
+                <!-- Success Icon -->
+                <div class="flex justify-center mb-4">
+                    <div class="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                        <i data-lucide="check-circle" class="w-10 h-10 text-green-600 dark:text-green-400"></i>
+                    </div>
+                </div>
+
+                <!-- Message -->
+                <div class="text-center mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Work Order Created</h3>
+                    <p class="text-gray-600 dark:text-gray-400">
+                        Work Order <span class="font-mono font-semibold text-blue-600 dark:text-blue-400" x-text="createdWoNumber"></span> has been created successfully.
+                    </p>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex gap-3">
+                    <button @click="showWoSuccessModal = false; window.location.reload();"
+                            class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">
+                        Back to Planner
+                    </button>
+                    <a :href="createdWoUrl"
+                       class="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 text-center">
+                        View Work Order
+                    </a>
                 </div>
             </div>
         </div>
@@ -764,6 +810,11 @@ function productionPlanner() {
         addPlanNotes: '',
         addPlanSaving: false,
         addPlanError: '',
+
+        // WO Created Success Modal
+        showWoSuccessModal: false,
+        createdWoNumber: '',
+        createdWoUrl: '',
 
         init() {
             // Poll for updates every 30 seconds
@@ -977,8 +1028,10 @@ function productionPlanner() {
                 const data = await response.json();
 
                 if (data.success) {
-                    // Redirect to the new WO
-                    window.location.href = data.redirect_url;
+                    // Show success modal with WO details
+                    this.createdWoNumber = data.wo_number;
+                    this.createdWoUrl = data.redirect_url;
+                    this.showWoSuccessModal = true;
                 } else {
                     alert(data.error || 'Failed to create Work Order');
                 }

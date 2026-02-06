@@ -94,7 +94,7 @@
                         :required="!bitInfo.account">
                     <option value="">Select Account</option>
                     {% for acct in accounts %}
-                    <option value="{{ acct.code }}">{{ acct.code }} - {{ acct.name }}</option>
+                    <option value="{{ acct.code }}">{{ acct.code }}</option>
                     {% endfor %}
                 </select>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
