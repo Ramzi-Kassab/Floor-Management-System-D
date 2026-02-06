@@ -629,6 +629,22 @@ python manage.py check
 - **Settings Link on Production Planner**: Added "Settings" button in header linking to `/work-orders/production-planner/settings/`.
 - **Migrations**: `0016_add_due_date_to_productionplanentry.py` (due_date field), `0017_add_planner_settings_and_holidays.py` (PlannerSettings, PlannerHoliday models).
 
+### Recent Enhancements (Feb 6, 2026 - Session 2)
+- **Account Dropdown Display Fix**: All account dropdowns now show only the code (e.g., "LSTK") without descriptions. Removed patterns like "LSTK - LSTK (Halliburton Consignment)".
+- **WO Creation Status Change**: Work Orders created from Production Planner now use RELEASED status instead of DRAFT. This immediately shows them in the WIP tab.
+- **Custom WO Success Modal**: When creating a WO from the planner, a custom success modal appears with the WO number and options to "View Work Order" or "Back to Planner" instead of immediate redirect.
+- **Drill Bit Picker Improvements**:
+  - Split Repair/Rerun into separate columns with visual badges (orange for repairs, purple for reruns)
+  - Added dropdown filters for repair count (0 New, 1+, 2+, 3+) and rerun count (0, 1+, 2+)
+  - Size column now properly displays from BitSize model's `size_display` field
+  - Size included in search filter
+- **Work Order Detail Page Improvements**:
+  - Cleaner compact header without redundant status badge
+  - Quick stats row with 6 cards (Status, Priority, Account, Due Date, Received, Progress)
+  - Fixed template error for null drill_bit.design checks
+  - Better organized tabs with consistent styling
+- **Template Null Safety**: Added null checks for `work_order.drill_bit.design` in WO detail template to prevent "Failed lookup for key [name] in None" errors.
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
