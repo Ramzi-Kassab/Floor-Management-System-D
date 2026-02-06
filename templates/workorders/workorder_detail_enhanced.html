@@ -590,7 +590,7 @@
                             <h4 class="text-sm font-semibold text-gray-900 dark:text-white">FC Bit Evaluation Checklist (E-Checklist)</h4>
                             <p class="text-xs text-gray-500 dark:text-gray-400">15-point inspection checklist - part of PDC Evaluation</p>
                         </div>
-                        <a href="{% url 'workorders:evaluation_checklist' work_order.pk %}"
+                        <a href="{% url 'workorders:e_checklist' work_order.pk %}"
                            class="inline-flex items-center px-3 py-1.5 {% if e_checklist %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400{% else %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400{% endif %} rounded-lg text-sm font-medium hover:opacity-80">
                             <i data-lucide="{% if e_checklist %}check-circle{% else %}clipboard-list{% endif %}" class="w-4 h-4 mr-1.5"></i>
                             {% if e_checklist %}View / Edit{% else %}Start Checklist{% endif %}
