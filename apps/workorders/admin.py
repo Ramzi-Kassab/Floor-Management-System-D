@@ -37,6 +37,8 @@ from .models import (
     APIThreadInspection,
     InstructionRule,
     InstructionRuleCondition,
+    # Production Planning
+    ProductionPlanEntry,
 )
 
 
@@ -379,3 +381,32 @@ class InstructionRuleAdmin(admin.ModelAdmin):
     search_fields = ["name", "instruction_text", "description"]
     ordering = ["-priority", "name"]
     inlines = [InstructionRuleConditionInline]
+
+
+# =============================================================================
+# PRODUCTION PLAN ENTRY
+# =============================================================================
+
+@admin.register(ProductionPlanEntry)
+class ProductionPlanEntryAdmin(admin.ModelAdmin):
+    list_display = [
+        "drill_bit", "account", "priority", "status",
+        "planned_date", "work_order", "created_at"
+    ]
+    list_filter = ["status", "priority", "account"]
+    search_fields = ["drill_bit__serial_number", "notes"]
+    list_select_related = ["drill_bit", "account", "work_order"]
+    date_hierarchy = "created_at"
+    readonly_fields = ["created_at", "updated_at"]
+    ordering = ["sequence", "-priority", "planned_date"]
+    raw_id_fields = ["drill_bit", "work_order"]
+
+    actions = ["create_work_orders"]
+
+    @admin.action(description="Create Work Orders for selected entries")
+    def create_work_orders(self, request, queryset):
+        created = 0
+        for entry in queryset.filter(status=ProductionPlanEntry.Status.PLANNED):
+            entry.create_work_order(user=request.user)
+            created += 1
+        self.message_user(request, f"Created {created} work orders.")

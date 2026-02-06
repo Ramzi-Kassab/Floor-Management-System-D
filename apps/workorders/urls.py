@@ -22,6 +22,10 @@ urlpatterns = [
     path("production-planner/", views_jobcard.ProductionPlannerView.as_view(), name="production_planner"),
     path("production-planner/create-wo/", views_jobcard.ProductionPlannerCreateWOView.as_view(), name="production_planner_create_wo"),
     path("api/production-wip-status/", views_jobcard.api_production_wip_status, name="api_production_wip_status"),
+    # Production Plan API
+    path("api/add-to-plan/", views_jobcard.api_add_to_plan, name="api_add_to_plan"),
+    path("api/create-wo-from-plan/", views_jobcard.api_create_wo_from_plan, name="api_create_wo_from_plan"),
+    path("api/remove-from-plan/", views_jobcard.api_remove_from_plan, name="api_remove_from_plan"),
 
     # Enhanced Work Order List & Detail
     path("enhanced/", views_jobcard.WorkOrderListEnhancedView.as_view(), name="workorder_list_enhanced"),

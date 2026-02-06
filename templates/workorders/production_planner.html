@@ -7,14 +7,14 @@
 <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-        <p class="text-gray-600 dark:text-gray-400">Work in Progress tracking with real-time process status</p>
+        <p class="text-gray-600 dark:text-gray-400">Plan work and track progress - add bits to plan before creating Work Orders</p>
     </div>
     <div class="mt-4 md:mt-0 flex space-x-2">
-        <a href="{% url 'workorders:production_planner_create_wo' %}"
-           class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+        <button @click="showAddToPlanModal = true"
+                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-            Quick WO
-        </a>
+            Add to Plan
+        </button>
         <a href="{% url 'workorders:workorder_list_enhanced' %}"
            class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
             <i data-lucide="list" class="w-4 h-4 mr-2"></i>
@@ -28,7 +28,21 @@
 <div x-data="productionPlanner()" x-init="init()">
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <!-- Total WIP -->
+        <!-- Planned (No WO) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Planned</p>
+                    <p class="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">{{ total_planned }}</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Awaiting WO</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
+                    <i data-lucide="calendar-plus" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Work in Progress -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
             <div class="flex items-center justify-between">
                 <div>
@@ -36,7 +50,7 @@
                     <p class="text-3xl font-bold text-orange-600 dark:text-orange-400 mt-1" x-text="wipCount">{{ total_wip }}</p>
                 </div>
                 <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-lg flex items-center justify-center">
-                    <i data-lucide="loader" class="w-6 h-6 text-orange-600 dark:text-orange-400 animate-spin"></i>
+                    <i data-lucide="activity" class="w-6 h-6 text-orange-600 dark:text-orange-400"></i>
                 </div>
             </div>
         </div>
@@ -59,23 +73,10 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Active Accounts</p>
-                    <p class="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">{{ account_summary|length }}</p>
+                    <p class="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-1">{{ account_summary|length }}</p>
                 </div>
-                <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
-                    <i data-lucide="building-2" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
-                </div>
-            </div>
-        </div>
-
-        <!-- Last Updated -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Last Updated</p>
-                    <p class="text-lg font-semibold text-gray-700 dark:text-gray-300 mt-1" x-text="lastUpdate">Now</p>
-                </div>
-                <div class="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                    <i data-lucide="clock" class="w-6 h-6 text-gray-600 dark:text-gray-400"></i>
+                <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center">
+                    <i data-lucide="building-2" class="w-6 h-6 text-purple-600 dark:text-purple-400"></i>
                 </div>
             </div>
         </div>
@@ -86,7 +87,7 @@
     <div class="flex flex-wrap gap-2 mb-6">
         <a href="?status={{ current_status }}"
            class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors
-                  {% if not current_account %}bg-blue-600 text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
+                  {% if not current_account %}bg-indigo-600 text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
             All Accounts
         </a>
         {% for acct in account_summary %}
@@ -94,7 +95,9 @@
            class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors
                   {% if current_account == acct.code %}bg-indigo-600 text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
             {{ acct.code }}
-            <span class="ml-2 px-1.5 py-0.5 text-xs rounded-full {% if current_account == acct.code %}bg-indigo-500{% else %}bg-gray-200 dark:bg-gray-600{% endif %}">{{ acct.wip_count }}</span>
+            <span class="ml-2 px-1.5 py-0.5 text-xs rounded-full {% if current_account == acct.code %}bg-indigo-500{% else %}bg-gray-200 dark:bg-gray-600{% endif %}">
+                {% if acct.planned_count > 0 %}<span class="text-blue-500">{{ acct.planned_count }}</span>+{% endif %}{{ acct.wip_count }}
+            </span>
         </a>
         {% endfor %}
     </div>
@@ -102,24 +105,126 @@
 
     <!-- Status Filter Tabs -->
     <div class="flex border-b border-gray-200 dark:border-gray-700 mb-4">
+        <a href="?account={{ current_account|default:'' }}&status=planned"
+           class="px-4 py-2 text-sm font-medium border-b-2 transition-colors
+                  {% if current_status == 'planned' %}border-blue-500 text-blue-600 dark:text-blue-400{% else %}border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200{% endif %}">
+            <i data-lucide="calendar-plus" class="w-4 h-4 inline mr-1"></i>
+            Planned
+            {% if total_planned > 0 %}<span class="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full">{{ total_planned }}</span>{% endif %}
+        </a>
         <a href="?account={{ current_account|default:'' }}&status=wip"
            class="px-4 py-2 text-sm font-medium border-b-2 transition-colors
                   {% if current_status == 'wip' %}border-orange-500 text-orange-600 dark:text-orange-400{% else %}border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200{% endif %}">
+            <i data-lucide="activity" class="w-4 h-4 inline mr-1"></i>
             WIP
+            {% if total_wip > 0 %}<span class="ml-1 px-1.5 py-0.5 text-xs bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300 rounded-full">{{ total_wip }}</span>{% endif %}
         </a>
         <a href="?account={{ current_account|default:'' }}&status=completed"
            class="px-4 py-2 text-sm font-medium border-b-2 transition-colors
                   {% if current_status == 'completed' %}border-green-500 text-green-600 dark:text-green-400{% else %}border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200{% endif %}">
+            <i data-lucide="check-circle" class="w-4 h-4 inline mr-1"></i>
             Completed
         </a>
         <a href="?account={{ current_account|default:'' }}&status=all"
            class="px-4 py-2 text-sm font-medium border-b-2 transition-colors
-                  {% if current_status == 'all' %}border-blue-500 text-blue-600 dark:text-blue-400{% else %}border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200{% endif %}">
+                  {% if current_status == 'all' %}border-gray-500 text-gray-600 dark:text-gray-400{% else %}border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200{% endif %}">
             All
         </a>
     </div>
 
-    <!-- WIP Table -->
+    {% if current_status == 'planned' %}
+    <!-- ========================================
+         PLANNED TABLE (No WO yet)
+         ======================================== -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Serial No.</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Size</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">MAT No.</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Received</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Priority</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Planned Date</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Intended Type</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Notes</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for item in planned_data %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td class="px-4 py-3">
+                            <a href="{% url 'workorders:drillbit_detail_enhanced' item.entry.drill_bit.pk %}"
+                               class="text-blue-600 dark:text-blue-400 hover:underline font-mono font-medium">
+                                {{ item.serial }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{{ item.size }}"</td>
+                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{{ item.type }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 font-mono">{{ item.mat_no }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            {% if item.received_date %}{{ item.received_date|date:"M d" }}{% else %}-{% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300">
+                                {{ item.account }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if item.entry.priority == 'URGENT' or item.entry.priority == 'HIGH' %}bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300
+                                {% elif item.entry.priority == 'NORMAL' %}bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300
+                                {% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400{% endif %}">
+                                {{ item.priority }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            {% if item.planned_date %}{{ item.planned_date|date:"M d" }}{% else %}-{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{{ item.intended_type }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate" title="{{ item.notes }}">
+                            {{ item.notes|truncatewords:5 }}
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <div class="flex items-center justify-end space-x-2">
+                                <button @click="createWoFromPlan({{ item.entry.pk }})"
+                                        class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
+                                        title="Create Work Order">
+                                    <i data-lucide="file-plus" class="w-3.5 h-3.5 mr-1"></i>
+                                    Create WO
+                                </button>
+                                <button @click="removePlanEntry({{ item.entry.pk }})"
+                                        class="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                        title="Remove from Plan">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="11" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                            <i data-lucide="calendar-plus" class="w-12 h-12 mx-auto mb-2 text-gray-300 dark:text-gray-600"></i>
+                            <p>No bits planned for work</p>
+                            <button @click="showAddToPlanModal = true"
+                                    class="mt-3 text-blue-600 dark:text-blue-400 hover:underline">
+                                Add drill bit to plan
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <!-- ========================================
+         WIP / COMPLETED TABLE (Has WO)
+         ======================================== -->
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -180,49 +285,49 @@
                         {% with ss=item.step_status %}
                         <td class="px-2 py-3 text-center">
                             {% if ss.buildup == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.buildup == 'active' %}<i data-lucide="loader" class="w-4 h-4 text-yellow-500 inline animate-spin"></i>
+                            {% elif ss.buildup == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
                             {% elif ss.buildup == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
                             {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
                         </td>
                         <td class="px-2 py-3 text-center">
                             {% if ss.braze == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.braze == 'active' %}<i data-lucide="loader" class="w-4 h-4 text-yellow-500 inline animate-spin"></i>
+                            {% elif ss.braze == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
                             {% elif ss.braze == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
                             {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
                         </td>
                         <td class="px-2 py-3 text-center">
                             {% if ss.grinding == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.grinding == 'active' %}<i data-lucide="loader" class="w-4 h-4 text-yellow-500 inline animate-spin"></i>
+                            {% elif ss.grinding == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
                             {% elif ss.grinding == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
                             {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
                         </td>
                         <td class="px-2 py-3 text-center">
                             {% if ss.tip_grinding == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.tip_grinding == 'active' %}<i data-lucide="loader" class="w-4 h-4 text-yellow-500 inline animate-spin"></i>
+                            {% elif ss.tip_grinding == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
                             {% elif ss.tip_grinding == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
                             {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
                         </td>
                         <td class="px-2 py-3 text-center">
                             {% if ss.qc == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.qc == 'active' %}<i data-lucide="loader" class="w-4 h-4 text-yellow-500 inline animate-spin"></i>
+                            {% elif ss.qc == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
                             {% elif ss.qc == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
                             {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
                         </td>
                         <td class="px-2 py-3 text-center">
                             {% if ss.thread_clean == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.thread_clean == 'active' %}<i data-lucide="loader" class="w-4 h-4 text-yellow-500 inline animate-spin"></i>
+                            {% elif ss.thread_clean == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
                             {% elif ss.thread_clean == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
                             {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
                         </td>
                         <td class="px-2 py-3 text-center">
                             {% if ss.body_clean == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.body_clean == 'active' %}<i data-lucide="loader" class="w-4 h-4 text-yellow-500 inline animate-spin"></i>
+                            {% elif ss.body_clean == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
                             {% elif ss.body_clean == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
                             {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
                         </td>
                         <td class="px-2 py-3 text-center">
                             {% if ss.final == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.final == 'active' %}<i data-lucide="loader" class="w-4 h-4 text-yellow-500 inline animate-spin"></i>
+                            {% elif ss.final == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
                             {% elif ss.final == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
                             {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
                         </td>
@@ -258,6 +363,127 @@
             </table>
         </div>
     </div>
+    {% endif %}
+
+    <!-- ========================================
+         ADD TO PLAN MODAL
+         ======================================== -->
+    <div x-show="showAddToPlanModal" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         @keydown.escape.window="showAddToPlanModal = false">
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+            <!-- Backdrop -->
+            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity"
+                 @click="showAddToPlanModal = false"></div>
+
+            <!-- Modal -->
+            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl transform transition-all sm:max-w-xl w-full">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Add Drill Bit to Plan</h3>
+                    <button @click="showAddToPlanModal = false" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <form @submit.prevent="submitAddToPlan()" class="p-6">
+                    <!-- Serial Number Lookup -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Serial Number
+                        </label>
+                        <div class="relative">
+                            <input type="text" x-model="planForm.serialNumber"
+                                   @input.debounce.300ms="lookupBit()"
+                                   placeholder="Enter 6-8 digit serial number"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <div x-show="lookingUp" class="absolute right-3 top-2.5">
+                                <i data-lucide="loader-2" class="w-5 h-5 text-gray-400 animate-spin"></i>
+                            </div>
+                        </div>
+                        <p x-show="bitInfo" x-text="bitInfo" class="mt-1 text-sm text-green-600 dark:text-green-400"></p>
+                        <p x-show="bitError" x-text="bitError" class="mt-1 text-sm text-red-600 dark:text-red-400"></p>
+                    </div>
+
+                    <!-- Account -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Account
+                        </label>
+                        <select x-model="planForm.account"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">-- Select Account --</option>
+                            {% for acct in accounts %}
+                            <option value="{{ acct.code }}">{{ acct.code }} - {{ acct.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Priority -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Priority
+                        </label>
+                        <select x-model="planForm.priority"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="LOW">Low</option>
+                            <option value="NORMAL" selected>Normal</option>
+                            <option value="HIGH">High</option>
+                            <option value="URGENT">Urgent</option>
+                        </select>
+                    </div>
+
+                    <!-- Planned Date -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Planned Date (Optional)
+                        </label>
+                        <input type="date" x-model="planForm.plannedDate"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <!-- Intended WO Type -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Intended Work Type
+                        </label>
+                        <select x-model="planForm.intendedType"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">-- Not Specified --</option>
+                            <option value="FC_REPAIR">FC Repair</option>
+                            <option value="FC_REWORK">FC Rework</option>
+                            <option value="FC_NEW">FC New Build</option>
+                            <option value="RC_REPAIR">RC Repair</option>
+                            <option value="RC_REWORK">RC Rework</option>
+                            <option value="RERUN">Rerun</option>
+                        </select>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Notes (Optional)
+                        </label>
+                        <textarea x-model="planForm.notes" rows="2"
+                                  placeholder="Any planning notes..."
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" @click="showAddToPlanModal = false"
+                                class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="!planForm.serialNumber || !bitFound"
+                                class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>
+                            Add to Plan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -266,6 +492,21 @@ function productionPlanner() {
         wipCount: {{ total_wip }},
         lastUpdate: 'Now',
         pollInterval: null,
+
+        // Add to Plan Modal
+        showAddToPlanModal: false,
+        lookingUp: false,
+        bitFound: false,
+        bitInfo: '',
+        bitError: '',
+        planForm: {
+            serialNumber: '',
+            account: '',
+            priority: 'NORMAL',
+            plannedDate: '',
+            intendedType: '',
+            notes: ''
+        },
 
         init() {
             // Poll for updates every 30 seconds
@@ -282,10 +523,135 @@ function productionPlanner() {
                 const data = await response.json();
                 this.wipCount = data.wip.length;
                 this.lastUpdate = new Date(data.timestamp).toLocaleTimeString();
-
-                // Could update individual rows here for real-time updates
             } catch (e) {
                 console.error('Failed to fetch WIP status:', e);
+            }
+        },
+
+        async lookupBit() {
+            const serial = this.planForm.serialNumber.trim();
+            if (serial.length < 6) {
+                this.bitFound = false;
+                this.bitInfo = '';
+                this.bitError = '';
+                return;
+            }
+
+            this.lookingUp = true;
+            this.bitError = '';
+            this.bitInfo = '';
+
+            try {
+                const response = await fetch(`{% url "workorders:drillbit_lookup_api" %}?serial=${encodeURIComponent(serial)}`);
+                const data = await response.json();
+
+                if (data.found) {
+                    this.bitFound = true;
+                    this.bitInfo = `Found: ${data.serial} | ${data.size}" ${data.type || 'FC'} | ${data.hdbs || '-'}`;
+                    if (data.account && !this.planForm.account) {
+                        this.planForm.account = data.account;
+                    }
+                } else {
+                    this.bitFound = false;
+                    this.bitError = 'Drill bit not found. Register it first.';
+                }
+            } catch (e) {
+                this.bitError = 'Lookup failed. Please try again.';
+                console.error('Bit lookup error:', e);
+            } finally {
+                this.lookingUp = false;
+            }
+        },
+
+        async submitAddToPlan() {
+            if (!this.planForm.serialNumber || !this.bitFound) return;
+
+            try {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                                 document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+
+                const response = await fetch('{% url "workorders:api_add_to_plan" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({
+                        serial_number: this.planForm.serialNumber,
+                        account: this.planForm.account,
+                        priority: this.planForm.priority,
+                        planned_date: this.planForm.plannedDate,
+                        intended_wo_type: this.planForm.intendedType,
+                        notes: this.planForm.notes
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    this.showAddToPlanModal = false;
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Failed to add to plan');
+                }
+            } catch (e) {
+                alert('Error adding to plan');
+                console.error('Add to plan error:', e);
+            }
+        },
+
+        async createWoFromPlan(entryId) {
+            if (!confirm('Create a Work Order for this planned item?')) return;
+
+            try {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                                 document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+
+                const response = await fetch(`{% url "workorders:api_create_wo_from_plan" %}?entry_id=${entryId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Redirect to the new WO
+                    window.location.href = data.redirect_url;
+                } else {
+                    alert(data.error || 'Failed to create Work Order');
+                }
+            } catch (e) {
+                alert('Error creating Work Order');
+                console.error('Create WO error:', e);
+            }
+        },
+
+        async removePlanEntry(entryId) {
+            if (!confirm('Remove this item from the plan?')) return;
+
+            try {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                                 document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+
+                const response = await fetch(`{% url "workorders:api_remove_from_plan" %}?entry_id=${entryId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Failed to remove from plan');
+                }
+            } catch (e) {
+                alert('Error removing from plan');
+                console.error('Remove error:', e);
             }
         },
 
@@ -297,4 +663,5 @@ function productionPlanner() {
     };
 }
 </script>
+{% csrf_token %}
 {% endblock %}

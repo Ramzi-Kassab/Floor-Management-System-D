@@ -2283,3 +2283,135 @@ class EvaluationChecklist(models.Model):
                     count += 1
         return count
 
+
+class ProductionPlanEntry(models.Model):
+    """
+    Production Plan Entry - a drill bit queued for work without creating a Work Order.
+    Allows planning work before committing to WO creation.
+    """
+
+    class Status(models.TextChoices):
+        PLANNED = "PLANNED", "Planned"
+        WO_CREATED = "WO_CREATED", "WO Created"
+        REMOVED = "REMOVED", "Removed"
+
+    class Priority(models.TextChoices):
+        LOW = "LOW", "Low"
+        NORMAL = "NORMAL", "Normal"
+        HIGH = "HIGH", "High"
+        URGENT = "URGENT", "Urgent"
+
+    drill_bit = models.ForeignKey(
+        DrillBit, on_delete=models.CASCADE, related_name='plan_entries',
+        help_text='Drill bit to be planned for production'
+    )
+    account = models.ForeignKey(
+        'sales.Account', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='plan_entries',
+        help_text='Account for this planned work'
+    )
+    work_order = models.OneToOneField(
+        WorkOrder, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='plan_entry',
+        help_text='Work Order created from this plan entry'
+    )
+
+    # Planning fields
+    priority = models.CharField(max_length=20, choices=Priority.choices, default=Priority.NORMAL)
+    planned_date = models.DateField(null=True, blank=True, help_text='Target date for starting work')
+    sequence = models.IntegerField(default=0, help_text='Sequence order in the plan')
+
+    # Intended work type
+    intended_wo_type = models.CharField(
+        max_length=20, choices=WorkOrder.WOType.choices, blank=True,
+        help_text='Intended work order type when WO is created'
+    )
+
+    # Status
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PLANNED)
+
+    # Notes
+    notes = models.TextField(blank=True, help_text='Planning notes or remarks')
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='created_plan_entries'
+    )
+
+    class Meta:
+        db_table = "production_plan_entries"
+        verbose_name = "Production Plan Entry"
+        verbose_name_plural = "Production Plan Entries"
+        ordering = ['sequence', '-priority', 'planned_date', 'created_at']
+
+    def __str__(self):
+        return f"Plan: {self.drill_bit.serial_number} ({self.get_status_display()})"
+
+    def create_work_order(self, user=None):
+        """Create a Work Order from this plan entry."""
+        if self.work_order:
+            return self.work_order
+
+        # Determine WO type
+        wo_type = self.intended_wo_type or WorkOrder.WOType.FC_REPAIR
+
+        # Generate WO number using account
+        if self.account:
+            wo_number = self.account.generate_wo_number()
+        else:
+            from django.utils import timezone
+            wo_number = f"WO-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+
+        # Create the work order
+        work_order = WorkOrder.objects.create(
+            wo_number=wo_number,
+            wo_type=wo_type,
+            drill_bit=self.drill_bit,
+            design=self.drill_bit.design,
+            account=self.account or self.drill_bit.account,
+            status=WorkOrder.Status.DRAFT,
+            priority=self.priority,
+            planned_start=self.planned_date,
+            created_by=user,
+        )
+
+        # Update plan entry
+        self.work_order = work_order
+        self.status = self.Status.WO_CREATED
+        self.save(update_fields=['work_order', 'status', 'updated_at'])
+
+        return work_order
+
+    @classmethod
+    def add_to_plan(cls, drill_bit, account=None, priority='NORMAL', planned_date=None,
+                    intended_wo_type='', notes='', user=None):
+        """Add a drill bit to the production plan."""
+        # Check for existing active plan entry
+        existing = cls.objects.filter(
+            drill_bit=drill_bit,
+            status=cls.Status.PLANNED
+        ).first()
+
+        if existing:
+            return existing, False  # Already in plan
+
+        # Get max sequence for ordering
+        max_seq = cls.objects.filter(status=cls.Status.PLANNED).aggregate(
+            max_seq=models.Max('sequence')
+        )['max_seq'] or 0
+
+        entry = cls.objects.create(
+            drill_bit=drill_bit,
+            account=account or drill_bit.account,
+            priority=priority,
+            planned_date=planned_date,
+            intended_wo_type=intended_wo_type,
+            sequence=max_seq + 1,
+            notes=notes,
+            created_by=user,
+        )
+        return entry, True  # Created new entry
+

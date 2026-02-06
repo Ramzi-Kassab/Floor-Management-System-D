@@ -32,7 +32,7 @@ from .models import (
     LPTReport, APIThreadInspection,
     InstructionRule, InstructionRuleCondition,
     ProcessRoute, ProcessRouteOperation, OperationExecution,
-    RepairEvaluation, WorkOrderCost
+    RepairEvaluation, WorkOrderCost, ProductionPlanEntry
 )
 from .utils import generate_work_order_qr, generate_drill_bit_qr
 
@@ -1312,8 +1312,8 @@ def export_work_orders_excel(request):
 class ProductionPlannerView(LoginRequiredMixin, TemplateView):
     """
     Production Planner Dashboard - Excel BITS TRACKING style WIP view.
-    Shows work-in-progress bits grouped by account with real-time process status
-    and estimated completion times.
+    Shows planned bits (no WO), work-in-progress, and completed items.
+    Allows adding bits to plan without creating Work Orders.
     """
     template_name = "workorders/production_planner.html"
 
@@ -1326,7 +1326,7 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
 
         # Get filter parameters
         account_filter = self.request.GET.get('account')
-        status_filter = self.request.GET.get('status', 'wip')  # wip, completed, all
+        status_filter = self.request.GET.get('status', 'planned')  # planned, wip, completed, all
 
         # Build WIP queryset - work orders in progress
         wip_statuses = [
@@ -1340,6 +1340,41 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
             WorkOrder.Status.COMPLETED,
         ]
 
+        # ========================================
+        # PLANNED ENTRIES (No WO yet)
+        # ========================================
+        planned_qs = ProductionPlanEntry.objects.filter(
+            status=ProductionPlanEntry.Status.PLANNED
+        ).select_related(
+            'drill_bit', 'drill_bit__design', 'account', 'created_by'
+        ).order_by('sequence', '-priority', 'planned_date')
+
+        if account_filter:
+            planned_qs = planned_qs.filter(account__code=account_filter)
+
+        planned_data = []
+        for entry in planned_qs:
+            bit = entry.drill_bit
+            planned_data.append({
+                'entry': entry,
+                'serial': bit.serial_number,
+                'size': bit.size,
+                'type': bit.design.hdbs_type if bit.design else '-',
+                'mat_no': bit.mat_number or (bit.design.mat_no if bit.design else '-'),
+                'received_date': bit.received_date,
+                'account': entry.account.code if entry.account else (bit.account.code if bit.account else '-'),
+                'priority': entry.get_priority_display(),
+                'planned_date': entry.planned_date,
+                'notes': entry.notes,
+                'intended_type': entry.get_intended_wo_type_display() if entry.intended_wo_type else '-',
+            })
+
+        context['planned_data'] = planned_data
+        context['total_planned'] = len(planned_data)
+
+        # ========================================
+        # WIP / COMPLETED (Work Orders)
+        # ========================================
         # Base queryset with all required relations
         base_qs = WorkOrder.objects.select_related(
             'drill_bit', 'drill_bit__design', 'account', 'customer',
@@ -1352,11 +1387,13 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
         if account_filter:
             base_qs = base_qs.filter(account__code=account_filter)
 
-        # Apply status filter
+        # Apply status filter for WO-based data
         if status_filter == 'wip':
             work_orders = base_qs.filter(status__in=wip_statuses)
         elif status_filter == 'completed':
             work_orders = base_qs.filter(status__in=completed_statuses)
+        elif status_filter == 'planned':
+            work_orders = WorkOrder.objects.none()  # No WOs for planned view
         else:  # all
             work_orders = base_qs.exclude(status__in=[WorkOrder.Status.DRAFT, WorkOrder.Status.CANCELLED])
 
@@ -1457,18 +1494,27 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
         context['current_account'] = account_filter
         context['current_status'] = status_filter
 
-        # Account summaries for quick stats
+        # Account summaries for quick stats (includes both planned and WIP)
         account_summary = []
         for acct in accounts:
-            count = WorkOrder.objects.filter(
+            # Count WIP work orders
+            wip_count = WorkOrder.objects.filter(
                 account=acct,
                 status__in=wip_statuses
             ).count()
-            if count > 0:
+            # Count planned entries (no WO yet)
+            planned_count = ProductionPlanEntry.objects.filter(
+                account=acct,
+                status=ProductionPlanEntry.Status.PLANNED
+            ).count()
+            total_count = wip_count + planned_count
+            if total_count > 0:
                 account_summary.append({
                     'code': acct.code,
                     'name': acct.name,
-                    'wip_count': count,
+                    'wip_count': wip_count,
+                    'planned_count': planned_count,
+                    'total_count': total_count,
                 })
         context['account_summary'] = account_summary
 
@@ -1588,3 +1634,130 @@ class ProductionPlannerCreateWOView(LoginRequiredMixin, TemplateView):
 
         messages.success(request, f'Work Order {wo_number} created successfully.')
         return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)
+
+
+# =============================================================================
+# PRODUCTION PLAN API ENDPOINTS
+# =============================================================================
+
+@login_required
+def api_add_to_plan(request):
+    """
+    API endpoint to add a drill bit to the production plan.
+    POST body: { serial_number, account, priority, planned_date, intended_wo_type, notes }
+    """
+    import json
+    from apps.sales.models import Account
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    serial_number = data.get('serial_number', '').strip()
+    if not serial_number:
+        return JsonResponse({'success': False, 'error': 'Serial number required'})
+
+    # Find the drill bit
+    drill_bit = DrillBit.objects.filter(serial_number=serial_number).first()
+    if not drill_bit:
+        return JsonResponse({'success': False, 'error': 'Drill bit not found'})
+
+    # Get account
+    account = None
+    account_code = data.get('account', '').strip()
+    if account_code:
+        account = Account.objects.filter(code=account_code).first()
+    elif drill_bit.account:
+        account = drill_bit.account
+
+    # Add to plan
+    entry, created = ProductionPlanEntry.add_to_plan(
+        drill_bit=drill_bit,
+        account=account,
+        priority=data.get('priority', 'NORMAL'),
+        planned_date=data.get('planned_date') or None,
+        intended_wo_type=data.get('intended_wo_type', ''),
+        notes=data.get('notes', ''),
+        user=request.user
+    )
+
+    if not created:
+        return JsonResponse({
+            'success': False,
+            'error': 'This drill bit is already in the plan'
+        })
+
+    return JsonResponse({
+        'success': True,
+        'entry_id': entry.pk,
+        'message': f'Added {serial_number} to production plan'
+    })
+
+
+@login_required
+def api_create_wo_from_plan(request):
+    """
+    API endpoint to create a Work Order from a production plan entry.
+    POST with ?entry_id=X
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    entry_id = request.GET.get('entry_id')
+    if not entry_id:
+        return JsonResponse({'success': False, 'error': 'entry_id required'})
+
+    try:
+        entry = ProductionPlanEntry.objects.select_related('drill_bit', 'account').get(pk=entry_id)
+    except ProductionPlanEntry.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Plan entry not found'})
+
+    if entry.status != ProductionPlanEntry.Status.PLANNED:
+        return JsonResponse({'success': False, 'error': 'Entry already has a Work Order'})
+
+    # Create the work order
+    try:
+        wo = entry.create_work_order(user=request.user)
+        return JsonResponse({
+            'success': True,
+            'wo_id': wo.pk,
+            'wo_number': wo.wo_number,
+            'redirect_url': reverse('workorders:workorder_detail_enhanced', args=[wo.pk])
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+def api_remove_from_plan(request):
+    """
+    API endpoint to remove a drill bit from the production plan.
+    POST with ?entry_id=X
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    entry_id = request.GET.get('entry_id')
+    if not entry_id:
+        return JsonResponse({'success': False, 'error': 'entry_id required'})
+
+    try:
+        entry = ProductionPlanEntry.objects.get(pk=entry_id)
+    except ProductionPlanEntry.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Plan entry not found'})
+
+    if entry.status == ProductionPlanEntry.Status.WO_CREATED:
+        return JsonResponse({'success': False, 'error': 'Cannot remove - Work Order already created'})
+
+    # Mark as removed (soft delete)
+    entry.status = ProductionPlanEntry.Status.REMOVED
+    entry.save(update_fields=['status', 'updated_at'])
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Removed from plan'
+    })
