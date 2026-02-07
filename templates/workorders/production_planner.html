@@ -900,6 +900,52 @@
         </div>
     </div>
 
+    <!-- ========================================
+         WO ERROR MODAL (Blocking WO Case)
+         ======================================== -->
+    <div x-show="showWoErrorModal" x-cloak
+         class="fixed inset-0 z-[120] overflow-y-auto"
+         x-transition:enter="transition ease-out duration-150"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100">
+        <!-- Overlay -->
+        <div class="fixed inset-0 bg-black/50" @click="showWoErrorModal = false"></div>
+        <!-- Modal -->
+        <div class="flex min-h-full items-center justify-center p-4">
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
+                <!-- Icon -->
+                <div class="flex justify-center mb-4">
+                    <div class="w-14 h-14 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center">
+                        <i data-lucide="alert-triangle" class="w-8 h-8 text-amber-600 dark:text-amber-400"></i>
+                    </div>
+                </div>
+
+                <!-- Content -->
+                <div class="text-center mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Cannot Create Work Order</h3>
+                    <p class="text-gray-600 dark:text-gray-400 mb-3" x-text="woErrorMessage"></p>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 inline-block">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Blocking Work Order:</p>
+                        <p class="font-mono font-semibold text-indigo-600 dark:text-indigo-400 text-lg" x-text="blockingWoNumber"></p>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex gap-3">
+                    <button @click="showWoErrorModal = false"
+                            class="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                        Close
+                    </button>
+                    <a :href="blockingWoUrl"
+                       class="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                        View Work Order
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Column Filter Menu (for picker table) -->
     <div id="pickerColumnMenu" class="column-menu hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 z-[200]">
         <div class="space-y-0.5 mb-2">
@@ -975,6 +1021,12 @@ function productionPlanner() {
         createWoSerial: '',
         createWoAccount: '',
         createWoLoading: false,
+
+        // Create WO Error Modal (for blocking WO case)
+        showWoErrorModal: false,
+        woErrorMessage: '',
+        blockingWoNumber: '',
+        blockingWoUrl: '',
 
         // Remove from Plan Confirmation Modal
         showRemoveConfirmModal: false,
@@ -1214,7 +1266,16 @@ function productionPlanner() {
                     this.createdWoUrl = data.redirect_url;
                     this.showWoSuccessModal = true;
                 } else {
-                    alert(data.error || 'Failed to create Work Order');
+                    this.showCreateWoConfirmModal = false;
+                    // Check if this is a blocking WO error
+                    if (data.error_code === 'ACTIVE_WO' && data.blocking_wo_url) {
+                        this.woErrorMessage = data.error || 'This drill bit already has an active Work Order.';
+                        this.blockingWoNumber = data.blocking_wo_number || 'Unknown';
+                        this.blockingWoUrl = data.blocking_wo_url;
+                        this.showWoErrorModal = true;
+                    } else {
+                        alert(data.error || 'Failed to create Work Order');
+                    }
                 }
             } catch (e) {
                 alert('Error creating Work Order');

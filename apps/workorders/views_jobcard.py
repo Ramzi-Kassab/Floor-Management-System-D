@@ -260,7 +260,13 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         is_aramco = account_code == 'ARAMCO'
 
         # Try to get configured evaluation route for this WO
-        evaluation_route = EvaluationRoute.get_route_for_workorder(wo)
+        # Wrapped in try/except to handle case where evaluation_routes table
+        # doesn't exist (migration not applied or database sync issue)
+        try:
+            evaluation_route = EvaluationRoute.get_route_for_workorder(wo)
+        except Exception:
+            # Table doesn't exist or other DB error - fall back to legacy
+            evaluation_route = None
 
         evaluations = []
 
@@ -1407,11 +1413,17 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
         account_filter = self.request.GET.get('account')
         status_filter = self.request.GET.get('status', 'planned')  # planned, wip, completed, all
 
-        # Build WIP queryset - work orders in progress
+        # Build WIP queryset - all active work orders that block new WO creation
+        # These statuses from DrillBit.ACTIVE_WO_STATUSES must be visible so users
+        # can manage them (prevents "phantom" blocking WOs that can't be found)
         wip_statuses = [
+            WorkOrder.Status.DRAFT,
+            WorkOrder.Status.PLANNED,
             WorkOrder.Status.RELEASED,
             WorkOrder.Status.IN_PROGRESS,
+            WorkOrder.Status.ON_HOLD,
             WorkOrder.Status.QC_PENDING,
+            WorkOrder.Status.QC_FAILED,
         ]
 
         completed_statuses = [
@@ -1830,11 +1842,17 @@ def api_create_wo_from_plan(request):
         wo, success, error_code, error_message = entry.create_work_order(user=request.user)
 
         if not success:
-            return JsonResponse({
+            response = {
                 'success': False,
                 'error': error_message or 'Failed to create work order',
                 'error_code': error_code or 'UNKNOWN'
-            })
+            }
+            # If blocked by existing WO, include link to it
+            if error_code == 'ACTIVE_WO' and wo:
+                response['blocking_wo_id'] = wo.pk
+                response['blocking_wo_number'] = wo.wo_number
+                response['blocking_wo_url'] = reverse('workorders:workorder_detail_enhanced', args=[wo.pk])
+            return JsonResponse(response)
 
         return JsonResponse({
             'success': True,

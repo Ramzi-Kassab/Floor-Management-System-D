@@ -2487,11 +2487,12 @@ class ProductionPlanEntry(models.Model):
         active_wo = self.drill_bit.get_active_work_order()
         if active_wo:
             return (
-                None,
+                active_wo,  # Return the blocking WO so frontend can link to it
                 False,
                 'ACTIVE_WO',
                 f"Cannot create WO: Drill bit {self.drill_bit.serial_number} already has "
-                f"active Work Order {active_wo.wo_number} ({active_wo.get_status_display()})"
+                f"active Work Order {active_wo.wo_number} ({active_wo.get_status_display()}). "
+                f"View it in the WIP tab or at /work-orders/enhanced/{active_wo.pk}/"
             )
 
         # Determine WO type
