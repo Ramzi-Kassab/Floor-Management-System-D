@@ -61,7 +61,7 @@ Floor-Management-System-D/
 │   ├── supplychain/               # POs, vendors, receiving
 │   ├── technology/                # Designs, BOMs, HDBS/SMI types
 │   └── workorders/                # Work orders, drill bits, job cards
-├── config/                        # Django settings
+├── ardt_fms/                      # Django settings
 │   ├── settings.py
 │   ├── urls.py
 │   └── wsgi.py
@@ -204,6 +204,10 @@ Design (L3/L4)                    # Blueprint - what the bit looks like
 - `Location` - Warehouse, shop floor, rig, etc.
 - `CutterEvaluationMatrix` - Blade × position evaluation grid
 - `RouterSheetEntry` - Process step tracking
+- `EvaluationRoute` - Configurable evaluation route for different bit types (NEW/USED) and accounts
+- `ProductionPlanEntry` - Entry in production planner with due date
+- `PlannerSettings` - Singleton for due date calculation settings
+- `PlannerHoliday` - Holidays excluded from working day calculations
 
 **Key Views**:
 - `views_drillbit.py` - Drill bit CRUD and actions
@@ -286,9 +290,24 @@ The `StockLedger` model is an **immutable ledger** for all stock movements:
 **BOM**:
 - `source_data` - JSONField storing complete PDF extraction data
 - `design` - FK to Design
+- `bom_type` - CharField choices: BRAZING (internal/production), SYSTEM (client-facing)
 - `brazing_mat_no` / `system_mat_no` - MAT codes
 - `smi_type` - FK to SMIType (optional, set via Review BOM modal)
 - `status` - CharField choices: DRAFT, ACTIVE, OBSOLETE
+
+**DrillBit** (key fields):
+- `serial_number` - Primary identifier (6-8 digits)
+- `base_serial_number` - Original serial before repairs
+- `current_display_serial` - Display serial with suffix (e.g., SN-R1, SN-R2)
+- `revision_number` - 0=new, 1=R1, 2=R2 for Aramco repair tracking
+- `status` - WO-level status: NEW, IN_STOCK, ASSIGNED, IN_PRODUCTION, etc.
+- `lifecycle_status` - Phase 2 tracking: NEW, DEPLOYED, BACKLOADED, EVALUATION, etc.
+- `physical_status` - Location: AT_ARDT, AT_CUSTOMER, IN_TRANSIT, AT_RIG, SCRAPPED
+- `accounting_status` - Ownership: ARDT_OWNED, CUSTOMER_OWNED, ON_CONSIGNMENT, etc.
+- `brazing_bom` - FK to BOM (internal/production BOM)
+- `system_bom` - FK to BOM (client-facing BOM)
+- `account` - FK to Account (determines WO numbering, workflow)
+- `repair_count` - Number of repairs performed
 
 **Design** (important fields for HDBS/SMI resolution):
 - `hdbs_type` - **CharField** (NOT FK) storing HDBS name text (e.g., "GT65RHS")
@@ -604,7 +623,7 @@ python manage.py check
 - **11 Accounts Seeded**: LSTK (NUMERIC seq 1001), UR (STANDARD seq 1001), L3 (STANDARD ARDT-LV3), L4 (STANDARD ARDT-LV4), ARDT (STANDARD), WFD (STANDARD seq 1001), ARAMCO (STANDARD AR prefix, max 2 repairs, R{n} suffix), RC-LSTK (STANDARD RC), HALLIBURTON (SUFFIX HDBSC seq 1001), HAL_REGIONAL (SUFFIX REG seq 1001), SUB (STANDARD SUB prefix).
 
 ### Recent Enhancements (Feb 2, 2026)
-- **Evaluation System Expanded to 9 Types**: `CutterEvaluationMatrix.EvaluationType` now has: RECEIVING, ARDT, ENGINEER (Tech Rep), QC, DIE_CHECK, FINAL_DIE_CHECK, FINAL_QC, FINAL_INSPECTION, REWORK. Evaluation create form (`cutter_evaluation_form.html`) shows all 9 in dropdown; job card detail (`workorder_detail_enhanced.html`) loops over all 9 with Start/Edit links.
+- **Evaluation System Expanded to 11 Types**: `CutterEvaluationMatrix.EvaluationType` now has: RECEIVING, PDC_EVAL (renamed from ARDT), QC, ENGINEER (Tech Rep), ARAMCO_REP, DIE_CHECK, FINAL_DIE_CHECK, FINAL_QC, FINAL_INSPECTION, REWORK, ARDT (Legacy). Evaluation create form (`cutter_evaluation_form.html`) shows all types in dropdown; job card detail (`workorder_detail_enhanced.html`) loops over all with Start/Edit links.
 - **7 Decision Choices**: `CutterEvaluationMatrix.Decision` choices: REPAIR, RERUN, SCRAP, DEBRAZE, CUTTER_RETROFIT, NEW_BUILD, BODY_RETROFIT. Dropdown on evaluation matrix form replaces old checkboxes.
 - **Cutters Details JSONField**: `CutterEvaluationMatrix.cutters_details` (JSONField) stores the "For Plant Use Only" table rows (qty, size_mm, part_no, description, remarks). Saved/loaded via bulk JSON save in `cutter_evaluation_matrix.html`.
 - **Cutters Details Pre-Population from BOM**: On first load (no saved data), the cutters details table auto-fills from BOM lines (`active_bom.lines`) — qty, cutter_size, hdbs_code/mat_number, item name. View: `CutterEvaluationEditView` in `views_jobcard.py`.
@@ -682,7 +701,7 @@ extract_pdf_data(pdf_path)            # Main entry point
 
 | Purpose | File |
 |---------|------|
-| Main URL config | `config/urls.py` |
+| Main URL config | `ardt_fms/urls.py` |
 | Django settings | `ardt_fms/settings.py` (`DJANGO_SETTINGS_MODULE=ardt_fms.settings`) |
 | Base template | `templates/base.html` |
 | Sidebar | `templates/includes/sidebar.html` |
@@ -716,22 +735,24 @@ extract_pdf_data(pdf_path)            # Main entry point
 | View | File | URL |
 |------|------|-----|
 | CutterInventoryListView | `apps/inventory/views.py:1540` | `/inventory/cutters/` |
-| CutterInventoryExportView | `apps/inventory/views.py:3208` | `/inventory/cutters/export/` |
+| CutterInventoryExportView | `apps/inventory/views.py:3224` | `/inventory/cutters/export/` |
 | ItemCreateView | `apps/inventory/views.py:700+` | `/inventory/items/create/` |
-| BOMCreateWithBuilderView | `apps/technology/views.py:2737` | `/technology/boms/create/` |
-| DrillBitListEnhancedView | `apps/workorders/views_drillbit.py` | `/work-orders/drill-bits/` |
-| WorkOrderCreateView | `apps/workorders/views.py:104` | `/workorders/create/` |
-| WorkOrderListEnhancedView | `apps/workorders/views_jobcard.py:99` | `/workorders/enhanced/` |
-| WorkOrderDetailEnhancedView | `apps/workorders/views_jobcard.py:197` | `/workorders/enhanced/<pk>/` |
-| RouterSheetView | `apps/workorders/views_jobcard.py:656` | `/workorders/<pk>/router-sheet/` |
-| CutterEvaluationCreateView | `apps/workorders/views_jobcard.py:548` | `/workorders/<wo_pk>/cutter-evaluation/create/` |
-| CutterEvaluationEditView | `apps/workorders/views_jobcard.py:591` | `/workorders/<wo_pk>/cutter-evaluation/<pk>/edit/` |
-| ProductionPlannerView | `apps/workorders/views_jobcard.py:1312` | `/work-orders/production-planner/` |
+| BOMCreateWithBuilderView | `apps/technology/views.py:2811` | `/technology/boms/create/` |
+| DrillBitListEnhancedView | `apps/workorders/views_jobcard.py:384` | `/work-orders/drill-bits/` |
+| WorkOrderCreateView | `apps/workorders/views.py:53` | `/workorders/create/` |
+| WorkOrderListEnhancedView | `apps/workorders/views_jobcard.py:101` | `/workorders/enhanced/` |
+| WorkOrderDetailEnhancedView | `apps/workorders/views_jobcard.py:206` | `/workorders/enhanced/<pk>/` |
+| RouterSheetView | `apps/workorders/views_jobcard.py:836` | `/workorders/<pk>/router-sheet/` |
+| CutterEvaluationCreateView | `apps/workorders/views_jobcard.py:607` | `/workorders/<wo_pk>/cutter-evaluation/create/` |
+| CutterEvaluationEditView | `apps/workorders/views_jobcard.py:650` | `/workorders/<wo_pk>/cutter-evaluation/<pk>/edit/` |
+| ProductionPlannerView | `apps/workorders/views_jobcard.py:1391` | `/work-orders/production-planner/` |
 | PlannerSettingsView | `apps/workorders/views_jobcard.py` | `/work-orders/production-planner/settings/` |
 | api_drillbit_lookup | `apps/workorders/views.py` | `/workorders/api/drill-bits/lookup/` |
 | api_boms_list | `apps/technology/views.py` | `/technology/api/boms/` |
 | api_add_to_plan | `apps/workorders/views_jobcard.py` | `/workorders/api/add-to-plan/` |
 | api_preview_due_date | `apps/workorders/views_jobcard.py` | `/workorders/api/preview-due-date/` |
+| api_production_wip_status | `apps/workorders/views_jobcard.py:1611` | `/workorders/api/production-wip-status/` |
+| api_create_wo_from_plan | `apps/workorders/views_jobcard.py:1808` | `/workorders/api/create-wo-from-plan/` |
 
 ### Database Queries
 ```python
