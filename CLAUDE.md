@@ -784,3 +784,136 @@ StockLedger.objects.filter(
 3. **Backup with `./hv`** before making changes
 4. **Check Django admin** at `/admin/` for data inspection
 5. **Review browser console** for JavaScript errors
+
+---
+
+## Local Setup Review (Feb 13, 2026)
+
+### Environment
+- **Platform**: Windows 10, Python 3.10
+- **Location**: `D:\PycharmProjects\floor_management_system-D3`
+- **Virtual env**: `venv\Scripts\activate` (MUST use venv pip/python)
+- **Branch**: `dev/2026-02-13-setup` (working), `master` (primary)
+- **Commit at setup**: `d1bb3a5` on master
+
+### Windows-Specific Notes
+- Use `PYTHONIOENCODING=utf-8` before management commands that output Unicode (checkmarks, etc.)
+- `dumpdata` must use Python script with `io.StringIO()` — direct stdout fails with charmap encoding
+- Missing from `requirements.txt`: `jinja2` (needed by `apps/cutter_map/utils/pdf_generator.py`)
+
+### App Summary (26 apps, 271 models)
+
+| App | Models | Status | Description |
+|-----|--------|--------|-------------|
+| **accounts** | 6 | Working | Custom user model, roles, permissions, trusted devices |
+| **organization** | 5 | Working | Departments, positions, system settings |
+| **dashboard** | 2 | Working | Customizable dashboards, saved shortcuts |
+| **workorders** | 33 | Core/Working | Drill bits, work orders, job cards, evaluations, production planner, router sheets |
+| **technology** | 25 | Core/Working | Designs, BOMs, HDBS/SMI types, bit sizes, pocket layouts, breaker slots |
+| **inventory** | 54 | Core/Working | Items, categories, variants, stock, GRNs, ledger, UOM, assets, BOMs, cycle counts |
+| **sales** | 27 | Partial | Accounts (11 types), customers, field service (partial) |
+| **supplychain** | 18 | Working | PRs, POs, GRNs, vendors, suppliers (dual model) |
+| **cutter_map** | 2 | Core/Working | PDF extraction, BOM generation from Halliburton docs |
+| **procedures** | 9 | Skeleton+ | Procedure engine with steps, checkpoints |
+| **forms_engine** | 5 | Skeleton+ | Dynamic form builder |
+| **execution** | 6 | Skeleton+ | Procedure execution tracking |
+| **quality** | 3 | Skeleton+ | QC inspections |
+| **compliance** | 10 | Skeleton | Audit, compliance tracking |
+| **planning** | 10 | Skeleton+ | Wiki, production planning |
+| **reports** | 2 | Skeleton | Report templates |
+| **erp_automation** | 10 | Functional | Django-integrated browser automation for ERP |
+| **erp_integration** | 2 | Skeleton | ERP sync models |
+| **notifications** | 7 | Skeleton+ | Notification system |
+| **maintenance** | 6 | Skeleton+ | Equipment maintenance |
+| **dispatch** | 4 | Skeleton | Fleet dispatch |
+| **hr** | 16 | Skeleton | HR workforce management |
+| **hsse** | 3 | Skeleton | Health, safety, security, environment |
+| **scancodes** | 2 | Skeleton | Barcode/QR scanning |
+| **documents** | 2 | Skeleton | Document management |
+| **drss** | 2 | Skeleton | Drill string services |
+
+### Seed Command Execution Order
+```bash
+# 1. Core reference data (run seed_all which covers these):
+PYTHONIOENCODING=utf-8 venv/Scripts/python manage.py seed_all
+# Covers: departments(10), positions(54), users(27), permissions, customers(8), accounts(dry-run), rigs(5), wells(21), hdbs_types(8), smi_types(0 without bit_sizes)
+
+# 2. Technology reference data (MUST run before re-running SMI types):
+venv/Scripts/python manage.py seed_bit_sizes          # 27 sizes
+venv/Scripts/python manage.py seed_bit_types           # 41 types
+venv/Scripts/python manage.py seed_applications        # 18
+venv/Scripts/python manage.py seed_formation_types     # 21
+venv/Scripts/python manage.py seed_iadc_codes          # 30
+venv/Scripts/python manage.py seed_connection_types    # 8
+venv/Scripts/python manage.py seed_connection_sizes    # 12
+venv/Scripts/python manage.py seed_connections         # 3
+venv/Scripts/python manage.py seed_upper_section_types # 7
+venv/Scripts/python manage.py seed_pocket_shapes       # 5
+venv/Scripts/python manage.py seed_pocket_sizes        # 20
+venv/Scripts/python manage.py seed_breaker_slots       # 5
+venv/Scripts/python manage.py seed_special_technologies # 13
+venv/Scripts/python manage.py seed_test_designs        # 3 designs
+
+# 3. Re-run HDBS/SMI with bit sizes available:
+PYTHONIOENCODING=utf-8 venv/Scripts/python manage.py seed_hdbs_types  # links sizes
+PYTHONIOENCODING=utf-8 venv/Scripts/python manage.py seed_smi_types   # 23 types
+
+# 4. Inventory reference data:
+venv/Scripts/python manage.py seed_units               # 147 UOMs
+venv/Scripts/python manage.py seed_condition_types      # 8
+venv/Scripts/python manage.py seed_quality_statuses     # 7
+venv/Scripts/python manage.py seed_location_types       # 12
+venv/Scripts/python manage.py seed_ownership_types      # 4
+venv/Scripts/python manage.py seed_adjustment_reasons   # 17
+venv/Scripts/python manage.py seed_attributes           # 351
+venv/Scripts/python manage.py seed_parties              # 14
+venv/Scripts/python manage.py seed_pdc_cutters          # 15 category attrs
+venv/Scripts/python manage.py seed_variant_cases        # 8
+
+# 5. Accounts (need --confirm):
+venv/Scripts/python manage.py seed_accounts --confirm   # 11 accounts
+
+# 6. Work order data (need --confirm):
+venv/Scripts/python manage.py seed_locations            # 16
+venv/Scripts/python manage.py seed_router_steps --confirm  # 59 ops in 2 routes
+venv/Scripts/python manage.py seed_evaluation_routes --confirm  # 20 routes
+venv/Scripts/python manage.py seed_drillbit_inventory --confirm # 25 bits + 9 locations
+
+# 7. Test data:
+PYTHONIOENCODING=utf-8 venv/Scripts/python manage.py seed_test_data  # 5 users, 20 bits, 30 WOs
+venv/Scripts/python manage.py seed_inventory_test_data  # 22 items, GRNs, etc.
+venv/Scripts/python manage.py seed_procurement_workflow # PRs, POs, GRNs
+```
+
+### Known Issues Found During Setup
+1. **`seed_inventory` is broken**: References non-existent `ItemVariant` fields (`acquisition`, `condition`, `name`, `ownership`, `reclaim_category`, `valuation_percentage`)
+2. **`seed_all` doesn't include all seeds**: Only 10 of 44 seed commands; doesn't include technology, inventory reference data, or workorders seeds
+3. **`seed_accounts` needs `--confirm`**: Runs as dry-run without the flag (confusing since `seed_all` calls it without `--confirm`)
+4. **SMI types depend on bit_sizes**: `seed_all` runs `seed_smi_types` before `seed_bit_sizes`, so all 23 SMI types fail on first run
+5. **Unicode encoding on Windows**: All seed commands that output checkmark/cross characters fail without `PYTHONIOENCODING=utf-8`
+6. **`dumpdata` encoding issue**: Must use Python script workaround on Windows (charmap codec can't encode Arabic characters)
+
+### Working Features (verified)
+- Server starts and redirects to login page
+- All 140+ migrations apply cleanly
+- Seed data creates realistic test environment
+- 27 user accounts with password `Ardt@2025`
+- 5 test users with password `testpass123`
+- 45 drill bits total (25 from seed_drillbit_inventory + 20 from seed_test_data)
+- 30 work orders from test data
+- Full procurement workflow (PR -> PO -> GRN)
+- 11 accounts with unique WO numbering formats
+- 20 evaluation routes
+- 2 process routes (FC Repair 33 steps, L3/L4 Manufacture 26 steps)
+
+### Session Checklist (Windows)
+```bash
+# Resume work
+cd D:\PycharmProjects\floor_management_system-D3
+venv\Scripts\activate
+git status
+git pull origin master
+venv\Scripts\python manage.py check
+venv\Scripts\python manage.py runserver
+# Read this file for context
+```
