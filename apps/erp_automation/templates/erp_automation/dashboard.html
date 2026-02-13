@@ -78,7 +78,7 @@
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Quick Actions</h2>
         </div>
         <div class="p-5">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <a href="{% url 'erp_automation:record' %}" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-red-500 dark:hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors group">
                     <i data-lucide="circle" class="w-8 h-8 text-gray-400 group-hover:text-red-500 mb-2"></i>
                     <span class="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-red-600 dark:group-hover:text-red-400">Start Recording</span>
@@ -94,6 +94,10 @@
                 <a href="{% url 'erp_automation:locator_list' %}" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-purple-500 dark:hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors group">
                     <i data-lucide="target" class="w-8 h-8 text-gray-400 group-hover:text-purple-500 mb-2"></i>
                     <span class="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-purple-600 dark:group-hover:text-purple-400">Manage Locators</span>
+                </a>
+                <a href="{% url 'erp_automation:chain_list' %}" class="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors group">
+                    <i data-lucide="link-2" class="w-8 h-8 text-gray-400 group-hover:text-indigo-500 mb-2"></i>
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Workflow Chains</span>
                 </a>
             </div>
         </div>

@@ -24,8 +24,10 @@
 - **Drill Bit Lifecycle** - from receipt to deployment to repair
 - **Work Orders / Job Cards** - manufacturing and repair workflows
 - **Supply Chain** - purchase orders, GRNs, vendors
+- **ERP Automation** - browser-based D365 automation (record, convert, execute)
 
 **Primary Users**: ARDT warehouse staff, engineers, QC personnel, and management.
+**Server**: Runs locally on `localhost:8001` (`python manage.py runserver 0.0.0.0:8001`).
 
 ---
 
@@ -39,6 +41,7 @@
 | **Icons** | Lucide Icons |
 | **Excel Export** | openpyxl |
 | **PDF Processing** | PyMuPDF (fitz) for Halliburton PDF extraction |
+| **Browser Automation** | Playwright (sync API) for D365 ERP recording & execution |
 | **Template Engine** | Django Templates + Jinja2 (for some PDF generation) |
 
 ### Frontend Architecture
@@ -60,8 +63,9 @@ Floor-Management-System-D/
 │   ├── sales/                     # Customers, quotes, orders
 │   ├── supplychain/               # POs, vendors, receiving
 │   ├── technology/                # Designs, BOMs, HDBS/SMI types
+│   ├── erp_automation/             # ERP browser automation (Record → Convert → Execute)
 │   └── workorders/                # Work orders, drill bits, job cards
-├── ardt_fms/                      # Django settings
+├── config/                        # Django settings
 │   ├── settings.py
 │   ├── urls.py
 │   └── wsgi.py
@@ -204,10 +208,6 @@ Design (L3/L4)                    # Blueprint - what the bit looks like
 - `Location` - Warehouse, shop floor, rig, etc.
 - `CutterEvaluationMatrix` - Blade × position evaluation grid
 - `RouterSheetEntry` - Process step tracking
-- `EvaluationRoute` - Configurable evaluation route for different bit types (NEW/USED) and accounts
-- `ProductionPlanEntry` - Entry in production planner with due date
-- `PlannerSettings` - Singleton for due date calculation settings
-- `PlannerHoliday` - Holidays excluded from working day calculations
 
 **Key Views**:
 - `views_drillbit.py` - Drill bit CRUD and actions
@@ -239,6 +239,83 @@ Design (L3/L4)                    # Blueprint - what the bit looks like
 - `Customer` - Customer master data
 - `SalesOrder` - Sales order header
 
+### `apps/erp_automation/` - ERP Browser Automation
+**Purpose**: Record browser actions on D365/ERP, convert recordings to executable workflows, execute workflows against parsed job card data. Runs locally on `localhost:8001`.
+
+**Key Models**:
+- `Locator` - UI element locator with multiple fallback strategies (name, application, page_context, is_dynamic, default_timeout)
+- `LocatorStrategy` - Individual strategy for a locator (strategy_type: id/aria-label/name/css/xpath/text/role, value, priority, success/failure counts)
+- `Workflow` - Sequence of automation steps (name, target_url, application, condition_field, status: draft/active/archived)
+- `WorkflowStep` - Single step in workflow (order, action_type, locator FK, value_static/value_field/value_template, condition_value, wait_after, continue_on_error). `get_value(row_data, context)` resolves `{{FIELD_NAME}}` templates from job data.
+- `RecordingSession` - Browser recording session (name, target_url, status: recording/completed/failed/cancelled, job_data FK, generated_workflow FK)
+- `RecordedAction` - Single captured action (order, action_type, element_tag/id/name/class/xpath/css/text/aria_label/placeholder, input_value, locator_strategies JSON, page_url)
+- `WorkflowExecution` - Execution run tracking (workflow FK, job_data FK, status: pending/running/success/failed, row_data JSON, error_message)
+- `StepExecution` - Per-step execution result (locator_strategy_used FK, retry_count, error_message)
+- `ERPJobData` - Parsed job card data ready for ERP (work_order_number, serial_number, size_inches, smi_type, account, route FK, item_number, status: DRAFT/READY/SENT/COMPLETED/ERROR). `get_row_data()` returns dict for template substitution.
+- `ERPRoute` - Production route with selection criteria (route_number, bit_type, level, size_class, has_port, repair modifiers)
+- `FieldMapping` - Excel column to ERP field mapping (excel_column, erp_field, transform_function)
+- `ItemCounter` - Sequential counter for auto-generated item numbers per account type
+
+**Key Services** (`apps/erp_automation/services/`):
+- `recorder.py` - Playwright-based browser recorder. Runs in background thread with queue communication. Injects JS to capture clicks/fills/selects. SPA re-injection via `page.on("framenavigated")` for D365 navigation. Uses `no_viewport=True` for desktop-like experience.
+- `executor.py` - Workflow executor using Playwright. Opens browser, runs steps sequentially. Handles ADFS login, `navigate` action, D365 custom dropdowns (falls back to `click()` for non-`<select>` elements).
+- `locator_engine.py` - Smart locator resolution. Tries strategies in priority order (5s timeout each). Searches main page AND all child frames/iframes for D365 compatibility. `_create_locator()` accepts Page or Frame target.
+- `job_card_parser.py` - Parses Job Card Excel files into `ERPJobData` records. Extracts WO number, serial, size, type, cutter BOM, repair modifiers.
+- `route_selector.py` - Auto-selects `ERPRoute` based on bit size, port, repair modifiers.
+
+**Key Management Commands**:
+- `create_workflow_from_recording` - Converts a `RecordingSession` into a `Workflow` with proper `Locator`/`LocatorStrategy`/`WorkflowStep` models. Smart features: deduplicates click+fill pairs, maps `select`→`click` for D365, strips dynamic ID prefixes for `contains(@id)` xpath, generates value templates from recorded input, sequential step numbering, orphaned locator cleanup on regeneration. Called from UI via "Quick Convert" button or terminal.
+- `seed_erp_routes` - Seeds `ERPRoute` records from Excel
+- `import_erp_data` - Imports ERP data
+
+**Key Views** (`apps/erp_automation/views.py`):
+- `DashboardView` - Overview at `/erp-automation/`
+- `RecordingView` - Start/manage recordings at `/erp-automation/record/`
+- `RecordingDetailView` - Review captured actions at `/erp-automation/record/<pk>/`
+- `start_recording` / `stop_recording` / `poll_recording` - Recording lifecycle endpoints
+- `quick_convert_recording` - POST endpoint, calls `create_workflow_from_recording` via `call_command()`
+- `convert_recording_to_workflow` - Manual conversion endpoint
+- `JobDataListView` / `JobDataDetailView` / `JobDataUploadView` - Job data CRUD
+- `api_execute_job_data` - Execute workflow for a job data record
+- `api_job_data_clipboard` - Clipboard data for recording helper
+- `api_generate_item_number` - Auto-generate next item number per account
+- `CredentialsView` - Session-based ERP credential management
+- `api_workflow_steps` - GET all steps for a workflow as JSON with locator details
+- `api_step_create` / `api_step_update` / `api_step_delete` - Workflow step CRUD
+- `api_locator_create` / `api_locator_update` - Locator CRUD with strategy replacement
+- `api_locator_detail` - Full locator details with strategies (GET)
+- `api_locator_search` - Search locators by name for autocomplete (GET, max 30)
+
+**Key URLs**:
+- `/erp-automation/` - Dashboard
+- `/erp-automation/record/` - Recording interface
+- `/erp-automation/record/<pk>/` - Recording detail
+- `/erp-automation/record/<pk>/quick-convert/` - Quick convert to workflow (POST)
+- `/erp-automation/workflows/` - Workflow list
+- `/erp-automation/workflows/<pk>/` - Workflow detail
+- `/erp-automation/job-data/` - Job data list
+- `/erp-automation/job-data/upload/` - Upload job card Excel
+- `/erp-automation/job-data/<pk>/` - Job data detail
+- `/erp-automation/credentials/` - ERP credentials
+- `/erp-automation/routes/` - Routes reference list
+- `/erp-automation/excel/` - Excel handler
+- `/erp-automation/mappings/` - Field mappings
+- `/erp-automation/api/workflows/<pk>/steps/` - List workflow steps (GET)
+- `/erp-automation/api/workflows/<pk>/steps/create/` - Create step (POST)
+- `/erp-automation/api/workflows/<pk>/steps/<pk>/update/` - Update step (POST)
+- `/erp-automation/api/workflows/<pk>/steps/<pk>/delete/` - Delete step (POST)
+- `/erp-automation/api/locators/create/` - Create locator with strategies (POST)
+- `/erp-automation/api/locators/<pk>/update/` - Update locator & strategies (POST)
+- `/erp-automation/api/locators/<pk>/detail/` - Locator details with strategies (GET)
+- `/erp-automation/api/locators/search/?q=` - Search locators by name (GET)
+
+**D365 Technical Notes**:
+- **Dynamic ID Prefixes**: D365 prepends page-specific prefixes to element IDs (e.g., `ecoresproductdetailsextendedgrid_2_SystemDefinedNewButton`). Locators use `contains(@id, "stableId")` XPath instead of exact `#id`.
+- **Custom Dropdowns**: D365 never uses native `<select>` elements — all dropdowns are custom divs/lis/spans with ARIA roles. `select_option()` fails; must use `click()`.
+- **SPA Navigation**: URL changes without full page loads. Synthetic `navigate` events created via `setInterval`.
+- **Iframes**: Content rendered in iframes. Locator engine searches all frames.
+- **ADFS Login**: Microsoft ADFS authentication handled by executor before workflow begins.
+
 ---
 
 ## Database & Models
@@ -263,6 +340,20 @@ PurchaseOrder
     └── PurchaseOrderLine → InventoryItem
          └── GRNLine → GoodsReceivedNote
               └── StockLedger (immutable record)
+
+RecordingSession (browser recording)
+    └── RecordedAction (captured clicks/fills/selects)
+         └── locator_strategies JSON (generated strategies)
+
+Workflow (executable automation)
+    ├── WorkflowStep → Locator → LocatorStrategy (multi-fallback)
+    ├── WorkflowExecution → StepExecution (run tracking)
+    └── FieldMapping (Excel ↔ ERP field mapping)
+
+ERPJobData (parsed job card)
+    ├── ERPRoute (auto-selected production route)
+    ├── RecordingSession (optional clipboard helper)
+    └── WorkflowExecution (execution runs)
 ```
 
 ### StockLedger - Source of Truth
@@ -290,24 +381,9 @@ The `StockLedger` model is an **immutable ledger** for all stock movements:
 **BOM**:
 - `source_data` - JSONField storing complete PDF extraction data
 - `design` - FK to Design
-- `bom_type` - CharField choices: BRAZING (internal/production), SYSTEM (client-facing)
 - `brazing_mat_no` / `system_mat_no` - MAT codes
 - `smi_type` - FK to SMIType (optional, set via Review BOM modal)
 - `status` - CharField choices: DRAFT, ACTIVE, OBSOLETE
-
-**DrillBit** (key fields):
-- `serial_number` - Primary identifier (6-8 digits)
-- `base_serial_number` - Original serial before repairs
-- `current_display_serial` - Display serial with suffix (e.g., SN-R1, SN-R2)
-- `revision_number` - 0=new, 1=R1, 2=R2 for Aramco repair tracking
-- `status` - WO-level status: NEW, IN_STOCK, ASSIGNED, IN_PRODUCTION, etc.
-- `lifecycle_status` - Phase 2 tracking: NEW, DEPLOYED, BACKLOADED, EVALUATION, etc.
-- `physical_status` - Location: AT_ARDT, AT_CUSTOMER, IN_TRANSIT, AT_RIG, SCRAPPED
-- `accounting_status` - Ownership: ARDT_OWNED, CUSTOMER_OWNED, ON_CONSIGNMENT, etc.
-- `brazing_bom` - FK to BOM (internal/production BOM)
-- `system_bom` - FK to BOM (client-facing BOM)
-- `account` - FK to Account (determines WO numbering, workflow)
-- `repair_count` - Number of repairs performed
 
 **Design** (important fields for HDBS/SMI resolution):
 - `hdbs_type` - **CharField** (NOT FK) storing HDBS name text (e.g., "GT65RHS")
@@ -359,6 +435,28 @@ The `StockLedger` model is an **immutable ledger** for all stock movements:
 5. Download Excel file with formatting
 ```
 
+### 5. ERP Automation: Record → Convert → Execute
+```
+1. Upload Job Card Excel at /erp-automation/job-data/upload/
+   → Parser extracts WO number, serial, size, type, cutter BOM, etc.
+   → ERPJobData record created with status READY
+2. Set ERP credentials at /erp-automation/credentials/
+3. Go to /erp-automation/record/ → Start Recording
+   → Playwright browser opens on D365 sandbox
+   → User performs "Create Released Product" flow manually
+   → All clicks, fills, selects captured with smart locators
+   → Live action panel shows captured actions in real-time
+4. Stop Recording → redirected to /erp-automation/record/<pk>/
+   → Review all captured actions + locator strategies
+5. Click "Quick Convert" → auto-creates workflow
+   → Deduplicates click+fill pairs, maps values to templates
+   → Generates D365-safe locators with contains-xpath fallbacks
+   → Maps select→click (D365 uses custom dropdowns, not native <select>)
+6. Go to /erp-automation/jobs/<pk>/ → Click Execute
+   → Workflow runs against job data, fills ERP fields automatically
+   → Status updates: READY → SENT → COMPLETED or ERROR
+```
+
 ---
 
 ## URL Structure
@@ -373,6 +471,7 @@ The `StockLedger` model is an **immutable ledger** for all stock movements:
 | workorders | `/work-orders/`, `/workorders/` | `apps/workorders/urls.py` |
 | supplychain | `/supplychain/` | `apps/supplychain/urls.py` |
 | sales | `/sales/` | `apps/sales/urls.py` |
+| erp_automation | `/erp-automation/` | `apps/erp_automation/urls.py` |
 
 ### API Endpoints
 Most API endpoints follow the pattern: `/{app}/api/{resource}/`
@@ -384,6 +483,10 @@ Most API endpoints follow the pattern: `/{app}/api/{resource}/`
 - `/work-orders/api/drill-bits/search/` - Search drill bits
 - `/inventory/api/categories/<pk>/attributes/` - Get category attributes
 - `/workorders/<wo_pk>/router-sheet/<step>/api-scan/` - QR scan start/complete/skip router step (POST)
+- `/erp-automation/api/job-data/<pk>/execute/` - Execute workflow for a job data record (POST)
+- `/erp-automation/api/job-data/<pk>/clipboard/` - Get clipboard data for recording helper (GET)
+- `/erp-automation/record/<pk>/quick-convert/` - Auto-convert recording to workflow (POST)
+- `/erp-automation/record/<pk>/convert/` - Manual convert recording to workflow (POST)
 
 ---
 
@@ -510,10 +613,22 @@ python manage.py seed_router_steps
 python manage.py clear_test_cutters --confirm
 ```
 
+### ERP Automation Commands
+```bash
+# Convert a recording to workflow (terminal)
+python manage.py create_workflow_from_recording --session <pk> --name "Workflow Name"
+
+# Seed ERP production routes from Excel
+python manage.py seed_erp_routes
+
+# Import ERP data
+python manage.py import_erp_data
+```
+
 ### Development
 ```bash
-# Run development server
-python manage.py runserver 0.0.0.0:8000
+# Run development server (locally on port 8001)
+python manage.py runserver 0.0.0.0:8001
 
 # Shell
 python manage.py shell
@@ -623,7 +738,7 @@ python manage.py check
 - **11 Accounts Seeded**: LSTK (NUMERIC seq 1001), UR (STANDARD seq 1001), L3 (STANDARD ARDT-LV3), L4 (STANDARD ARDT-LV4), ARDT (STANDARD), WFD (STANDARD seq 1001), ARAMCO (STANDARD AR prefix, max 2 repairs, R{n} suffix), RC-LSTK (STANDARD RC), HALLIBURTON (SUFFIX HDBSC seq 1001), HAL_REGIONAL (SUFFIX REG seq 1001), SUB (STANDARD SUB prefix).
 
 ### Recent Enhancements (Feb 2, 2026)
-- **Evaluation System Expanded to 11 Types**: `CutterEvaluationMatrix.EvaluationType` now has: RECEIVING, PDC_EVAL (renamed from ARDT), QC, ENGINEER (Tech Rep), ARAMCO_REP, DIE_CHECK, FINAL_DIE_CHECK, FINAL_QC, FINAL_INSPECTION, REWORK, ARDT (Legacy). Evaluation create form (`cutter_evaluation_form.html`) shows all types in dropdown; job card detail (`workorder_detail_enhanced.html`) loops over all with Start/Edit links.
+- **Evaluation System Expanded to 9 Types**: `CutterEvaluationMatrix.EvaluationType` now has: RECEIVING, ARDT, ENGINEER (Tech Rep), QC, DIE_CHECK, FINAL_DIE_CHECK, FINAL_QC, FINAL_INSPECTION, REWORK. Evaluation create form (`cutter_evaluation_form.html`) shows all 9 in dropdown; job card detail (`workorder_detail_enhanced.html`) loops over all 9 with Start/Edit links.
 - **7 Decision Choices**: `CutterEvaluationMatrix.Decision` choices: REPAIR, RERUN, SCRAP, DEBRAZE, CUTTER_RETROFIT, NEW_BUILD, BODY_RETROFIT. Dropdown on evaluation matrix form replaces old checkboxes.
 - **Cutters Details JSONField**: `CutterEvaluationMatrix.cutters_details` (JSONField) stores the "For Plant Use Only" table rows (qty, size_mm, part_no, description, remarks). Saved/loaded via bulk JSON save in `cutter_evaluation_matrix.html`.
 - **Cutters Details Pre-Population from BOM**: On first load (no saved data), the cutters details table auto-fills from BOM lines (`active_bom.lines`) — qty, cutter_size, hdbs_code/mat_number, item name. View: `CutterEvaluationEditView` in `views_jobcard.py`.
@@ -634,35 +749,63 @@ python manage.py check
 - **WO Create Serial-Number-Driven**: WO create form (`workorder_create.html`) redesigned — enter serial number → debounced API lookup (`/workorders/api/drill-bits/lookup/`) auto-populates size, type, HDBS, SMI, design MAT level, L5 MAT/BOM, repair/rerun counts, received date, from location.
 - **Migration**: `0014_cutterevaluationmatrix_cutters_details_and_more.py` — adds `decision`, `cutters_details` fields and updates `EvaluationType`/`Action` choices.
 
-### Recent Enhancements (Feb 6, 2026)
-- **Production Planner Drill Bit Picker Modal**: The "+ Add to Plan" button now opens a full drill bits table modal (similar to `/work-orders/drill-bits/enhanced/`) instead of a simple form. Features: search, account filter, state filter, sortable columns, "Hide already in plan" toggle.
-- **Due Date Field on ProductionPlanEntry**: Added `due_date` field to track when work should be completed. Auto-calculated when adding bits to plan.
-- **Planner Settings Control Page** (`/work-orders/production-planner/settings/`): New admin page to configure:
-  - **Working Days**: Default 6 days for regular accounts, 4 days for UR account
-  - **Weekend Days**: Multi-select (default: Friday=4, Saturday=5 for Saudi Arabia work week)
-  - **Holidays**: Add/edit/delete holidays that are excluded from due date calculations
-  - **Due Date Preview**: Calculator to test settings with different account types
-- **PlannerSettings Model** (singleton): Stores `default_due_days`, `ur_due_days`, `weekend_days` (JSONField). Method `calculate_due_date(start_date, account_code)` computes due date skipping weekends and holidays.
-- **PlannerHoliday Model**: Stores holidays with `date`, `name`, `is_active` fields. Holidays are excluded from working day calculations.
-- **Smart Due Date Calculation**: `PlannerSettings.calculate_due_date()` counts only working days, skipping configured weekend days (Fri/Sat) and active holidays.
-- **Settings Link on Production Planner**: Added "Settings" button in header linking to `/work-orders/production-planner/settings/`.
-- **Migrations**: `0016_add_due_date_to_productionplanentry.py` (due_date field), `0017_add_planner_settings_and_holidays.py` (PlannerSettings, PlannerHoliday models).
+### Recent Enhancements (Feb 8, 2026) — ERP Automation Module
+- **Full ERP Automation App** (`apps/erp_automation/`): Complete browser automation system for D365 ERP with Record → Convert → Execute workflow. All services run locally on `localhost:8001`.
+- **Browser Recorder** (`services/recorder.py`): Playwright-based recorder opens D365 in a real browser, injects JavaScript to capture user actions (clicks, fills, selects, navigates). SPA re-injection via `page.on("framenavigated")` handles D365 page transitions. Background thread with queue communication. `no_viewport=True` for desktop experience. Live polling endpoint updates UI in real-time.
+- **Smart Locator Engine** (`services/locator_engine.py`): Multi-strategy element resolution with fallback chain. Searches main page AND all child frames/iframes (critical for D365). Per-strategy 5s timeout. Strategies ordered by priority: data-testid → aria-label → name → id → css → xpath → text → role.
+- **Workflow Executor** (`services/executor.py`): Runs workflow steps sequentially via Playwright. Handles ADFS login flow, `navigate` action type, D365 custom dropdowns (click fallback for non-`<select>` elements). Step-level error tracking with retry support.
+- **Recording → Workflow Conversion** (`management/commands/create_workflow_from_recording.py`): Smart auto-conversion of recorded actions to workflow models. Deduplicates click+fill pairs, maps `select`→`click` for D365, strips dynamic ID prefixes for `contains(@id)` xpath fallback, generates `{{TEMPLATE}}` value substitution from recorded input, sequential step numbering (20, 21, 22...), orphaned locator cleanup on regeneration. No fabricated/hardcoded steps — only recorded data used.
+- **Quick Convert UI Button**: "Quick Convert" button on recording detail page calls `create_workflow_from_recording` via `call_command()` internally. No terminal access needed — full flow works from the browser.
+- **Job Card Parser** (`services/job_card_parser.py`): Parses Job Card Excel files into `ERPJobData` records with all fields needed for ERP item creation (WO number, serial, size, type, cutter BOM, account, repair modifiers, body material, item group).
+- **Route Selection** (`services/route_selector.py`): Auto-selects production route based on bit size, port presence, repair modifiers (USR, hardfacing, crush & shear).
+- **Job Data Detail Page**: Shows parsed data with clipboard copy buttons, route selection dropdown, item number generation, and "Execute Workflow" button. Status tracking: DRAFT → READY → SENT → COMPLETED/ERROR.
+- **ERP Route Reference**: Routes list page at `/erp-automation/routes/` with all production routes and their selection criteria.
+- **Session Credentials**: ERP login credentials stored in Django session (not DB) for security. Credential management page with save/clear actions.
+- **Value Template Resolution**: `WorkflowStep.get_value()` resolves `{{FIELD_NAME}}` placeholders from `ERPJobData.get_row_data()`. Priority: static value → template → field name.
+- **D365-Safe Locator Generation**: Recording conversion generates `contains(@id, "stableId")` xpath as fallback strategy to handle D365's dynamic ID prefix prepending.
 
-### Recent Enhancements (Feb 6, 2026 - Session 2)
-- **Account Dropdown Display Fix**: All account dropdowns now show only the code (e.g., "LSTK") without descriptions. Removed patterns like "LSTK - LSTK (Halliburton Consignment)".
-- **WO Creation Status Change**: Work Orders created from Production Planner now use RELEASED status instead of DRAFT. This immediately shows them in the WIP tab.
-- **Custom WO Success Modal**: When creating a WO from the planner, a custom success modal appears with the WO number and options to "View Work Order" or "Back to Planner" instead of immediate redirect.
-- **Drill Bit Picker Improvements**:
-  - Split Repair/Rerun into separate columns with visual badges (orange for repairs, purple for reruns)
-  - Added dropdown filters for repair count (0 New, 1+, 2+, 3+) and rerun count (0, 1+, 2+)
-  - Size column now properly displays from BitSize model's `size_display` field
-  - Size included in search filter
-- **Work Order Detail Page Improvements**:
-  - Cleaner compact header without redundant status badge
-  - Quick stats row with 6 cards (Status, Priority, Account, Due Date, Received, Progress)
-  - Fixed template error for null drill_bit.design checks
-  - Better organized tabs with consistent styling
-- **Template Null Safety**: Added null checks for `work_order.drill_bit.design` in WO detail template to prevent "Failed lookup for key [name] in None" errors.
+### Recent Enhancements (Feb 8, 2026 — Session 2) — Workflow Step & Locator Editor UI
+- **Workflow Editor Page** (`workflow_detail.html`): Full CRUD UI for editing workflow steps and locators directly from the browser. Replaces the need for JSON file editing (legacy system in `apps/ERP_Item_creation_automation/`). Alpine.js `workflowEditor()` component with inline editing, modals, and toast notifications.
+- **Steps Table with Inline Editing**: Each step row shows order, name, action type, locator (clickable), value (color-coded: amber=template, green=static, cyan=field), wait_after, press_key_after badge, clear_before_fill indicator, condition_value badge, continue_on_error badge. Hover reveals edit/duplicate/delete buttons. Click pencil to edit inline with Save/Cancel.
+- **Add Step Modal**: Full form with order, action type, step name, condition value, locator picker (searchable dropdown), wait_after, value (static/template/field), press_key_after, clear_before_fill, continue_on_error.
+- **Searchable Locator Picker**: Replaced plain Locator ID number input with a searchable dropdown. Type to search all locators by name via `/erp-automation/api/locators/search/`. Click to select — shows selected locator as a blue badge with clear button. Available in both Add Step modal and inline edit mode.
+- **Locator Editor Modal**: Click any locator link in the steps table to open full editor. Shows name, page_context, all strategies with type/value/priority/success/fail counts. Can add/remove strategies. Saves via API.
+- **Create Locator Inline**: "+ New" button in Add Step modal opens locator creation modal. After saving, new locator auto-populates into the step form.
+- **Duplicate Step**: Copy button creates a duplicate step with "(copy)" appended to name, order +1.
+- **Workflow Step CRUD APIs** (`apps/erp_automation/views.py`):
+  - `GET /erp-automation/api/workflows/<pk>/steps/` — List all steps with locator details
+  - `POST /erp-automation/api/workflows/<pk>/steps/create/` — Create step
+  - `POST /erp-automation/api/workflows/<pk>/steps/<pk>/update/` — Update step fields
+  - `POST /erp-automation/api/workflows/<pk>/steps/<pk>/delete/` — Delete step
+- **Locator CRUD APIs** (`apps/erp_automation/views.py`):
+  - `POST /erp-automation/api/locators/create/` — Create locator with strategies
+  - `POST /erp-automation/api/locators/<pk>/update/` — Update locator, replaces all strategies
+  - `GET /erp-automation/api/locators/<pk>/detail/` — Full locator details with strategies
+  - `GET /erp-automation/api/locators/search/?q=` — Search locators by name (autocomplete, max 30 results)
+- **Workflow List Page Updated**: Workflow names are now clickable links to the editor. Added ⚙️ settings icon (indigo) linking to editor. Removed Django Admin edit link. Only two actions: Edit (⚙️) and Execute (▶️).
+- **D365 Combobox Alt+ArrowDown**: Executor (`executor.py`) now detects `role="combobox"` elements after click and automatically presses `Alt+ArrowDown` to open D365 custom dropdowns.
+- **D365 Locator Pattern Reference**: For D365 elements, the most reliable locator patterns in priority order:
+  1. `name` — Field name attribute (e.g., `FromConfigId`) — most stable, no dynamic prefix
+  2. `css` — `input[name="FieldName"]` — backup, also stable
+  3. `xpath` — `//*[contains(@id, "StableIdPart_input")]` — handles any dialog prefix
+  4. `xpath` — `//*[@data-dyn-controlname="FieldName"]//input` — D365 control wrapper pattern
+  5. `xpath` — `//input[@role="combobox" and @name="FieldName"]` — role+name combo
+
+### Recent Enhancements (Feb 9, 2026) — D365 Smart Interaction System
+- **InteractionMode per WorkflowStep** (`models.py`): New `InteractionMode` TextChoices class with 10 modes: `auto` (detect at runtime), `standard_input`, `combobox` (Alt+Down), `lookup_button` (double-click), `custom_dropdown`, `segmented_entry`, `checkbox_toggle`, `dialog_button`, `nav_button`, `tab_header`. Field `interaction_mode` on WorkflowStep with default `auto`. Migration 0008.
+- **D365InteractionEngine** (`services/executor.py`): New ~250-line class replacing hardcoded D365 interaction handling. Each interaction mode has a specific chain of strategies tried in order with automatic fallbacks. Key methods:
+  - `detect_interaction_mode(element)` — Runtime element classification from DOM attributes (role, className, data-dyn-controlname, etc.)
+  - `execute_interaction(action_type, element, value, step)` — Delegates to mode-specific chain; tries each strategy in order, falls back on failure
+  - Interaction chains per mode: e.g., combobox: click → Alt+Down; lookup_button: click → wait(500) → click again → force-click; checkbox_toggle: click → force-click → press Space
+- **Executor Refactored**: `_perform_action()` is now a thin wrapper that delegates to `D365InteractionEngine.execute_interaction()`. Old hardcoded lookupButton/combobox checks removed.
+- **Recorder Captures D365 Control Context**: `_store_action()` now extracts and persists `element_dyn_control_name` (from `data-dyn-controlname` ancestor) and `element_data_testid`. New fields on RecordedAction model. `poll_recording()` and `stop_recording()` views save all new fields (also fixed missing `element_role` and `element_type` in `poll_recording()`).
+- **Converter Auto-Detects Interaction Mode**: `_determine_interaction_mode()` in `create_workflow_from_recording.py` maps recorded action attributes to interaction modes during conversion. Uses element_class, element_role, d365_pattern, tag, and dyn_control_name.
+- **Auto Value Template Detection from Job Data**: `_auto_detect_value_template()` compares fill values against linked `ERPJobData.get_row_data()`. Exact match → `{{FIELD_NAME}}`. Composite match (2+ fields) → `"{{F1}} {{F2}}"`. Longest match first to avoid partial matches.
+- **Expanded Generic Aria-Label Blacklist**: 30+ entries (Name, ea, Back, Close, OK, Cancel, etc.). When aria-label is blacklisted, `@name` attribute promoted to priority 0 as primary locator strategy.
+- **Post-Conversion Validation**: `_validate_workflow()` prints warnings: consecutive clicks on same locator, generic aria-label as only strategy, fill steps with no value mapping, steps with no locator, interaction mode distribution summary.
+- **Workflow Editor: Interaction Mode Column** (`workflow_detail.html`): New "Mode" column in steps table with color-coded badges (gray=auto, green=standard, blue=combobox, orange=lookup, teal=dropdown, violet=segmented, pink=checkbox, yellow=dialog, cyan=nav, indigo=tab). Dropdown selector in inline edit mode and Add Step modal. `duplicateStep()` copies interaction_mode. Sidebar shows mode distribution summary.
+- **Step CRUD APIs Updated**: `api_step_create()`, `api_step_update()`, and `api_workflow_steps()` all handle `interaction_mode` field.
+- **Composite Workflows** (`models.py`, `services/chain_executor.py`): WorkflowChain, WorkflowChainLink, ChainExecution models for chaining multiple workflows. Chain executor service orchestrates sequential execution with shared browser, context mapping between workflows, condition-based link execution, and progress tracking. Admin registered with TabularInline. Views, URLs, and templates for chain management.
 
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
@@ -701,7 +844,7 @@ extract_pdf_data(pdf_path)            # Main entry point
 
 | Purpose | File |
 |---------|------|
-| Main URL config | `ardt_fms/urls.py` |
+| Main URL config | `config/urls.py` |
 | Django settings | `ardt_fms/settings.py` (`DJANGO_SETTINGS_MODULE=ardt_fms.settings`) |
 | Base template | `templates/base.html` |
 | Sidebar | `templates/includes/sidebar.html` |
@@ -721,38 +864,68 @@ extract_pdf_data(pdf_path)            # Main entry point
 | WO list page | `templates/workorders/workorder_list_enhanced.html` |
 | Job card detail | `templates/workorders/workorder_detail_enhanced.html` |
 | Router sheet | `templates/workorders/router_sheet.html` |
-| Production planner | `templates/workorders/production_planner.html` |
-| Planner settings | `templates/workorders/planner_settings.html` |
 | Seed accounts command | `apps/sales/management/commands/seed_accounts.py` |
 | Seed router steps | `apps/workorders/management/commands/seed_router_steps.py` |
 | Eval create form | `templates/workorders/cutter_evaluation_form.html` |
 | Eval matrix editor | `templates/workorders/cutter_evaluation_matrix.html` |
 | Drillbit lookup API | `apps/workorders/views.py` (api_drillbit_lookup) |
 | BOM list API | `apps/technology/views.py` (api_boms_list) |
+| ERP Automation views | `apps/erp_automation/views.py` |
+| ERP Automation models | `apps/erp_automation/models.py` |
+| Browser recorder service | `apps/erp_automation/services/recorder.py` |
+| Workflow executor service | `apps/erp_automation/services/executor.py` |
+| D365 interaction engine | `apps/erp_automation/services/executor.py` (D365InteractionEngine class) |
+| Chain executor service | `apps/erp_automation/services/chain_executor.py` |
+| Smart locator engine | `apps/erp_automation/services/locator_engine.py` |
+| Job card parser | `apps/erp_automation/services/job_card_parser.py` |
+| Route selector | `apps/erp_automation/services/route_selector.py` |
+| Recording → Workflow converter | `apps/erp_automation/management/commands/create_workflow_from_recording.py` |
+| ERP recording page | `apps/erp_automation/templates/erp_automation/recording.html` |
+| ERP recording detail | `apps/erp_automation/templates/erp_automation/recording_detail.html` |
+| ERP job data detail | `apps/erp_automation/templates/erp_automation/job_data_detail.html` |
+| ERP job data upload | `apps/erp_automation/templates/erp_automation/job_data_upload.html` |
+| ERP dashboard | `apps/erp_automation/templates/erp_automation/dashboard.html` |
+| ERP workflow detail (editor) | `apps/erp_automation/templates/erp_automation/workflow_detail.html` |
+| ERP workflow list | `apps/erp_automation/templates/erp_automation/workflow_list.html` |
+| ERP routes list | `apps/erp_automation/templates/erp_automation/route_list.html` |
+| ERP automation URLs | `apps/erp_automation/urls.py` |
 
 ### Key View Classes
 
 | View | File | URL |
 |------|------|-----|
 | CutterInventoryListView | `apps/inventory/views.py:1540` | `/inventory/cutters/` |
-| CutterInventoryExportView | `apps/inventory/views.py:3224` | `/inventory/cutters/export/` |
+| CutterInventoryExportView | `apps/inventory/views.py:3208` | `/inventory/cutters/export/` |
 | ItemCreateView | `apps/inventory/views.py:700+` | `/inventory/items/create/` |
-| BOMCreateWithBuilderView | `apps/technology/views.py:2811` | `/technology/boms/create/` |
-| DrillBitListEnhancedView | `apps/workorders/views_jobcard.py:384` | `/work-orders/drill-bits/` |
-| WorkOrderCreateView | `apps/workorders/views.py:53` | `/workorders/create/` |
-| WorkOrderListEnhancedView | `apps/workorders/views_jobcard.py:101` | `/workorders/enhanced/` |
-| WorkOrderDetailEnhancedView | `apps/workorders/views_jobcard.py:206` | `/workorders/enhanced/<pk>/` |
-| RouterSheetView | `apps/workorders/views_jobcard.py:836` | `/workorders/<pk>/router-sheet/` |
-| CutterEvaluationCreateView | `apps/workorders/views_jobcard.py:607` | `/workorders/<wo_pk>/cutter-evaluation/create/` |
-| CutterEvaluationEditView | `apps/workorders/views_jobcard.py:650` | `/workorders/<wo_pk>/cutter-evaluation/<pk>/edit/` |
-| ProductionPlannerView | `apps/workorders/views_jobcard.py:1391` | `/work-orders/production-planner/` |
-| PlannerSettingsView | `apps/workorders/views_jobcard.py` | `/work-orders/production-planner/settings/` |
+| BOMCreateWithBuilderView | `apps/technology/views.py:2737` | `/technology/boms/create/` |
+| DrillBitListEnhancedView | `apps/workorders/views_drillbit.py` | `/work-orders/drill-bits/` |
+| WorkOrderCreateView | `apps/workorders/views.py:104` | `/workorders/create/` |
+| WorkOrderListEnhancedView | `apps/workorders/views_jobcard.py:99` | `/workorders/enhanced/` |
+| WorkOrderDetailEnhancedView | `apps/workorders/views_jobcard.py:197` | `/workorders/enhanced/<pk>/` |
+| RouterSheetView | `apps/workorders/views_jobcard.py:656` | `/workorders/<pk>/router-sheet/` |
+| CutterEvaluationCreateView | `apps/workorders/views_jobcard.py:548` | `/workorders/<wo_pk>/cutter-evaluation/create/` |
+| CutterEvaluationEditView | `apps/workorders/views_jobcard.py:591` | `/workorders/<wo_pk>/cutter-evaluation/<pk>/edit/` |
 | api_drillbit_lookup | `apps/workorders/views.py` | `/workorders/api/drill-bits/lookup/` |
 | api_boms_list | `apps/technology/views.py` | `/technology/api/boms/` |
-| api_add_to_plan | `apps/workorders/views_jobcard.py` | `/workorders/api/add-to-plan/` |
-| api_preview_due_date | `apps/workorders/views_jobcard.py` | `/workorders/api/preview-due-date/` |
-| api_production_wip_status | `apps/workorders/views_jobcard.py:1611` | `/workorders/api/production-wip-status/` |
-| api_create_wo_from_plan | `apps/workorders/views_jobcard.py:1808` | `/workorders/api/create-wo-from-plan/` |
+| DashboardView (ERP) | `apps/erp_automation/views.py` | `/erp-automation/` |
+| RecordingView | `apps/erp_automation/views.py` | `/erp-automation/record/` |
+| RecordingDetailView | `apps/erp_automation/views.py` | `/erp-automation/record/<pk>/` |
+| quick_convert_recording | `apps/erp_automation/views.py` | `/erp-automation/record/<pk>/quick-convert/` |
+| JobDataListView | `apps/erp_automation/views.py` | `/erp-automation/job-data/` |
+| JobDataDetailView | `apps/erp_automation/views.py` | `/erp-automation/job-data/<pk>/` |
+| JobDataUploadView | `apps/erp_automation/views.py` | `/erp-automation/job-data/upload/` |
+| api_execute_job_data | `apps/erp_automation/views.py` | `/erp-automation/api/job-data/<pk>/execute/` |
+| WorkflowListView (ERP) | `apps/erp_automation/views.py` | `/erp-automation/workflows/` |
+| WorkflowDetailView (ERP) | `apps/erp_automation/views.py` | `/erp-automation/workflows/<pk>/` |
+| RouteListView | `apps/erp_automation/views.py` | `/erp-automation/routes/` |
+| api_workflow_steps | `apps/erp_automation/views.py` | `/erp-automation/api/workflows/<pk>/steps/` |
+| api_step_create | `apps/erp_automation/views.py` | `/erp-automation/api/workflows/<pk>/steps/create/` |
+| api_step_update | `apps/erp_automation/views.py` | `/erp-automation/api/workflows/<pk>/steps/<pk>/update/` |
+| api_step_delete | `apps/erp_automation/views.py` | `/erp-automation/api/workflows/<pk>/steps/<pk>/delete/` |
+| api_locator_create | `apps/erp_automation/views.py` | `/erp-automation/api/locators/create/` |
+| api_locator_update | `apps/erp_automation/views.py` | `/erp-automation/api/locators/<pk>/update/` |
+| api_locator_detail | `apps/erp_automation/views.py` | `/erp-automation/api/locators/<pk>/detail/` |
+| api_locator_search | `apps/erp_automation/views.py` | `/erp-automation/api/locators/search/` |
 
 ### Database Queries
 ```python
@@ -784,136 +957,3 @@ StockLedger.objects.filter(
 3. **Backup with `./hv`** before making changes
 4. **Check Django admin** at `/admin/` for data inspection
 5. **Review browser console** for JavaScript errors
-
----
-
-## Local Setup Review (Feb 13, 2026)
-
-### Environment
-- **Platform**: Windows 10, Python 3.10
-- **Location**: `D:\PycharmProjects\floor_management_system-D3`
-- **Virtual env**: `venv\Scripts\activate` (MUST use venv pip/python)
-- **Branch**: `dev/2026-02-13-setup` (working), `master` (primary)
-- **Commit at setup**: `d1bb3a5` on master
-
-### Windows-Specific Notes
-- Use `PYTHONIOENCODING=utf-8` before management commands that output Unicode (checkmarks, etc.)
-- `dumpdata` must use Python script with `io.StringIO()` — direct stdout fails with charmap encoding
-- Missing from `requirements.txt`: `jinja2` (needed by `apps/cutter_map/utils/pdf_generator.py`)
-
-### App Summary (26 apps, 271 models)
-
-| App | Models | Status | Description |
-|-----|--------|--------|-------------|
-| **accounts** | 6 | Working | Custom user model, roles, permissions, trusted devices |
-| **organization** | 5 | Working | Departments, positions, system settings |
-| **dashboard** | 2 | Working | Customizable dashboards, saved shortcuts |
-| **workorders** | 33 | Core/Working | Drill bits, work orders, job cards, evaluations, production planner, router sheets |
-| **technology** | 25 | Core/Working | Designs, BOMs, HDBS/SMI types, bit sizes, pocket layouts, breaker slots |
-| **inventory** | 54 | Core/Working | Items, categories, variants, stock, GRNs, ledger, UOM, assets, BOMs, cycle counts |
-| **sales** | 27 | Partial | Accounts (11 types), customers, field service (partial) |
-| **supplychain** | 18 | Working | PRs, POs, GRNs, vendors, suppliers (dual model) |
-| **cutter_map** | 2 | Core/Working | PDF extraction, BOM generation from Halliburton docs |
-| **procedures** | 9 | Skeleton+ | Procedure engine with steps, checkpoints |
-| **forms_engine** | 5 | Skeleton+ | Dynamic form builder |
-| **execution** | 6 | Skeleton+ | Procedure execution tracking |
-| **quality** | 3 | Skeleton+ | QC inspections |
-| **compliance** | 10 | Skeleton | Audit, compliance tracking |
-| **planning** | 10 | Skeleton+ | Wiki, production planning |
-| **reports** | 2 | Skeleton | Report templates |
-| **erp_automation** | 10 | Functional | Django-integrated browser automation for ERP |
-| **erp_integration** | 2 | Skeleton | ERP sync models |
-| **notifications** | 7 | Skeleton+ | Notification system |
-| **maintenance** | 6 | Skeleton+ | Equipment maintenance |
-| **dispatch** | 4 | Skeleton | Fleet dispatch |
-| **hr** | 16 | Skeleton | HR workforce management |
-| **hsse** | 3 | Skeleton | Health, safety, security, environment |
-| **scancodes** | 2 | Skeleton | Barcode/QR scanning |
-| **documents** | 2 | Skeleton | Document management |
-| **drss** | 2 | Skeleton | Drill string services |
-
-### Seed Command Execution Order
-```bash
-# 1. Core reference data (run seed_all which covers these):
-PYTHONIOENCODING=utf-8 venv/Scripts/python manage.py seed_all
-# Covers: departments(10), positions(54), users(27), permissions, customers(8), accounts(dry-run), rigs(5), wells(21), hdbs_types(8), smi_types(0 without bit_sizes)
-
-# 2. Technology reference data (MUST run before re-running SMI types):
-venv/Scripts/python manage.py seed_bit_sizes          # 27 sizes
-venv/Scripts/python manage.py seed_bit_types           # 41 types
-venv/Scripts/python manage.py seed_applications        # 18
-venv/Scripts/python manage.py seed_formation_types     # 21
-venv/Scripts/python manage.py seed_iadc_codes          # 30
-venv/Scripts/python manage.py seed_connection_types    # 8
-venv/Scripts/python manage.py seed_connection_sizes    # 12
-venv/Scripts/python manage.py seed_connections         # 3
-venv/Scripts/python manage.py seed_upper_section_types # 7
-venv/Scripts/python manage.py seed_pocket_shapes       # 5
-venv/Scripts/python manage.py seed_pocket_sizes        # 20
-venv/Scripts/python manage.py seed_breaker_slots       # 5
-venv/Scripts/python manage.py seed_special_technologies # 13
-venv/Scripts/python manage.py seed_test_designs        # 3 designs
-
-# 3. Re-run HDBS/SMI with bit sizes available:
-PYTHONIOENCODING=utf-8 venv/Scripts/python manage.py seed_hdbs_types  # links sizes
-PYTHONIOENCODING=utf-8 venv/Scripts/python manage.py seed_smi_types   # 23 types
-
-# 4. Inventory reference data:
-venv/Scripts/python manage.py seed_units               # 147 UOMs
-venv/Scripts/python manage.py seed_condition_types      # 8
-venv/Scripts/python manage.py seed_quality_statuses     # 7
-venv/Scripts/python manage.py seed_location_types       # 12
-venv/Scripts/python manage.py seed_ownership_types      # 4
-venv/Scripts/python manage.py seed_adjustment_reasons   # 17
-venv/Scripts/python manage.py seed_attributes           # 351
-venv/Scripts/python manage.py seed_parties              # 14
-venv/Scripts/python manage.py seed_pdc_cutters          # 15 category attrs
-venv/Scripts/python manage.py seed_variant_cases        # 8
-
-# 5. Accounts (need --confirm):
-venv/Scripts/python manage.py seed_accounts --confirm   # 11 accounts
-
-# 6. Work order data (need --confirm):
-venv/Scripts/python manage.py seed_locations            # 16
-venv/Scripts/python manage.py seed_router_steps --confirm  # 59 ops in 2 routes
-venv/Scripts/python manage.py seed_evaluation_routes --confirm  # 20 routes
-venv/Scripts/python manage.py seed_drillbit_inventory --confirm # 25 bits + 9 locations
-
-# 7. Test data:
-PYTHONIOENCODING=utf-8 venv/Scripts/python manage.py seed_test_data  # 5 users, 20 bits, 30 WOs
-venv/Scripts/python manage.py seed_inventory_test_data  # 22 items, GRNs, etc.
-venv/Scripts/python manage.py seed_procurement_workflow # PRs, POs, GRNs
-```
-
-### Known Issues Found During Setup
-1. **`seed_inventory` is broken**: References non-existent `ItemVariant` fields (`acquisition`, `condition`, `name`, `ownership`, `reclaim_category`, `valuation_percentage`)
-2. **`seed_all` doesn't include all seeds**: Only 10 of 44 seed commands; doesn't include technology, inventory reference data, or workorders seeds
-3. **`seed_accounts` needs `--confirm`**: Runs as dry-run without the flag (confusing since `seed_all` calls it without `--confirm`)
-4. **SMI types depend on bit_sizes**: `seed_all` runs `seed_smi_types` before `seed_bit_sizes`, so all 23 SMI types fail on first run
-5. **Unicode encoding on Windows**: All seed commands that output checkmark/cross characters fail without `PYTHONIOENCODING=utf-8`
-6. **`dumpdata` encoding issue**: Must use Python script workaround on Windows (charmap codec can't encode Arabic characters)
-
-### Working Features (verified)
-- Server starts and redirects to login page
-- All 140+ migrations apply cleanly
-- Seed data creates realistic test environment
-- 27 user accounts with password `Ardt@2025`
-- 5 test users with password `testpass123`
-- 45 drill bits total (25 from seed_drillbit_inventory + 20 from seed_test_data)
-- 30 work orders from test data
-- Full procurement workflow (PR -> PO -> GRN)
-- 11 accounts with unique WO numbering formats
-- 20 evaluation routes
-- 2 process routes (FC Repair 33 steps, L3/L4 Manufacture 26 steps)
-
-### Session Checklist (Windows)
-```bash
-# Resume work
-cd D:\PycharmProjects\floor_management_system-D3
-venv\Scripts\activate
-git status
-git pull origin master
-venv\Scripts\python manage.py check
-venv\Scripts\python manage.py runserver
-# Read this file for context
-```

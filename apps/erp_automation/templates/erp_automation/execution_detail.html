@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Execution #{{ execution.pk }} - ERP Automation{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3 text-sm">
+        <li class="inline-flex items-center">
+            <a href="{% url 'erp_automation:execution_list' %}" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                Executions
+            </a>
+        </li>
+        <li>
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400 mx-1"></i>
+                <span class="text-gray-700 dark:text-gray-300 font-medium">#{{ execution.pk }}</span>
+            </div>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Execution #{{ execution.pk }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if execution.status == 'success' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                {% elif execution.status == 'failed' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                {% elif execution.status == 'running' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                {% elif execution.status == 'pending' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ execution.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">
+            {{ execution.workflow.name }}
+            {% if execution.job_data %} | WO: {{ execution.job_data.work_order_number }}{% endif %}
+        </p>
+    </div>
+    <div class="mt-4 md:mt-0 flex gap-2">
+        {% if execution.job_data %}
+        <a href="{% url 'erp_automation:job_data_detail' execution.job_data.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-sm">
+            <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>
+            View Job Data
+        </a>
+        {% endif %}
+        <a href="{% url 'erp_automation:execution_list' %}"
+           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back to List
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Execution Info -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="info" class="w-5 h-5 inline mr-2 text-blue-500"></i>
+            Execution Details
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Workflow</label>
+                <p class="text-sm text-gray-900 dark:text-white">
+                    <a href="{% url 'erp_automation:workflow_detail' execution.workflow.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                        {{ execution.workflow.name }}
+                    </a>
+                </p>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Status</label>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                    {% if execution.status == 'success' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                    {% elif execution.status == 'failed' %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+                    {% elif execution.status == 'running' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400
+                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                    {{ execution.get_status_display }}
+                </span>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Executed By</label>
+                <p class="text-sm text-gray-900 dark:text-white">{{ execution.executed_by.get_full_name|default:execution.executed_by.username|default:"--" }}</p>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Started</label>
+                <p class="text-sm text-gray-900 dark:text-white">{{ execution.started_at|date:"M d, Y H:i:s"|default:"Not started" }}</p>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Completed</label>
+                <p class="text-sm text-gray-900 dark:text-white">{{ execution.completed_at|date:"M d, Y H:i:s"|default:"Not completed" }}</p>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Duration</label>
+                <p class="text-sm text-gray-900 dark:text-white">
+                    {% if execution.started_at and execution.completed_at %}
+                    {{ execution.completed_at|timeuntil:execution.started_at }} ago
+                    {% else %}
+                    --
+                    {% endif %}
+                </p>
+            </div>
+            {% if execution.sheet_name %}
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Account/Sheet</label>
+                <p class="text-sm text-gray-900 dark:text-white">{{ execution.sheet_name }}</p>
+            </div>
+            {% endif %}
+            {% if execution.job_data %}
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Job Data</label>
+                <p class="text-sm">
+                    <a href="{% url 'erp_automation:job_data_detail' execution.job_data.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                        {{ execution.job_data.work_order_number }} — {{ execution.job_data.serial_number }}
+                    </a>
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Error Message -->
+    {% if execution.error_message %}
+    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6">
+        <h3 class="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">
+            <i data-lucide="alert-circle" class="w-5 h-5 inline mr-2"></i>
+            Error Message
+        </h3>
+        <pre class="text-sm text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap break-words font-mono">{{ execution.error_message }}</pre>
+    </div>
+    {% endif %}
+
+    <!-- Row Data -->
+    {% if execution.row_data %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="database" class="w-5 h-5 inline mr-2 text-purple-500"></i>
+            Row Data (Input)
+        </h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-4 py-2.5 font-medium">Variable</th>
+                        <th class="px-4 py-2.5 font-medium">Value</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for key, value in execution.row_data.items %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-4 py-2 font-mono text-xs text-indigo-600 dark:text-indigo-400 font-medium">{{ key }}</td>
+                        <td class="px-4 py-2 text-gray-900 dark:text-white">
+                            {% if value %}{{ value }}{% else %}<span class="text-gray-400 italic">empty</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Context Variables -->
+    {% if execution.context %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="variable" class="w-5 h-5 inline mr-2 text-teal-500"></i>
+            Context Variables (Output)
+        </h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-4 py-2.5 font-medium">Key</th>
+                        <th class="px-4 py-2.5 font-medium">Value</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for key, value in execution.context.items %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-4 py-2 font-mono text-xs text-teal-600 dark:text-teal-400 font-medium">{{ key }}</td>
+                        <td class="px-4 py-2 text-gray-900 dark:text-white">{{ value }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Step Executions -->
+    {% if step_executions %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="list-ordered" class="w-5 h-5 inline mr-2 text-orange-500"></i>
+            Step Executions ({{ step_executions|length }} steps)
+        </h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-3 py-2.5 font-medium w-12">#</th>
+                        <th class="px-3 py-2.5 font-medium">Step Name</th>
+                        <th class="px-3 py-2.5 font-medium">Action</th>
+                        <th class="px-3 py-2.5 font-medium">Status</th>
+                        <th class="px-3 py-2.5 font-medium">Retries</th>
+                        <th class="px-3 py-2.5 font-medium">Duration</th>
+                        <th class="px-3 py-2.5 font-medium">Error</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for se in step_executions %}
+                    <tr class="{% if se.status == 'failed' %}bg-red-50/50 dark:bg-red-900/10{% endif %} hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-3 py-2">
+                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold
+                                {% if se.status == 'success' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                                {% elif se.status == 'failed' %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400
+                                {% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+                                {{ se.step.order }}
+                            </span>
+                        </td>
+                        <td class="px-3 py-2 text-gray-900 dark:text-white font-medium">
+                            {{ se.step.name }}
+                            {% if se.step.locator %}
+                            <span class="block text-xs text-gray-400 dark:text-gray-500 font-mono">{{ se.step.locator.name }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono
+                                bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                {{ se.step.action_type }}
+                            </span>
+                        </td>
+                        <td class="px-3 py-2">
+                            {% if se.status == 'success' %}
+                            <i data-lucide="check-circle" class="w-4 h-4 text-green-500 inline"></i>
+                            {% elif se.status == 'failed' %}
+                            <i data-lucide="x-circle" class="w-4 h-4 text-red-500 inline"></i>
+                            {% else %}
+                            <i data-lucide="circle" class="w-4 h-4 text-gray-400 inline"></i>
+                            {% endif %}
+                            <span class="text-xs ml-1">{{ se.get_status_display }}</span>
+                        </td>
+                        <td class="px-3 py-2 text-center text-gray-500">{{ se.retry_count }}</td>
+                        <td class="px-3 py-2 text-xs text-gray-500 font-mono">
+                            {% if se.started_at and se.completed_at %}
+                                {{ se.completed_at|timeuntil:se.started_at }}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-xs text-red-600 dark:text-red-400 max-w-xs" title="{{ se.error_message }}">
+                            {% if se.error_message %}
+                            <span class="block truncate">{{ se.error_message|truncatewords:12 }}</span>
+                            {% else %}
+                            <span class="text-gray-400">--</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

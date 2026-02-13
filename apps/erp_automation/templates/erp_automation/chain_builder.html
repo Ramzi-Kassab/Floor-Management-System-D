@@ -1,0 +1,596 @@
+{% extends "base.html" %}
+{% block title %}{% if chain %}Edit Chain: {{ chain.name }}{% else %}Create Workflow Chain{% endif %} - ERP Automation{% endblock %}
+
+{% block content %}
+<div x-data="chainBuilder()" x-init="init()" class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                {% if chain %}Edit Chain: {{ chain.name }}{% else %}Create Workflow Chain{% endif %}
+            </h1>
+            <p class="text-gray-600 dark:text-gray-400">
+                Compose a chain from workflow segments. Drag to reorder, set conditions for each link.
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{% url 'erp_automation:chain_list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Two-column layout: Chain Config + Segment Library -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- LEFT: Chain Configuration (2/3 width) -->
+        <div class="lg:col-span-2 space-y-6">
+
+            <!-- Chain Properties Card -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Chain Properties</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Chain Name *</label>
+                        <input type="text" x-model="chainName"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                               placeholder="e.g., Full LSTK ERP Processing">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                        <textarea x-model="chainDescription" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                  placeholder="What this chain does..."></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                        <select x-model="chainStatus"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500">
+                            <option value="draft">Draft</option>
+                            <option value="active">Active</option>
+                            <option value="archived">Archived</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Condition Field</label>
+                        <input type="text" x-model="conditionField"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                               placeholder="e.g., FROM">
+                    </div>
+                    <div class="flex items-center gap-6">
+                        <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <input type="checkbox" x-model="stopOnFailure"
+                                   class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                            <span>Stop on failure</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <input type="checkbox" x-model="keepBrowserOpen"
+                                   class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                            <span>Keep browser open</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chain Links (Sortable) -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        Chain Links
+                        <span class="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2"
+                              x-text="'(' + links.length + ' segment' + (links.length !== 1 ? 's' : '') + ')'"></span>
+                    </h2>
+                    <div class="text-xs text-gray-400 dark:text-gray-500">
+                        <i data-lucide="grip-vertical" class="w-3 h-3 inline"></i> Drag to reorder
+                    </div>
+                </div>
+
+                <!-- Links List -->
+                <div id="chainLinksList" class="divide-y divide-gray-100 dark:divide-gray-700/50 min-h-[80px]">
+                    <template x-for="(link, idx) in links" :key="link._uid">
+                        <div class="group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                             :data-uid="link._uid"
+                             draggable="true"
+                             @dragstart="onDragStart($event, idx)"
+                             @dragover.prevent="onDragOver($event, idx)"
+                             @drop.prevent="onDrop($event, idx)"
+                             @dragend="onDragEnd()">
+
+                            <div class="px-4 py-3 flex items-start gap-3">
+                                <!-- Drag handle + Order -->
+                                <div class="flex flex-col items-center gap-1 flex-shrink-0 pt-1 cursor-grab active:cursor-grabbing"
+                                     :class="{ 'opacity-30': dragIdx === idx }">
+                                    <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-300 dark:text-gray-600"></i>
+                                    <span class="w-6 h-6 flex items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-bold"
+                                          x-text="idx + 1"></span>
+                                </div>
+
+                                <!-- Link Content -->
+                                <div class="flex-1 min-w-0">
+                                    <!-- Workflow name + step count -->
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <span class="font-medium text-gray-900 dark:text-white text-sm" x-text="link.workflow_name"></span>
+                                        <span class="text-xs text-gray-400 dark:text-gray-500" x-text="link.step_count + ' steps'"></span>
+                                        <span class="px-1.5 py-0.5 text-xs rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                              x-show="link.workflow_status === 'active'">Active</span>
+                                        <span class="px-1.5 py-0.5 text-xs rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                              x-show="link.workflow_status === 'draft'">Draft</span>
+                                    </div>
+
+                                    <!-- Collapsible settings -->
+                                    <div x-show="link._expanded" x-collapse class="space-y-2 mt-2">
+                                        <!-- Label override -->
+                                        <div class="flex items-center gap-2">
+                                            <label class="text-xs text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Label:</label>
+                                            <input type="text" x-model="link.name"
+                                                   class="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                   :placeholder="link.workflow_name">
+                                        </div>
+                                        <!-- Wait before -->
+                                        <div class="flex items-center gap-2">
+                                            <label class="text-xs text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Wait before:</label>
+                                            <input type="number" x-model.number="link.wait_before_ms" min="0" step="500"
+                                                   class="w-24 px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                            <span class="text-xs text-gray-400">ms</span>
+                                        </div>
+                                        <!-- Navigate URL override -->
+                                        <div class="flex items-center gap-2">
+                                            <label class="text-xs text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Navigate URL:</label>
+                                            <input type="url" x-model="link.navigate_url"
+                                                   class="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                   placeholder="Override workflow URL (optional)">
+                                        </div>
+                                        <!-- Condition -->
+                                        <div class="flex items-center gap-2">
+                                            <label class="text-xs text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Condition:</label>
+                                            <input type="text" x-model="link.condition_field"
+                                                   class="w-28 px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                   placeholder="field name">
+                                            <span class="text-xs text-gray-400">=</span>
+                                            <input type="text" x-model="link.condition_value"
+                                                   class="w-28 px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                   placeholder="value">
+                                            <span class="text-xs text-gray-400 italic">(skip if no match)</span>
+                                        </div>
+                                        <!-- Context Mapping -->
+                                        <div class="flex items-start gap-2">
+                                            <label class="text-xs text-gray-500 dark:text-gray-400 w-24 flex-shrink-0 pt-1">Context map:</label>
+                                            <textarea x-model="link.context_mapping_str" rows="2"
+                                                      class="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
+                                                      placeholder='{"ITEM_NO": "created_item_number"}'></textarea>
+                                        </div>
+
+                                        <!-- Page Precondition Check -->
+                                        <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+                                            <div class="flex items-center gap-2 mb-2">
+                                                <i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-500"></i>
+                                                <span class="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">Page Precondition</span>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <div class="flex items-center gap-2">
+                                                    <label class="text-xs text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Check type:</label>
+                                                    <select x-model="link.precondition_type"
+                                                            class="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                                        <option value="">No check</option>
+                                                        <option value="element_exists">Element exists (CSS/XPath)</option>
+                                                        <option value="text_contains">Page contains text</option>
+                                                        <option value="element_count_gt">Element count > value</option>
+                                                    </select>
+                                                </div>
+                                                <template x-if="link.precondition_type">
+                                                    <div class="space-y-2">
+                                                        <div class="flex items-center gap-2">
+                                                            <label class="text-xs text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Selector:</label>
+                                                            <input type="text" x-model="link.precondition_selector"
+                                                                   class="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
+                                                                   :placeholder="link.precondition_type === 'text_contains' ? 'text to search for' : 'CSS selector or XPath'">
+                                                        </div>
+                                                        <div class="flex items-center gap-2" x-show="link.precondition_type === 'element_count_gt' || link.precondition_type === 'text_contains'">
+                                                            <label class="text-xs text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Value:</label>
+                                                            <input type="text" x-model="link.precondition_value"
+                                                                   class="w-32 px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                                   :placeholder="link.precondition_type === 'element_count_gt' ? 'count threshold' : 'search text'">
+                                                        </div>
+                                                        <div class="flex items-center gap-2">
+                                                            <label class="text-xs text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Action:</label>
+                                                            <select x-model="link.skip_if_found"
+                                                                    class="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                                                <option :value="true">Skip this link IF found (already done)</option>
+                                                                <option :value="false">Skip this link if NOT found (prerequisite missing)</option>
+                                                            </select>
+                                                        </div>
+                                                        <div class="flex items-center gap-2">
+                                                            <label class="text-xs text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Timeout:</label>
+                                                            <input type="number" x-model.number="link.precondition_timeout_ms" min="1000" step="1000"
+                                                                   class="w-24 px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                                            <span class="text-xs text-gray-400">ms</span>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Actions -->
+                                <div class="flex items-center gap-1 flex-shrink-0">
+                                    <!-- Expand/Collapse -->
+                                    <button type="button" @click="link._expanded = !link._expanded"
+                                            class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-500 transition-colors"
+                                            :title="link._expanded ? 'Collapse' : 'Configure'">
+                                        <i data-lucide="settings" class="w-4 h-4" x-show="!link._expanded"></i>
+                                        <i data-lucide="chevron-up" class="w-4 h-4" x-show="link._expanded"></i>
+                                    </button>
+                                    <!-- Remove -->
+                                    <button type="button" @click="removeLink(idx)"
+                                            class="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 transition-colors"
+                                            title="Remove from chain">
+                                        <i data-lucide="x" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Connector arrow between links -->
+                            <template x-if="idx < links.length - 1">
+                                <div class="flex justify-center py-0 -mt-1 -mb-1">
+                                    <div class="flex flex-col items-center">
+                                        <div class="w-px h-3 bg-gray-300 dark:bg-gray-600"></div>
+                                        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-300 dark:text-gray-600 -mt-1"></i>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Empty state -->
+                    <div x-show="links.length === 0" class="px-6 py-12 text-center">
+                        <i data-lucide="layers" class="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3"></i>
+                        <p class="text-gray-500 dark:text-gray-400">No segments added yet.</p>
+                        <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Click a segment from the library on the right to add it.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Save Buttons -->
+            <div class="flex items-center gap-3">
+                <button type="button" @click="saveChain()"
+                        :disabled="saving || !chainName.trim()"
+                        class="inline-flex items-center px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium">
+                    <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                    <span x-text="saving ? 'Saving...' : '{% if chain %}Save Changes{% else %}Create Chain{% endif %}'"></span>
+                </button>
+                {% if chain %}
+                <button type="button" @click="duplicateChain()"
+                        :disabled="saving"
+                        class="inline-flex items-center px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <i data-lucide="copy" class="w-4 h-4 mr-2"></i>
+                    Duplicate
+                </button>
+                {% endif %}
+                <a href="{% url 'erp_automation:chain_list' %}"
+                   class="inline-flex items-center px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    Cancel
+                </a>
+            </div>
+
+            <!-- Success/Error Messages -->
+            <div x-show="successMsg" x-cloak
+                 class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center gap-3">
+                <i data-lucide="check-circle" class="w-5 h-5 text-green-500 flex-shrink-0"></i>
+                <span class="text-sm text-green-700 dark:text-green-300" x-text="successMsg"></span>
+            </div>
+            <div x-show="errorMsg" x-cloak
+                 class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-center gap-3">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-red-500 flex-shrink-0"></i>
+                <span class="text-sm text-red-700 dark:text-red-300" x-text="errorMsg"></span>
+            </div>
+        </div>
+
+        <!-- RIGHT: Segment Library (1/3 width) -->
+        <div class="space-y-4">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden sticky top-4">
+                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+                        <i data-lucide="puzzle" class="w-4 h-4 inline mr-1"></i>
+                        Segment Library
+                    </h3>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Click to add to chain</p>
+                </div>
+
+                <!-- Search -->
+                <div class="px-4 py-2 border-b border-gray-100 dark:border-gray-700/50">
+                    <input type="text" x-model="segmentSearch"
+                           class="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                           placeholder="Search segments...">
+                </div>
+
+                <!-- Segment List -->
+                <div class="max-h-[60vh] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700/50">
+                    <template x-for="wf in filteredSegments" :key="wf.id">
+                        <div @click="addLink(wf)"
+                             class="px-4 py-3 cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors group">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-medium text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                              x-text="wf.name"></span>
+                                    </div>
+                                    <div class="flex items-center gap-2 mt-0.5">
+                                        <span class="text-xs text-gray-400 dark:text-gray-500" x-text="wf.step_count + ' steps'"></span>
+                                        <span class="px-1 py-0.5 text-xs rounded"
+                                              :class="wf.status === 'active' ?
+                                                  'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                                  'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'"
+                                              x-text="wf.status"></span>
+                                        <span x-show="wf.used_count > 0" class="text-xs text-gray-400"
+                                              x-text="'Used ' + wf.used_count + 'x'"></span>
+                                    </div>
+                                    <p x-show="wf.description" class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate"
+                                       x-text="wf.description"></p>
+                                </div>
+                                <div class="flex-shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <i data-lucide="plus-circle" class="w-5 h-5 text-indigo-500"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div x-show="filteredSegments.length === 0" class="px-4 py-8 text-center">
+                        <p class="text-sm text-gray-400 dark:text-gray-500">No matching segments found.</p>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                    <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                        <span x-text="segments.length + ' segments available'"></span>
+                        <a href="{% url 'erp_automation:workflow_list' %}" class="text-indigo-500 hover:text-indigo-600" target="_blank">
+                            Manage <i data-lucide="external-link" class="w-3 h-3 inline"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function chainBuilder() {
+    return {
+        // Chain properties
+        chainId: {{ chain.pk|default:"null" }},
+        chainName: '{{ chain.name|default:""|escapejs }}',
+        chainDescription: '{{ chain.description|default:""|escapejs }}',
+        chainStatus: '{{ chain.status|default:"draft"|escapejs }}',
+        conditionField: '{{ chain.condition_field|default:""|escapejs }}',
+        stopOnFailure: {{ chain.stop_on_failure|default:"true"|lower }},
+        keepBrowserOpen: {{ chain.keep_browser_open|default:"true"|lower }},
+
+        // Links in the chain
+        links: [],
+        _uidCounter: 0,
+
+        // Segment library
+        segments: [],
+        segmentSearch: '',
+
+        // Drag state
+        dragIdx: null,
+
+        // UI state
+        saving: false,
+        successMsg: '',
+        errorMsg: '',
+
+        init() {
+            // Load segments from server
+            this.loadSegments();
+
+            // Load existing links if editing
+            {% if chain %}
+            this.loadExistingLinks();
+            {% endif %}
+
+            // Re-init Lucide icons after Alpine renders
+            this.$nextTick(() => {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            });
+        },
+
+        async loadSegments() {
+            try {
+                const resp = await fetch('{% url "erp_automation:api_chain_segments" %}');
+                const data = await resp.json();
+                this.segments = data.segments || [];
+            } catch (e) {
+                console.error('Failed to load segments:', e);
+            }
+        },
+
+        loadExistingLinks() {
+            const existingLinks = {{ existing_links_json|safe }};
+            this.links = existingLinks.map(l => ({
+                ...l,
+                _uid: this._uidCounter++,
+                _expanded: false,
+                context_mapping_str: l.context_mapping ? JSON.stringify(l.context_mapping) : '',
+                precondition_type: l.precondition_type || '',
+                precondition_selector: l.precondition_selector || '',
+                precondition_value: l.precondition_value || '',
+                skip_if_found: l.skip_if_found !== undefined ? l.skip_if_found : true,
+                precondition_timeout_ms: l.precondition_timeout_ms || 5000,
+            }));
+        },
+
+        get filteredSegments() {
+            if (!this.segmentSearch.trim()) return this.segments;
+            const q = this.segmentSearch.toLowerCase();
+            return this.segments.filter(s =>
+                s.name.toLowerCase().includes(q) ||
+                (s.description || '').toLowerCase().includes(q)
+            );
+        },
+
+        addLink(wf) {
+            this.links.push({
+                _uid: this._uidCounter++,
+                _expanded: false,
+                workflow_id: wf.id,
+                workflow_name: wf.name,
+                workflow_status: wf.status,
+                step_count: wf.step_count,
+                name: '',
+                wait_before_ms: 2000,
+                navigate_url: '',
+                condition_field: '',
+                condition_value: '',
+                context_mapping_str: '',
+                precondition_type: '',
+                precondition_selector: '',
+                precondition_value: '',
+                skip_if_found: true,
+                precondition_timeout_ms: 5000,
+                is_active: true,
+            });
+            this.$nextTick(() => {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                // Scroll to bottom of links list
+                const list = document.getElementById('chainLinksList');
+                if (list) list.scrollTop = list.scrollHeight;
+            });
+        },
+
+        removeLink(idx) {
+            this.links.splice(idx, 1);
+        },
+
+        // --- Drag & Drop Reordering ---
+        onDragStart(e, idx) {
+            this.dragIdx = idx;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', idx);
+        },
+
+        onDragOver(e, idx) {
+            if (this.dragIdx === null || this.dragIdx === idx) return;
+            e.dataTransfer.dropEffect = 'move';
+        },
+
+        onDrop(e, dropIdx) {
+            if (this.dragIdx === null || this.dragIdx === dropIdx) return;
+            const item = this.links.splice(this.dragIdx, 1)[0];
+            this.links.splice(dropIdx, 0, item);
+            this.dragIdx = null;
+        },
+
+        onDragEnd() {
+            this.dragIdx = null;
+        },
+
+        // --- Save ---
+        async saveChain() {
+            this.saving = true;
+            this.successMsg = '';
+            this.errorMsg = '';
+
+            // Validate
+            if (!this.chainName.trim()) {
+                this.errorMsg = 'Chain name is required.';
+                this.saving = false;
+                return;
+            }
+
+            if (this.links.length === 0) {
+                this.errorMsg = 'Add at least one segment to the chain.';
+                this.saving = false;
+                return;
+            }
+
+            // Build payload
+            const linksPayload = this.links.map((l, idx) => {
+                let contextMapping = {};
+                if (l.context_mapping_str && l.context_mapping_str.trim()) {
+                    try {
+                        contextMapping = JSON.parse(l.context_mapping_str);
+                    } catch (e) {
+                        // ignore invalid JSON
+                    }
+                }
+                return {
+                    workflow_id: l.workflow_id,
+                    order: (idx + 1) * 10,
+                    name: l.name || '',
+                    wait_before_ms: l.wait_before_ms || 2000,
+                    navigate_url: l.navigate_url || '',
+                    condition_field: l.condition_field || '',
+                    condition_value: l.condition_value || '',
+                    context_mapping: contextMapping,
+                    precondition_type: l.precondition_type || '',
+                    precondition_selector: l.precondition_selector || '',
+                    precondition_value: l.precondition_value || '',
+                    skip_if_found: l.skip_if_found !== false,
+                    precondition_timeout_ms: l.precondition_timeout_ms || 5000,
+                    is_active: l.is_active !== false,
+                };
+            });
+
+            const payload = {
+                name: this.chainName.trim(),
+                description: this.chainDescription.trim(),
+                status: this.chainStatus,
+                condition_field: this.conditionField.trim(),
+                stop_on_failure: this.stopOnFailure,
+                keep_browser_open: this.keepBrowserOpen,
+                links: linksPayload,
+            };
+
+            const url = this.chainId
+                ? `/erp-automation/api/chains/${this.chainId}/save/`
+                : '/erp-automation/api/chains/create/';
+
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                            || '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    this.successMsg = data.message || 'Chain saved successfully!';
+                    if (!this.chainId && data.chain_id) {
+                        // Redirect to edit mode for the newly created chain
+                        window.location.href = `/erp-automation/chains/${data.chain_id}/edit/`;
+                    } else {
+                        // Reload links to get fresh IDs
+                        this.chainId = data.chain_id || this.chainId;
+                    }
+                } else {
+                    this.errorMsg = data.message || 'Failed to save chain.';
+                }
+            } catch (e) {
+                this.errorMsg = 'Network error: ' + e.message;
+            }
+
+            this.saving = false;
+        },
+
+        async duplicateChain() {
+            if (!this.chainId) return;
+            const newName = prompt('Name for the duplicate chain:', this.chainName + ' (Copy)');
+            if (!newName) return;
+
+            this.chainName = newName;
+            this.chainId = null;
+            this.chainStatus = 'draft';
+            await this.saveChain();
+        },
+    };
+}
+</script>
+{% endblock %}

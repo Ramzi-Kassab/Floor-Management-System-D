@@ -22,6 +22,7 @@ class LocatorEngine:
     - Success rate tracking to optimize strategy order
     - Scroll-into-view handling
     - Dynamic element detection
+    - Searches all frames/iframes (critical for D365)
     """
 
     def __init__(self, page: Page):
@@ -36,6 +37,7 @@ class LocatorEngine:
     ) -> Optional[PlaywrightLocator]:
         """
         Find an element using multiple strategies until one works.
+        Searches main page AND all child frames/iframes (critical for D365).
 
         Args:
             locator_obj: Django Locator model instance
@@ -50,18 +52,19 @@ class LocatorEngine:
 
         strategies = locator_obj.get_strategies_ordered()
 
+        # Use a shorter per-strategy timeout so we don't wait forever per strategy
+        # The full timeout is for the overall search across all strategies
+        per_strategy_timeout = min(timeout, 5000)
+
         for strategy in strategies:
             try:
-                element = self._try_strategy(strategy, timeout)
+                # Try main page first
+                element = self._try_strategy(strategy, per_strategy_timeout)
 
-                if element and self._is_element_valid(element, timeout):
-                    # Scroll into view if needed
+                if element and self._is_element_valid(element, per_strategy_timeout):
                     if scroll_into_view:
                         self._scroll_into_view(element)
-
-                    # Update success stats
                     self._record_success(strategy)
-
                     logger.info(
                         f"Found element '{locator_obj.name}' using {strategy.strategy_type}: "
                         f"{strategy.value[:50]}..."
@@ -69,17 +72,36 @@ class LocatorEngine:
                     return element
 
             except PlaywrightTimeout:
-                self._record_failure(strategy)
-                logger.debug(
-                    f"Strategy {strategy.strategy_type} timed out for '{locator_obj.name}'"
-                )
-                continue
+                pass
             except Exception as e:
-                self._record_failure(strategy)
                 logger.debug(
-                    f"Strategy {strategy.strategy_type} failed for '{locator_obj.name}': {e}"
+                    f"Strategy {strategy.strategy_type} failed on main page for '{locator_obj.name}': {e}"
                 )
-                continue
+
+            # Try child frames/iframes (D365 uses iframes extensively)
+            try:
+                for frame in self.page.frames:
+                    if frame == self.page.main_frame:
+                        continue
+                    try:
+                        element = self._try_strategy_on_frame(
+                            strategy, frame, per_strategy_timeout
+                        )
+                        if element and self._is_element_valid(element, per_strategy_timeout):
+                            if scroll_into_view:
+                                self._scroll_into_view(element)
+                            self._record_success(strategy)
+                            logger.info(
+                                f"Found element '{locator_obj.name}' in iframe using "
+                                f"{strategy.strategy_type}: {strategy.value[:50]}..."
+                            )
+                            return element
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+
+            self._record_failure(strategy)
 
         logger.error(f"All strategies failed for locator '{locator_obj.name}'")
         return None
@@ -124,11 +146,22 @@ class LocatorEngine:
         return None
 
     def _try_strategy(self, strategy, timeout: int) -> Optional[PlaywrightLocator]:
-        """Try a single locator strategy."""
+        """Try a single locator strategy on main page."""
         element = self._create_locator(
             strategy.strategy_type,
             strategy.value,
-            strategy.offset_direction
+            strategy.offset_direction,
+            target=self.page,
+        )
+        return element
+
+    def _try_strategy_on_frame(self, strategy, frame, timeout: int) -> Optional[PlaywrightLocator]:
+        """Try a single locator strategy on a specific frame."""
+        element = self._create_locator(
+            strategy.strategy_type,
+            strategy.value,
+            strategy.offset_direction,
+            target=frame,
         )
         return element
 
@@ -136,37 +169,46 @@ class LocatorEngine:
         self,
         strategy_type: str,
         value: str,
-        offset_direction: str = None
+        offset_direction: str = None,
+        target=None,
     ) -> PlaywrightLocator:
-        """Create a Playwright locator based on strategy type."""
+        """Create a Playwright locator based on strategy type.
+
+        Args:
+            strategy_type: Type of locator strategy
+            value: Strategy value
+            offset_direction: Direction for text-nearby strategy
+            target: Page or Frame to search in (defaults to self.page)
+        """
+        target = target or self.page
 
         if strategy_type == "id":
-            return self.page.locator(f"#{value}")
+            return target.locator(f"#{value}")
 
         elif strategy_type == "css":
-            return self.page.locator(value)
+            return target.locator(value)
 
         elif strategy_type == "xpath":
-            return self.page.locator(f"xpath={value}")
+            return target.locator(f"xpath={value}")
 
         elif strategy_type == "name":
-            return self.page.locator(f"[name='{value}']")
+            return target.locator(f"[name='{value}']")
 
         elif strategy_type == "data-testid":
-            return self.page.locator(f"[data-testid='{value}']")
+            return target.locator(f"[data-testid='{value}']")
 
         elif strategy_type == "aria-label":
-            return self.page.get_by_label(value)
+            return target.get_by_label(value)
 
         elif strategy_type == "text":
-            return self.page.get_by_text(value, exact=False)
+            return target.get_by_text(value, exact=False)
 
         elif strategy_type == "role":
             # value format: "button:Submit" or just "button"
             if ":" in value:
                 role, name = value.split(":", 1)
-                return self.page.get_by_role(role, name=name)
-            return self.page.get_by_role(value)
+                return target.get_by_role(role, name=name)
+            return target.get_by_role(value)
 
         elif strategy_type == "text-nearby":
             # Find input near a label text

@@ -1,0 +1,1180 @@
+{% extends "base.html" %}
+
+{% block title %}Job Data: {{ job.work_order_number }} - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3 text-sm">
+        <li class="inline-flex items-center">
+            <a href="{% url 'erp_automation:job_data_list' %}" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                Job Data
+            </a>
+        </li>
+        <li>
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400 mx-1"></i>
+                <span class="text-gray-700 dark:text-gray-300 font-medium">{{ job.work_order_number }}</span>
+            </div>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Job Data: {{ job.work_order_number }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if job.status == 'DRAFT' %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+                {% elif job.status == 'READY' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                {% elif job.status == 'SENT' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                {% elif job.status == 'COMPLETED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                {% elif job.status == 'ERROR' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ job.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">
+            S/N: {{ job.serial_number|default:"--" }}
+            {% if job.account %} | Account: {{ job.account }}{% endif %}
+        </p>
+    </div>
+    <div class="mt-4 md:mt-0 flex gap-2">
+        <a href="{% url 'erp_automation:job_data_list' %}"
+           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back to List
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" action="{% url 'erp_automation:job_data_update' job.pk %}"
+      x-data="jobDataDetail()" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- Status Alert Banner (for stuck/error states) -->
+    {% if job.status == 'ERROR' %}
+    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+        <div class="flex items-start gap-3">
+            <i data-lucide="alert-circle" class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5"></i>
+            <div class="flex-1">
+                <h4 class="text-sm font-semibold text-red-800 dark:text-red-300">Execution Failed</h4>
+                <p class="text-xs text-red-600 dark:text-red-400 mt-1">
+                    The last workflow execution encountered an error. You can:
+                    <strong>Retry</strong> the execution, <strong>Reset to Ready</strong> to review data first,
+                    or <strong>Reset to Draft</strong> to make changes.
+                </p>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button type="button" id="executeBtnTop" onclick="executeWorkflow({{ job.pk }})"
+                        class="inline-flex items-center px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 transition-colors">
+                    <i data-lucide="play" class="w-3 h-3 mr-1"></i>Retry
+                </button>
+                <button type="submit" name="action" value="reset_ready"
+                        class="inline-flex items-center px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-colors">
+                    <i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i>Reset to Ready
+                </button>
+            </div>
+        </div>
+    </div>
+    {% elif job.status == 'SENT' %}
+    <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+        <div class="flex items-start gap-3">
+            <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5"></i>
+            <div class="flex-1">
+                <h4 class="text-sm font-semibold text-amber-800 dark:text-amber-300">Stuck in SENT Status</h4>
+                <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    This job was sent for execution but didn't complete properly.
+                    You can <strong>Retry</strong> the execution, <strong>Reset to Ready</strong>,
+                    or <strong>Delete</strong> and re-upload.
+                </p>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button type="button" id="executeBtnTop" onclick="executeWorkflow({{ job.pk }})"
+                        class="inline-flex items-center px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 transition-colors">
+                    <i data-lucide="play" class="w-3 h-3 mr-1"></i>Retry
+                </button>
+                <button type="submit" name="action" value="reset_ready"
+                        class="inline-flex items-center px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-colors">
+                    <i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i>Reset to Ready
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Section 1: Core Information -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="info" class="w-5 h-5 inline mr-2 text-blue-500"></i>
+            Core Information
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            <!-- WO Number (read-only) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">WO Number</label>
+                <input type="text" value="{{ job.work_order_number }}" readonly
+                       class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white text-sm cursor-not-allowed">
+            </div>
+            <!-- Serial Number (read-only) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Serial Number</label>
+                <input type="text" value="{{ job.serial_number|default:'' }}" readonly
+                       class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white text-sm font-mono cursor-not-allowed">
+            </div>
+            <!-- Size Raw + Size (inches) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Size (Raw / Inches)</label>
+                <div class="flex gap-2">
+                    <input type="text" name="size_raw" value="{{ job.size_raw|default:'' }}"
+                           placeholder="Raw value"
+                           class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <input type="text" name="size_inches" value="{{ job.size_inches|default:'' }}"
+                           placeholder="e.g. 8.5"
+                           class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                </div>
+            </div>
+            <!-- SMI Type -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMI Type</label>
+                <input type="text" name="smi_type" value="{{ job.smi_type|default:'' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            </div>
+            <!-- Account -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account</label>
+                <input type="text" name="account" value="{{ job.account|default:'' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            </div>
+            <!-- Date Received -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date Received</label>
+                <input type="date" name="date_received" value="{{ job.date_received|date:'Y-m-d' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Derived Fields -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="cpu" class="w-5 h-5 inline mr-2 text-purple-500"></i>
+            Derived Fields
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            <!-- L5 MAT Full -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">L5 MAT Full</label>
+                <input type="text" name="l5_mat_full" value="{{ job.l5_mat_full|default:'' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono">
+            </div>
+            <!-- L5 MAT Original -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">L5 MAT Original</label>
+                <input type="text" name="l5_mat_original" value="{{ job.l5_mat_original|default:'' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono">
+            </div>
+            <!-- Body Material -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Body Material</label>
+                <input type="text" name="body_material" value="{{ job.body_material|default:'' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            </div>
+            <!-- Item Group -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Item Group</label>
+                <input type="text" name="item_group" value="{{ job.item_group|default:'' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            </div>
+            <!-- Size Class -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Size Class</label>
+                <input type="text" name="size_class" value="{{ job.size_class|default:'' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            </div>
+            <!-- Has Port -->
+            <div class="flex items-center pt-6">
+                <input type="checkbox" name="has_port" id="id_has_port" value="true"
+                       {% if job.has_port %}checked{% endif %}
+                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                <label for="id_has_port" class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Has Port</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Repair Modifiers -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="wrench" class="w-5 h-5 inline mr-2 text-orange-500"></i>
+            Repair Modifiers
+        </h3>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+            <div class="flex items-center">
+                <input type="checkbox" id="id_has_usr" disabled
+                       {% if job.has_usr %}checked{% endif %}
+                       class="h-4 w-4 rounded border-gray-300 text-blue-600 opacity-60 cursor-not-allowed">
+                <label for="id_has_usr" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Has USR</label>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="id_has_hardfacing" disabled
+                       {% if job.has_hardfacing %}checked{% endif %}
+                       class="h-4 w-4 rounded border-gray-300 text-blue-600 opacity-60 cursor-not-allowed">
+                <label for="id_has_hardfacing" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Has Hardfacing</label>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="id_has_cs" disabled
+                       {% if job.has_crush_shear %}checked{% endif %}
+                       class="h-4 w-4 rounded border-gray-300 text-blue-600 opacity-60 cursor-not-allowed">
+                <label for="id_has_cs" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Has C&S</label>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="id_is_rerun" disabled
+                       {% if job.is_rerun %}checked{% endif %}
+                       class="h-4 w-4 rounded border-gray-300 text-blue-600 opacity-60 cursor-not-allowed">
+                <label for="id_is_rerun" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Is Rerun</label>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="id_is_inspection_only" disabled
+                       {% if job.is_inspection_only %}checked{% endif %}
+                       class="h-4 w-4 rounded border-gray-300 text-blue-600 opacity-60 cursor-not-allowed">
+                <label for="id_is_inspection_only" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Is Inspection Only</label>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="id_is_scrap" disabled
+                       {% if job.is_scrap %}checked{% endif %}
+                       class="h-4 w-4 rounded border-gray-300 text-blue-600 opacity-60 cursor-not-allowed">
+                <label for="id_is_scrap" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Is Scrap</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 4: Route -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="route" class="w-5 h-5 inline mr-2 text-green-500"></i>
+            Route
+        </h3>
+        <div class="space-y-4">
+            <!-- Current Route -->
+            <div class="flex items-center gap-3">
+                <div class="flex-1">
+                    {% if job.route %}
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 text-sm font-medium">
+                            <i data-lucide="route" class="w-4 h-4 mr-1.5"></i>
+                            {{ job.route.route_number }}{% if job.route.name %} - {{ job.route.name }}{% endif %}
+                        </span>
+                        {% if not job.route_override %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            <i data-lucide="zap" class="w-3 h-3 mr-1"></i>Auto-selected
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                            <i data-lucide="pen" class="w-3 h-3 mr-1"></i>Manually overridden
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <p class="text-gray-500 dark:text-gray-400 text-sm italic">No route assigned</p>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Route Selector -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Change Route</label>
+                <select name="route" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">-- No Route --</option>
+                    {% for route in routes %}
+                    <option value="{{ route.pk }}" {% if job.route_id == route.pk %}selected{% endif %}>
+                        {{ route.route_number }} - {{ route.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 5: Cutter BOM -->
+    {{ job.cutter_bom_data|json_script:"cutter-bom-json" }}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6"
+         x-data="{ cutterBom: JSON.parse(document.getElementById('cutter-bom-json').textContent) }">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="layers" class="w-5 h-5 inline mr-2 text-indigo-500"></i>
+            Cutter BOM
+        </h3>
+
+        <template x-if="cutterBom && cutterBom.length > 0">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                            <th class="px-4 py-2.5 font-medium">Group</th>
+                            <th class="px-4 py-2.5 font-medium">Qty</th>
+                            <th class="px-4 py-2.5 font-medium">Size</th>
+                            <th class="px-4 py-2.5 font-medium">Part #</th>
+                            <th class="px-4 py-2.5 font-medium">Description</th>
+                            <th class="px-4 py-2.5 font-medium">Variants</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <template x-for="(item, idx) in cutterBom" :key="idx">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                <td class="px-4 py-2.5 font-medium" x-text="item.group || '--'"></td>
+                                <td class="px-4 py-2.5" x-text="item.qty || '--'"></td>
+                                <td class="px-4 py-2.5" x-text="item.size || '--'"></td>
+                                <td class="px-4 py-2.5 font-mono text-xs" x-text="item.part_no || '--'"></td>
+                                <td class="px-4 py-2.5" x-text="item.description || '--'"></td>
+                                <td class="px-4 py-2.5">
+                                    <template x-if="item.variants && item.variants.length > 0">
+                                        <div class="space-y-1">
+                                            <template x-for="(v, vi) in item.variants" :key="vi">
+                                                <div class="flex items-center gap-2 text-xs">
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                                          x-text="v.variant_case"></span>
+                                                    <span class="text-gray-500" x-text="'x' + v.qty"></span>
+                                                    <span class="font-mono text-gray-400" x-text="v.erp_item_no || ''"></span>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!item.variants || item.variants.length === 0">
+                                        <span class="text-gray-400">--</span>
+                                    </template>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+
+        <template x-if="!cutterBom || cutterBom.length === 0">
+            <div class="text-center py-8">
+                <i data-lucide="package-open" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2"></i>
+                <p class="text-sm text-gray-500 dark:text-gray-400">No cutter data</p>
+            </div>
+        </template>
+    </div>
+
+    <!-- Section 6: Modified Cutters -->
+    {{ job.modified_cutters_data|json_script:"modified-cutters-json" }}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6"
+         x-data="{ modifiedCutters: JSON.parse(document.getElementById('modified-cutters-json').textContent) }">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="replace" class="w-5 h-5 inline mr-2 text-amber-500"></i>
+            Modified Cutters
+        </h3>
+
+        <template x-if="modifiedCutters && modifiedCutters.length > 0">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                            <th class="px-4 py-2.5 font-medium">Group</th>
+                            <th class="px-4 py-2.5 font-medium">Qty</th>
+                            <th class="px-4 py-2.5 font-medium">Part #</th>
+                            <th class="px-4 py-2.5 font-medium">Replaces Group</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <template x-for="(mc, idx) in modifiedCutters" :key="idx">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                <td class="px-4 py-2.5 font-medium" x-text="mc.group || '--'"></td>
+                                <td class="px-4 py-2.5" x-text="mc.qty || '--'"></td>
+                                <td class="px-4 py-2.5 font-mono text-xs" x-text="mc.part_no || '--'"></td>
+                                <td class="px-4 py-2.5" x-text="mc.replaces_group || '--'"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+
+        <template x-if="!modifiedCutters || modifiedCutters.length === 0">
+            <div class="text-center py-6">
+                <p class="text-sm text-gray-500 dark:text-gray-400">No modified cutters</p>
+            </div>
+        </template>
+    </div>
+
+    <!-- Section 7: ERP Output -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="server" class="w-5 h-5 inline mr-2 text-teal-500"></i>
+            ERP Output
+            <span class="text-xs font-normal text-gray-400 dark:text-gray-500 ml-2">(populated by ERP automation)</span>
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
+            <!-- Item Number -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Item Number</label>
+                <input type="text" value="{{ job.item_number|default:'--' }}" readonly
+                       class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white text-sm font-mono cursor-not-allowed">
+            </div>
+            <!-- Production Order Number -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Production Order #</label>
+                <input type="text" value="{{ job.production_order_number|default:'--' }}" readonly
+                       class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white text-sm cursor-not-allowed">
+            </div>
+            <!-- Transfer Order Number -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Transfer Order #</label>
+                <input type="text" value="{{ job.transfer_order_number|default:'--' }}" readonly
+                       class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white text-sm cursor-not-allowed">
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 8: Notes -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="message-square" class="w-5 h-5 inline mr-2 text-gray-500"></i>
+            Notes
+        </h3>
+        <textarea name="notes" rows="4" placeholder="Add any notes or remarks..."
+                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm resize-y">{{ job.notes|default:'' }}</textarea>
+    </div>
+
+    <!-- Section 9: Workflow & ERP Target URL -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="globe" class="w-5 h-5 inline mr-2 text-indigo-500"></i>
+            Workflow & ERP URL
+        </h3>
+        {% if workflows %}
+        <div class="space-y-3">
+            {% for wf in workflows %}
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ wf.name }}</span>
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
+                            {% if wf.status == 'active' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                            {% else %}bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-400{% endif %}">
+                            {{ wf.status }}
+                        </span>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 break-all">
+                        <span class="font-medium">Target URL:</span>
+                        {% if wf.target_url %}
+                        <a href="{{ wf.target_url }}" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">{{ wf.target_url }}</a>
+                        {% else %}
+                        <span class="text-gray-400 italic">Not set</span>
+                        {% endif %}
+                    </p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ wf.steps.count }} steps | ID: {{ wf.pk }}</p>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <a href="{% url 'erp_automation:workflow_detail' wf.pk %}" class="inline-flex items-center px-2.5 py-1.5 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors">
+                        <i data-lucide="external-link" class="w-3 h-3 mr-1"></i>
+                        View / Edit URL
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-3">
+            <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
+            To change the ERP URL, click "View / Edit URL" to open the workflow detail, or go to
+            <a href="{% url 'erp_automation:workflow_list' %}" class="text-blue-600 dark:text-blue-400 hover:underline">Workflows</a>
+            and edit the target URL directly.
+        </p>
+        {% else %}
+        <div class="text-center py-4">
+            <i data-lucide="alert-triangle" class="w-6 h-6 mx-auto text-amber-400 mb-2"></i>
+            <p class="text-sm text-gray-500 dark:text-gray-400">No active workflows found.</p>
+            <a href="{% url 'erp_automation:workflow_list' %}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-1 inline-block">Manage Workflows</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Section 10: Execution History (collapsible) -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: false }">
+        <button @click="open = !open" class="w-full flex items-center justify-between text-left">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="activity" class="w-5 h-5 inline mr-2 text-cyan-500"></i>
+                Execution History
+                {% if executions %}
+                <span class="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">({{ executions|length }})</span>
+                {% endif %}
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200" :class="open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="mt-4">
+        {% if executions %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-4 py-2.5 font-medium">ID</th>
+                        <th class="px-4 py-2.5 font-medium">Workflow</th>
+                        <th class="px-4 py-2.5 font-medium">Status</th>
+                        <th class="px-4 py-2.5 font-medium">Started</th>
+                        <th class="px-4 py-2.5 font-medium">Completed</th>
+                        <th class="px-4 py-2.5 font-medium">Error</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for exec in executions %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-4 py-2.5">
+                            <a href="{% url 'erp_automation:execution_detail' exec.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">#{{ exec.pk }}</a>
+                        </td>
+                        <td class="px-4 py-2.5">{{ exec.workflow.name }}</td>
+                        <td class="px-4 py-2.5">
+                            {% if exec.status == 'success' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                <i data-lucide="check" class="w-3 h-3 mr-1"></i>Success
+                            </span>
+                            {% elif exec.status == 'failed' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                                <i data-lucide="x" class="w-3 h-3 mr-1"></i>Failed
+                            </span>
+                            {% elif exec.status == 'running' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                <i data-lucide="loader" class="w-3 h-3 mr-1 animate-spin"></i>Running
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300">{{ exec.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-2.5 text-xs text-gray-500">{{ exec.started_at|date:"M d, H:i:s"|default:"--" }}</td>
+                        <td class="px-4 py-2.5 text-xs text-gray-500">{{ exec.completed_at|date:"M d, H:i:s"|default:"--" }}</td>
+                        <td class="px-4 py-2.5 text-xs text-red-600 dark:text-red-400 max-w-xs truncate" title="{{ exec.error_message }}">
+                            {{ exec.error_message|truncatewords:10|default:"--" }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-6">
+            <i data-lucide="activity" class="w-8 h-8 mx-auto text-gray-300 dark:text-gray-600 mb-2"></i>
+            <p class="text-sm text-gray-500 dark:text-gray-400">No executions yet</p>
+        </div>
+        {% endif %}
+        </div>
+    </div>
+
+    <!-- Section 11: Chain Execution History (collapsible) -->
+    {% if chain_executions %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: false }">
+        <button @click="open = !open" class="w-full flex items-center justify-between text-left">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="link-2" class="w-5 h-5 inline mr-2 text-indigo-500"></i>
+                Chain Execution History
+                <span class="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">({{ chain_executions|length }})</span>
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200" :class="open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="mt-4">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-4 py-2.5 font-medium">ID</th>
+                        <th class="px-4 py-2.5 font-medium">Chain</th>
+                        <th class="px-4 py-2.5 font-medium">Status</th>
+                        <th class="px-4 py-2.5 font-medium">Progress</th>
+                        <th class="px-4 py-2.5 font-medium">Started</th>
+                        <th class="px-4 py-2.5 font-medium">Error</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for cexec in chain_executions %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-4 py-2.5">
+                            <a href="{% url 'erp_automation:chain_execution_detail' cexec.pk %}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-mono">#{{ cexec.pk }}</a>
+                        </td>
+                        <td class="px-4 py-2.5">{{ cexec.chain.name }}</td>
+                        <td class="px-4 py-2.5">
+                            {% if cexec.status == 'success' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Success</span>
+                            {% elif cexec.status == 'failed' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Failed</span>
+                            {% elif cexec.status == 'running' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Running</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300">{{ cexec.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-2.5">
+                            <div class="flex items-center gap-2">
+                                <div class="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                                    <div class="h-1.5 rounded-full {% if cexec.status == 'success' %}bg-green-500{% elif cexec.status == 'failed' %}bg-red-500{% else %}bg-blue-500{% endif %}" style="width: {{ cexec.progress_percent }}%"></div>
+                                </div>
+                                <span class="text-xs text-gray-400">{{ cexec.completed_links }}/{{ cexec.total_links }}</span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-2.5 text-xs text-gray-500">{{ cexec.started_at|date:"M d, H:i:s"|default:"--" }}</td>
+                        <td class="px-4 py-2.5 text-xs text-red-600 dark:text-red-400 max-w-xs truncate" title="{{ cexec.error_message }}">
+                            {{ cexec.error_message|truncatewords:10|default:"--" }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Actions Bar -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
+
+                <!-- Execute Workflow — show for READY, ERROR, and SENT (retry) -->
+                {% if job.status == 'READY' or job.status == 'ERROR' or job.status == 'SENT' %}
+                <div class="flex items-center gap-2">
+                    <select id="workflowSelect" class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm py-2.5 pr-8">
+                        {% for wf in workflows %}
+                        <option value="{{ wf.pk }}" {% if wf.name == 'Create Released Product (Recorded v2)' %}selected{% endif %}>{{ wf.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" id="executeBtn"
+                            onclick="executeWorkflow({{ job.pk }})"
+                            class="inline-flex items-center px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium shadow-sm">
+                        <i data-lucide="play" class="w-4 h-4 mr-2"></i>
+                        {% if job.status == 'ERROR' or job.status == 'SENT' %}Retry{% else %}Execute{% endif %}
+                    </button>
+                    <button type="button" id="debugExecuteBtn"
+                            onclick="startDebugExecution({{ job.pk }})"
+                            class="inline-flex items-center px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium shadow-sm"
+                            title="Run workflow in debug mode — pauses on locator failures for interactive fixing">
+                        <i data-lucide="bug" class="w-4 h-4 mr-2"></i>
+                        Debug Execute
+                    </button>
+                </div>
+
+                <!-- Execute Chain — dropdown + button -->
+                {% if chains %}
+                <div class="flex items-center gap-2 border-l border-gray-300 dark:border-gray-600 pl-3 ml-1">
+                    <select id="chainSelect" class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm py-2.5 pr-8">
+                        {% for chain in chains %}
+                        <option value="{{ chain.pk }}">{{ chain.name }} ({{ chain.link_count }} links)</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" id="executeChainBtn"
+                            onclick="executeChain({{ job.pk }})"
+                            class="inline-flex items-center px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm"
+                            title="Run a chain of workflows in sequence">
+                        <i data-lucide="link-2" class="w-4 h-4 mr-2"></i>
+                        Execute Chain
+                    </button>
+                    <button type="button" id="debugChainBtn"
+                            onclick="startDebugChain({{ job.pk }})"
+                            class="inline-flex items-center px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium shadow-sm"
+                            title="Run chain in debug mode — pauses on locator failures for interactive fixing">
+                        <i data-lucide="bug" class="w-4 h-4 mr-2"></i>
+                        Debug Chain
+                    </button>
+                </div>
+                {% endif %}
+                {% endif %}
+
+                <!-- Save Changes — always available -->
+                <button type="submit" name="action" value="save"
+                        class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
+                    <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                    Save Changes
+                </button>
+
+                <!-- Mark Ready — only for DRAFT -->
+                {% if job.status == 'DRAFT' %}
+                <button type="submit" name="action" value="mark_ready"
+                        class="inline-flex items-center px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
+                    <i data-lucide="check-circle" class="w-4 h-4 mr-2"></i>
+                    Mark Ready
+                </button>
+                {% endif %}
+
+                <!-- Reset to Ready — for ERROR and SENT (stuck) -->
+                {% if job.status == 'ERROR' or job.status == 'SENT' %}
+                <button type="submit" name="action" value="reset_ready"
+                        onclick="return confirm('Reset this job to READY status so you can retry execution?')"
+                        class="inline-flex items-center px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                    Reset to Ready
+                </button>
+                {% endif %}
+
+                <!-- Reset to Draft — for ERROR, SENT, READY -->
+                {% if job.status == 'ERROR' or job.status == 'SENT' or job.status == 'READY' %}
+                <button type="submit" name="action" value="reset_draft"
+                        onclick="return confirm('Reset this job all the way back to DRAFT? You will need to mark it Ready again before executing.')"
+                        class="inline-flex items-center px-4 py-2.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4 mr-2"></i>
+                    Reset to Draft
+                </button>
+                {% endif %}
+
+                <!-- Delete — for DRAFT, READY, ERROR, SENT (not COMPLETED) -->
+                {% if job.status != 'COMPLETED' %}
+                <button type="submit" name="action" value="delete"
+                        onclick="return confirm('Are you sure you want to delete this job data record? This action cannot be undone.')"
+                        class="inline-flex items-center px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
+                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
+                    Delete
+                </button>
+                {% endif %}
+            </div>
+            <a href="{% url 'erp_automation:job_data_list' %}"
+               class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Execution Progress Modal -->
+    <div id="execModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <div id="execModalContent">
+                <!-- Loading state -->
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-4">
+                        <i data-lucide="loader" class="w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Executing Workflow...</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">The browser automation is running. This may take a minute.</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Do not close this page.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function jobDataDetail() {
+    return {};
+}
+
+function executeWorkflow(jobPk) {
+    // Disable all execute/retry buttons (bottom bar + top banner)
+    const allExecBtns = document.querySelectorAll('#executeBtn, #executeBtnTop');
+    const modal = document.getElementById('execModal');
+    const modalContent = document.getElementById('execModalContent');
+
+    // Show modal
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // Disable buttons
+    allExecBtns.forEach(b => { b.disabled = true; b.classList.add('opacity-50', 'cursor-not-allowed'); });
+
+    // Reset modal to loading
+    modalContent.innerHTML = `
+        <div class="text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 mb-4">
+                <svg class="w-8 h-8 text-emerald-600 dark:text-emerald-400 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Starting Execution...</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Launching workflow. You will be redirected to the live progress page.</p>
+        </div>
+    `;
+
+    // Get selected workflow
+    const workflowSelect = document.getElementById('workflowSelect');
+    const workflowId = workflowSelect ? parseInt(workflowSelect.value) : null;
+
+    fetch(`/erp-automation/api/job-data/${jobPk}/execute/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+        body: JSON.stringify({ headless: false, workflow_id: workflowId })
+    })
+    .then(response => {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            return response.text().then(html => {
+                const match = html.match(/<title>(.*?)<\/title>/i);
+                const errorTitle = match ? match[1] : `Server error (HTTP ${response.status})`;
+                throw new Error(errorTitle);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.redirect) {
+            // Redirect to the live execution progress page
+            window.location.href = data.redirect;
+        } else if (!data.success && data.redirect && data.redirect.includes('credentials')) {
+            // Credentials needed
+            modalContent.innerHTML = `
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-100 dark:bg-yellow-900/30 mb-4">
+                        <svg class="w-8 h-8 text-yellow-600 dark:text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Credentials Required</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">${data.message}</p>
+                    <div class="mt-4 flex gap-2 justify-center">
+                        <a href="/erp-automation/credentials/?next=/erp-automation/job-data/${jobPk}/" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Set Credentials</a>
+                        <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Cancel</button>
+                    </div>
+                </div>
+            `;
+            allExecBtns.forEach(b => { b.disabled = false; b.classList.remove('opacity-50', 'cursor-not-allowed'); });
+        } else {
+            // Other error
+            modalContent.innerHTML = `
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                        <svg class="w-8 h-8 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Execution Failed</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 text-left bg-red-50 dark:bg-red-900/20 rounded-lg p-3 font-mono break-words">${data.message}</p>
+                    <div class="mt-4 flex gap-2 justify-center flex-wrap">
+                        <button onclick="closeExecModal(); executeWorkflow(${jobPk})" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">Retry</button>
+                        <button onclick="location.reload()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Refresh Page</button>
+                        <button onclick="closeExecModal()" class="px-4 py-2 text-gray-500 text-sm">Close</button>
+                    </div>
+                </div>
+            `;
+            allExecBtns.forEach(b => { b.disabled = false; b.classList.remove('opacity-50', 'cursor-not-allowed'); });
+        }
+    })
+    .catch(err => {
+        modalContent.innerHTML = `
+            <div class="text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                    <svg class="w-8 h-8 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Error</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">${err.message || 'Failed to connect to the server.'}</p>
+                <div class="mt-4 flex gap-2 justify-center">
+                    <button onclick="location.reload()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Refresh Page</button>
+                    <button onclick="closeExecModal(); executeWorkflow(${jobPk})" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">Retry</button>
+                    <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Close</button>
+                </div>
+            </div>
+        `;
+        allExecBtns.forEach(b => { b.disabled = false; b.classList.remove('opacity-50', 'cursor-not-allowed'); });
+    });
+}
+
+function closeExecModal() {
+    const modal = document.getElementById('execModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function executeChain(jobPk) {
+    const chainSelect = document.getElementById('chainSelect');
+    const chainId = chainSelect ? parseInt(chainSelect.value) : null;
+    if (!chainId) { alert('Please select a chain.'); return; }
+
+    const chainBtn = document.getElementById('executeChainBtn');
+    const modal = document.getElementById('execModal');
+    const modalContent = document.getElementById('execModalContent');
+
+    // Show modal
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // Disable button
+    if (chainBtn) { chainBtn.disabled = true; chainBtn.classList.add('opacity-50', 'cursor-not-allowed'); }
+
+    modalContent.innerHTML = `
+        <div class="text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/30 mb-4">
+                <svg class="w-8 h-8 text-indigo-600 dark:text-indigo-400 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Starting Chain Execution...</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Launching chain workflow. The browser will open momentarily.</p>
+        </div>
+    `;
+
+    fetch(`/erp-automation/api/job-data/${jobPk}/execute-chain/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+        body: JSON.stringify({ chain_id: chainId })
+    })
+    .then(response => {
+        const ct = response.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+            return response.text().then(html => {
+                const m = html.match(/<title>(.*?)<\/title>/i);
+                throw new Error(m ? m[1] : `Server error (HTTP ${response.status})`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.redirect) {
+            modalContent.innerHTML = `
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/30 mb-4">
+                        <svg class="w-8 h-8 text-indigo-600 dark:text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Chain Started!</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">${data.message}</p>
+                    <div class="mt-4 flex gap-2 justify-center">
+                        <a href="${data.redirect}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">View Progress</a>
+                        <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Close</button>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Error or credentials needed
+            if (data.redirect) {
+                modalContent.innerHTML = `
+                    <div class="text-center">
+                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-100 dark:bg-yellow-900/30 mb-4">
+                            <svg class="w-8 h-8 text-yellow-600 dark:text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Credentials Required</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">${data.message}</p>
+                        <div class="mt-4 flex gap-2 justify-center">
+                            <a href="/erp-automation/credentials/?next=/erp-automation/job-data/${jobPk}/" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Set Credentials</a>
+                            <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Cancel</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                modalContent.innerHTML = `
+                    <div class="text-center">
+                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                            <svg class="w-8 h-8 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Chain Execution Failed</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 bg-red-50 dark:bg-red-900/20 rounded-lg p-3 font-mono break-words">${data.message}</p>
+                        <div class="mt-4 flex gap-2 justify-center">
+                            <button onclick="location.reload()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Refresh</button>
+                            <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Close</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        if (chainBtn) { chainBtn.disabled = false; chainBtn.classList.remove('opacity-50', 'cursor-not-allowed'); }
+    })
+    .catch(err => {
+        modalContent.innerHTML = `
+            <div class="text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                    <svg class="w-8 h-8 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Error</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">${err.message || 'Failed to connect.'}</p>
+                <div class="mt-4">
+                    <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Close</button>
+                </div>
+            </div>
+        `;
+        if (chainBtn) { chainBtn.disabled = false; chainBtn.classList.remove('opacity-50', 'cursor-not-allowed'); }
+    });
+}
+
+function startDebugExecution(jobPk) {
+    const debugBtn = document.getElementById('debugExecuteBtn');
+    const modal = document.getElementById('execModal');
+    const modalContent = document.getElementById('execModalContent');
+
+    // Disable button
+    if (debugBtn) {
+        debugBtn.disabled = true;
+        debugBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+
+    // Show loading modal
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    modalContent.innerHTML = `
+        <div class="text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 mb-4">
+                <svg class="w-8 h-8 text-amber-600 dark:text-amber-400 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Starting Debug Mode...</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Opening browser and preparing debug session. This may take up to 90 seconds.</p>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">The browser will open visibly so you can observe each step.</p>
+        </div>
+    `;
+
+    // Get selected workflow
+    const workflowSelect = document.getElementById('workflowSelect');
+    const workflowId = workflowSelect ? parseInt(workflowSelect.value) : null;
+
+    fetch(`/erp-automation/api/job-data/${jobPk}/debug-execute/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+        body: JSON.stringify({ workflow_id: workflowId })
+    })
+    .then(response => {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            return response.text().then(html => {
+                const match = html.match(/<title>(.*?)<\/title>/i);
+                const errorTitle = match ? match[1] : `Server error (HTTP ${response.status})`;
+                throw new Error(errorTitle);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.redirect) {
+            // Redirect to the debug execution page
+            window.location.href = data.redirect;
+        } else if (data.redirect && !data.success) {
+            // Credentials needed
+            modalContent.innerHTML = `
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-100 dark:bg-yellow-900/30 mb-4">
+                        <svg class="w-8 h-8 text-yellow-600 dark:text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Credentials Required</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">${data.message}</p>
+                    <div class="mt-4 flex gap-2 justify-center">
+                        <a href="/erp-automation/credentials/?next=/erp-automation/job-data/${jobPk}/" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Set Credentials</a>
+                        <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Cancel</button>
+                    </div>
+                </div>
+            `;
+            if (debugBtn) { debugBtn.disabled = false; debugBtn.classList.remove('opacity-50', 'cursor-not-allowed'); }
+        } else {
+            // Error
+            modalContent.innerHTML = `
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                        <svg class="w-8 h-8 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Debug Start Failed</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 bg-red-50 dark:bg-red-900/20 rounded-lg p-3 font-mono break-words">${data.message}</p>
+                    <div class="mt-4 flex gap-2 justify-center">
+                        <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Close</button>
+                    </div>
+                </div>
+            `;
+            if (debugBtn) { debugBtn.disabled = false; debugBtn.classList.remove('opacity-50', 'cursor-not-allowed'); }
+        }
+    })
+    .catch(err => {
+        modalContent.innerHTML = `
+            <div class="text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                    <svg class="w-8 h-8 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Error</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">${err.message || 'Failed to connect to the server.'}</p>
+                <div class="mt-4 flex gap-2 justify-center">
+                    <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Close</button>
+                </div>
+            </div>
+        `;
+        if (debugBtn) { debugBtn.disabled = false; debugBtn.classList.remove('opacity-50', 'cursor-not-allowed'); }
+    });
+}
+
+function startDebugChain(jobPk) {
+    const chainSelect = document.getElementById('chainSelect');
+    const chainId = chainSelect ? parseInt(chainSelect.value) : null;
+    if (!chainId) { alert('Please select a chain.'); return; }
+
+    const debugChainBtn = document.getElementById('debugChainBtn');
+    const modal = document.getElementById('execModal');
+    const modalContent = document.getElementById('execModalContent');
+
+    // Disable button
+    if (debugChainBtn) {
+        debugChainBtn.disabled = true;
+        debugChainBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+
+    // Show loading modal
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    modalContent.innerHTML = `
+        <div class="text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 mb-4">
+                <svg class="w-8 h-8 text-amber-600 dark:text-amber-400 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Starting Debug Chain Mode...</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Opening browser and preparing debug chain session. This may take up to 90 seconds.</p>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">The browser will open visibly. Each link and step can be debugged interactively.</p>
+        </div>
+    `;
+
+    fetch(`/erp-automation/api/job-data/${jobPk}/debug-chain/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+        body: JSON.stringify({ chain_id: chainId })
+    })
+    .then(response => {
+        const ct = response.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+            return response.text().then(html => {
+                const m = html.match(/<title>(.*?)<\/title>/i);
+                throw new Error(m ? m[1] : `Server error (HTTP ${response.status})`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.redirect) {
+            window.location.href = data.redirect;
+        } else if (data.redirect && !data.success) {
+            modalContent.innerHTML = `
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-100 dark:bg-yellow-900/30 mb-4">
+                        <svg class="w-8 h-8 text-yellow-600 dark:text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Credentials Required</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">${data.message}</p>
+                    <div class="mt-4 flex gap-2 justify-center">
+                        <a href="/erp-automation/credentials/?next=/erp-automation/job-data/${jobPk}/" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Set Credentials</a>
+                        <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Cancel</button>
+                    </div>
+                </div>
+            `;
+            if (debugChainBtn) { debugChainBtn.disabled = false; debugChainBtn.classList.remove('opacity-50', 'cursor-not-allowed'); }
+        } else {
+            modalContent.innerHTML = `
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                        <svg class="w-8 h-8 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Debug Chain Start Failed</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 bg-red-50 dark:bg-red-900/20 rounded-lg p-3 font-mono break-words">${data.message}</p>
+                    <div class="mt-4 flex gap-2 justify-center">
+                        <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Close</button>
+                    </div>
+                </div>
+            `;
+            if (debugChainBtn) { debugChainBtn.disabled = false; debugChainBtn.classList.remove('opacity-50', 'cursor-not-allowed'); }
+        }
+    })
+    .catch(err => {
+        modalContent.innerHTML = `
+            <div class="text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                    <svg class="w-8 h-8 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Error</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">${err.message || 'Failed to connect to the server.'}</p>
+                <div class="mt-4 flex gap-2 justify-center">
+                    <button onclick="closeExecModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm">Close</button>
+                </div>
+            </div>
+        `;
+        if (debugChainBtn) { debugChainBtn.disabled = false; debugChainBtn.classList.remove('opacity-50', 'cursor-not-allowed'); }
+    });
+}
+</script>
+{% endblock %}

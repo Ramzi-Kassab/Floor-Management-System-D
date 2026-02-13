@@ -33,12 +33,20 @@ DEBUG = env('DEBUG')
 
 ALLOWED_HOSTS = env('ALLOWED_HOSTS')
 
+# Allow synchronous ORM calls when Playwright (or other libs) create an event loop
+# in the same process. This is safe for development with runserver.
+# In production, use Celery workers for browser automation (separate process).
+if DEBUG:
+    os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
+
 # CSRF trusted origins for GitHub Codespaces and other proxy environments
 CSRF_TRUSTED_ORIGINS = [
     'https://*.app.github.dev',
     'https://*.github.dev',
     'http://localhost:8000',
     'http://127.0.0.1:8000',
+    'http://localhost:8001',
+    'http://127.0.0.1:8001',
 ]
 
 # =============================================================================

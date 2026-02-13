@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Job Card - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3 text-sm">
+        <li class="inline-flex items-center">
+            <a href="{% url 'erp_automation:job_data_list' %}" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                Job Data
+            </a>
+        </li>
+        <li>
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400 mx-1"></i>
+                <span class="text-gray-700 dark:text-gray-300 font-medium">Upload</span>
+            </div>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Upload Job Card</h1>
+        <p class="text-gray-600 dark:text-gray-400">Parse Job Card Excel files to prepare data for ERP</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="{% url 'erp_automation:job_data_list' %}"
+           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back to List
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="uploadForm()" class="max-w-3xl mx-auto space-y-6">
+    <!-- Upload Form -->
+    <form method="post" enctype="multipart/form-data" action="" @submit="uploading = true">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                <i data-lucide="file-spreadsheet" class="w-5 h-5 inline mr-2 text-green-600"></i>
+                Select Job Card Files
+            </h3>
+
+            <!-- Drop Zone -->
+            <div class="relative"
+                 @dragover.prevent="dragOver = true"
+                 @dragleave.prevent="dragOver = false"
+                 @drop.prevent="handleDrop($event)">
+
+                <div class="border-2 border-dashed rounded-xl p-10 text-center transition-colors"
+                     :class="dragOver
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'">
+
+                    <i data-lucide="upload-cloud" class="w-12 h-12 mx-auto mb-4"
+                       :class="dragOver ? 'text-blue-500' : 'text-gray-400'"></i>
+
+                    <p class="text-gray-700 dark:text-gray-300 mb-2">
+                        <span class="font-medium">Drag & drop</span> your Excel files here, or
+                    </p>
+
+                    <label class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer transition-colors text-sm">
+                        <i data-lucide="folder-open" class="w-4 h-4 mr-2"></i>
+                        Browse Files
+                        <input type="file"
+                               name="job_card_files"
+                               accept=".xlsx"
+                               multiple
+                               class="hidden"
+                               @change="handleFileSelect($event)">
+                    </label>
+
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                        Accepts <span class="font-medium">.xlsx</span> files only. Multiple files supported.
+                    </p>
+                </div>
+            </div>
+
+            <!-- File List Preview -->
+            <div x-show="files.length > 0" x-cloak class="mt-4">
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Selected Files (<span x-text="files.length"></span>)
+                </h4>
+                <div class="space-y-2">
+                    <template x-for="(file, index) in files" :key="index">
+                        <div class="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <i data-lucide="file-spreadsheet" class="w-5 h-5 text-green-600 flex-shrink-0"></i>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-medium text-gray-900 dark:text-white truncate" x-text="file.name"></p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400" x-text="formatFileSize(file.size)"></p>
+                                </div>
+                            </div>
+                            <button type="button" @click="removeFile(index)"
+                                    class="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 dark:hover:bg-red-900/20 flex-shrink-0">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Error Messages -->
+            {% if messages %}
+            <div class="mt-4">
+                {% for message in messages %}
+                <div class="flex items-start gap-3 p-4 rounded-lg
+                    {% if message.tags == 'error' %}bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200
+                    {% elif message.tags == 'success' %}bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200
+                    {% else %}bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200{% endif %}">
+                    <i data-lucide="{% if message.tags == 'error' %}alert-circle{% elif message.tags == 'success' %}check-circle{% else %}info{% endif %}" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+                    <p class="text-sm">{{ message }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Submit Button -->
+            <div class="mt-6 flex items-center gap-3">
+                <button type="submit"
+                        :disabled="files.length === 0 || uploading"
+                        class="inline-flex items-center px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium">
+                    <template x-if="!uploading">
+                        <span class="inline-flex items-center">
+                            <i data-lucide="upload" class="w-4 h-4 mr-2"></i>
+                            Upload & Parse
+                        </span>
+                    </template>
+                    <template x-if="uploading">
+                        <span class="inline-flex items-center">
+                            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Uploading...
+                        </span>
+                    </template>
+                </button>
+                <a href="{% url 'erp_automation:job_data_list' %}"
+                   class="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                    Cancel
+                </a>
+            </div>
+        </div>
+    </form>
+
+    <!-- Help Section -->
+    <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6">
+        <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+            <i data-lucide="help-circle" class="w-4 h-4 inline mr-1"></i>
+            Expected File Format
+        </h4>
+        <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+            <li class="flex items-start gap-2">
+                <i data-lucide="check" class="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                <span>Excel (.xlsx) job card files from the ERP system</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <i data-lucide="check" class="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                <span>Must contain work order number, serial number, and bit details</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <i data-lucide="check" class="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0"></i>
+                <span>Multiple files can be uploaded at once for batch processing</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0"></i>
+                <span>Duplicate work order numbers will be skipped</span>
+            </li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function uploadForm() {
+    return {
+        files: [],
+        dragOver: false,
+        uploading: false,
+
+        handleFileSelect(event) {
+            const newFiles = Array.from(event.target.files).filter(f =>
+                f.name.endsWith('.xlsx')
+            );
+            this.files = [...this.files, ...newFiles];
+            this.updateFileInput();
+        },
+
+        handleDrop(event) {
+            this.dragOver = false;
+            const newFiles = Array.from(event.dataTransfer.files).filter(f =>
+                f.name.endsWith('.xlsx')
+            );
+            if (newFiles.length === 0) return;
+            this.files = [...this.files, ...newFiles];
+            this.updateFileInput();
+        },
+
+        removeFile(index) {
+            this.files.splice(index, 1);
+            this.updateFileInput();
+        },
+
+        updateFileInput() {
+            // Update the hidden file input with current files
+            const dt = new DataTransfer();
+            this.files.forEach(f => dt.items.add(f));
+            const input = this.$el.querySelector('input[type="file"]');
+            if (input) input.files = dt.files;
+            this.$nextTick(() => {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            });
+        },
+
+        formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+    };
+}
+</script>
+{% endblock %}

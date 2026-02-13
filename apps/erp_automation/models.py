@@ -40,6 +40,24 @@ class ActionType(models.TextChoices):
     CONDITIONAL = "conditional", "Conditional Branch"
 
 
+class InteractionMode(models.TextChoices):
+    """D365 element interaction modes — determines HOW the executor interacts with an element.
+
+    Each mode has a specific chain of interaction strategies tried in order.
+    'auto' detects the mode at runtime from element attributes.
+    """
+    AUTO = "auto", "Auto-detect"
+    STANDARD_INPUT = "standard_input", "Standard Input"
+    COMBOBOX = "combobox", "Combobox (Alt+Down)"
+    LOOKUP_BUTTON = "lookup_button", "Lookup Button (double-click)"
+    CUSTOM_DROPDOWN = "custom_dropdown", "Custom Dropdown"
+    SEGMENTED_ENTRY = "segmented_entry", "Segmented Entry"
+    CHECKBOX_TOGGLE = "checkbox_toggle", "Checkbox Toggle"
+    DIALOG_BUTTON = "dialog_button", "Dialog Button"
+    NAV_BUTTON = "nav_button", "Navigation Button"
+    TAB_HEADER = "tab_header", "Tab Header"
+
+
 class WorkflowStatus(models.TextChoices):
     """Workflow execution status."""
     DRAFT = "draft", "Draft"
@@ -267,13 +285,18 @@ class Workflow(models.Model):
         return self.name
 
     def get_steps_for_condition(self, condition_value=None):
-        """Get workflow steps, filtered by condition if applicable."""
+        """Get workflow steps, filtered by condition if applicable.
+
+        Uses case-insensitive matching for condition values to handle
+        variations in account names (e.g., 'LSTK' vs 'lstk', 'Hal_Regional' vs 'HAL-REGIONAL').
+        """
         steps = self.steps.filter(is_active=True).order_by("order")
         if condition_value:
             # Filter steps that match the condition or have no condition
+            # Use iexact for case-insensitive matching
             steps = steps.filter(
                 models.Q(condition_value="") |
-                models.Q(condition_value=condition_value)
+                models.Q(condition_value__iexact=condition_value)
             )
         return steps
 
@@ -333,6 +356,14 @@ class WorkflowStep(models.Model):
         help_text="Only execute if workflow condition matches this value"
     )
 
+    # D365 interaction mode — determines HOW to interact with the element
+    interaction_mode = models.CharField(
+        max_length=30,
+        choices=InteractionMode.choices,
+        default=InteractionMode.AUTO,
+        help_text="D365 element interaction mode (auto-detect, combobox, lookup button, etc.)"
+    )
+
     # Step options
     clear_before_fill = models.BooleanField(
         default=False,
@@ -389,18 +420,20 @@ class WorkflowStep(models.Model):
         return f"{self.workflow.name} - Step {self.order}: {self.name}"
 
     def get_value(self, row_data, context):
-        """Resolve the value for this step from various sources."""
+        """Resolve the value for this step from various sources.
+
+        Priority:
+          1. Static value (literal string)
+          2. Template with {{}} placeholders (preferred over raw field)
+          3. Raw field name (direct column reference, only if no template)
+        """
         import re
 
         # 1. Static value
         if self.value_static:
             return self.value_static
 
-        # 2. From Excel field
-        if self.value_field and row_data:
-            return str(row_data.get(self.value_field, ""))
-
-        # 3. Template with placeholders
+        # 2. Template with placeholders (takes priority over value_field)
         if self.value_template:
             def replacer(match):
                 key = match.group(1).strip()
@@ -411,12 +444,24 @@ class WorkflowStep(models.Model):
                 return ""
             return re.sub(r'{{(.*?)}}', replacer, self.value_template)
 
+        # 3. From Excel/data field (only when no template set)
+        if self.value_field and row_data:
+            return str(row_data.get(self.value_field, ""))
+
         return ""
 
 
 # =============================================================================
 # RECORDING MODELS
 # =============================================================================
+
+class RecordingSessionStatus(models.TextChoices):
+    """Recording session status."""
+    RECORDING = "recording", "Recording"
+    COMPLETED = "completed", "Completed"
+    FAILED = "failed", "Failed"
+    CANCELLED = "cancelled", "Cancelled"
+
 
 class RecordingSession(models.Model):
     """
@@ -431,9 +476,25 @@ class RecordingSession(models.Model):
     )
 
     # Recording state
+    status = models.CharField(
+        max_length=20,
+        choices=RecordingSessionStatus.choices,
+        default=RecordingSessionStatus.RECORDING,
+        help_text="Current session status"
+    )
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+
+    # Optional link to job data for clipboard helper
+    job_data = models.ForeignKey(
+        'ERPJobData',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recording_sessions",
+        help_text="Job data used during recording for copy-paste values"
+    )
 
     # Link to generated workflow
     generated_workflow = models.ForeignKey(
@@ -486,6 +547,22 @@ class RecordedAction(models.Model):
     element_text = models.TextField(blank=True)
     element_aria_label = models.CharField(max_length=200, blank=True)
     element_placeholder = models.CharField(max_length=200, blank=True)
+    element_role = models.CharField(
+        max_length=50, blank=True,
+        help_text="ARIA role (e.g., option, menuitem, checkbox, listbox)"
+    )
+    element_type = models.CharField(
+        max_length=50, blank=True,
+        help_text="HTML type attribute (e.g., text, checkbox, radio)"
+    )
+    element_dyn_control_name = models.CharField(
+        max_length=200, blank=True,
+        help_text="D365 data-dyn-controlname from ancestor element"
+    )
+    element_data_testid = models.CharField(
+        max_length=200, blank=True,
+        help_text="data-testid attribute"
+    )
 
     # Visual context
     element_rect = models.JSONField(
@@ -505,6 +582,13 @@ class RecordedAction(models.Model):
     input_value = models.TextField(blank=True)
     key_pressed = models.CharField(max_length=50, blank=True)
 
+    # Locator strategies captured during recording
+    locator_strategies = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Generated locator strategies [{strategy_type, value, priority}, ...]"
+    )
+
     # Timing
     timestamp = models.DateTimeField(auto_now_add=True)
     duration_ms = models.IntegerField(default=0)
@@ -515,6 +599,16 @@ class RecordedAction(models.Model):
 
     def __str__(self):
         return f"{self.session.name} - Action {self.order}: {self.action_type}"
+
+    def get_best_identifier(self):
+        """Return the best human-readable identifier for this element."""
+        return (
+            self.element_name or
+            self.element_aria_label or
+            self.element_placeholder or
+            (self.element_text[:40] if self.element_text else '') or
+            self.element_id[:30] if self.element_id else 'element'
+        )
 
     def generate_locator_strategies(self):
         """Generate multiple locator strategies from recorded element data."""
@@ -600,6 +694,26 @@ class WorkflowExecution(models.Model):
         max_length=20,
         choices=ExecutionStatus.choices,
         default=ExecutionStatus.PENDING
+    )
+
+    # Link to ERPJobData (when execution is triggered from parsed job card)
+    job_data = models.ForeignKey(
+        'ERPJobData',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='executions',
+        help_text="ERPJobData record this execution was created from"
+    )
+
+    # Link to ChainExecution (when this execution is part of a chain)
+    chain_execution = models.ForeignKey(
+        'ChainExecution',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='workflow_executions',
+        help_text="Parent chain execution (if running as part of a chain)"
     )
 
     # Data source
@@ -783,6 +897,8 @@ class ItemCounter(models.Model):
 
     def get_next_number(self):
         """Get next item number and increment counter."""
+        if self.current_number < 1:
+            self.current_number = 1
         number = f"{self.prefix}{self.current_number:0{self.padding}d}"
         self.current_number += 1
         self.save(update_fields=["current_number", "updated_at"])
@@ -790,5 +906,521 @@ class ItemCounter(models.Model):
 
     def reset(self, start_at=1):
         """Reset counter to a specific number."""
-        self.current_number = start_at
+        self.current_number = max(1, start_at)
         self.save(update_fields=["current_number", "updated_at"])
+
+
+# =============================================================================
+# ERP ROUTE MODEL
+# =============================================================================
+
+class ERPRoute(models.Model):
+    """
+    Stores ERP production routes with their selection criteria.
+    Routes are seeded from the Routes Excel and selected automatically
+    based on bit size, port, and repair modifiers.
+    """
+
+    class BitType(models.TextChoices):
+        FC = 'FC', 'Fixed Cutter'
+        RC = 'RC', 'Roller Cone'
+
+    class Level(models.TextChoices):
+        L3 = 'L3', 'Level 3'
+        L4 = 'L4', 'Level 4'
+        L5 = 'L5', 'Level 5'
+        L6 = 'L6', 'Level 6'
+        REPAIR = 'REPAIR', 'Repair'
+        RERUN = 'RERUN', 'Re-Run'
+        INSPECTION = 'INSPECTION', 'Inspection Only'
+
+    class SizeClass(models.TextChoices):
+        AB = 'AB', 'AB (< 12")'
+        JUMBO = 'JUMBO', 'Jumbo (>= 12")'
+
+    route_number = models.CharField(max_length=20, unique=True,
+        help_text="Route ID in ERP (e.g., ROUTE-0091)")
+    name = models.CharField(max_length=200, blank=True,
+        help_text="Route name (e.g., FC-R AB With Port Standard)")
+    item_group = models.CharField(max_length=50, blank=True,
+        help_text="Item group in ERP (e.g., RPR-FC-AR)")
+
+    # Classification
+    bit_type = models.CharField(max_length=5, choices=BitType.choices, default='FC')
+    level = models.CharField(max_length=15, choices=Level.choices, blank=True)
+    size_class = models.CharField(max_length=10, choices=SizeClass.choices, blank=True)
+    has_port = models.BooleanField(null=True, blank=True,
+        help_text="True=With Port, False=No Port, Null=N/A")
+
+    # Repair modifiers
+    has_usr = models.BooleanField(default=False, help_text="Upper Section Replacement")
+    has_hardfacing = models.BooleanField(default=False, help_text="Hardfacing/Matrix Repair")
+    has_crush_shear = models.BooleanField(default=False, help_text="Crush & Shear")
+    has_retro = models.BooleanField(default=False, help_text="Retrofit (L6 only)")
+    has_grinding = models.BooleanField(default=False, help_text="Grinding step")
+
+    # RC-specific flags
+    is_sealed = models.BooleanField(null=True, blank=True, help_text="RC: Sealed/NonSealed")
+    has_cc = models.BooleanField(null=True, blank=True, help_text="RC: With/Without CC")
+
+    # Approval
+    approved = models.BooleanField(default=False)
+    approved_by = models.CharField(max_length=50, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'erp_automation_routes'
+        ordering = ['route_number']
+        verbose_name = 'ERP Route'
+        verbose_name_plural = 'ERP Routes'
+
+    def __str__(self):
+        return f"{self.route_number} - {self.name}" if self.name else self.route_number
+
+
+# =============================================================================
+# ERP JOB DATA MODEL
+# =============================================================================
+
+class ERPJobData(models.Model):
+    """
+    Holds all collected and computed data per work order,
+    ready for ERP automation (item creation, production order, etc.).
+    Data is parsed from Job Card Excel files.
+    """
+
+    class BodyMaterial(models.TextChoices):
+        SB = 'SB', 'Steel Body'
+        MB = 'MB', 'Matrix Body'
+
+    class Status(models.TextChoices):
+        DRAFT = 'DRAFT', 'Draft'
+        READY = 'READY', 'Ready for ERP'
+        SENT = 'SENT', 'Sent to ERP'
+        COMPLETED = 'COMPLETED', 'Completed'
+        ERROR = 'ERROR', 'Error'
+
+    # --- Raw data from Job Card Excel ---
+    work_order_number = models.CharField(max_length=50,
+        help_text="ARDT Work Order Number")
+    serial_number = models.CharField(max_length=50,
+        help_text="Bit serial number")
+    size_raw = models.CharField(max_length=30, blank=True,
+        help_text="Raw size from Excel (e.g., '3 3/4\"' or 6.125)")
+    size_inches = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True,
+        help_text="Parsed numeric size in inches")
+    smi_type = models.CharField(max_length=50, blank=True,
+        help_text="HDBS/SMI Type (e.g., GT53s, HD54)")
+    l5_mat_full = models.CharField(max_length=50, blank=True,
+        help_text="Full LV5 Mat # with suffix (e.g., 1224750M)")
+    date_received = models.DateField(null=True, blank=True)
+    account = models.CharField(max_length=50,
+        help_text="Account/FROM (e.g., LSTK, ARAMCO)")
+    contract_number = models.CharField(max_length=50, blank=True)
+    vendor_number = models.CharField(max_length=50, blank=True)
+    l3_l4_mat = models.CharField(max_length=50, blank=True,
+        help_text="LV3/LV4 Mat #")
+    evaluated_by = models.CharField(max_length=100, blank=True)
+    reviewed_by = models.CharField(max_length=100, blank=True)
+
+    # --- Cutter data from Job Card (JSON) ---
+    cutter_bom_data = models.JSONField(default=list, blank=True,
+        help_text="Cutter BOM with variant breakdown")
+    modified_cutters_data = models.JSONField(default=list, blank=True,
+        help_text="Modified cutters (cutter swaps)")
+
+    # --- Computed / Derived fields ---
+    l5_mat_original = models.CharField(max_length=50, blank=True,
+        help_text="Original L5 MAT (digits only, M stripped)")
+    body_material = models.CharField(max_length=5, choices=BodyMaterial.choices, blank=True,
+        help_text="SB if type starts/ends with 's', else MB")
+    item_group = models.CharField(max_length=30, blank=True,
+        help_text="ERP Item Group (e.g., RPR-FC-LST)")
+    size_class = models.CharField(max_length=10, blank=True,
+        help_text="AB (<12\") or JUMBO (>=12\")")
+    has_port = models.BooleanField(default=False,
+        help_text="True if size < 4\"")
+
+    # --- Repair modifiers (from Job Card) ---
+    has_usr = models.BooleanField(default=False,
+        help_text="Upper Section Replacement (Data E31)")
+    has_hardfacing = models.BooleanField(default=False,
+        help_text="Hardfacing/Matrix Repair (Eval D36 or Eval-LSTK R34/U34/X34)")
+    has_crush_shear = models.BooleanField(default=False,
+        help_text="Crush & Shear (type starts/ends with CS)")
+    is_rerun = models.BooleanField(default=False,
+        help_text="Re-run job (Data L2=1 or L3=1)")
+    is_inspection_only = models.BooleanField(default=False,
+        help_text="Initial Bit Inspection only (Data L4=1)")
+    is_scrap = models.BooleanField(default=False,
+        help_text="Scrap (Data L5=1)")
+
+    # --- Route ---
+    route = models.ForeignKey(ERPRoute, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='job_data',
+        help_text="Auto-selected or manually overridden route")
+    route_override = models.BooleanField(default=False,
+        help_text="True if user manually changed the route")
+
+    # --- ERP output ---
+    item_number = models.CharField(max_length=50, blank=True,
+        help_text="Generated or ERP-assigned item number")
+    production_order_number = models.CharField(max_length=50, blank=True)
+    transfer_order_number = models.CharField(max_length=50, blank=True)
+
+    # --- Metadata ---
+    source_file = models.CharField(max_length=500, blank=True,
+        help_text="Original Excel filename")
+    status = models.CharField(max_length=20, choices=Status.choices, default='DRAFT')
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='erp_job_data')
+
+    class Meta:
+        db_table = 'erp_automation_job_data'
+        ordering = ['-created_at']
+        verbose_name = 'ERP Job Data'
+        verbose_name_plural = 'ERP Job Data'
+
+    def __str__(self):
+        return f"{self.work_order_number} - {self.serial_number} ({self.status})"
+
+    def get_display_name(self):
+        """Short display name for UI."""
+        return f"WO {self.work_order_number}" if self.work_order_number else f"Job #{self.pk}"
+
+    def get_row_data(self):
+        """Convert ERPJobData fields to a row_data dict for workflow template substitution.
+
+        The workflow steps use template variables like {{SERIAL NO}}, {{ORDER NO.}}, etc.
+        This method maps the model fields to those exact template variable names.
+
+        Template variables used in the "Create Item" workflow:
+          {{ITEM NO}}      — ERP item number (auto-generated or assigned)
+          {{ORDER NO.}}    — Work order number
+          {{SERIAL NO}}    — Bit serial number
+          {{SIZE}}         — Bit size in inches
+          {{TYPE}}         — SMI/HDBS Type (e.g., GT53s)
+          {{MAT NO.}}      — L5 Material number (original, M stripped)
+          {{FROM}}         — Account name (used for conditional branching)
+
+        Also includes extra fields that may be useful for future workflows.
+        """
+        return {
+            # --- Primary template variables (used by Create Item workflow) ---
+            'ITEM NO': self.item_number or '',
+            'ORDER NO.': self.work_order_number or '',
+            'SERIAL NO': self.serial_number or '',
+            'SIZE': str(self.size_inches or self.size_raw or ''),
+            'TYPE': self.smi_type or '',
+            'MAT NO.': self.l5_mat_original or self.l5_mat_full or '',
+            'FROM': self.account or '',
+
+            # --- Extra fields for future workflows ---
+            'ACCOUNT': self.account or '',
+            'L5_MAT_FULL': self.l5_mat_full or '',
+            'L5_MAT_ORIGINAL': self.l5_mat_original or '',
+            'BODY_MATERIAL': self.body_material or '',
+            'ITEM_GROUP': self.item_group or '',
+            'SIZE_CLASS': self.size_class or '',
+            'SIZE_RAW': self.size_raw or '',
+            'CONTRACT_NO': self.contract_number or '',
+            'VENDOR_NO': self.vendor_number or '',
+            'ROUTE': self.route.route_number if self.route else '',
+            'ROUTE_NAME': self.route.name if self.route else '',
+            'WO_NUMBER': self.work_order_number or '',
+        }
+
+
+# =============================================================================
+# COMPOSITE WORKFLOW (CHAIN) MODELS
+# =============================================================================
+
+class WorkflowChainStatus(models.TextChoices):
+    """Chain status."""
+    DRAFT = "draft", "Draft"
+    ACTIVE = "active", "Active"
+    ARCHIVED = "archived", "Archived"
+
+
+class WorkflowChain(models.Model):
+    """
+    A chain of workflows executed in sequence for the same job card.
+
+    Example: "Full LSTK ERP Processing" might chain:
+      1. Create Released Product (WF#8)
+      2. Create Production Order
+      3. Create Transfer Order
+      4. Post BOM
+
+    Each sub-workflow remains independently testable/debuggable.
+    The browser can stay open between sub-workflows for speed.
+    """
+    name = models.CharField(
+        max_length=150,
+        unique=True,
+        help_text="Chain name (e.g., 'Full LSTK ERP Processing')"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="What this chain of workflows does"
+    )
+
+    # Conditional execution (same concept as Workflow.condition_field)
+    condition_field = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Field used for conditional branching (e.g., 'FROM')"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=WorkflowChainStatus.choices,
+        default=WorkflowChainStatus.DRAFT
+    )
+
+    # Execution options
+    stop_on_failure = models.BooleanField(
+        default=True,
+        help_text="Stop chain if a sub-workflow fails"
+    )
+    keep_browser_open = models.BooleanField(
+        default=True,
+        help_text="Keep browser open between sub-workflows (faster, preserves login)"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_chains"
+    )
+
+    class Meta:
+        db_table = "erp_automation_workflow_chains"
+        ordering = ["name"]
+        verbose_name = "Workflow Chain"
+        verbose_name_plural = "Workflow Chains"
+
+    def __str__(self):
+        return self.name
+
+    def get_active_links(self):
+        """Return active links in order."""
+        return self.links.filter(is_active=True).order_by("order")
+
+    @property
+    def link_count(self):
+        return self.links.filter(is_active=True).count()
+
+
+class WorkflowChainLink(models.Model):
+    """
+    A single link in a workflow chain — points to a Workflow with
+    execution order and optional overrides.
+
+    Supports:
+    - Sequential ordering
+    - Per-link wait time before starting
+    - URL override (navigate to different page before running)
+    - Context mapping (pass output vars from previous links into row_data)
+    - Conditional skip (only run this link for certain condition values)
+    """
+    chain = models.ForeignKey(
+        WorkflowChain,
+        on_delete=models.CASCADE,
+        related_name="links"
+    )
+    workflow = models.ForeignKey(
+        Workflow,
+        on_delete=models.PROTECT,
+        related_name="chain_links",
+        help_text="The workflow to execute at this position"
+    )
+    order = models.IntegerField(
+        help_text="Execution order within the chain (lower = first)"
+    )
+    name = models.CharField(
+        max_length=150,
+        blank=True,
+        help_text="Optional label (defaults to workflow name)"
+    )
+
+    # Timing
+    wait_before_ms = models.IntegerField(
+        default=2000,
+        help_text="Milliseconds to wait before starting this link"
+    )
+
+    # URL override
+    navigate_url = models.URLField(
+        blank=True,
+        help_text="Override workflow's target_url (navigate here before running)"
+    )
+
+    # Context mapping: pass outputs from prior links into this link's row_data
+    # Example: {"ITEM_FROM_STEP_1": "item_number"}
+    #   → row_data["ITEM_FROM_STEP_1"] = context["item_number"]
+    context_mapping = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Map context vars to row_data keys. Example: {"ITEM_NO": "created_item_number"}'
+    )
+
+    # Conditional execution (skip this link if condition doesn't match)
+    condition_field = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Field to check for skipping this link"
+    )
+    condition_value = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Only execute if condition_field matches this value"
+    )
+
+    # Page precondition check — inspect live page before running this link
+    # If set, the chain executor checks the page for the element/text.
+    # skip_if_found=True → skip this link if element IS found (e.g. BOM already exists)
+    # skip_if_found=False → skip this link if element is NOT found
+    PRECONDITION_TYPES = [
+        ("", "No check"),
+        ("element_exists", "Element exists (CSS/XPath)"),
+        ("text_contains", "Page contains text"),
+        ("element_count_gt", "Element count > value"),
+    ]
+    precondition_type = models.CharField(
+        max_length=30,
+        blank=True,
+        default="",
+        choices=PRECONDITION_TYPES,
+        help_text="Type of page check before running this link"
+    )
+    precondition_selector = models.TextField(
+        blank=True,
+        default="",
+        help_text="CSS selector, XPath, or text to search for on the page"
+    )
+    precondition_value = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Expected value (for count checks) or search text"
+    )
+    skip_if_found = models.BooleanField(
+        default=True,
+        help_text="True = skip this link if precondition IS met. False = skip if NOT met."
+    )
+    precondition_timeout_ms = models.IntegerField(
+        default=5000,
+        help_text="How long to wait for the precondition check (ms)"
+    )
+
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "erp_automation_chain_links"
+        ordering = ["chain", "order"]
+        unique_together = ["chain", "order"]
+        verbose_name = "Chain Link"
+        verbose_name_plural = "Chain Links"
+
+    def __str__(self):
+        label = self.name or self.workflow.name
+        return f"{self.chain.name} → #{self.order}: {label}"
+
+    def get_display_name(self):
+        return self.name or self.workflow.name
+
+
+class ChainExecution(models.Model):
+    """
+    Tracks a chain execution run.
+
+    Each chain execution creates multiple WorkflowExecution records
+    (one per link), linked back via WorkflowExecution.chain_execution FK.
+    """
+    chain = models.ForeignKey(
+        WorkflowChain,
+        on_delete=models.CASCADE,
+        related_name="executions"
+    )
+    job_data = models.ForeignKey(
+        ERPJobData,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="chain_executions",
+        help_text="Job data record being processed"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=ExecutionStatus.choices,
+        default=ExecutionStatus.PENDING
+    )
+
+    # Row data snapshot
+    row_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Initial row_data from job_data.get_row_data()"
+    )
+
+    # Accumulated context from all completed links
+    context = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Accumulated context vars from all completed links"
+    )
+
+    # Progress tracking
+    total_links = models.IntegerField(default=0)
+    completed_links = models.IntegerField(default=0)
+    current_link_order = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Order of the currently executing link"
+    )
+
+    # Results
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+
+    executed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True
+    )
+
+    class Meta:
+        db_table = "erp_automation_chain_executions"
+        ordering = ["-started_at"]
+        verbose_name = "Chain Execution"
+        verbose_name_plural = "Chain Executions"
+
+    def __str__(self):
+        return f"{self.chain.name} - {self.status} ({self.started_at})"
+
+    @property
+    def progress_percent(self):
+        if self.total_links == 0:
+            return 0
+        return int((self.completed_links / self.total_links) * 100)
+
+    @property
+    def duration_seconds(self):
+        if self.started_at and self.completed_at:
+            return (self.completed_at - self.started_at).total_seconds()
+        return None

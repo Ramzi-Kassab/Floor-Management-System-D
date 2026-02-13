@@ -43,7 +43,7 @@
                                 <i data-lucide="workflow" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
                             </div>
                             <div class="ml-3">
-                                <p class="font-medium text-gray-900 dark:text-white">{{ workflow.name }}</p>
+                                <a href="{% url 'erp_automation:workflow_detail' workflow.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{{ workflow.name }}</a>
                             </div>
                         </div>
                     </td>
@@ -71,11 +71,11 @@
                     </td>
                     <td class="px-6 py-4 text-right">
                         <div class="flex items-center justify-end gap-2">
-                            <a href="{% url 'erp_automation:execute_workflow' workflow.pk %}" class="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Execute">
-                                <i data-lucide="play" class="w-4 h-4"></i>
+                            <a href="{% url 'erp_automation:workflow_detail' workflow.pk %}" class="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors" title="Edit Steps & Locators">
+                                <i data-lucide="settings-2" class="w-4 h-4"></i>
                             </a>
-                            <a href="{% url 'admin:erp_automation_workflow_change' workflow.pk %}" class="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors" title="Edit">
-                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            <a href="{% url 'erp_automation:workflow_execute' workflow.pk %}" class="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Execute">
+                                <i data-lucide="play" class="w-4 h-4"></i>
                             </a>
                         </div>
                     </td>

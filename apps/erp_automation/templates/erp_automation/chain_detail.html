@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}{{ chain.name }} - Workflow Chain{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-3 mb-1">
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ chain.name }}</h1>
+                {% if chain.status == 'active' %}
+                <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Active</span>
+                {% elif chain.status == 'draft' %}
+                <span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Draft</span>
+                {% else %}
+                <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300">Archived</span>
+                {% endif %}
+            </div>
+            {% if chain.description %}
+            <p class="text-gray-600 dark:text-gray-400">{{ chain.description }}</p>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{% url 'erp_automation:chain_list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                Back
+            </a>
+            <a href="{% url 'erp_automation:chain_edit' chain.pk %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
+                Edit
+            </a>
+        </div>
+    </div>
+
+    <!-- Chain Info Card -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+            <div class="text-sm text-gray-500 dark:text-gray-400">Links</div>
+            <div class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ links|length }}</div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+            <div class="text-sm text-gray-500 dark:text-gray-400">Browser Mode</div>
+            <div class="text-lg font-semibold text-gray-900 dark:text-white">
+                {% if chain.keep_browser_open %}
+                <span class="text-green-600 dark:text-green-400">Keep Open</span>
+                {% else %}
+                <span class="text-gray-600 dark:text-gray-400">Restart Each</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+            <div class="text-sm text-gray-500 dark:text-gray-400">On Failure</div>
+            <div class="text-lg font-semibold text-gray-900 dark:text-white">
+                {% if chain.stop_on_failure %}
+                <span class="text-red-600 dark:text-red-400">Stop</span>
+                {% else %}
+                <span class="text-yellow-600 dark:text-yellow-400">Continue</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+            <div class="text-sm text-gray-500 dark:text-gray-400">Condition Field</div>
+            <div class="text-lg font-semibold text-gray-900 dark:text-white">
+                {% if chain.condition_field %}
+                <code class="text-sm">{{ chain.condition_field }}</code>
+                {% else %}
+                <span class="text-gray-400">None</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Chain Links -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Chain Links (Execution Order)</h2>
+        </div>
+
+        {% if links %}
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for link in links %}
+            <div class="px-6 py-4 flex items-center gap-4">
+                <!-- Order badge -->
+                <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-bold text-sm">
+                    {{ link.order }}
+                </div>
+
+                <!-- Link info -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <a href="{% url 'erp_automation:workflow_detail' link.workflow.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">
+                            {{ link.get_display_name }}
+                        </a>
+                        {% if link.name and link.name != link.workflow.name %}
+                        <span class="text-xs text-gray-400">({{ link.workflow.name }})</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span>{{ link.workflow.steps.count }} steps</span>
+                        {% if link.wait_before_ms > 0 %}
+                        <span>Wait: {{ link.wait_before_ms }}ms</span>
+                        {% endif %}
+                        {% if link.navigate_url %}
+                        <span class="truncate max-w-xs" title="{{ link.navigate_url }}">URL: {{ link.navigate_url|truncatechars:40 }}</span>
+                        {% endif %}
+                        {% if link.condition_value %}
+                        <span class="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded">
+                            {{ link.condition_field }}={{ link.condition_value }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Workflow status -->
+                <div class="flex-shrink-0">
+                    {% if link.workflow.status == 'active' %}
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Active</span>
+                    {% elif link.workflow.status == 'draft' %}
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Draft</span>
+                    {% endif %}
+                </div>
+
+                <!-- Arrow connector (except last) -->
+                {% if not forloop.last %}
+                <div class="flex-shrink-0 text-gray-300 dark:text-gray-600">
+                    <i data-lucide="arrow-down" class="w-4 h-4"></i>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-6 py-12 text-center">
+            <i data-lucide="link-2" class="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3"></i>
+            <p class="text-gray-500 dark:text-gray-400">No links configured.</p>
+            <a href="{% url 'erp_automation:chain_edit' chain.pk %}" class="inline-flex items-center mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                Add Segments
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Recent Executions -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Executions</h2>
+        </div>
+
+        {% if recent_executions %}
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Job Data</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Progress</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Started</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Duration</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for exec in recent_executions %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                        {% if exec.job_data %}
+                        <a href="{% url 'erp_automation:job_data_detail' exec.job_data.pk %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
+                            {{ exec.job_data.get_display_name }}
+                        </a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if exec.status == 'success' %}
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Success</span>
+                        {% elif exec.status == 'running' %}
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Running</span>
+                        {% elif exec.status == 'failed' %}
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Failed</span>
+                        {% elif exec.status == 'pending' %}
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300">Pending</span>
+                        {% else %}
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ exec.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-2">
+                            <div class="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div class="h-2 rounded-full {% if exec.status == 'success' %}bg-green-500{% elif exec.status == 'failed' %}bg-red-500{% else %}bg-blue-500{% endif %}" style="width: {{ exec.progress_percent }}%"></div>
+                            </div>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ exec.completed_links }}/{{ exec.total_links }}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                        {{ exec.started_at|date:"M d, H:i"|default:"-" }}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                        {% if exec.duration_seconds %}
+                        {{ exec.duration_seconds|floatformat:0 }}s
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{% url 'erp_automation:chain_execution_detail' exec.pk %}" class="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors" title="View Details">
+                            <i data-lucide="eye" class="w-4 h-4"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+            No executions yet. Execute this chain from a Job Data record.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        lucide.createIcons();
+    });
+</script>
+{% endblock %}
