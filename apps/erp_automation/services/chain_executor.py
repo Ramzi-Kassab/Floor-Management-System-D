@@ -75,6 +75,9 @@ class ChainExecutor:
             row_data['ERP_USERNAME'] = credentials.get('username', '')
             row_data['ERP_PASSWORD'] = credentials.get('password', '')
         accumulated_context = {}
+        # Inject ERP URL into context so goto_url steps can use {{ERP_URL}} template
+        if erp_url:
+            accumulated_context["ERP_URL"] = erp_url
         chain_execution.status = "running"
         chain_execution.started_at = timezone.now()
         chain_execution.total_links = total_links
@@ -118,6 +121,13 @@ class ChainExecutor:
 
                 # --- Merge accumulated context into row_data ---
                 merged_row_data = dict(row_data)
+                # Always merge accumulated_context (e.g. ERP_URL, item_number)
+                # so template vars like {{ERP_URL}} resolve in all links
+                if accumulated_context:
+                    for ctx_key, ctx_val in accumulated_context.items():
+                        if ctx_key not in merged_row_data:
+                            merged_row_data[ctx_key] = ctx_val
+                # Apply explicit context_mapping (can override/rename keys)
                 if link.context_mapping and accumulated_context:
                     for target_key, source_key in link.context_mapping.items():
                         if source_key in accumulated_context:

@@ -1146,7 +1146,8 @@ WORKFLOWS = {
         "desc": "Navigate to D365 ERP and authenticate via ADFS login page",
         "condition_field": "",
         "steps": [
-            (10, "Navigate to D365", "navigate", None, None,
+            (10, "Navigate to D365", "goto_url", None,
+             "template:{{ERP_URL}}?cmp=ardt",
              {"wait_after": 5000}),
             (11, "Wait for login page", "wait_time", None, "static:3000", {}),
             (12, "Fill Username", "fill", "login_user", "template:{{ERP_USERNAME}}",
@@ -1226,11 +1227,13 @@ WORKFLOWS = {
              {"wait_after": 500, "interaction_mode": "standard_input"}),
             (36, "Fill Inventory Unit", "fill", "inventory_unit", "static:ea",
              {"wait_after": 1000, "interaction_mode": "combobox", "press_key_after": "Enter"}),
-            (37, "Fill Purchase Unit", "fill", "purchase_unit", "static:ea",
+            (37, "Click OK (Attributes Dialog)", "click", "ok_button_attribute", None,
+             {"wait_after": 2000, "interaction_mode": "dialog_button", "continue_on_error": True}),
+            (38, "Fill Purchase Unit", "fill", "purchase_unit", "static:ea",
              {"wait_after": 1000, "interaction_mode": "combobox", "press_key_after": "Enter"}),
-            (38, "Fill Sales Unit", "fill", "sales_unit", "static:ea",
+            (39, "Fill Sales Unit", "fill", "sales_unit", "static:ea",
              {"wait_after": 1000, "interaction_mode": "combobox", "press_key_after": "Enter"}),
-            (39, "Fill BOM Unit", "fill", "bom_unit", "static:ea",
+            (40, "Fill BOM Unit", "fill", "bom_unit", "static:ea",
              {"wait_after": 1000, "interaction_mode": "combobox", "press_key_after": "Enter"}),
 
             # --- OK Buttons ---
@@ -1935,7 +1938,7 @@ class Command(BaseCommand):
             workflow = Workflow.objects.create(
                 name=wf_name,
                 description=wf_def.get("desc", ""),
-                target_url="https://ardt.operations.dynamics.com/",
+                target_url="",  # Resolved at runtime from session ERP environment
                 application="D365",
                 condition_field=wf_def.get("condition_field", ""),
                 status="active",

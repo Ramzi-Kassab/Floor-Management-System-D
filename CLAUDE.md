@@ -625,10 +625,13 @@ python manage.py seed_erp_routes
 # Import ERP data
 python manage.py import_erp_data
 
-# Seed complete ERP chain (13 workflows, 161 steps, 108 locators)
+# Seed complete ERP chain (13 workflows, 162 steps, 108 locators)
 python manage.py seed_erp_chain          # First time
 python manage.py seed_erp_chain --force  # Recreate (deletes existing)
 python manage.py seed_erp_chain --dry-run # Preview without changes
+
+# Seed ERP environment URLs (Sandbox + Production)
+python manage.py seed_erp_environments
 ```
 
 ### Development
@@ -835,6 +838,17 @@ python manage.py check
 - **ERP Item # Columns** (`cutter_inventory_list.html`, `item_list.html`): Added ERP Item Number column to cutter inventory and item list pages showing `variant.erp_item_no`.
 - **Cutter Stock Import** (`import_stock_from_onhand.py`, `import_cutters_excel.py`): Import stock from D365 On-hand inventory Excel. Fixed CLI-RCL variant case mapping (was `NEW-CLI`, corrected to `CLI-RCL` matching `VariantCase.code`).
 
+### Recent Enhancements (Feb 14, 2026) — ERP Environment Selector & Debug Chain Fix
+- **ERPEnvironment Model** (`models.py`, migration `0010`): DB-persisted named environment URLs (Sandbox, Production) with `is_default` flag, `sort_order`. `save()` enforces single default. Admin registered.
+- **ERP Environment Selector on Credentials Page** (`credentials.html`, `CredentialsView`): Dropdown populated from `ERPEnvironment` model replaces free-text URL input. Options: Sandbox, Production, Custom URL. Hidden `erp_url` field carries resolved URL. Alpine.js `credentialsPage()` component. "Manage Environments" expandable section with inline CRUD (add/edit/delete/set-default).
+- **Environment CRUD APIs** (`views.py`, `urls.py`): 5 new endpoints — `api_environment_list`, `api_environment_create`, `api_environment_update`, `api_environment_delete`, `api_environment_set_default`.
+- **Recording Page Environment Dropdown** (`recording.html`, `RecordingView`): Environment dropdown before Target URL input. On env change, sets target URL with `?cmp=ardt&mi=DefaultDashboard` suffix.
+- **`get_erp_url()` Helper** (`views.py`): Resolves ERP URL with fallback chain: session `erp_url` → DB default environment → first environment → empty string. Used by all 4 execution paths.
+- **Debug Chain Executor ERP_URL Fix** (`executor.py` → `start_debug_chain()`): Fixed two bugs — (1) `ERP_URL` was not injected into `accumulated_context`, so `{{ERP_URL}}` templates resolved to empty; (2) `accumulated_context` was not auto-merged into `merged_row_data`, only explicit `context_mapping` was applied. Both now match the regular chain executor in `chain_executor.py`.
+- **Chain Executor Context Merge** (`chain_executor.py`): All `accumulated_context` keys auto-merged into `merged_row_data` for every link, so template vars like `{{ERP_URL}}` resolve without explicit `context_mapping`.
+- **Seed ERP Environments** (`seed_erp_environments.py`): Seeds Sandbox (`https://sandbox.alrushaid.net/namespaces/AXSF/`, default) and Production (`https://prod.alrushaid.net/namespaces/AXSF/`).
+- **Seed ERP Chain Updated** (`seed_erp_chain.py`): All workflows use `target_url=""` (resolved at runtime from session). WF-0 goto_url step uses `template:{{ERP_URL}}?cmp=ardt`. Added step 37 "Click OK (Attributes Dialog)" with `continue_on_error=True` for accounts (ARAMCO, LSTK) that show a "Set attribute values" dialog after filling Inventory Unit.
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
@@ -918,6 +932,9 @@ extract_pdf_data(pdf_path)            # Main entry point
 | ERP workflow list | `apps/erp_automation/templates/erp_automation/workflow_list.html` |
 | ERP routes list | `apps/erp_automation/templates/erp_automation/route_list.html` |
 | ERP automation URLs | `apps/erp_automation/urls.py` |
+| ERP environment model | `apps/erp_automation/models.py` (ERPEnvironment class) |
+| Seed ERP environments | `apps/erp_automation/management/commands/seed_erp_environments.py` |
+| ERP credentials page | `apps/erp_automation/templates/erp_automation/credentials.html` |
 
 ### Key View Classes
 

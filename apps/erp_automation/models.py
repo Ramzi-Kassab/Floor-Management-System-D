@@ -1450,3 +1450,39 @@ class ChainExecution(models.Model):
         if self.started_at and self.completed_at:
             return (self.completed_at - self.started_at).total_seconds()
         return None
+
+
+# =============================================================================
+# ERP ENVIRONMENT
+# =============================================================================
+
+class ERPEnvironment(models.Model):
+    """
+    Stores named ERP environment URLs (e.g. Sandbox, Production).
+    Used across all execution contexts: workflow, chain, debug, recording.
+    Selected via the credentials page; stored URL goes into session.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    url = models.URLField(max_length=500)
+    is_default = models.BooleanField(
+        default=False,
+        help_text="Default environment pre-selected on credentials page"
+    )
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "erp_automation_environments"
+        ordering = ["sort_order", "name"]
+        verbose_name = "ERP Environment"
+        verbose_name_plural = "ERP Environments"
+
+    def __str__(self):
+        return f"{self.name} — {self.url}"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one default
+        if self.is_default:
+            ERPEnvironment.objects.filter(is_default=True).exclude(pk=self.pk).update(is_default=False)
+        super().save(*args, **kwargs)

@@ -30,6 +30,7 @@ from .models import (
     WorkflowExecution, ItemCounter, FieldMapping, WorkflowStatus,
     ERPRoute, ERPJobData,
     WorkflowChain, WorkflowChainLink, ChainExecution, ExecutionStatus,
+    ERPEnvironment,
 )
 
 # Global instances (per-process, for development)
@@ -75,11 +76,26 @@ class CredentialsView(LoginRequiredMixin, View):
         has_credentials = bool(creds)
         # Get the 'next' URL from query params or referrer
         next_url = request.GET.get("next") or request.META.get("HTTP_REFERER", "")
+
+        environments = ERPEnvironment.objects.all()
+        selected_env_id = creds.get("erp_env_id")
+        current_url = creds.get("erp_url", "")
+
+        # Determine if current URL is custom (not matching any environment)
+        is_custom_url = False
+        if current_url and not selected_env_id:
+            is_custom_url = not environments.filter(url=current_url).exists()
+        elif selected_env_id == "custom":
+            is_custom_url = True
+
         return render(request, "erp_automation/credentials.html", {
             "has_credentials": has_credentials,
             "current_username": creds.get("username", ""),
-            "current_url": creds.get("erp_url", ""),
+            "current_url": current_url,
             "next_url": next_url,
+            "environments": environments,
+            "selected_env_id": selected_env_id,
+            "is_custom_url": is_custom_url,
         })
 
     def post(self, request):
@@ -89,7 +105,16 @@ class CredentialsView(LoginRequiredMixin, View):
         if action == "save":
             username = request.POST.get("username", "").strip()
             password = request.POST.get("password", "").strip()
+            erp_env_id = request.POST.get("erp_env_id", "").strip()
             erp_url = request.POST.get("erp_url", "").strip()
+
+            # Resolve URL from environment selection
+            if erp_env_id and erp_env_id != "custom":
+                try:
+                    env = ERPEnvironment.objects.get(pk=int(erp_env_id))
+                    erp_url = env.url
+                except (ERPEnvironment.DoesNotExist, ValueError):
+                    pass
 
             if username and password:
                 # Store in session (encrypted in production)
@@ -97,9 +122,16 @@ class CredentialsView(LoginRequiredMixin, View):
                     "username": username,
                     "password": password,
                     "erp_url": erp_url,
+                    "erp_env_id": erp_env_id,
                 }
                 request.session.modified = True
-                messages.success(request, "Credentials saved for this session.")
+                env_label = ""
+                if erp_env_id and erp_env_id != "custom":
+                    try:
+                        env_label = f" ({ERPEnvironment.objects.get(pk=int(erp_env_id)).name})"
+                    except (ERPEnvironment.DoesNotExist, ValueError):
+                        pass
+                messages.success(request, f"Credentials saved for this session{env_label}.")
             else:
                 messages.error(request, "Please provide both username and password.")
 
@@ -116,6 +148,31 @@ class CredentialsView(LoginRequiredMixin, View):
 def get_credentials(request):
     """Helper to get credentials from session."""
     return request.session.get("erp_credentials")
+
+
+def get_erp_url(credentials):
+    """Resolve ERP URL from credentials, falling back to DB default environment.
+
+    Priority:
+      1. credentials["erp_url"] if non-empty
+      2. Default ERPEnvironment from DB (is_default=True)
+      3. First ERPEnvironment in DB
+      4. Empty string
+    """
+    url = credentials.get("erp_url", "") if credentials else ""
+    if url:
+        return url
+    # Fallback to default environment from DB
+    try:
+        default_env = ERPEnvironment.objects.filter(is_default=True).first()
+        if default_env:
+            return default_env.url
+        first_env = ERPEnvironment.objects.first()
+        if first_env:
+            return first_env.url
+    except Exception:
+        pass
+    return ""
 
 
 @login_required
@@ -436,11 +493,25 @@ class RecordingView(LoginRequiredMixin, View):
         has_credentials = "erp_credentials" in request.session
         job_data_records = ERPJobData.objects.filter(status__in=['READY', 'DRAFT']).order_by('-created_at')
 
+        # Environment data for dropdown
+        environments = ERPEnvironment.objects.all()
+        creds = request.session.get("erp_credentials", {})
+        selected_env_url = creds.get("erp_url", "")
+
+        # Serialize environments for Alpine.js
+        import json as _json
+        environments_json = _json.dumps([
+            {"id": e.pk, "name": e.name, "url": e.url, "is_default": e.is_default}
+            for e in environments
+        ])
+
         return render(request, "erp_automation/recording.html", {
             "recent_sessions": sessions,
             "is_recording": _recorder_instance is not None and _recorder_instance.is_recording,
             "has_credentials": has_credentials,
             "job_data_records": job_data_records,
+            "environments_json": environments_json,
+            "selected_env_url": selected_env_url,
         })
 
 
@@ -1827,7 +1898,7 @@ def api_execute_job_data(request, pk):
 
     # Launch execution in background thread
     creds = {"username": credentials["username"], "password": credentials["password"]}
-    erp_url = workflow.target_url or credentials.get("erp_url", "")
+    erp_url = workflow.target_url or get_erp_url(credentials)
 
     thread = threading.Thread(
         target=_live_execution_thread,
@@ -2182,8 +2253,8 @@ def api_start_debug_execution(request, pk):
         from .services.executor import DebugExecutor
         _debug_executor = DebugExecutor()
 
-        # Use workflow's target_url (same as regular executor), fall back to credentials
-        erp_url = workflow.target_url or credentials.get("erp_url", "")
+        # Use workflow's target_url (same as regular executor), fall back to credentials/DB default
+        erp_url = workflow.target_url or get_erp_url(credentials)
 
         # Start the debug thread
         thread = threading.Thread(
@@ -2451,7 +2522,7 @@ def api_start_debug_chain(request, pk):
 
         # Determine ERP URL
         first_link = active_links.first()
-        erp_url = first_link.navigate_url or first_link.workflow.target_url or credentials.get("erp_url", "")
+        erp_url = first_link.navigate_url or first_link.workflow.target_url or get_erp_url(credentials)
 
         # Create debug executor
         from .services.executor import DebugExecutor
@@ -2633,9 +2704,9 @@ def api_execute_chain(request, pk):
     job_data.status = 'SENT'
     job_data.save(update_fields=['status', 'updated_at'])
 
-    # Get ERP URL from first link's workflow
+    # Get ERP URL from first link's workflow, fall back to session credentials/DB default
     first_link = active_links.first()
-    erp_url = first_link.navigate_url or first_link.workflow.target_url or ""
+    erp_url = first_link.navigate_url or first_link.workflow.target_url or get_erp_url(credentials)
 
     # Execute chain in background thread
     def _run_chain():
@@ -3258,3 +3329,102 @@ def api_workflow_steps(request, wf_pk):
             "interaction_mode": s.interaction_mode or "auto",
         })
     return JsonResponse({"steps": steps})
+
+
+# =============================================================================
+# ERP ENVIRONMENT CRUD APIs
+# =============================================================================
+
+def _env_to_dict(env):
+    """Serialize ERPEnvironment to dict."""
+    return {
+        "id": env.pk,
+        "name": env.name,
+        "url": env.url,
+        "is_default": env.is_default,
+        "sort_order": env.sort_order,
+    }
+
+
+@login_required
+@require_GET
+def api_environment_list(request):
+    """List all ERP environments."""
+    envs = ERPEnvironment.objects.all()
+    return JsonResponse({
+        "success": True,
+        "environments": [_env_to_dict(e) for e in envs],
+    })
+
+
+@login_required
+@require_POST
+def api_environment_create(request):
+    """Create a new ERP environment."""
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    name = body.get("name", "").strip()
+    url = body.get("url", "").strip()
+
+    if not name or not url:
+        return JsonResponse({"success": False, "message": "Name and URL are required"}, status=400)
+
+    if ERPEnvironment.objects.filter(name=name).exists():
+        return JsonResponse({"success": False, "message": f"Environment '{name}' already exists"}, status=400)
+
+    env = ERPEnvironment.objects.create(
+        name=name,
+        url=url,
+        sort_order=ERPEnvironment.objects.count() + 1,
+    )
+    return JsonResponse({"success": True, "env": _env_to_dict(env)})
+
+
+@login_required
+@require_POST
+def api_environment_update(request, pk):
+    """Update an ERP environment."""
+    env = get_object_or_404(ERPEnvironment, pk=pk)
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    name = body.get("name", "").strip()
+    url = body.get("url", "").strip()
+
+    if not name or not url:
+        return JsonResponse({"success": False, "message": "Name and URL are required"}, status=400)
+
+    # Check uniqueness (excluding self)
+    if ERPEnvironment.objects.filter(name=name).exclude(pk=pk).exists():
+        return JsonResponse({"success": False, "message": f"Environment '{name}' already exists"}, status=400)
+
+    env.name = name
+    env.url = url
+    env.save(update_fields=["name", "url", "updated_at"])
+    return JsonResponse({"success": True, "env": _env_to_dict(env)})
+
+
+@login_required
+@require_POST
+def api_environment_delete(request, pk):
+    """Delete an ERP environment."""
+    env = get_object_or_404(ERPEnvironment, pk=pk)
+    env.delete()
+    return JsonResponse({"success": True})
+
+
+@login_required
+@require_POST
+def api_environment_set_default(request, pk):
+    """Set an ERP environment as default."""
+    env = get_object_or_404(ERPEnvironment, pk=pk)
+    # Clear all defaults first
+    ERPEnvironment.objects.filter(is_default=True).update(is_default=False)
+    env.is_default = True
+    env.save(update_fields=["is_default", "updated_at"])
+    return JsonResponse({"success": True, "env": _env_to_dict(env)})

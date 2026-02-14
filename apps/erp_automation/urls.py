@@ -118,4 +118,11 @@ urlpatterns = [
     path("api/locators/<int:pk>/update/", views.api_locator_update, name="api_locator_update"),
     path("api/locators/<int:pk>/detail/", views.api_locator_detail, name="api_locator_detail_api"),
     path("api/locators/search/", views.api_locator_search, name="api_locator_search"),
+
+    # ERP Environments CRUD
+    path("api/environments/", views.api_environment_list, name="api_environment_list"),
+    path("api/environments/create/", views.api_environment_create, name="api_environment_create"),
+    path("api/environments/<int:pk>/update/", views.api_environment_update, name="api_environment_update"),
+    path("api/environments/<int:pk>/delete/", views.api_environment_delete, name="api_environment_delete"),
+    path("api/environments/<int:pk>/set-default/", views.api_environment_set_default, name="api_environment_set_default"),
 ]

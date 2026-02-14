@@ -22,6 +22,7 @@ from .models import (
     WorkflowChain,
     WorkflowChainLink,
     ChainExecution,
+    ERPEnvironment,
 )
 
 
@@ -498,3 +499,15 @@ class ChainExecutionAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+# =============================================================================
+# ERP ENVIRONMENT ADMIN
+# =============================================================================
+
+@admin.register(ERPEnvironment)
+class ERPEnvironmentAdmin(admin.ModelAdmin):
+    list_display = ["name", "url", "is_default", "sort_order", "updated_at"]
+    list_editable = ["is_default", "sort_order"]
+    search_fields = ["name", "url"]
+    readonly_fields = ["created_at", "updated_at"]

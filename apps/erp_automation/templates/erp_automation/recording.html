@@ -36,12 +36,24 @@
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
                         </div>
 
+                        <!-- ERP Environment Selector -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ERP Environment</label>
+                            <select x-model="selectedEnvId" @change="onEnvChange()"
+                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
+                                <template x-for="env in environments" :key="env.id">
+                                    <option :value="String(env.id)" x-text="env.name + ' \u2014 ' + env.url"></option>
+                                </template>
+                                <option value="custom">Custom URL...</option>
+                            </select>
+                        </div>
+
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target URL</label>
                             <input type="url" x-model="targetUrl" required
                                    placeholder="https://dynamics.microsoft.com/..."
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The ERP page URL to record</p>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The ERP page URL to record (editable)</p>
                         </div>
 
                         <!-- Job Data Selector (for clipboard helper) -->
@@ -400,13 +412,36 @@
 
 <script>
 function recordingPage() {
+    // Environment data from server
+    const envData = {{ environments_json|safe }};
+    const savedEnvUrl = "{{ selected_env_url|default:''|escapejs }}";
+
+    // Determine initial selection
+    let initialEnvId = "custom";
+    let initialUrl = savedEnvUrl || '';
+    if (envData.length > 0) {
+        // Try to match saved URL to an environment
+        const match = envData.find(e => savedEnvUrl && savedEnvUrl.startsWith(e.url));
+        if (match) {
+            initialEnvId = String(match.id);
+            initialUrl = match.url + '?cmp=ardt&mi=DefaultDashboard';
+        } else {
+            // Use default environment
+            const def = envData.find(e => e.is_default) || envData[0];
+            initialEnvId = String(def.id);
+            initialUrl = def.url + '?cmp=ardt&mi=DefaultDashboard';
+        }
+    }
+
     return {
         // State
         isRecording: {{ is_recording|yesno:"true,false" }},
         starting: false,
         stopping: false,
         sessionName: '',
-        targetUrl: 'https://sandbox.alrushaid.net/namespaces/AXSF/?cmp=ardt&mi=DefaultDashboard',
+        environments: envData,
+        selectedEnvId: initialEnvId,
+        targetUrl: initialUrl,
         jobDataId: '',
         sessionId: null,
         capturedActions: [],
@@ -423,6 +458,17 @@ function recordingPage() {
             if (this.isRecording) {
                 this.startPolling();
                 this.startTimer();
+            }
+        },
+
+        onEnvChange() {
+            if (this.selectedEnvId === 'custom') {
+                this.targetUrl = '';
+            } else {
+                const env = this.environments.find(e => String(e.id) === this.selectedEnvId);
+                if (env) {
+                    this.targetUrl = env.url + '?cmp=ardt&mi=DefaultDashboard';
+                }
             }
         },
 
