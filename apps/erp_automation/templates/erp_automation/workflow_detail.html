@@ -124,6 +124,9 @@
                                             <template x-if="step.continue_on_error">
                                                 <span class="ml-1 text-xs px-1 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400" title="Continues on error">⚡</span>
                                             </template>
+                                            <template x-if="step.check_for_errors">
+                                                <span class="ml-1 text-xs px-1 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" title="Checks for D365 errors after this step">ERR</span>
+                                            </template>
                                         </div>
                                     </template>
                                     <template x-if="editingStep === step.id">
@@ -537,6 +540,10 @@
                         Continue on error
                     </label>
                     <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" x-model="addModal.data.check_for_errors" class="rounded text-red-600">
+                        Check for D365 errors
+                    </label>
+                    <label class="flex items-center gap-2 text-sm">
                         <input type="checkbox" x-model="addModal.data.clear_before_fill" class="rounded">
                         Clear before fill
                     </label>
@@ -625,6 +632,7 @@ function workflowEditor() {
                 wait_after: step.wait_after,
                 order: step.order,
                 continue_on_error: step.continue_on_error,
+                check_for_errors: step.check_for_errors || false,
                 clear_before_fill: step.clear_before_fill || false,
             };
             this.locatorSearch.query = '';
@@ -674,6 +682,7 @@ function workflowEditor() {
                 press_key_after: '',
                 wait_after: 500,
                 continue_on_error: false,
+                check_for_errors: false,
                 clear_before_fill: false,
             };
             this.locatorSearch.query = '';
@@ -736,6 +745,7 @@ function workflowEditor() {
                 value_field: step.value_field,
                 wait_after: step.wait_after,
                 continue_on_error: step.continue_on_error,
+                check_for_errors: step.check_for_errors || false,
             };
             try {
                 const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {

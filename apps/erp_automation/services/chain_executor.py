@@ -69,6 +69,11 @@ class ChainExecutor:
 
         # Initialize tracking
         row_data = job_data.get_row_data() if job_data else {}
+        # Inject ERP credentials into row_data so login workflow steps
+        # can use {{ERP_USERNAME}} and {{ERP_PASSWORD}} templates
+        if credentials:
+            row_data['ERP_USERNAME'] = credentials.get('username', '')
+            row_data['ERP_PASSWORD'] = credentials.get('password', '')
         accumulated_context = {}
         chain_execution.status = "running"
         chain_execution.started_at = timezone.now()
@@ -123,8 +128,19 @@ class ChainExecutor:
                             )
 
                 # --- Ensure browser is alive ---
-                nav_url = link.navigate_url or link.workflow.target_url or erp_url
-                if not self._ensure_browser(nav_url, credentials, chain.keep_browser_open):
+                # On the first link, don't auto-navigate or auto-login —
+                # let the workflow steps handle it (WF-0 does login explicitly).
+                # For subsequent links, only restart browser if it died.
+                if not self.executor or not self.executor.is_browser_alive():
+                    nav_url = link.navigate_url or link.workflow.target_url or erp_url
+                    # Skip auto-login when browser is first opened; WF-0 handles it
+                    skip_login = (completed_links == 0)
+                    creds = None if skip_login else credentials
+                    browser_url = None if skip_login else nav_url
+                else:
+                    browser_url = None  # Already running, no re-nav needed
+                    creds = None
+                if not self._ensure_browser(browser_url, creds, chain.keep_browser_open):
                     error_msg = f"Failed to start/restart browser for link #{link.order}"
                     logger.error(f"[ChainExec] {error_msg}")
                     chain_execution.status = "failed"

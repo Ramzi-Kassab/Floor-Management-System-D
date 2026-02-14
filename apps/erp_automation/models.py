@@ -38,6 +38,8 @@ class ActionType(models.TextChoices):
     ASSERT_TEXT = "assert_text", "Assert Text"
     ASSERT_VISIBLE = "assert_visible", "Assert Visible"
     CONDITIONAL = "conditional", "Conditional Branch"
+    READ_VALUE = "read_value", "Read Value"
+    GOTO_URL = "goto_url", "Navigate to URL"
 
 
 class InteractionMode(models.TextChoices):
@@ -391,6 +393,10 @@ class WorkflowStep(models.Model):
     continue_on_error = models.BooleanField(
         default=False,
         help_text="Continue workflow even if this step fails"
+    )
+    check_for_errors = models.BooleanField(
+        default=False,
+        help_text="After this step, check for D365 error dialogs"
     )
     error_handler_step = models.ForeignKey(
         "self",
@@ -1112,7 +1118,7 @@ class ERPJobData(models.Model):
 
         Also includes extra fields that may be useful for future workflows.
         """
-        return {
+        row = {
             # --- Primary template variables (used by Create Item workflow) ---
             'ITEM NO': self.item_number or '',
             'ORDER NO.': self.work_order_number or '',
@@ -1136,6 +1142,26 @@ class ERPJobData(models.Model):
             'ROUTE_NAME': self.route.name if self.route else '',
             'WO_NUMBER': self.work_order_number or '',
         }
+
+        # --- Flatten cutter BOM variants into BOM_LINE_N_ITEM / BOM_LINE_N_QTY ---
+        # Each variant with an ERP item number becomes a separate BOM line.
+        # Supports up to 8 lines (covers all observed ARAMCO recordings: 3-5 lines).
+        flat_lines = []
+        for group in (self.cutter_bom_data or []):
+            for v in (group.get('variants') or []):
+                erp_no = v.get('erp_item_no', '')
+                qty = v.get('qty', 0)
+                if erp_no and qty:
+                    flat_lines.append((erp_no, str(qty)))
+        for i in range(8):
+            if i < len(flat_lines):
+                row[f'BOM_LINE_{i+1}_ITEM'] = flat_lines[i][0]
+                row[f'BOM_LINE_{i+1}_QTY'] = flat_lines[i][1]
+            else:
+                row[f'BOM_LINE_{i+1}_ITEM'] = ''
+                row[f'BOM_LINE_{i+1}_QTY'] = ''
+
+        return row
 
 
 # =============================================================================

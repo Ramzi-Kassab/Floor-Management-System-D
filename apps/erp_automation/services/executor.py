@@ -831,6 +831,38 @@ class WorkflowExecutor:
             self.page.screenshot(path=path)
             return {"success": True, "message": f"Screenshot saved: {path}"}
 
+        if step.action_type == "goto_url":
+            url = value
+            if url and not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            if not url:
+                return {"success": False, "message": "No URL provided for goto_url"}
+            try:
+                self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                self.page.wait_for_timeout(step.wait_after if step.wait_after > 0 else 3000)
+                return {"success": True, "message": f"Navigated to {url}"}
+            except Exception as e:
+                return {"success": False, "message": f"goto_url failed: {e}"}
+
+        if step.action_type == "read_value":
+            if not step.locator:
+                return {"success": False, "message": "No locator defined for read_value step"}
+            element = self.locator_engine.find_element(step.locator, timeout=step.timeout)
+            if element:
+                try:
+                    val = element.input_value()
+                except Exception:
+                    try:
+                        val = element.inner_text()
+                    except Exception:
+                        val = element.text_content() or ""
+                val = val.strip() if val else ""
+                if step.save_result_as and val:
+                    self.context_vars[step.save_result_as] = val
+                    logger.info(f"read_value: saved '{val}' as context var '{step.save_result_as}'")
+                return {"success": True, "message": f"Read value: {val}", "value": val}
+            return {"success": False, "message": "Element not found for read_value"}
+
         # Actions that need a locator
         if not step.locator:
             return {"success": False, "message": "No locator defined for step"}
@@ -867,6 +899,30 @@ class WorkflowExecutor:
                     if step.press_key_after:
                         self.page.keyboard.press(step.press_key_after)
                         self.page.wait_for_timeout(200)
+
+                    # Post-step D365 error check (opt-in per step)
+                    if getattr(step, 'check_for_errors', False):
+                        error_text = self.detect_error_message()
+                        if error_text:
+                            logger.warning(
+                                f"D365 error detected after step {step.order} "
+                                f"({step.name}): {error_text}"
+                            )
+                            self.close_error_dialog()
+                            # Take screenshot of the error state
+                            try:
+                                path = os.path.join(
+                                    self.screenshots_dir,
+                                    f"d365_error_step_{step.order}.png"
+                                )
+                                self.page.screenshot(path=path)
+                            except Exception:
+                                pass
+                            return {
+                                "success": False,
+                                "message": f"D365 error: {error_text}",
+                                "error_type": "d365_dialog",
+                            }
 
                     # Save result to context if requested
                     if step.save_result_as:

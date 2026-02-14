@@ -267,6 +267,7 @@ Design (L3/L4)                    # Blueprint - what the bit looks like
 - `create_workflow_from_recording` - Converts a `RecordingSession` into a `Workflow` with proper `Locator`/`LocatorStrategy`/`WorkflowStep` models. Smart features: deduplicates click+fill pairs, maps `select`→`click` for D365, strips dynamic ID prefixes for `contains(@id)` xpath, generates value templates from recorded input, sequential step numbering, orphaned locator cleanup on regeneration. Called from UI via "Quick Convert" button or terminal.
 - `seed_erp_routes` - Seeds `ERPRoute` records from Excel
 - `import_erp_data` - Imports ERP data
+- `seed_erp_chain` - Seeds complete ARAMCO FC Repair ERP chain: 13 workflows (login, navigate, create product, capture item#, dimensions, variants, BOM version, BOM copy, BOM lines, approve+activate, route, release, movement journal), 161 steps, 108 locators, 1 chain with 13 links. Use `--force` to recreate, `--dry-run` to preview.
 
 **Key Views** (`apps/erp_automation/views.py`):
 - `DashboardView` - Overview at `/erp-automation/`
@@ -623,6 +624,11 @@ python manage.py seed_erp_routes
 
 # Import ERP data
 python manage.py import_erp_data
+
+# Seed complete ERP chain (13 workflows, 161 steps, 108 locators)
+python manage.py seed_erp_chain          # First time
+python manage.py seed_erp_chain --force  # Recreate (deletes existing)
+python manage.py seed_erp_chain --dry-run # Preview without changes
 ```
 
 ### Development
@@ -807,6 +813,28 @@ python manage.py check
 - **Step CRUD APIs Updated**: `api_step_create()`, `api_step_update()`, and `api_workflow_steps()` all handle `interaction_mode` field.
 - **Composite Workflows** (`models.py`, `services/chain_executor.py`): WorkflowChain, WorkflowChainLink, ChainExecution models for chaining multiple workflows. Chain executor service orchestrates sequential execution with shared browser, context mapping between workflows, condition-based link execution, and progress tracking. Admin registered with TabularInline. Views, URLs, and templates for chain management.
 
+### Recent Enhancements (Feb 14, 2026) — Complete ERP Chain Rewrite
+- **New ActionTypes** (`models.py`, `executor.py`): Added `read_value` (reads element value into `context_vars` via `save_result_as` — tries `input_value()` then `inner_text()` then `text_content()`) and `goto_url` (navigates to URL mid-workflow, supports template substitution). Both handled in `_execute_step()` before the locator-required section.
+- **BOM Line Flattening** (`models.py`): `ERPJobData.get_row_data()` now flattens `cutter_bom_data` variants into `BOM_LINE_1..8_ITEM` / `BOM_LINE_1..8_QTY` template variables. Iterates all groups/variants, collects `(erp_item_no, qty)` pairs where both are non-empty, pads remaining slots with empty strings.
+- **Complete ERP Chain Rewrite** (`seed_erp_chain.py`): Based on 4 live D365 recordings (sessions pk=13-16) on prod.alrushaid.net. Expanded from 7 workflows/74 steps to **13 workflows/161 steps/108 locators/1 chain with 13 links**. Chain name: "ARAMCO FC Repair: Full ERP Flow". Key changes from old chain:
+  - **Removed** Product Number field (D365 auto-generates Item # like R-AR-23-0250)
+  - **Added** BOM Unit field (`BOMUnitId = ea`) to product creation
+  - **Fixed** Config dimension: uses `{{BODY_MATERIAL}}` template (resolves to `MB`) instead of hardcoded `Prod_Dimen_Config`
+  - **Fixed** Color dimension: uses `{{L5_MAT_FULL}}` (includes M suffix like `1134806M`) instead of `{{MAT NO.}}`
+  - **Simplified** Product Variants: removed Variant Header click, uses Suggest All directly
+  - **New WF-2B**: Capture Item Number — uses `read_value` action to read D365-generated item # and save as `ITEM_NO` context variable
+  - **New WF-6**: Create BOM (Copy) — creates BOM with copy toggle, selects FromConfigId=MB
+  - **New WF-7**: Enter BOM Lines — 8 line blocks x 4 steps each (New, Fill Item, Confirm, Fill Qty), all `continue_on_error=True`. Empty BOM_LINE_N vars gracefully skip.
+  - **New WF-8**: Approve BOM + Activate Version — approves BOM from BOM Table, goes back, approves+activates version
+  - **New WF-9**: Route Registration — navigates to Route Table, filters by route #, fills item/config/site, approves+activates
+  - **New WF-10**: Release Product — navigates to Release Products, enters item #
+  - **New WF-11**: Movement Journal — creates journal, adds line with item/config/serial, posts
+  - **Context mapping**: `ITEM_NO` propagated from WF-2B to WF-3, WF-9, WF-10, WF-11 via chain link `context_mapping`
+- **check_for_errors Field** (`models.py`, migration `0009`): Boolean field on `WorkflowStep` for opt-in D365 error dialog detection after step execution. Executor checks `detect_error_message()` and takes screenshot if error found.
+- **Job Card Parser ARAMCO Fixes** (`job_card_parser.py`): Auto-populates `body_material=MB`, `item_group=RPR-FC-AR`, `contract_number`, `vendor_number` for ARAMCO account. Fixed cutter BOM variant lookup to match by `erp_item_no`.
+- **ERP Item # Columns** (`cutter_inventory_list.html`, `item_list.html`): Added ERP Item Number column to cutter inventory and item list pages showing `variant.erp_item_no`.
+- **Cutter Stock Import** (`import_stock_from_onhand.py`, `import_cutters_excel.py`): Import stock from D365 On-hand inventory Excel. Fixed CLI-RCL variant case mapping (was `NEW-CLI`, corrected to `CLI-RCL` matching `VariantCase.code`).
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
@@ -880,6 +908,7 @@ extract_pdf_data(pdf_path)            # Main entry point
 | Job card parser | `apps/erp_automation/services/job_card_parser.py` |
 | Route selector | `apps/erp_automation/services/route_selector.py` |
 | Recording → Workflow converter | `apps/erp_automation/management/commands/create_workflow_from_recording.py` |
+| ERP chain seeder | `apps/erp_automation/management/commands/seed_erp_chain.py` |
 | ERP recording page | `apps/erp_automation/templates/erp_automation/recording.html` |
 | ERP recording detail | `apps/erp_automation/templates/erp_automation/recording_detail.html` |
 | ERP job data detail | `apps/erp_automation/templates/erp_automation/job_data_detail.html` |
@@ -947,6 +976,19 @@ StockLedger.objects.filter(
     transaction_date__gte=date
 ).aggregate(total=Sum("qty_delta"))
 ```
+
+### D3 Environment (Production)
+- **Project Path**: `D:\PycharmProjects\floor_management_system-D3`
+- **Python Venv**: `D:\PycharmProjects\floor_management_system-D3\venv\Scripts\python.exe`
+- **Activate Venv**: `D:\PycharmProjects\floor_management_system-D3\venv\Scripts\activate`
+- **Settings Module**: `DJANGO_SETTINGS_MODULE=ardt_fms.settings`
+- **Server**: `python manage.py runserver 0.0.0.0:8001` (access at `http://localhost:8001`)
+- **Database**: SQLite `db.sqlite3` (NOT tracked in git)
+- **Git Remote**: `https://github.com/Ramzi-Kassab/Floor-Management-System-D.git`
+- **Branches**: `master` (production), `dev/*` (feature branches)
+- **D365 ERP Target**: `https://ardt.operations.dynamics.com/` (ADFS auth)
+- **Playwright**: Chromium browser for ERP automation (sync API, installed via `playwright install chromium`)
+- **ERP Chain**: "ARAMCO FC Repair: Full ERP Flow" (pk=7) — 13 workflows, 161 steps, 108 locators
 
 ---
 

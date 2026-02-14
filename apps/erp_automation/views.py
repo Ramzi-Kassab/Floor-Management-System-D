@@ -3044,6 +3044,7 @@ def api_step_create(request, wf_pk):
         wait_after=int(data.get("wait_after", 500)),
         timeout=int(data.get("timeout", 30000)),
         continue_on_error=data.get("continue_on_error", False),
+        check_for_errors=data.get("check_for_errors", False),
         press_key_after=data.get("press_key_after", ""),
         clear_before_fill=data.get("clear_before_fill", False),
         interaction_mode=data.get("interaction_mode", "auto"),
@@ -3077,7 +3078,7 @@ def api_step_update(request, wf_pk, step_pk):
         if int_field in data:
             setattr(step, int_field, int(data[int_field]))
 
-    for bool_field in ["continue_on_error", "clear_before_fill", "is_active"]:
+    for bool_field in ["continue_on_error", "check_for_errors", "clear_before_fill", "is_active"]:
         if bool_field in data:
             setattr(step, bool_field, data[bool_field])
 
@@ -3251,6 +3252,7 @@ def api_workflow_steps(request, wf_pk):
             "wait_after": s.wait_after,
             "timeout": s.timeout,
             "continue_on_error": s.continue_on_error,
+            "check_for_errors": s.check_for_errors,
             "press_key_after": s.press_key_after,
             "clear_before_fill": s.clear_before_fill,
             "interaction_mode": s.interaction_mode or "auto",
