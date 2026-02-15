@@ -17,7 +17,7 @@ ERP Item Prefix → Variant Case Mapping:
 - CT-*         → NEW-PUR  (New Purchased)
 - ENO-CT-*     → NEW-EO   (New E&O / As New)
 - RCLM-ARDT-*  → USED-RCL (ARDT Reclaimed)
-- RCLM-*       → NEW-CLI  (LSTK/Client Reclaimed)
+- RCLM-*       → CLI-RCL  (LSTK/Client Reclaimed)
 - RTRO-*       → NEW-RET  (Retrofit as New)
 
 Usage:
@@ -44,9 +44,11 @@ class Command(BaseCommand):
     help = 'Import cutter stock quantities from ERP On-hand Excel file'
 
     # Expected header names (exact ERP names, case-insensitive)
+    # 'color' field = HDBS MAT code; in some ERP exports this column is
+    # called "Color", in others "Search name"
     HEADER_PATTERNS = {
         'item_number': ['item number'],
-        'color': ['color'],
+        'color': ['color', 'search name'],
         'warehouse': ['warehouse'],
         'location': ['location'],
         'qty': ['available physical'],
@@ -56,7 +58,7 @@ class Command(BaseCommand):
     PREFIX_TO_VARIANT = {
         'ENO-CT': 'NEW-EO',      # ENO As New Cutter
         'RCLM-ARDT': 'USED-RCL', # ARDT Reclaim Cutter
-        'RCLM-': 'NEW-CLI',      # LSTK/Client Reclaim Cutter
+        'RCLM-': 'CLI-RCL',      # LSTK/Client Reclaim Cutter
         'RTRO-': 'NEW-RET',      # Retrofit as New
         'CT-': 'NEW-PUR',        # New Stock (Purchased)
     }
@@ -138,7 +140,7 @@ class Command(BaseCommand):
         elif item_upper.startswith('RCLM-ARDT'):
             return 'USED-RCL'
         elif item_upper.startswith('RCLM-'):
-            return 'NEW-CLI'
+            return 'CLI-RCL'
         elif item_upper.startswith('RTRO-'):
             return 'NEW-RET'
         elif item_upper.startswith('CT-') or item_upper.startswith('CT0'):
@@ -383,8 +385,8 @@ class Command(BaseCommand):
                     else:
                         stats['variants_updated'] += 1
 
-                    # For NEW-CLI (LSTK Reclaim), set account to LSTK
-                    if variant_code == 'NEW-CLI' and not variant.account:
+                    # For CLI-RCL (LSTK Reclaim), set account to LSTK
+                    if variant_code == 'CLI-RCL' and not variant.account:
                         variant.account = 'LSTK'
                         variant.save(update_fields=['account'])
 

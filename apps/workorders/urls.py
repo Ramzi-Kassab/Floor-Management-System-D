@@ -18,6 +18,35 @@ urlpatterns = [
     # Dashboard
     path("dashboard/", views_jobcard.WorkOrderDashboardView.as_view(), name="dashboard"),
 
+    # Production Planner (WIP Dashboard)
+    path("production-planner/", views_jobcard.ProductionPlannerView.as_view(), name="production_planner"),
+    path("production-planner/create-wo/", views_jobcard.ProductionPlannerCreateWOView.as_view(), name="production_planner_create_wo"),
+    path("production-planner/settings/", views_jobcard.PlannerSettingsView.as_view(), name="planner_settings"),
+    path("api/production-wip-status/", views_jobcard.api_production_wip_status, name="api_production_wip_status"),
+    # Production Plan API
+    path("api/add-to-plan/", views_jobcard.api_add_to_plan, name="api_add_to_plan"),
+    path("api/create-wo-from-plan/", views_jobcard.api_create_wo_from_plan, name="api_create_wo_from_plan"),
+    path("api/remove-from-plan/", views_jobcard.api_remove_from_plan, name="api_remove_from_plan"),
+    # Planner Settings API
+    path("api/holiday/add/", views_jobcard.api_add_holiday, name="api_add_holiday"),
+    path("api/holiday/<int:pk>/delete/", views_jobcard.api_delete_holiday, name="api_delete_holiday"),
+    path("api/holiday/<int:pk>/toggle/", views_jobcard.api_toggle_holiday, name="api_toggle_holiday"),
+    path("api/preview-due-date/", views_jobcard.api_preview_due_date, name="api_preview_due_date"),
+
+    # Evaluation Route Builder
+    path("evaluation-routes/", views_jobcard.EvaluationRouteBuilderView.as_view(), name="evaluation_route_builder"),
+    path("evaluation-routes/<int:pk>/", views_jobcard.EvaluationRouteDetailView.as_view(), name="evaluation_route_detail"),
+    # Evaluation Route API
+    path("api/evaluation-routes/create/", views_jobcard.api_create_route, name="api_create_route"),
+    path("api/evaluation-routes/<int:pk>/update/", views_jobcard.api_update_route, name="api_update_route"),
+    path("api/evaluation-routes/<int:pk>/delete/", views_jobcard.api_delete_route, name="api_delete_route"),
+    path("api/evaluation-routes/<int:pk>/", views_jobcard.api_get_route, name="api_get_route"),
+    path("api/evaluation-routes/<int:pk>/steps/add/", views_jobcard.api_add_route_step, name="api_add_route_step"),
+    path("api/evaluation-routes/<int:pk>/steps/<int:step_pk>/update/", views_jobcard.api_update_route_step, name="api_update_route_step"),
+    path("api/evaluation-routes/<int:pk>/steps/<int:step_pk>/delete/", views_jobcard.api_delete_route_step, name="api_delete_route_step"),
+    path("api/evaluation-routes/<int:pk>/steps/reorder/", views_jobcard.api_reorder_route_steps, name="api_reorder_route_steps"),
+    path("api/evaluation-types/", views_jobcard.api_get_evaluation_types, name="api_get_evaluation_types"),
+
     # Enhanced Work Order List & Detail
     path("enhanced/", views_jobcard.WorkOrderListEnhancedView.as_view(), name="workorder_list_enhanced"),
     path("enhanced/<int:pk>/", views_jobcard.WorkOrderDetailEnhancedView.as_view(), name="workorder_detail_enhanced"),
@@ -66,6 +95,7 @@ urlpatterns = [
     # API endpoints
     path("api/drill-bits/search/", views_drillbit.DrillBitSearchAPIView.as_view(), name="drillbit_search_api"),
     path("api/drill-bits/lookup/", views.api_drillbit_lookup, name="drillbit_lookup_api"),
+    path("api/drill-bits/list/", views.api_drillbit_list, name="drillbit_list_api"),
     path("api/drill-bits/<int:pk>/quick-event/", views_drillbit.DrillBitQuickEventAPIView.as_view(), name="drillbit_quick_event_api"),
 
     # Cutter Evaluation Matrix
@@ -89,12 +119,12 @@ urlpatterns = [
     path("instruction-rules/<int:pk>/delete/", views_jobcard.InstructionRuleDeleteView.as_view(), name="instruction_rule_delete"),
 
     # ========================================================================
-    # ORIGINAL WORK ORDER VIEWS
+    # WORK ORDER VIEWS (Consolidated)
     # ========================================================================
-    # Work Order - List and CRUD
-    path("", views.WorkOrderListView.as_view(), name="list"),
+    # Work Order - List (redirects to enhanced view for backward compatibility)
+    path("", views_jobcard.WorkOrderListEnhancedView.as_view(), name="list"),
     path("create/", views.WorkOrderCreateView.as_view(), name="create"),
-    path("<int:pk>/", views.WorkOrderDetailView.as_view(), name="detail"),
+    path("<int:pk>/", views_jobcard.WorkOrderDetailEnhancedView.as_view(), name="detail"),
     path("<int:pk>/edit/", views.WorkOrderUpdateView.as_view(), name="update"),
     # Work Order - Actions
     path("<int:pk>/start/", views.start_work_view, name="start"),

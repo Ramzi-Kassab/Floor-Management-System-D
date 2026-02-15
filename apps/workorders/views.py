@@ -12,7 +12,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404, redirect, render
@@ -25,81 +25,29 @@ from .models import DrillBit, WorkOrder
 from .utils import generate_drill_bit_qr, generate_work_order_qr
 
 
+# =============================================================================
+# LEGACY VIEWS - DEPRECATED
+# These views have been replaced by enhanced versions in views_jobcard.py.
+# URLs now redirect to the enhanced views. Kept for reference only.
+# =============================================================================
+
+
 class WorkOrderListView(LoginRequiredMixin, ListView):
     """
-    List all work orders with filtering and pagination.
+    DEPRECATED: Use WorkOrderListEnhancedView in views_jobcard.py instead.
+    This class is kept for backward compatibility but the URL route now
+    points to the enhanced view.
     """
-
-    model = WorkOrder
-    template_name = "workorders/workorder_list.html"
-    context_object_name = "work_orders"
-    paginate_by = 25
-
-    def get_queryset(self):
-        queryset = WorkOrder.objects.select_related("customer", "drill_bit", "assigned_to", "design").order_by("-created_at")
-
-        # Filter by status
-        status = self.request.GET.get("status")
-        if status:
-            queryset = queryset.filter(status=status)
-
-        # Filter by priority
-        priority = self.request.GET.get("priority")
-        if priority:
-            queryset = queryset.filter(priority=priority)
-
-        # Search
-        search = self.request.GET.get("q")
-        if search:
-            queryset = queryset.filter(
-                Q(wo_number__icontains=search)
-                | Q(customer__name__icontains=search)
-                | Q(drill_bit__serial_number__icontains=search)
-            )
-
-        return queryset
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Work Orders"
-        context["status_choices"] = WorkOrder.Status.choices
-        context["priority_choices"] = WorkOrder.Priority.choices
-        context["current_status"] = self.request.GET.get("status", "")
-        context["current_priority"] = self.request.GET.get("priority", "")
-        context["search_query"] = self.request.GET.get("q", "")
-        return context
+    pass  # Not used - URL routes to WorkOrderListEnhancedView
 
 
 class WorkOrderDetailView(LoginRequiredMixin, DetailView):
     """
-    View work order details.
+    DEPRECATED: Use WorkOrderDetailEnhancedView in views_jobcard.py instead.
+    This class is kept for backward compatibility but the URL route now
+    points to the enhanced view.
     """
-
-    model = WorkOrder
-    template_name = "workorders/workorder_detail.html"
-    context_object_name = "work_order"
-
-    def get_queryset(self):
-        return WorkOrder.objects.select_related(
-            "customer",
-            "drill_bit",
-            "assigned_to",
-            "design",
-            "sales_order",
-            "rig",
-            "well",
-            "procedure",
-            "department",
-            "created_by",
-        ).prefetch_related("documents", "photos", "materials", "time_logs")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Work Order {self.object.wo_number}"
-        # Generate QR code for the work order
-        base_url = getattr(settings, "SITE_URL", None)
-        context["qr_code"] = generate_work_order_qr(self.object, base_url)
-        return context
+    pass  # Not used - URL routes to WorkOrderDetailEnhancedView
 
 
 class WorkOrderCreateView(LoginRequiredMixin, CreateView):
@@ -1277,6 +1225,19 @@ def api_drillbit_lookup(request):
     rerun_count_factory = getattr(bit, "rerun_count_factory", 0)
     rerun_count_field = getattr(bit, "rerun_count_field", 0)
 
+    # --- bit state ---
+    bit_state = "Unknown"
+    if bit.status:
+        status_map = {
+            "NEW": "Component",
+            "IN_STOCK": "Finished Good",
+            "IN_PRODUCTION": "Component",
+            "AT_RIG": "Used",
+            "RETURNED": "Used",
+            "SCRAPPED": "Scrapped",
+        }
+        bit_state = status_map.get(bit.status, bit.get_status_display() if hasattr(bit, "get_status_display") else "Unknown")
+
     return JsonResponse({
         "found": True,
         "drill_bit_id": bit.pk,
@@ -1304,4 +1265,122 @@ def api_drillbit_lookup(request):
         "repair_count_usa": repair_count_usa,
         "rerun_count_factory": rerun_count_factory,
         "rerun_count_field": rerun_count_field,
+        "bit_state": bit_state,
     })
+
+
+@login_required
+@require_GET
+def api_drillbit_list(request):
+    """
+    List all drill bits for the serial number picker modal.
+    GET /workorders/api/drill-bits/list/
+    Returns JSON array of drill bits with key fields for selection.
+
+    Each bit includes availability_status with:
+    - available: bool - True if can be added to plan
+    - status_code: AVAILABLE | IN_PLAN | ACTIVE_WO
+    - status_label: Display label
+    - blocking_reason: Why unavailable (if applicable)
+    - blocking_wo_number: WO number if blocked by active WO
+    """
+    from apps.workorders.models import ProductionPlanEntry
+
+    bits = DrillBit.objects.select_related(
+        "design", "design__size", "account", "brazing_bom", "system_bom", "bom", "bit_size_ref"
+    ).prefetch_related(
+        # Prefetch active work orders and plan entries for efficient availability check
+        Prefetch(
+            'work_orders',
+            queryset=WorkOrder.objects.filter(status__in=DrillBit.ACTIVE_WO_STATUSES),
+            to_attr='_active_work_orders'
+        ),
+        Prefetch(
+            'plan_entries',
+            queryset=ProductionPlanEntry.objects.filter(status='PLANNED'),
+            to_attr='_active_plan_entries'
+        )
+    ).order_by("-created_at")[:500]  # Limit to 500 most recent
+
+    result = []
+    for bit in bits:
+        # Determine design level
+        design_level = ""
+        if bit.design:
+            design_level = getattr(bit.design, "order_level", "") or ""
+
+        # Determine HDBS type
+        hdbs_type = ""
+        if bit.design and bit.design.hdbs_type:
+            hdbs_type = bit.design.hdbs_type
+
+        # Determine size - get display value from BitSize model
+        size = ""
+        if bit.bit_size_ref:
+            size = bit.bit_size_ref.size_display or bit.bit_size_ref.size_inches or str(bit.bit_size_ref.size_decimal)
+        elif bit.design and bit.design.size:
+            size = bit.design.size.size_display or bit.design.size.size_inches or str(bit.design.size.size_decimal)
+
+        # Determine bit state (Component, Finished Good, Used)
+        bit_state = "Unknown"
+        if bit.status:
+            status_map = {
+                "NEW": "Component",
+                "IN_STOCK": "Finished Good",
+                "IN_PRODUCTION": "Component",
+                "AT_RIG": "Used",
+                "RETURNED": "Used",
+                "SCRAPPED": "Scrapped",
+            }
+            bit_state = status_map.get(bit.status, bit.get_status_display() if hasattr(bit, "get_status_display") else "Unknown")
+
+        # Rerun count (factory + field)
+        rerun_count = (bit.rerun_count_factory or 0) + (bit.rerun_count_field or 0)
+
+        # Determine availability status using prefetched data
+        active_wos = getattr(bit, '_active_work_orders', [])
+        active_plans = getattr(bit, '_active_plan_entries', [])
+
+        if active_wos:
+            active_wo = active_wos[0]
+            availability_status = {
+                'available': False,
+                'status_code': 'ACTIVE_WO',
+                'status_label': 'In WIP',
+                'blocking_reason': f"WO: {active_wo.wo_number}",
+                'blocking_wo_number': active_wo.wo_number,
+                'blocking_wo_id': active_wo.pk,
+            }
+        elif active_plans:
+            plan = active_plans[0]
+            availability_status = {
+                'available': False,
+                'status_code': 'IN_PLAN',
+                'status_label': 'Planned',
+                'blocking_reason': f"Already in production plan",
+                'blocking_wo_number': None,
+                'blocking_wo_id': None,
+            }
+        else:
+            availability_status = {
+                'available': True,
+                'status_code': 'AVAILABLE',
+                'status_label': 'Available',
+                'blocking_reason': None,
+                'blocking_wo_number': None,
+                'blocking_wo_id': None,
+            }
+
+        result.append({
+            "serial_number": bit.serial_number,
+            "size": size,
+            "hdbs_type": hdbs_type,
+            "account_code": bit.account.code if bit.account else "",
+            "bit_state": bit_state,
+            "design_level": design_level,
+            "repair_count": bit.repair_count or 0,
+            "rerun_count": rerun_count,
+            "availability": availability_status,
+        })
+
+    return JsonResponse({"bits": result})

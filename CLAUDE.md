@@ -1004,6 +1004,19 @@ StockLedger.objects.filter(
 ).aggregate(total=Sum("qty_delta"))
 ```
 
+### D3 Environment (Production)
+- **Project Path**: `D:\PycharmProjects\floor_management_system-D3`
+- **Python Venv**: `D:\PycharmProjects\floor_management_system-D3\venv\Scripts\python.exe`
+- **Activate Venv**: `D:\PycharmProjects\floor_management_system-D3\venv\Scripts\activate`
+- **Settings Module**: `DJANGO_SETTINGS_MODULE=ardt_fms.settings`
+- **Server**: `python manage.py runserver 0.0.0.0:8001` (access at `http://localhost:8001`)
+- **Database**: SQLite `db.sqlite3` (NOT tracked in git)
+- **Git Remote**: `https://github.com/Ramzi-Kassab/Floor-Management-System-D.git`
+- **Branches**: `master` (production), `dev/*` (feature branches)
+- **D365 ERP Target**: `https://ardt.operations.dynamics.com/` (ADFS auth)
+- **Playwright**: Chromium browser for ERP automation (sync API, installed via `playwright install chromium`)
+- **ERP Chain**: "ARAMCO FC Repair: Full ERP Flow" (pk=7) — 13 workflows, 161 steps, 108 locators
+
 ---
 
 ## Need Help?

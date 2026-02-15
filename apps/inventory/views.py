@@ -502,8 +502,10 @@ class ItemListView(LoginRequiredMixin, ListView):
             qs = qs.filter(
                 Q(code__icontains=search) |
                 Q(name__icontains=search) |
+                Q(mat_number__icontains=search) |
+                Q(variants__erp_item_no__icontains=search) |
                 Q(description__icontains=search)
-            )
+            ).distinct()
 
         return qs.order_by("-created_at", "-id")
 
@@ -532,12 +534,30 @@ class ItemListView(LoginRequiredMixin, ListView):
             min_stock = item.min_stock or 0
             is_low_stock = (item.current_stock or 0) <= min_stock if min_stock > 0 else False
 
+            # Get ERP Item # per variant (underscore keys for Django template access)
+            erp_item_no = ''
+            variant_erp = {}
+            for v in item.variants.all():
+                if v.erp_item_no and v.variant_case:
+                    safe_key = v.variant_case.code.replace('-', '_')
+                    variant_erp[safe_key] = v.erp_item_no
+                    if v.variant_case.code == 'NEW-PUR':
+                        erp_item_no = v.erp_item_no
+            # Fallback: first variant with an ERP number
+            if not erp_item_no:
+                for v in item.variants.all():
+                    if v.erp_item_no:
+                        erp_item_no = v.erp_item_no
+                        break
+
             item_data.append({
                 'row_num': row_num,
                 'item': item,
                 'code': item.code,
                 'item_number': item.item_number or '',  # ERP Item Number
                 'mat_number': item.mat_number or '-',  # HDBS MAT number
+                'erp_item_no': erp_item_no,  # Primary ERP Item # from variants
+                'variant_erp': variant_erp,  # ERP # per variant case
                 'name': item.name,
                 'category': item.category.name if item.category else '-',
                 'category_code': item.category.code if item.category else '',
@@ -1747,6 +1767,8 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                 "product_name": cutter.name,  # Separate product name column
                 "attributes": attr_values,  # Dynamic attributes dict
                 "variants": {},
+                "variant_erp": {},  # ERP Item # per variant case code
+                "erp_item_no": "",  # Primary ERP Item # (NEW-PUR)
                 "new_stock": Decimal("0"),  # NEW-PUR only
                 "total_new": Decimal("0"),  # NEW-PUR + NEW-EO + NEW-RET + NEW-CLI
                 "lstk_rcl": Decimal("0"),  # Client Reclaim with Halliburton + LSTK account
@@ -1771,13 +1793,19 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                     row["variants"][variant.variant_case.code] = variant_stock
                     row["total_stock"] += variant_stock
 
+                    # Track ERP item numbers per variant
+                    if variant.erp_item_no:
+                        row["variant_erp"][variant.variant_case.code] = variant.erp_item_no
+                        if variant.variant_case.code == "NEW-PUR":
+                            row["erp_item_no"] = variant.erp_item_no
+
                     # Track new stock and total new separately
                     if variant.variant_case.code == "NEW-PUR":
                         row["new_stock"] = variant_stock
                     if variant.variant_case.code in new_variant_codes:
                         row["total_new"] += variant_stock
                     # Track LSTK Reclaim (Client Reclaim with Halliburton + LSTK account)
-                    if variant.variant_case.code in ["NEW-CLI", "USED-CLI"]:
+                    if variant.variant_case.code in ["CLI-RCL", "CLI-NEW"]:
                         if variant.customer and "halliburton" in variant.customer.name.lower() and variant.account == "LSTK":
                             row["lstk_rcl"] += variant_stock
 

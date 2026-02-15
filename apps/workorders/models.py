@@ -337,6 +337,117 @@ class DrillBit(models.Model):
             self.qr_code = f"BIT-{self.serial_number}"
         super().save(*args, **kwargs)
 
+    # =========================================================================
+    # LIFECYCLE MANAGEMENT METHODS
+    # =========================================================================
+
+    # Work Order statuses that indicate active/in-progress work
+    ACTIVE_WO_STATUSES = [
+        'DRAFT', 'PLANNED', 'RELEASED', 'IN_PROGRESS',
+        'ON_HOLD', 'QC_PENDING', 'QC_PASSED', 'QC_FAILED'
+    ]
+
+    # Work Order statuses that indicate completed/finalized work
+    FINAL_WO_STATUSES = ['COMPLETED', 'CANCELLED']
+
+    def has_active_work_order(self):
+        """
+        Check if this drill bit has any active (non-completed, non-cancelled) work order.
+        Returns True if there's an active WO blocking new work.
+        """
+        return self.work_orders.filter(status__in=self.ACTIVE_WO_STATUSES).exists()
+
+    def get_active_work_order(self):
+        """
+        Get the active work order for this drill bit, if any.
+        Returns the WO object or None.
+        """
+        return self.work_orders.filter(status__in=self.ACTIVE_WO_STATUSES).first()
+
+    def is_in_production_plan(self):
+        """
+        Check if this drill bit is currently in the production plan (PLANNED status).
+        """
+        return self.plan_entries.filter(status='PLANNED').exists()
+
+    def get_active_plan_entry(self):
+        """
+        Get the active production plan entry for this drill bit, if any.
+        """
+        return self.plan_entries.filter(status='PLANNED').first()
+
+    def is_available_for_planning(self):
+        """
+        Check if this drill bit can be added to the production plan.
+        Returns True if:
+        - No active work order exists
+        - Not already in the production plan
+        """
+        if self.has_active_work_order():
+            return False
+        if self.is_in_production_plan():
+            return False
+        return True
+
+    def get_blocking_reason(self):
+        """
+        Get the reason why this drill bit cannot be planned.
+        Returns a tuple of (reason_code, message) or (None, None) if available.
+        """
+        # Check for active work order first
+        active_wo = self.get_active_work_order()
+        if active_wo:
+            return (
+                'ACTIVE_WO',
+                f"Active Work Order {active_wo.wo_number} ({active_wo.get_status_display()})"
+            )
+
+        # Check for active plan entry
+        plan_entry = self.get_active_plan_entry()
+        if plan_entry:
+            return (
+                'IN_PLAN',
+                f"Already in production plan (#{plan_entry.pk})"
+            )
+
+        return (None, None)
+
+    def get_availability_status(self):
+        """
+        Get a structured availability status for UI display.
+        Returns dict with: available, status_code, status_label, blocking_reason, blocking_wo
+        """
+        active_wo = self.get_active_work_order()
+        if active_wo:
+            return {
+                'available': False,
+                'status_code': 'ACTIVE_WO',
+                'status_label': 'In WIP',
+                'blocking_reason': f"WO: {active_wo.wo_number}",
+                'blocking_wo': active_wo,
+                'blocking_wo_id': active_wo.pk,
+            }
+
+        plan_entry = self.get_active_plan_entry()
+        if plan_entry:
+            return {
+                'available': False,
+                'status_code': 'IN_PLAN',
+                'status_label': 'Planned',
+                'blocking_reason': f"Plan entry #{plan_entry.pk}",
+                'blocking_wo': None,
+                'blocking_wo_id': None,
+            }
+
+        return {
+            'available': True,
+            'status_code': 'AVAILABLE',
+            'status_label': 'Available',
+            'blocking_reason': None,
+            'blocking_wo': None,
+            'blocking_wo_id': None,
+        }
+
 
 class BitEvent(models.Model):
     """
@@ -1627,15 +1738,20 @@ class CutterEvaluationMatrix(models.Model):
     Tracks decision outcome and cutter state across multiple evaluation stages.
     """
     class EvaluationType(models.TextChoices):
+        # Component receiving (separate from WO flow - updates drill bit inventory)
         RECEIVING = "RECEIVING", "Receiving Evaluation"
-        ARDT = "ARDT", "ARDT Evaluation"
-        ENGINEER = "ENGINEER", "Technical Rep. Evaluation"
-        QC = "QC", "QC Evaluation"
+        # Main WO flow - PDC Evaluation is the starting point (includes Die Check + E-Checklist)
+        PDC_EVAL = "PDC_EVAL", "PDC Evaluation"       # Renamed from ARDT - starting point for production WO
+        QC = "QC", "QC Evaluation"                     # N/A for new bits, required for repair
+        ENGINEER = "ENGINEER", "Technical Rep. Evaluation"  # N/A for new/UR, optional for Aramco
+        ARAMCO_REP = "ARAMCO_REP", "Aramco Rep. Evaluation"  # Aramco inspector evaluation
         DIE_CHECK = "DIE_CHECK", "Die Check"
         FINAL_DIE_CHECK = "FINAL_DIE_CHECK", "Final Die Check"
         FINAL_QC = "FINAL_QC", "Final QC Evaluation"
         FINAL_INSPECTION = "FINAL_INSPECTION", "Final Inspection"
         REWORK = "REWORK", "Rework Evaluation"
+        # Legacy support
+        ARDT = "ARDT", "ARDT Evaluation (Legacy)"
 
     class Decision(models.TextChoices):
         REPAIR = "REPAIR", "For Repair"
@@ -2236,8 +2352,11 @@ class EvaluationChecklist(models.Model):
     inner_diameter_remarks = models.CharField(max_length=200, blank=True)
 
     # Overall result
-    overall_pass = models.BooleanField(null=True, blank=True)
+    overall_pass = models.CharField(max_length=10, choices=Result.choices, blank=True, default='')
     general_remarks = models.TextField(blank=True)
+
+    # Item timestamps for auditing (JSONField: {"bit_cleanliness": "2026-02-06T12:30:00Z", ...})
+    item_timestamps = models.JSONField(default=dict, blank=True, help_text='Timestamps when each item was last updated')
 
     # Inspector info
     inspector = models.ForeignKey(
@@ -2282,4 +2401,493 @@ class EvaluationChecklist(models.Model):
                 if val == self.Result.NOT_OK:
                     count += 1
         return count
+
+
+class ProductionPlanEntry(models.Model):
+    """
+    Production Plan Entry - a drill bit queued for work without creating a Work Order.
+    Allows planning work before committing to WO creation.
+    """
+
+    class Status(models.TextChoices):
+        PLANNED = "PLANNED", "Planned"
+        WO_CREATED = "WO_CREATED", "WO Created"
+        REMOVED = "REMOVED", "Removed"
+
+    class Priority(models.TextChoices):
+        LOW = "LOW", "Low"
+        NORMAL = "NORMAL", "Normal"
+        HIGH = "HIGH", "High"
+        URGENT = "URGENT", "Urgent"
+
+    drill_bit = models.ForeignKey(
+        DrillBit, on_delete=models.PROTECT, related_name='plan_entries',
+        help_text='Drill bit to be planned for production'
+    )
+    account = models.ForeignKey(
+        'sales.Account', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='plan_entries',
+        help_text='Account for this planned work'
+    )
+    work_order = models.OneToOneField(
+        WorkOrder, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='plan_entry',
+        help_text='Work Order created from this plan entry'
+    )
+
+    # Planning fields
+    priority = models.CharField(max_length=20, choices=Priority.choices, default=Priority.NORMAL)
+    planned_date = models.DateField(null=True, blank=True, help_text='Target date for starting work')
+    due_date = models.DateField(null=True, blank=True, help_text='Target date for completing work (auto-calculated: 6 days, 4 for UR)')
+    sequence = models.IntegerField(default=0, help_text='Sequence order in the plan')
+
+    # Intended work type
+    intended_wo_type = models.CharField(
+        max_length=20, choices=WorkOrder.WOType.choices, blank=True,
+        help_text='Intended work order type when WO is created'
+    )
+
+    # Status
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PLANNED)
+
+    # Notes
+    notes = models.TextField(blank=True, help_text='Planning notes or remarks')
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='created_plan_entries'
+    )
+
+    class Meta:
+        db_table = "production_plan_entries"
+        verbose_name = "Production Plan Entry"
+        verbose_name_plural = "Production Plan Entries"
+        ordering = ['sequence', '-priority', 'planned_date', 'created_at']
+
+    def __str__(self):
+        return f"Plan: {self.drill_bit.serial_number} ({self.get_status_display()})"
+
+    def create_work_order(self, user=None):
+        """
+        Create a Work Order from this plan entry.
+
+        Returns tuple: (work_order, success, error_code, error_message)
+        - If successful: (work_order, True, None, None)
+        - If WO already exists: (existing_wo, True, None, None)
+        - If drill bit has active WO: (None, False, 'ACTIVE_WO', message)
+        """
+        if self.work_order:
+            return (self.work_order, True, None, None)
+
+        # CRITICAL VALIDATION: Check if drill bit already has an active work order
+        # This prevents duplicate WOs even if validation was bypassed at add_to_plan
+        active_wo = self.drill_bit.get_active_work_order()
+        if active_wo:
+            return (
+                active_wo,  # Return the blocking WO so frontend can link to it
+                False,
+                'ACTIVE_WO',
+                f"Cannot create WO: Drill bit {self.drill_bit.serial_number} already has "
+                f"active Work Order {active_wo.wo_number} ({active_wo.get_status_display()}). "
+                f"View it in the WIP tab or at /work-orders/enhanced/{active_wo.pk}/"
+            )
+
+        # Determine WO type
+        wo_type = self.intended_wo_type or WorkOrder.WOType.FC_REPAIR
+
+        # Generate WO number using account
+        if self.account:
+            wo_number = self.account.generate_wo_number()
+        else:
+            from django.utils import timezone
+            wo_number = f"WO-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+
+        # Create the work order with RELEASED status (ready to start)
+        work_order = WorkOrder.objects.create(
+            wo_number=wo_number,
+            wo_type=wo_type,
+            drill_bit=self.drill_bit,
+            design=self.drill_bit.design,
+            account=self.account or self.drill_bit.account,
+            status=WorkOrder.Status.RELEASED,
+            priority=self.priority,
+            planned_start=self.planned_date,
+            created_by=user,
+        )
+
+        # Update plan entry
+        self.work_order = work_order
+        self.status = self.Status.WO_CREATED
+        self.save(update_fields=['work_order', 'status', 'updated_at'])
+
+        return (work_order, True, None, None)
+
+    @classmethod
+    def add_to_plan(cls, drill_bit, account=None, priority='NORMAL', planned_date=None,
+                    due_date=None, intended_wo_type='', notes='', user=None):
+        """
+        Add a drill bit to the production plan.
+
+        Returns tuple: (entry, created, error_code, error_message)
+        - If successful: (entry, True, None, None)
+        - If already in plan: (existing_entry, False, 'IN_PLAN', 'Already in production plan')
+        - If has active WO: (None, False, 'ACTIVE_WO', 'Has active work order WO-XXX')
+        """
+        from datetime import timedelta
+        from django.utils import timezone
+
+        # VALIDATION 1: Check if drill bit has an active work order
+        active_wo = drill_bit.get_active_work_order()
+        if active_wo:
+            return (
+                None,
+                False,
+                'ACTIVE_WO',
+                f"Cannot add to plan: Active Work Order {active_wo.wo_number} ({active_wo.get_status_display()})"
+            )
+
+        # VALIDATION 2: Check for existing active plan entry
+        existing = cls.objects.filter(
+            drill_bit=drill_bit,
+            status=cls.Status.PLANNED
+        ).first()
+
+        if existing:
+            return (existing, False, 'IN_PLAN', 'This drill bit is already in the production plan')
+
+        # Get max sequence for ordering
+        max_seq = cls.objects.filter(status=cls.Status.PLANNED).aggregate(
+            max_seq=models.Max('sequence')
+        )['max_seq'] or 0
+
+        # Determine effective account
+        effective_account = account or drill_bit.account
+
+        # Auto-calculate due_date if not provided
+        # Uses PlannerSettings to consider working days, weekends, and holidays
+        if due_date is None:
+            account_code = effective_account.code if effective_account else None
+            due_date = PlannerSettings.calculate_due_date(
+                start_date=timezone.now().date(),
+                account_code=account_code
+            )
+
+        entry = cls.objects.create(
+            drill_bit=drill_bit,
+            account=effective_account,
+            priority=priority,
+            planned_date=planned_date,
+            due_date=due_date,
+            intended_wo_type=intended_wo_type,
+            sequence=max_seq + 1,
+            notes=notes,
+            created_by=user,
+        )
+        return (entry, True, None, None)  # Created successfully
+
+
+class PlannerSettings(models.Model):
+    """
+    Singleton model for Production Planner settings.
+    Controls due date calculation, weekend days, and working hours.
+    """
+    # Due date settings per account type
+    default_due_days = models.PositiveIntegerField(
+        default=6,
+        help_text='Default working days for due date calculation'
+    )
+    ur_due_days = models.PositiveIntegerField(
+        default=4,
+        help_text='Working days for UR account due date'
+    )
+
+    # Weekend configuration (multi-select stored as JSON)
+    # 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday
+    weekend_days = models.JSONField(
+        default=list,
+        help_text='Days of the week that are weekends (0=Mon, 4=Fri, 5=Sat, 6=Sun)'
+    )
+
+    # Audit
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    class Meta:
+        db_table = "planner_settings"
+        verbose_name = "Planner Settings"
+        verbose_name_plural = "Planner Settings"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one instance exists (singleton pattern)
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        # Prevent deletion of singleton
+        pass
+
+    @classmethod
+    def get_settings(cls):
+        """Get or create the singleton settings instance."""
+        obj, created = cls.objects.get_or_create(
+            pk=1,
+            defaults={
+                'default_due_days': 6,
+                'ur_due_days': 4,
+                'weekend_days': [4, 5],  # Friday=4, Saturday=5 (Sunday=6 is first working day)
+            }
+        )
+        return obj
+
+    @classmethod
+    def calculate_due_date(cls, start_date, account_code=None):
+        """
+        Calculate due date considering working days, weekends, and holidays.
+        Weekend: Friday (4) and Saturday (5). First working day: Sunday (6).
+
+        Args:
+            start_date: The starting date (usually today)
+            account_code: Account code to determine number of days (UR gets fewer days)
+
+        Returns:
+            due_date: The calculated due date
+        """
+        from datetime import timedelta
+
+        settings_obj = cls.get_settings()
+
+        # Determine number of working days based on account
+        if account_code == 'UR':
+            working_days_needed = settings_obj.ur_due_days
+        else:
+            working_days_needed = settings_obj.default_due_days
+
+        # Get weekend days (convert to set for faster lookup)
+        # Default: Friday (4), Saturday (5)
+        weekend_days = set(settings_obj.weekend_days or [4, 5])
+
+        # Get holidays for the relevant period (next 30 days should be enough)
+        end_search = start_date + timedelta(days=working_days_needed + 30)
+        holidays = set(
+            PlannerHoliday.objects.filter(
+                date__gte=start_date,
+                date__lte=end_search,
+                is_active=True
+            ).values_list('date', flat=True)
+        )
+
+        # Count working days
+        current_date = start_date
+        working_days_counted = 0
+
+        while working_days_counted < working_days_needed:
+            current_date += timedelta(days=1)
+
+            # Check if it's a working day
+            # weekday(): 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday
+            weekday = current_date.weekday()
+
+            if weekday not in weekend_days and current_date not in holidays:
+                working_days_counted += 1
+
+        return current_date
+
+    def get_weekend_display(self):
+        """Return human-readable weekend days."""
+        day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        return [day_names[d] for d in (self.weekend_days or [])]
+
+
+class PlannerHoliday(models.Model):
+    """
+    Holidays that should be excluded from due date calculations.
+    """
+    date = models.DateField(unique=True)
+    name = models.CharField(max_length=100, help_text='Holiday name')
+    is_active = models.BooleanField(default=True)
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_holidays'
+    )
+
+    class Meta:
+        db_table = "planner_holidays"
+        verbose_name = "Planner Holiday"
+        verbose_name_plural = "Planner Holidays"
+        ordering = ['date']
+
+    def __str__(self):
+        return f"{self.name} ({self.date})"
+
+
+# =============================================================================
+# EVALUATION ROUTE BUILDER
+# =============================================================================
+
+class EvaluationRoute(models.Model):
+    """
+    Configurable evaluation route for different bit types and accounts.
+    Defines which evaluation steps are needed and in what order.
+    """
+    class BitType(models.TextChoices):
+        NEW = 'NEW', 'New Build'
+        USED = 'USED', 'Used/Repair'
+
+    name = models.CharField(
+        max_length=100,
+        help_text='Route name (e.g., "LSTK Repair Standard", "ARAMCO New Build")'
+    )
+    description = models.TextField(blank=True, help_text='Description of when this route applies')
+
+    bit_type = models.CharField(
+        max_length=10,
+        choices=BitType.choices,
+        help_text='New build or repair/used'
+    )
+
+    account = models.ForeignKey(
+        'sales.Account',
+        on_delete=models.CASCADE,
+        related_name='evaluation_routes',
+        help_text='Account this route applies to'
+    )
+
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(
+        default=False,
+        help_text='If true, this is the default route for the account+bit_type combination'
+    )
+
+    # Audit
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_eval_routes'
+    )
+
+    class Meta:
+        db_table = "evaluation_routes"
+        verbose_name = "Evaluation Route"
+        verbose_name_plural = "Evaluation Routes"
+        ordering = ['account__code', 'bit_type', 'name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['account', 'bit_type'],
+                condition=models.Q(is_default=True),
+                name='unique_default_route_per_account_bittype'
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.account.code} - {self.get_bit_type_display()} - {self.name}"
+
+    @classmethod
+    def get_route_for_workorder(cls, work_order):
+        """
+        Get the applicable evaluation route for a work order.
+        Determines bit_type from WO type and finds matching route.
+        """
+        # Determine bit type from WO type
+        wo_type = work_order.wo_type
+        if wo_type in ['NEW', 'L3', 'L4', 'NEW_BUILD']:
+            bit_type = cls.BitType.NEW
+        else:
+            bit_type = cls.BitType.USED
+
+        account = work_order.account
+        if not account:
+            return None
+
+        # Find default route for account + bit_type
+        route = cls.objects.filter(
+            account=account,
+            bit_type=bit_type,
+            is_default=True,
+            is_active=True
+        ).first()
+
+        # Fallback to any active route for account + bit_type
+        if not route:
+            route = cls.objects.filter(
+                account=account,
+                bit_type=bit_type,
+                is_active=True
+            ).first()
+
+        return route
+
+
+class EvaluationRouteStep(models.Model):
+    """
+    Individual step in an evaluation route.
+    Maps to CutterEvaluationMatrix.EvaluationType values.
+    """
+    route = models.ForeignKey(
+        EvaluationRoute,
+        on_delete=models.CASCADE,
+        related_name='steps'
+    )
+
+    evaluation_type = models.CharField(
+        max_length=20,
+        choices=CutterEvaluationMatrix.EvaluationType.choices,
+        help_text='The type of evaluation'
+    )
+
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text='Order in the evaluation sequence (lower = first)'
+    )
+
+    is_required = models.BooleanField(
+        default=True,
+        help_text='If true, this step must be completed'
+    )
+
+    is_conditional = models.BooleanField(
+        default=False,
+        help_text='If true, step may be skipped based on conditions'
+    )
+
+    condition_description = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text='Describe when this step is needed (e.g., "Only if customer requests")'
+    )
+
+    # Display options
+    show_decision_field = models.BooleanField(
+        default=True,
+        help_text='Show decision dropdown (Repair/Scrap/etc.)'
+    )
+
+    show_cutter_matrix = models.BooleanField(
+        default=True,
+        help_text='Show the blade × position cutter matrix'
+    )
+
+    show_cutters_details = models.BooleanField(
+        default=True,
+        help_text='Show the cutters details table (plant use)'
+    )
+
+    class Meta:
+        db_table = "evaluation_route_steps"
+        verbose_name = "Evaluation Route Step"
+        verbose_name_plural = "Evaluation Route Steps"
+        ordering = ['route', 'order']
+        unique_together = ['route', 'evaluation_type']
+
+    def __str__(self):
+        req = "Required" if self.is_required else "Optional"
+        return f"{self.route.name} - Step {self.order}: {self.get_evaluation_type_display()} ({req})"
 

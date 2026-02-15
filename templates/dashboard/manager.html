@@ -188,7 +188,7 @@
                     </table>
                 </div>
                 <div class="mt-4">
-                    <a href="{% url 'workorders:list' %}" class="text-sm text-primary-600 dark:text-primary-400 hover:underline">View all work orders</a>
+                    <a href="{% url 'workorders:workorder_list_enhanced' %}" class="text-sm text-primary-600 dark:text-primary-400 hover:underline">View all work orders</a>
                 </div>
                 {% else %}
                 <div class="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -244,7 +244,7 @@
             <i data-lucide="plus-circle" class="w-6 h-6 text-gray-400 mb-2"></i>
             <span class="text-sm text-gray-600 dark:text-gray-400">New Work Order</span>
         </a>
-        <a href="{% url 'workorders:list' %}" class="flex flex-col items-center p-2 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
+        <a href="{% url 'workorders:workorder_list_enhanced' %}" class="flex flex-col items-center p-2 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
             <i data-lucide="list" class="w-6 h-6 text-gray-400 mb-2"></i>
             <span class="text-sm text-gray-600 dark:text-gray-400">All Work Orders</span>
         </a>

@@ -1,0 +1,593 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .step-item {
+        transition: all 0.2s ease;
+    }
+    .step-item:hover {
+        transform: translateX(4px);
+    }
+    .step-item.dragging {
+        opacity: 0.5;
+        transform: scale(1.02);
+    }
+    .step-item.drag-over {
+        border-top: 2px solid #4f46e5;
+    }
+    .available-step {
+        cursor: grab;
+        transition: all 0.2s ease;
+    }
+    .available-step:hover {
+        background-color: #eef2ff;
+    }
+    .dark .available-step:hover {
+        background-color: #312e81;
+    }
+    .available-step:active {
+        cursor: grabbing;
+    }
+    .drop-zone {
+        min-height: 100px;
+        border: 2px dashed #d1d5db;
+        border-radius: 0.5rem;
+        transition: all 0.2s ease;
+    }
+    .drop-zone.drag-over {
+        border-color: #4f46e5;
+        background-color: #eef2ff;
+    }
+    .dark .drop-zone.drag-over {
+        background-color: #312e81;
+    }
+    .step-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    .step-required {
+        background-color: #dbeafe;
+        color: #1e40af;
+    }
+    .step-optional {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+    .step-conditional {
+        background-color: #fce7f3;
+        color: #9d174d;
+    }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div class="flex items-center gap-4">
+        <a href="{% url 'workorders:evaluation_route_builder' %}"
+           class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+            <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ route.name }}</h1>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200">
+                    {{ route.account.code }}
+                </span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if route.bit_type == 'NEW' %}bg-green-100 text-green-800{% else %}bg-orange-100 text-orange-800{% endif %}">
+                    {{ route.get_bit_type_display }}
+                </span>
+                {% if route.is_default %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Default
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="flex items-center gap-2">
+        <button onclick="deleteRoute()"
+                class="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40">
+            <i data-lucide="trash-2" class="w-4 h-4 inline mr-1"></i>
+            Delete Route
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="routeEditor()" x-init="init()">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Current Steps (Left Column - 2/3 width) -->
+        <div class="lg:col-span-2">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        Route Steps
+                    </h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Drag steps to reorder. Steps are executed in order from top to bottom.
+                    </p>
+                </div>
+
+                <!-- Steps List -->
+                <div class="p-4">
+                    <div id="steps-container"
+                         class="drop-zone p-2 min-h-[200px]"
+                         @dragover.prevent="onDragOver($event)"
+                         @dragleave="onDragLeave($event)"
+                         @drop="onDrop($event)">
+
+                        <template x-for="step in steps" :key="step.id">
+                            <div class="step-item bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-2 cursor-move border border-gray-200 dark:border-gray-600"
+                                 :data-step-id="step.id"
+                                 draggable="true"
+                                 @dragstart="onDragStart($event, step)"
+                                 @dragend="onDragEnd($event)"
+                                 @dragover.prevent="onStepDragOver($event)"
+                                 @dragleave="onStepDragLeave($event)"
+                                 @drop.prevent="onStepDrop($event, step)">
+
+                                <div class="flex items-start justify-between">
+                                    <div class="flex items-start gap-3">
+                                        <!-- Drag Handle -->
+                                        <div class="mt-1 text-gray-400">
+                                            <i data-lucide="grip-vertical" class="w-5 h-5"></i>
+                                        </div>
+
+                                        <!-- Order Number -->
+                                        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
+                                            <span class="text-sm font-bold text-indigo-600 dark:text-indigo-400" x-text="step.order"></span>
+                                        </div>
+
+                                        <!-- Step Info -->
+                                        <div>
+                                            <h3 class="font-medium text-gray-900 dark:text-white" x-text="step.evaluation_type_display"></h3>
+                                            <div class="flex flex-wrap gap-2 mt-2">
+                                                <span class="step-badge"
+                                                      :class="step.is_conditional ? 'step-conditional' : (step.is_required ? 'step-required' : 'step-optional')"
+                                                      x-text="step.is_conditional ? 'Conditional' : (step.is_required ? 'Required' : 'Optional')">
+                                                </span>
+                                                <template x-if="step.show_cutter_matrix">
+                                                    <span class="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-gray-700 dark:text-gray-300">Matrix</span>
+                                                </template>
+                                                <template x-if="step.show_decision_field">
+                                                    <span class="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-gray-700 dark:text-gray-300">Decision</span>
+                                                </template>
+                                            </div>
+                                            <template x-if="step.condition_description">
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 italic" x-text="step.condition_description"></p>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <!-- Actions -->
+                                    <div class="flex items-center gap-1">
+                                        <button @click="editStep(step)"
+                                                class="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded">
+                                            <i data-lucide="settings" class="w-4 h-4"></i>
+                                        </button>
+                                        <button @click="removeStep(step)"
+                                                class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/50 rounded">
+                                            <i data-lucide="x" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Empty State -->
+                        <template x-if="steps.length === 0">
+                            <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                                <i data-lucide="layers" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                                <p class="text-lg font-medium">No steps configured</p>
+                                <p class="text-sm mt-1">Drag evaluation types from the right panel to add steps</p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Available Steps (Right Column - 1/3 width) -->
+        <div class="lg:col-span-1">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow sticky top-4">
+                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        Available Steps
+                    </h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Drag to add to route
+                    </p>
+                </div>
+
+                <div class="p-4 space-y-2 max-h-[600px] overflow-y-auto">
+                    <template x-for="evalType in availableTypes" :key="evalType.code">
+                        <div class="available-step p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700"
+                             draggable="true"
+                             @dragstart="onNewStepDragStart($event, evalType)"
+                             @dragend="onDragEnd($event)">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-400"></i>
+                                    <span class="font-medium text-gray-900 dark:text-white" x-text="evalType.label"></span>
+                                </div>
+                                <button @click="quickAddStep(evalType)"
+                                        class="p-1 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded"
+                                        title="Quick add">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 font-mono" x-text="evalType.code"></div>
+                        </div>
+                    </template>
+
+                    <template x-if="availableTypes.length === 0">
+                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <i data-lucide="check-circle" class="w-8 h-8 mx-auto mb-2 text-green-500"></i>
+                            <p class="text-sm">All evaluation types are in use</p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Step Modal -->
+    <div x-show="showEditModal"
+         x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black bg-opacity-50" @click="showEditModal = false"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    Edit Step: <span x-text="editingStep?.evaluation_type_display"></span>
+                </h3>
+
+                <div class="space-y-4">
+                    <!-- Required/Optional -->
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="requirement" value="required"
+                                   x-model="stepForm.requirement"
+                                   class="text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Required</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="requirement" value="optional"
+                                   x-model="stepForm.requirement"
+                                   class="text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Optional</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="requirement" value="conditional"
+                                   x-model="stepForm.requirement"
+                                   class="text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Conditional</span>
+                        </label>
+                    </div>
+
+                    <!-- Condition Description -->
+                    <div x-show="stepForm.requirement === 'conditional'">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Condition Description
+                        </label>
+                        <input type="text" x-model="stepForm.condition_description"
+                               placeholder="e.g., Only if customer requests"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+
+                    <!-- Display Options -->
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Display Options</h4>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" x-model="stepForm.show_decision_field"
+                                       class="rounded text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Show Decision Field (Repair/Scrap/etc.)</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" x-model="stepForm.show_cutter_matrix"
+                                       class="rounded text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Show Cutter Matrix (blade x position)</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" x-model="stepForm.show_cutters_details"
+                                       class="rounded text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Show Cutters Details Table</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 mt-6">
+                    <button @click="showEditModal = false"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+                        Cancel
+                    </button>
+                    <button @click="saveStep()"
+                            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div x-show="toast.show"
+         x-cloak
+         x-transition
+         class="fixed bottom-4 right-4 z-50">
+        <div :class="toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'"
+             class="text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <i :data-lucide="toast.type === 'success' ? 'check-circle' : 'alert-circle'" class="w-5 h-5"></i>
+            <span x-text="toast.message"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+function routeEditor() {
+    return {
+        routeId: {{ route.pk }},
+        steps: [],
+        allEvalTypes: [],
+        availableTypes: [],
+        showEditModal: false,
+        editingStep: null,
+        stepForm: {
+            requirement: 'required',
+            condition_description: '',
+            show_decision_field: true,
+            show_cutter_matrix: true,
+            show_cutters_details: true
+        },
+        draggedStep: null,
+        draggedNewType: null,
+        toast: { show: false, message: '', type: 'success' },
+
+        async init() {
+            await this.loadRoute();
+            await this.loadEvalTypes();
+            this.updateAvailableTypes();
+            lucide.createIcons();
+        },
+
+        async loadRoute() {
+            const response = await fetch(`/workorders/api/evaluation-routes/${this.routeId}/`);
+            const data = await response.json();
+            if (data.success) {
+                this.steps = data.route.steps;
+            }
+        },
+
+        async loadEvalTypes() {
+            const response = await fetch('/workorders/api/evaluation-types/');
+            const data = await response.json();
+            if (data.success) {
+                this.allEvalTypes = data.evaluation_types;
+            }
+        },
+
+        updateAvailableTypes() {
+            const usedTypes = new Set(this.steps.map(s => s.evaluation_type));
+            this.availableTypes = this.allEvalTypes.filter(t => !usedTypes.has(t.code));
+        },
+
+        // Drag & Drop for existing steps (reorder)
+        onDragStart(event, step) {
+            this.draggedStep = step;
+            event.target.classList.add('dragging');
+        },
+
+        onDragEnd(event) {
+            this.draggedStep = null;
+            this.draggedNewType = null;
+            event.target.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        },
+
+        onDragOver(event) {
+            event.currentTarget.classList.add('drag-over');
+        },
+
+        onDragLeave(event) {
+            event.currentTarget.classList.remove('drag-over');
+        },
+
+        onStepDragOver(event) {
+            if (this.draggedStep || this.draggedNewType) {
+                event.currentTarget.classList.add('drag-over');
+            }
+        },
+
+        onStepDragLeave(event) {
+            event.currentTarget.classList.remove('drag-over');
+        },
+
+        async onStepDrop(event, targetStep) {
+            event.currentTarget.classList.remove('drag-over');
+
+            if (this.draggedStep && this.draggedStep.id !== targetStep.id) {
+                // Reorder existing steps
+                const draggedIdx = this.steps.findIndex(s => s.id === this.draggedStep.id);
+                const targetIdx = this.steps.findIndex(s => s.id === targetStep.id);
+
+                // Move step
+                const [removed] = this.steps.splice(draggedIdx, 1);
+                this.steps.splice(targetIdx, 0, removed);
+
+                // Update order numbers
+                this.steps.forEach((s, i) => s.order = i + 1);
+
+                await this.saveStepOrder();
+            } else if (this.draggedNewType) {
+                // Insert new step at position
+                const targetIdx = this.steps.findIndex(s => s.id === targetStep.id);
+                await this.addStep(this.draggedNewType.code, targetIdx + 1);
+            }
+        },
+
+        async onDrop(event) {
+            event.currentTarget.classList.remove('drag-over');
+
+            if (this.draggedNewType) {
+                // Add new step at end
+                await this.addStep(this.draggedNewType.code);
+            }
+        },
+
+        // Drag from available types
+        onNewStepDragStart(event, evalType) {
+            this.draggedNewType = evalType;
+            event.target.classList.add('dragging');
+        },
+
+        async quickAddStep(evalType) {
+            await this.addStep(evalType.code);
+        },
+
+        async addStep(evalTypeCode, insertAtOrder = null) {
+            const response = await fetch(`/workorders/api/evaluation-routes/${this.routeId}/steps/add/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    evaluation_type: evalTypeCode,
+                    is_required: true
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                await this.loadRoute();
+                this.updateAvailableTypes();
+                this.showToast('Step added', 'success');
+                this.$nextTick(() => lucide.createIcons());
+            } else {
+                this.showToast(data.error || 'Failed to add step', 'error');
+            }
+        },
+
+        async removeStep(step) {
+            if (!confirm(`Remove "${step.evaluation_type_display}" from route?`)) return;
+
+            const response = await fetch(`/workorders/api/evaluation-routes/${this.routeId}/steps/${step.id}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                this.steps = this.steps.filter(s => s.id !== step.id);
+                this.steps.forEach((s, i) => s.order = i + 1);
+                this.updateAvailableTypes();
+                this.showToast('Step removed', 'success');
+            } else {
+                this.showToast(data.error || 'Failed to remove step', 'error');
+            }
+        },
+
+        editStep(step) {
+            this.editingStep = step;
+            this.stepForm = {
+                requirement: step.is_conditional ? 'conditional' : (step.is_required ? 'required' : 'optional'),
+                condition_description: step.condition_description || '',
+                show_decision_field: step.show_decision_field,
+                show_cutter_matrix: step.show_cutter_matrix,
+                show_cutters_details: step.show_cutters_details
+            };
+            this.showEditModal = true;
+        },
+
+        async saveStep() {
+            const response = await fetch(`/workorders/api/evaluation-routes/${this.routeId}/steps/${this.editingStep.id}/update/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    is_required: this.stepForm.requirement === 'required',
+                    is_conditional: this.stepForm.requirement === 'conditional',
+                    condition_description: this.stepForm.condition_description,
+                    show_decision_field: this.stepForm.show_decision_field,
+                    show_cutter_matrix: this.stepForm.show_cutter_matrix,
+                    show_cutters_details: this.stepForm.show_cutters_details
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                // Update local step
+                const step = this.steps.find(s => s.id === this.editingStep.id);
+                if (step) {
+                    step.is_required = this.stepForm.requirement === 'required';
+                    step.is_conditional = this.stepForm.requirement === 'conditional';
+                    step.condition_description = this.stepForm.condition_description;
+                    step.show_decision_field = this.stepForm.show_decision_field;
+                    step.show_cutter_matrix = this.stepForm.show_cutter_matrix;
+                    step.show_cutters_details = this.stepForm.show_cutters_details;
+                }
+                this.showEditModal = false;
+                this.showToast('Step updated', 'success');
+            } else {
+                this.showToast(data.error || 'Failed to update step', 'error');
+            }
+        },
+
+        async saveStepOrder() {
+            const stepOrder = this.steps.map(s => s.id);
+            const response = await fetch(`/workorders/api/evaluation-routes/${this.routeId}/steps/reorder/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ step_order: stepOrder })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                this.showToast('Order saved', 'success');
+            }
+        },
+
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => this.toast.show = false, 3000);
+        }
+    };
+}
+
+async function deleteRoute() {
+    if (!confirm('Delete this evaluation route? This cannot be undone.')) return;
+
+    const response = await fetch('/workorders/api/evaluation-routes/{{ route.pk }}/delete/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    });
+
+    const data = await response.json();
+    if (data.success) {
+        window.location.href = '{% url "workorders:evaluation_route_builder" %}';
+    } else {
+        alert(data.error || 'Failed to delete route');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Quick Work Order - Production Planner - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Create a work order by entering the serial number</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'workorders:production_planner' %}"
+           class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back to Planner
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="quickWOForm()" x-init="init()" class="max-w-2xl mx-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <form method="post" @submit.prevent="submitForm()">
+            {% csrf_token %}
+
+            <!-- Serial Number Input -->
+            <div class="mb-6">
+                <label for="serial_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Serial Number
+                </label>
+                <div class="relative">
+                    <input type="text"
+                           id="serial_number"
+                           name="serial_number"
+                           x-model="serialNumber"
+                           @input.debounce.500ms="lookupSerial()"
+                           class="w-full px-4 py-3 text-lg font-mono border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="Enter 6-8 digit serial number"
+                           autocomplete="off"
+                           required>
+                    <div x-show="loading" class="absolute right-3 top-1/2 -translate-y-1/2">
+                        <i data-lucide="loader" class="w-5 h-5 text-gray-400 animate-spin"></i>
+                    </div>
+                </div>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    The system will auto-detect account and design level
+                </p>
+            </div>
+
+            <!-- Drill Bit Info (shown when found) -->
+            <div x-show="bitFound" x-transition class="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div class="flex items-center mb-3">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-green-600 dark:text-green-400 mr-2"></i>
+                    <span class="font-medium text-green-800 dark:text-green-200">Drill Bit Found</span>
+                </div>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p class="text-gray-500 dark:text-gray-400">Size</p>
+                        <p class="font-medium text-gray-900 dark:text-gray-100" x-text="bitInfo.size + '\"'"></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 dark:text-gray-400">Type</p>
+                        <p class="font-medium text-gray-900 dark:text-gray-100" x-text="bitInfo.type || '-'"></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 dark:text-gray-400">Design Level</p>
+                        <p class="font-medium text-gray-900 dark:text-gray-100" x-text="bitInfo.level || '-'"></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 dark:text-gray-400">Current Account</p>
+                        <p class="font-medium text-gray-900 dark:text-gray-100" x-text="bitInfo.account || 'Not set'"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- New Bit Notice -->
+            <div x-show="!bitFound && serialNumber.length >= 6 && !loading" x-transition class="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div class="flex items-center">
+                    <i data-lucide="info" class="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2"></i>
+                    <span class="text-blue-800 dark:text-blue-200">New drill bit will be registered</span>
+                </div>
+            </div>
+
+            <!-- Account Selection (for new bits or first-time assignment) -->
+            <div x-show="!bitInfo.account || !bitFound" x-transition class="mb-6">
+                <label for="account" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Account <span class="text-red-500">*</span>
+                </label>
+                <select id="account"
+                        name="account"
+                        x-model="selectedAccount"
+                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        :required="!bitInfo.account">
+                    <option value="">Select Account</option>
+                    {% for acct in accounts %}
+                    <option value="{{ acct.code }}">{{ acct.code }}</option>
+                    {% endfor %}
+                </select>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    This will be set as the bit's account for all future WOs
+                </p>
+            </div>
+
+            <!-- Account Display (when already set) -->
+            <div x-show="bitInfo.account && bitFound" x-transition class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Account
+                </label>
+                <div class="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                    <span class="font-medium text-gray-900 dark:text-gray-100" x-text="bitInfo.account"></span>
+                    <span class="text-sm text-gray-500 dark:text-gray-400"> (from drill bit)</span>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="flex justify-end space-x-3">
+                <a href="{% url 'workorders:production_planner' %}"
+                   class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                    Cancel
+                </a>
+                <button type="submit"
+                        :disabled="!canSubmit"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    <i data-lucide="plus" class="w-4 h-4 inline mr-2"></i>
+                    Create Work Order
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function quickWOForm() {
+    return {
+        serialNumber: '',
+        selectedAccount: '',
+        loading: false,
+        bitFound: false,
+        bitInfo: {
+            size: '',
+            type: '',
+            level: '',
+            account: '',
+        },
+
+        init() {
+            // Focus on serial number input
+            document.getElementById('serial_number').focus();
+        },
+
+        get canSubmit() {
+            if (this.serialNumber.length < 6) return false;
+            if (this.loading) return false;
+            if (!this.bitFound && !this.selectedAccount) return false;
+            if (this.bitFound && !this.bitInfo.account && !this.selectedAccount) return false;
+            return true;
+        },
+
+        async lookupSerial() {
+            if (this.serialNumber.length < 6) {
+                this.bitFound = false;
+                this.bitInfo = { size: '', type: '', level: '', account: '' };
+                return;
+            }
+
+            this.loading = true;
+            try {
+                const response = await fetch(`{% url 'workorders:drillbit_lookup_api' %}?serial=${encodeURIComponent(this.serialNumber)}`);
+                const data = await response.json();
+
+                if (data.found) {
+                    this.bitFound = true;
+                    this.bitInfo = {
+                        size: data.size || '',
+                        type: data.hdbs_type || data.type || '',
+                        level: data.design_level || '',
+                        account: data.account || '',
+                    };
+                    if (data.account) {
+                        this.selectedAccount = data.account;
+                    }
+                } else {
+                    this.bitFound = false;
+                    this.bitInfo = { size: '', type: '', level: '', account: '' };
+                }
+            } catch (e) {
+                console.error('Lookup failed:', e);
+                this.bitFound = false;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        submitForm() {
+            if (!this.canSubmit) return;
+            document.querySelector('form').submit();
+        }
+    };
+}
+</script>
+{% endblock %}

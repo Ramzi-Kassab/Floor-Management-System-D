@@ -19,7 +19,7 @@ Excel Structure (DATA sheet):
 - ENO Ground Cutter: Item number for USED-GRD variant
 - ARDT Reclaim Cutter: Item number for USED-RCL variant
 - Retrofit Cutter: Item number for NEW-RET variant
-- LSTK Reclaim Cutter: Item number for client reclaim (NEW-CLI)
+- LSTK Reclaim Cutter: Item number for client reclaim (CLI-RCL)
 - New Stock: Item number for NEW-PUR variant (also used as item_number attribute)
 
 Usage:
@@ -50,7 +50,7 @@ class Command(BaseCommand):
         'ARDT Reclaim  Cutter': 'USED-RCL',  # Note double space
         'ARDT Reclaim Cutter': 'USED-RCL',
         'Retrofit Cutter': 'NEW-RET',
-        'LSTK Reclaim Cutter': 'NEW-CLI',  # Mapped to client reclaim
+        'LSTK Reclaim Cutter': 'CLI-RCL',  # Client Reclaimed (LSTK)
         'New Stock': 'NEW-PUR',
     }
 
@@ -91,7 +91,7 @@ class Command(BaseCommand):
             return None, None
 
     # Variants that need account and customer set (LSTK with Halliburton)
-    LSTK_VARIANTS = {'NEW-CLI'}  # LSTK Reclaim Cutter -> client reclaim with LSTK account
+    LSTK_VARIANTS = {'CLI-RCL'}  # LSTK Reclaim Cutter -> client reclaim with LSTK account
 
     def add_arguments(self, parser):
         parser.add_argument(
