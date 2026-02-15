@@ -384,12 +384,14 @@ def lookup_erp_item_number(part_no, variant_case_code):
 EVAL_SHEET_MAP = {
     'Evaluation': 'RECEIVING',
     'Eval-LSTK': 'ARDT',
+    'Eval & Quot-AR': 'ARDT',       # ARAMCO evaluation sheet
     'Engineer Eval': 'ENGINEER',
     'QC Evaluation': 'QC',
     'Die Check': 'DIE_CHECK',
     'Final Die Check': 'FINAL_DIE_CHECK',
     'Final QC': 'FINAL_QC',
     'Final Inspection': 'FINAL_INSPECTION',
+    'Rework': 'REWORK',             # Rework evaluation
 }
 
 # Valid cutter evaluation action codes (from the Job Card system)
@@ -428,6 +430,12 @@ def _extract_eval_grid(ws, start_row=3, end_row=33, start_col=3, end_col=14):
 
             cell_str = str(val).strip().upper()
             if not cell_str:
+                continue
+
+            # Valid action codes are single letters or letter+digit (e.g. "O", "X2", "R1")
+            # Skip multi-word text like headers ("Internal Evaluation Sheet")
+            # Max valid length: 2 chars (letter + optional digit)
+            if len(cell_str) > 3:
                 continue
 
             total_positions += 1
