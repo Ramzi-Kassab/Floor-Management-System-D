@@ -267,7 +267,6 @@ Design (L3/L4)                    # Blueprint - what the bit looks like
 - `create_workflow_from_recording` - Converts a `RecordingSession` into a `Workflow` with proper `Locator`/`LocatorStrategy`/`WorkflowStep` models. Smart features: deduplicates click+fill pairs, maps `select`→`click` for D365, strips dynamic ID prefixes for `contains(@id)` xpath, generates value templates from recorded input, sequential step numbering, orphaned locator cleanup on regeneration. Called from UI via "Quick Convert" button or terminal.
 - `seed_erp_routes` - Seeds `ERPRoute` records from Excel
 - `import_erp_data` - Imports ERP data
-- `seed_erp_chain` - Seeds complete ARAMCO FC Repair ERP chain: 13 workflows (login, navigate, create product, capture item#, dimensions, variants, BOM version, BOM copy, BOM lines, approve+activate, route, release, movement journal), 161 steps, 108 locators, 1 chain with 13 links. Use `--force` to recreate, `--dry-run` to preview.
 
 **Key Views** (`apps/erp_automation/views.py`):
 - `DashboardView` - Overview at `/erp-automation/`
@@ -624,14 +623,6 @@ python manage.py seed_erp_routes
 
 # Import ERP data
 python manage.py import_erp_data
-
-# Seed complete ERP chain (13 workflows, 162 steps, 108 locators)
-python manage.py seed_erp_chain          # First time
-python manage.py seed_erp_chain --force  # Recreate (deletes existing)
-python manage.py seed_erp_chain --dry-run # Preview without changes
-
-# Seed ERP environment URLs (Sandbox + Production)
-python manage.py seed_erp_environments
 ```
 
 ### Development
@@ -686,12 +677,17 @@ python manage.py check
 ## Current State & Known Issues
 
 ### Data State (as of Jan 23, 2026)
-- **301+ PDC cutter items** imported from Excel
-- **848+ item variants** with unique ERP numbers
-- **14 designs** in database
-- **3+ BOMs** created
-- **354 attributes** defined
-- **42 inventory categories**
+- **323 PDC cutter items** imported from Excel
+- **850 item variants** with unique ERP numbers
+- **3 designs** in database
+- **45 drill bits** registered
+- **30 work orders** created
+- **26 workflows** (13 active WF-0 through WF-11, plus archived versions)
+- **4 workflow chains** (ARAMCO 13-link, LSTK 5-link, Create Item 2-link, Create BOM 4-link)
+- **342 locators** with 517 strategies
+- **37 ERP routes** seeded
+- **7 ERPJobData** records
+- **13 recordings** captured
 
 ### Known Issues
 1. **PDF Extraction**: Only works with Halliburton PDF format
@@ -816,38 +812,28 @@ python manage.py check
 - **Step CRUD APIs Updated**: `api_step_create()`, `api_step_update()`, and `api_workflow_steps()` all handle `interaction_mode` field.
 - **Composite Workflows** (`models.py`, `services/chain_executor.py`): WorkflowChain, WorkflowChainLink, ChainExecution models for chaining multiple workflows. Chain executor service orchestrates sequential execution with shared browser, context mapping between workflows, condition-based link execution, and progress tracking. Admin registered with TabularInline. Views, URLs, and templates for chain management.
 
-### Recent Enhancements (Feb 14, 2026) — Complete ERP Chain Rewrite
-- **New ActionTypes** (`models.py`, `executor.py`): Added `read_value` (reads element value into `context_vars` via `save_result_as` — tries `input_value()` then `inner_text()` then `text_content()`) and `goto_url` (navigates to URL mid-workflow, supports template substitution). Both handled in `_execute_step()` before the locator-required section.
-- **BOM Line Flattening** (`models.py`): `ERPJobData.get_row_data()` now flattens `cutter_bom_data` variants into `BOM_LINE_1..8_ITEM` / `BOM_LINE_1..8_QTY` template variables. Iterates all groups/variants, collects `(erp_item_no, qty)` pairs where both are non-empty, pads remaining slots with empty strings.
-- **Complete ERP Chain Rewrite** (`seed_erp_chain.py`): Based on 4 live D365 recordings (sessions pk=13-16) on prod.alrushaid.net. Expanded from 7 workflows/74 steps to **13 workflows/161 steps/108 locators/1 chain with 13 links**. Chain name: "ARAMCO FC Repair: Full ERP Flow". Key changes from old chain:
-  - **Removed** Product Number field (D365 auto-generates Item # like R-AR-23-0250)
-  - **Added** BOM Unit field (`BOMUnitId = ea`) to product creation
-  - **Fixed** Config dimension: uses `{{BODY_MATERIAL}}` template (resolves to `MB`) instead of hardcoded `Prod_Dimen_Config`
-  - **Fixed** Color dimension: uses `{{L5_MAT_FULL}}` (includes M suffix like `1134806M`) instead of `{{MAT NO.}}`
-  - **Simplified** Product Variants: removed Variant Header click, uses Suggest All directly
-  - **New WF-2B**: Capture Item Number — uses `read_value` action to read D365-generated item # and save as `ITEM_NO` context variable
-  - **New WF-6**: Create BOM (Copy) — creates BOM with copy toggle, selects FromConfigId=MB
-  - **New WF-7**: Enter BOM Lines — 8 line blocks x 4 steps each (New, Fill Item, Confirm, Fill Qty), all `continue_on_error=True`. Empty BOM_LINE_N vars gracefully skip.
-  - **New WF-8**: Approve BOM + Activate Version — approves BOM from BOM Table, goes back, approves+activates version
-  - **New WF-9**: Route Registration — navigates to Route Table, filters by route #, fills item/config/site, approves+activates
-  - **New WF-10**: Release Product — navigates to Release Products, enters item #
-  - **New WF-11**: Movement Journal — creates journal, adds line with item/config/serial, posts
-  - **Context mapping**: `ITEM_NO` propagated from WF-2B to WF-3, WF-9, WF-10, WF-11 via chain link `context_mapping`
-- **check_for_errors Field** (`models.py`, migration `0009`): Boolean field on `WorkflowStep` for opt-in D365 error dialog detection after step execution. Executor checks `detect_error_message()` and takes screenshot if error found.
-- **Job Card Parser ARAMCO Fixes** (`job_card_parser.py`): Auto-populates `body_material=MB`, `item_group=RPR-FC-AR`, `contract_number`, `vendor_number` for ARAMCO account. Fixed cutter BOM variant lookup to match by `erp_item_no`.
-- **ERP Item # Columns** (`cutter_inventory_list.html`, `item_list.html`): Added ERP Item Number column to cutter inventory and item list pages showing `variant.erp_item_no`.
-- **Cutter Stock Import** (`import_stock_from_onhand.py`, `import_cutters_excel.py`): Import stock from D365 On-hand inventory Excel. Fixed CLI-RCL variant case mapping (was `NEW-CLI`, corrected to `CLI-RCL` matching `VariantCase.code`).
+### Recent Enhancements (Feb 15, 2026) — Chain Debug Execution & Environment Management
+- **Workflow Chain Debug Execution**: Full debug mode for chain execution via `chain_detail.html`. "Debug Chain" button on job data detail page navigates to chain editor with `?start_debug={jobPk}` param. Chain editor auto-starts debug session on load when param present.
+- **Debug Polling with Session Expiry Detection**: `debugPoll()` in chain_detail.html checks `content-type` header — if response is HTML instead of JSON (302 redirect to login page followed by HTML login form), stops polling, sets `debugState.sessionExpired = true`, shows red banner with re-login link and resume polling button.
+- **24-Hour Session Timeout**: Added `SESSION_COOKIE_AGE = 86400` and `SESSION_SAVE_EVERY_REQUEST = True` to settings.py to prevent session expiry during long debug runs.
+- **ERPEnvironment Model**: New model for managing ERP target environments (Sandbox, Production) with name, base_url, description, is_default fields. Migration 0010. Admin registered.
+- **Credentials Page Environment Selector**: `credentials.html` expanded with environment dropdown, manage/add/edit/delete UI via Alpine.js `credentialsPage()` component with CRUD API calls.
+- **Recording Page Environment Selector**: `recording.html` adds environment dropdown that auto-resolves target URL from selected environment.
+- **check_for_errors on WorkflowStep**: New boolean field `check_for_errors` (default False). When True, executor checks for D365 error dialogs after step execution. UI: checkbox in add/edit step forms, ERR badge on step rows in workflow editor.
+- **Job Card Parser Major Expansion**: `job_card_parser.py` expanded from ~400 to ~960 lines: label-based cell search for shifted Excel layouts, dual bracket format `[TEXT QTY]`/`[QTY TEXT]` parsing, account aliases, evaluation extraction from 8 sheet types, build-up detection from eval grids, `RCLM`->`CLI-RCL` variant mapping, batch parsing, BITS TRACKING row parser.
+- **Route Selector Expansion**: `route_selector.py` expanded from ~102 to ~325 lines: account-to-item-group mapping, auto port/size detection from job data, multi-fallback route matching, `select_route_for_job_data()` convenience function, `build_route_name()` helper, RC route basic matching.
+- **Seed Commands**: `seed_erp_chain` (2,062 lines, seeds ARAMCO 13-segment chain with 162 steps), `seed_erp_environments` (Sandbox/Production URLs), `seed_flask_workflow` (Flask port workflow).
+- **Clean startDebugChain() in job_data_detail.html**: Removed orphaned `.catch()` blocks from old modal-based approach that caused SyntaxError preventing all JS on the page from loading.
 
-### Recent Enhancements (Feb 14, 2026) — ERP Environment Selector & Debug Chain Fix
-- **ERPEnvironment Model** (`models.py`, migration `0010`): DB-persisted named environment URLs (Sandbox, Production) with `is_default` flag, `sort_order`. `save()` enforces single default. Admin registered.
-- **ERP Environment Selector on Credentials Page** (`credentials.html`, `CredentialsView`): Dropdown populated from `ERPEnvironment` model replaces free-text URL input. Options: Sandbox, Production, Custom URL. Hidden `erp_url` field carries resolved URL. Alpine.js `credentialsPage()` component. "Manage Environments" expandable section with inline CRUD (add/edit/delete/set-default).
-- **Environment CRUD APIs** (`views.py`, `urls.py`): 5 new endpoints — `api_environment_list`, `api_environment_create`, `api_environment_update`, `api_environment_delete`, `api_environment_set_default`.
-- **Recording Page Environment Dropdown** (`recording.html`, `RecordingView`): Environment dropdown before Target URL input. On env change, sets target URL with `?cmp=ardt&mi=DefaultDashboard` suffix.
-- **`get_erp_url()` Helper** (`views.py`): Resolves ERP URL with fallback chain: session `erp_url` → DB default environment → first environment → empty string. Used by all 4 execution paths.
-- **Debug Chain Executor ERP_URL Fix** (`executor.py` → `start_debug_chain()`): Fixed two bugs — (1) `ERP_URL` was not injected into `accumulated_context`, so `{{ERP_URL}}` templates resolved to empty; (2) `accumulated_context` was not auto-merged into `merged_row_data`, only explicit `context_mapping` was applied. Both now match the regular chain executor in `chain_executor.py`.
-- **Chain Executor Context Merge** (`chain_executor.py`): All `accumulated_context` keys auto-merged into `merged_row_data` for every link, so template vars like `{{ERP_URL}}` resolve without explicit `context_mapping`.
-- **Seed ERP Environments** (`seed_erp_environments.py`): Seeds Sandbox (`https://sandbox.alrushaid.net/namespaces/AXSF/`, default) and Production (`https://prod.alrushaid.net/namespaces/AXSF/`).
-- **Seed ERP Chain Updated** (`seed_erp_chain.py`): All workflows use `target_url=""` (resolved at runtime from session). WF-0 goto_url step uses `template:{{ERP_URL}}?cmp=ardt`. Added step 37 "Click OK (Attributes Dialog)" with `continue_on_error=True` for accounts (ARAMCO, LSTK) that show a "Set attribute values" dialog after filling Inventory Unit.
+### Recent Enhancements (Feb 15, 2026 — Session 2) — Chain Debug UX Improvements
+- **Step Coloring Fix (ID-based tracking)**: `completed_steps` entries in executor.py now include `"id": step.pk` (added to all 8 append calls + 2 current_step dicts). Frontend `getStepDebugStatus()`, spinner check, and `getStepDebugDuration()` all match by `step.id` instead of `step.order`, preventing cross-segment false positive coloring when workflows share step order numbers.
+- **Chain-Scoped Display Numbering**: New `getChainStepNumber(segIdx, stepIdx)` helper returns running counter across all segments (segment 0 has N steps, segment 1 starts at N+1, etc.). During debug mode, step `#` column shows chain-scoped number with small `#order` badge for per-workflow reference.
+- **Run Segment (Jump-to-Link)**: `debugRunSegment(seg)` rewritten to call new `/api/debug/<pk>/rerun-from-link/` API instead of trying to reuse `debugRunFromStep` (which can't cross segment boundaries). Backend: `rerun_from_link` command in `_pause_and_process_commands()` stores target `link_order` in state, returns `"JUMP_LINK"` from `_debug_step_loop()`, chain while-loop jumps to target link index.
+- **Run from Step Restricted**: Per-step play button (▶) now only shown for steps in the currently-running segment (`debugState._runningLinkOrder === seg.link_order`). Prevents attempting cross-segment step jumps which would fail.
+- **Step-by-Step "Go" Mode**: New toggle button in debug toolbar ("Step Mode") sends `set_step_by_step` command to executor. When enabled, executor pauses after every successful step with `is_step_pause: true` error info. Pause panel shows green "Step Completed" header with prominent animated "Go →" button. Toggle works both while running and while paused. Status label shows "Step Done — Waiting for Go" during step pause.
+- **Chain Link Loop Converted to While**: `start_debug_chain()` link iteration converted from `for` to `while link_idx < len(links)` for jump support. All `continue` statements preceded by `link_idx += 1`.
+- **New API Endpoints**: `api_debug_rerun_from_link(request, pk)` — jump to specific chain link; `api_debug_set_step_mode(request, pk)` — toggle step-by-step mode.
+- **New URL Patterns**: `api/debug/<int:pk>/rerun-from-link/` and `api/debug/<int:pk>/step-mode/`.
 
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
@@ -877,6 +863,39 @@ extract_pdf_data(pdf_path)            # Main entry point
 ### Login Credentials (Test)
 - **Password for all users**: `Ardt@2025`
 - **Sample users**: `r.kassab`, `g.escobar`, `m.irshad`
+
+### Development Server Management (CRITICAL)
+**The #1 cause of "old code showing" or "404 on data that exists" is zombie Python processes.** When Django's dev server is restarted without killing the previous process, the old server still holds port 8001 and serves stale code.
+
+**Before starting the server, ALWAYS:**
+```bash
+# 1. Kill ALL Python processes first (Windows)
+taskkill //F //IM python.exe
+
+# 2. Verify no python is running
+tasklist | grep -i python
+# Should output nothing
+
+# 3. Start fresh server from D3
+cd "D:\PycharmProjects\floor_management_system-D3"
+venv/Scripts/python.exe manage.py runserver 0.0.0.0:8001
+```
+
+**Never start a new server without killing the old one first.** Django's auto-reloader spawns child processes that survive the parent being killed.
+
+**Git Worktree vs D3 Directory:**
+- **D3** (`D:\PycharmProjects\floor_management_system-D3\`) — The actual project. Server runs from here. Database (`db.sqlite3`) lives here.
+- **Worktree** (`C:\Users\HP-i7\.claude-worktrees\floor_management_system-D2\hardcore-hamilton\`) — Claude's editing workspace (a git worktree). Has its own separate `db.sqlite3` (usually empty/outdated). Code changes here are committed to git.
+- **After editing in worktree, always sync to D3** so the running server picks up changes.
+- **After editing in D3 directly, sync back to worktree** so git tracks the changes.
+
+**Migration Warnings:**
+If the server shows "X unapplied migrations", run:
+```bash
+cd "D:\PycharmProjects\floor_management_system-D3"
+venv/Scripts/python.exe manage.py migrate
+```
+Then restart the server (kill + start fresh).
 
 ---
 
@@ -922,7 +941,6 @@ extract_pdf_data(pdf_path)            # Main entry point
 | Job card parser | `apps/erp_automation/services/job_card_parser.py` |
 | Route selector | `apps/erp_automation/services/route_selector.py` |
 | Recording → Workflow converter | `apps/erp_automation/management/commands/create_workflow_from_recording.py` |
-| ERP chain seeder | `apps/erp_automation/management/commands/seed_erp_chain.py` |
 | ERP recording page | `apps/erp_automation/templates/erp_automation/recording.html` |
 | ERP recording detail | `apps/erp_automation/templates/erp_automation/recording_detail.html` |
 | ERP job data detail | `apps/erp_automation/templates/erp_automation/job_data_detail.html` |
@@ -932,9 +950,11 @@ extract_pdf_data(pdf_path)            # Main entry point
 | ERP workflow list | `apps/erp_automation/templates/erp_automation/workflow_list.html` |
 | ERP routes list | `apps/erp_automation/templates/erp_automation/route_list.html` |
 | ERP automation URLs | `apps/erp_automation/urls.py` |
-| ERP environment model | `apps/erp_automation/models.py` (ERPEnvironment class) |
+| ERP chain detail (editor+debug) | `apps/erp_automation/templates/erp_automation/chain_detail.html` |
+| ERP chain list | `apps/erp_automation/templates/erp_automation/chain_list.html` |
+| Chain executor service | `apps/erp_automation/services/chain_executor.py` |
+| Seed ERP chain command | `apps/erp_automation/management/commands/seed_erp_chain.py` |
 | Seed ERP environments | `apps/erp_automation/management/commands/seed_erp_environments.py` |
-| ERP credentials page | `apps/erp_automation/templates/erp_automation/credentials.html` |
 
 ### Key View Classes
 

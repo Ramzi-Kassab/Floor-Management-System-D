@@ -1237,16 +1237,24 @@ class DebugExecutor(WorkflowExecutor):
             "total_links": 0,
             "current_link_index": 0,
             "current_link": None,        # {order, name, workflow_name, workflow_id}
-            "completed_links": [],        # [{order, name, workflow_name, status, steps_completed, steps_total}]
-            "skipped_links": [],          # [{order, name, reason}]
+            "completed_links": [],        # [{order, name, workflow_name, workflow_id, status, steps_completed, steps_total}]
+            "skipped_links": [],          # [{order, name, reason, workflow_id}]
+            # Breakpoints — set of WorkflowStep PKs where execution should pause
+            "breakpoint_step_ids": set(),
+            # Step-by-step mode — pause after every successful step
+            "step_by_step_mode": False,
         }
 
     # ── Thread-safe state access ──────────────────────────────────────
 
     def get_debug_state(self) -> dict:
-        """Get a snapshot of the current debug state (thread-safe)."""
+        """Get a snapshot of the current debug state (thread-safe, JSON-safe)."""
         with self._lock:
-            return dict(self._debug_state)
+            state = dict(self._debug_state)
+        # Convert set to list for JSON serialization
+        if "breakpoint_step_ids" in state and isinstance(state["breakpoint_step_ids"], set):
+            state["breakpoint_step_ids"] = list(state["breakpoint_step_ids"])
+        return state
 
     def _update_state(self, **kwargs):
         """Update debug state fields (thread-safe)."""
@@ -1330,6 +1338,11 @@ class DebugExecutor(WorkflowExecutor):
 
             # Build row_data
             row_data = job_data.get_row_data() if job_data else {}
+            # Inject ERP credentials into row_data so WF-0 login steps can
+            # use {{ERP_USERNAME}} and {{ERP_PASSWORD}} templates
+            if credentials:
+                row_data['ERP_USERNAME'] = credentials.get('username', '')
+                row_data['ERP_PASSWORD'] = credentials.get('password', '')
             accumulated_context = {}
             # Inject ERP URL into context so goto_url steps can use {{ERP_URL}} template
             if erp_url:
@@ -1356,9 +1369,15 @@ class DebugExecutor(WorkflowExecutor):
                 execution_id=chain_execution.pk,
             )
 
-            # Start browser
-            logger.info("[DebugChain] Starting browser...")
-            if not self.start_browser(url=erp_url, headless=False, credentials=credentials):
+            # Start browser — DON'T auto-login or auto-navigate.
+            # The chain's first link (WF-0) handles login explicitly via its
+            # own steps. This matches ChainExecutor.execute_chain() behaviour
+            # which skips auto-login for the first link (completed_links == 0).
+            # Passing url=None and credentials=None means we just open a blank
+            # browser; WF-0's goto_url step navigates to ERP and its fill steps
+            # handle the login form using {{ERP_USERNAME}} / {{ERP_PASSWORD}}.
+            logger.info("[DebugChain] Starting browser (no auto-login, WF-0 handles it)...")
+            if not self.start_browser(url=None, headless=False, credentials=None):
                 self._update_state(status="failed", error={"message": "Failed to start browser"})
                 chain_execution.status = "failed"
                 chain_execution.error_message = "Failed to start browser"
@@ -1371,7 +1390,9 @@ class DebugExecutor(WorkflowExecutor):
 
             completed_link_count = 0
 
-            for link_idx, link in enumerate(links):
+            link_idx = 0
+            while link_idx < len(links):
+                link = links[link_idx]
                 if self.should_stop:
                     logger.info(f"[DebugChain] Stopped by user at link #{link.order}")
                     break
@@ -1389,7 +1410,9 @@ class DebugExecutor(WorkflowExecutor):
                         with self._lock:
                             self._debug_state["skipped_links"].append({
                                 "order": link.order, "name": link_display, "reason": reason,
+                                "workflow_id": link.workflow_id,
                             })
+                        link_idx += 1
                         continue
 
                 # --- Update chain progress ---
@@ -1402,6 +1425,7 @@ class DebugExecutor(WorkflowExecutor):
                 self._update_state(
                     current_link_index=link_idx,
                     current_link=link_info,
+                    _running_link_order=link.order,
                 )
                 chain_execution.current_link_order = link.order
                 chain_execution.save(update_fields=["current_link_order"])
@@ -1467,7 +1491,9 @@ class DebugExecutor(WorkflowExecutor):
                         with self._lock:
                             self._debug_state["skipped_links"].append({
                                 "order": link.order, "name": link_display, "reason": reason,
+                                "workflow_id": link.workflow_id,
                             })
+                        link_idx += 1
                         continue
 
                 # --- Create WorkflowExecution record for this link ---
@@ -1497,7 +1523,17 @@ class DebugExecutor(WorkflowExecutor):
                 logger.info(f"[DebugChain] Running link #{link.order}: '{link_display}' ({link.workflow.name})")
 
                 # --- Execute the workflow's steps via debug loop ---
-                self._debug_step_loop(link.workflow, merged_row_data, wf_execution)
+                loop_result = self._debug_step_loop(link.workflow, merged_row_data, wf_execution)
+
+                # Handle jump-to-link command (from step-by-step Go or Run Segment)
+                if loop_result == "JUMP_LINK":
+                    target_link_order = self._debug_state.get("_rerun_from_link_order")
+                    if target_link_order is not None:
+                        target_idx = next((i for i, l in enumerate(links) if l.order == target_link_order), link_idx)
+                        logger.info(f"[DebugChain] Jumping to link index {target_idx} (order {target_link_order})")
+                        link_idx = target_idx
+                        self._update_state(status="running", error=None, screenshot_base64=None)
+                        continue
 
                 # Check result
                 wf_execution.refresh_from_db()
@@ -1525,6 +1561,7 @@ class DebugExecutor(WorkflowExecutor):
                             "order": link.order,
                             "name": link_display,
                             "workflow_name": link.workflow.name,
+                            "workflow_id": link.workflow_id,
                             "status": "success",
                             "steps_completed": step_info["completed"],
                             "steps_total": step_info["total"],
@@ -1550,6 +1587,7 @@ class DebugExecutor(WorkflowExecutor):
                             "order": link.order,
                             "name": link_display,
                             "workflow_name": link.workflow.name,
+                            "workflow_id": link.workflow_id,
                             "status": "failed",
                             "steps_completed": 0,
                             "steps_total": 0,
@@ -1564,6 +1602,8 @@ class DebugExecutor(WorkflowExecutor):
                         return
                     else:
                         logger.warning("[DebugChain] Continuing after failure (stop_on_failure=False)")
+
+                link_idx += 1
 
             # --- Chain complete ---
             if self.should_stop:
@@ -1695,7 +1735,10 @@ class DebugExecutor(WorkflowExecutor):
         total_steps = len(steps)
         self._update_state(total_steps=total_steps)
 
-        for idx, step in enumerate(steps):
+        idx = 0
+        while idx < len(steps):
+            step = steps[idx]
+
             if self.should_stop:
                 logger.info("[DebugExec] Stopped by user")
                 break
@@ -1713,11 +1756,54 @@ class DebugExecutor(WorkflowExecutor):
                     execution_record.save()
                 return
 
-            # Drain any pending commands
+            # Drain any pending commands (also processes set_breakpoints)
             self._drain_commands()
+
+            # ── Check breakpoints ────────────────────────────────
+            with self._lock:
+                bp_ids = self._debug_state.get("breakpoint_step_ids", set())
+            if step.pk in bp_ids:
+                logger.info(f"[DebugExec] Breakpoint hit at step {step.order}: {step.name}")
+                screenshot_b64 = self._take_screenshot_base64()
+                self._update_state(
+                    status="paused",
+                    current_step_index=idx,
+                    current_step={
+                        "id": step.pk, "order": step.order, "name": step.name,
+                        "action_type": step.action_type,
+                        "locator_name": step.locator.name if step.locator else None,
+                        "locator_id": step.locator.pk if step.locator else None,
+                        "value": step.get_value(row_data, self.context_vars) if step.action_type in ("fill", "select") else "",
+                    },
+                    error={"message": f"Breakpoint hit at step {step.order}: {step.name}", "is_breakpoint": True},
+                    screenshot_base64=screenshot_b64,
+                )
+                bp_action = self._pause_and_process_commands()
+                if bp_action == "stop":
+                    break
+                elif bp_action == "rerun_from_step":
+                    target_step_id = self._debug_state.get("_rerun_from_step_id")
+                    idx = next((i for i, s in enumerate(steps) if s.pk == target_step_id), idx)
+                    logger.info(f"[DebugExec] Rerunning from step index {idx}")
+                    self._update_state(status="running", error=None, screenshot_base64=None)
+                    continue
+                elif bp_action == "rerun_from_link":
+                    return "JUMP_LINK"
+                elif bp_action == "skip":
+                    self._create_step_record(execution_record, step, "skipped", {"success": False, "message": "Skipped at breakpoint"}, timezone.now())
+                    with self._lock:
+                        self._debug_state["completed_steps"].append({
+                            "id": step.pk, "order": step.order, "name": step.name, "status": "skipped",
+                            "duration_ms": 0,
+                        })
+                    idx += 1
+                    continue
+                # "resume" — continue to execute the step normally
+                self._update_state(status="running", error=None, screenshot_base64=None)
 
             step_started = timezone.now()
             step_info = {
+                "id": step.pk,
                 "order": step.order,
                 "name": step.name,
                 "action_type": step.action_type,
@@ -1741,12 +1827,53 @@ class DebugExecutor(WorkflowExecutor):
                 steps_completed += 1
                 self._create_step_record(execution_record, step, "success", result, step_started)
                 completed_entry = {
-                    "order": step.order, "name": step.name,
+                    "id": step.pk, "order": step.order, "name": step.name,
                     "status": "success",
                     "duration_ms": int((timezone.now() - step_started).total_seconds() * 1000),
                 }
                 with self._lock:
                     self._debug_state["completed_steps"].append(completed_entry)
+
+                # ── Step-by-step mode: pause after every successful step ──
+                with self._lock:
+                    sbs_mode = self._debug_state.get("step_by_step_mode", False)
+                if sbs_mode:
+                    screenshot_b64 = self._take_screenshot_base64()
+                    next_step = steps[idx + 1] if idx + 1 < len(steps) else None
+                    next_info = f"Next: #{next_step.order} {next_step.name}" if next_step else "Last step in segment"
+                    self._update_state(
+                        status="paused",
+                        current_step_index=idx,
+                        current_step={
+                            "id": step.pk, "order": step.order, "name": step.name,
+                            "action_type": step.action_type,
+                            "locator_name": step.locator.name if step.locator else None,
+                            "locator_id": step.locator.pk if step.locator else None,
+                        },
+                        error={
+                            "message": f"Step {step.order} ({step.name}) completed. {next_info}",
+                            "step_name": step.name,
+                            "is_step_pause": True,
+                        },
+                        screenshot_base64=screenshot_b64,
+                    )
+                    sbs_action = self._pause_and_process_commands()
+                    if sbs_action == "stop":
+                        self.should_stop = True
+                        break
+                    elif sbs_action == "rerun_from_step":
+                        target_step_id = self._debug_state.get("_rerun_from_step_id")
+                        idx = next((i for i, s in enumerate(steps) if s.pk == target_step_id), idx)
+                        self._update_state(status="running", error=None, screenshot_base64=None)
+                        continue
+                    elif sbs_action == "rerun_from_link":
+                        return "JUMP_LINK"
+                    elif sbs_action == "skip":
+                        pass  # Skip just advances to next — same as resume
+                    # "resume" — continue normally
+                    self._update_state(status="running", error=None, screenshot_base64=None)
+
+                idx += 1
                 continue
 
             # ── STEP FAILED ──────────────────────────────────────
@@ -1782,12 +1909,13 @@ class DebugExecutor(WorkflowExecutor):
                     steps_completed += 1
                     self._create_step_record(execution_record, step, "success", healed_result, step_started)
                     completed_entry = {
-                        "order": step.order, "name": step.name,
+                        "id": step.pk, "order": step.order, "name": step.name,
                         "status": "auto_healed",
                         "duration_ms": int((timezone.now() - step_started).total_seconds() * 1000),
                     }
                     with self._lock:
                         self._debug_state["completed_steps"].append(completed_entry)
+                    idx += 1
                     continue
 
             # ── PHASE 2: Pause for user ──────────────────────────
@@ -1795,18 +1923,27 @@ class DebugExecutor(WorkflowExecutor):
             self._update_state(status="paused", error=error_info,
                                screenshot_base64=screenshot_b64)
 
-            # Block and process commands until resume/skip/stop
+            # Block and process commands until resume/skip/stop/rerun_from_step
             action = self._pause_and_process_commands()
 
             if action == "stop":
                 break
+            elif action == "rerun_from_step":
+                target_step_id = self._debug_state.get("_rerun_from_step_id")
+                idx = next((i for i, s in enumerate(steps) if s.pk == target_step_id), idx)
+                logger.info(f"[DebugExec] Rerunning from step index {idx}")
+                self._update_state(status="running", error=None, screenshot_base64=None)
+                continue
+            elif action == "rerun_from_link":
+                return "JUMP_LINK"
             elif action == "skip":
                 self._create_step_record(execution_record, step, "skipped", result, step_started)
                 with self._lock:
                     self._debug_state["completed_steps"].append({
-                        "order": step.order, "name": step.name, "status": "skipped",
+                        "id": step.pk, "order": step.order, "name": step.name, "status": "skipped",
                         "duration_ms": int((timezone.now() - step_started).total_seconds() * 1000),
                     })
+                idx += 1
                 continue
             elif action == "resume":
                 # Re-fetch locator strategies from DB (user may have updated them)
@@ -1819,7 +1956,7 @@ class DebugExecutor(WorkflowExecutor):
                     self._create_step_record(execution_record, step, "success", retry_result, step_started)
                     with self._lock:
                         self._debug_state["completed_steps"].append({
-                            "order": step.order, "name": step.name, "status": "success",
+                            "id": step.pk, "order": step.order, "name": step.name, "status": "success",
                             "duration_ms": int((timezone.now() - step_started).total_seconds() * 1000),
                         })
                 else:
@@ -1831,12 +1968,21 @@ class DebugExecutor(WorkflowExecutor):
                     action2 = self._pause_and_process_commands()
                     if action2 == "stop":
                         break
+                    elif action2 == "rerun_from_step":
+                        target_step_id = self._debug_state.get("_rerun_from_step_id")
+                        idx = next((i for i, s in enumerate(steps) if s.pk == target_step_id), idx)
+                        logger.info(f"[DebugExec] Rerunning from step index {idx}")
+                        self._update_state(status="running", error=None, screenshot_base64=None)
+                        continue
+                    elif action2 == "rerun_from_link":
+                        return "JUMP_LINK"
                     elif action2 == "skip":
                         with self._lock:
                             self._debug_state["completed_steps"].append({
-                                "order": step.order, "name": step.name, "status": "skipped",
+                                "id": step.pk, "order": step.order, "name": step.name, "status": "skipped",
                                 "duration_ms": 0,
                             })
+                        idx += 1
                         continue
                     elif action2 == "resume":
                         if step.locator:
@@ -1848,7 +1994,7 @@ class DebugExecutor(WorkflowExecutor):
                             self._create_step_record(execution_record, step, "success", result3, step_started)
                             with self._lock:
                                 self._debug_state["completed_steps"].append({
-                                    "order": step.order, "name": step.name, "status": "success",
+                                    "id": step.pk, "order": step.order, "name": step.name, "status": "success",
                                     "duration_ms": 0,
                                 })
                         else:
@@ -1865,6 +2011,9 @@ class DebugExecutor(WorkflowExecutor):
                                     execution_record.completed_at = timezone.now()
                                     execution_record.save()
                                 return
+
+            # Advance to next step (normal flow-through after resume success / failure handling)
+            idx += 1
 
         # ── Workflow complete ─────────────────────────────────────
         if self.should_stop:
@@ -1918,14 +2067,104 @@ class DebugExecutor(WorkflowExecutor):
             elif cmd == "screenshot":
                 b64 = self._take_screenshot_base64()
                 self._result_queue.put({"screenshot_base64": b64})
+            elif cmd == "set_breakpoints":
+                with self._lock:
+                    self._debug_state["breakpoint_step_ids"] = set(data.get("step_ids", []))
+            elif cmd == "rerun_from_step":
+                # Store the rerun target so the main loop knows to jump
+                with self._lock:
+                    self._debug_state["_rerun_from_step_id"] = data.get("step_id")
+                return "rerun_from_step"
+            elif cmd == "rerun_from_link":
+                # Store the target link order so the chain loop knows to jump
+                with self._lock:
+                    self._debug_state["_rerun_from_link_order"] = data.get("link_order")
+                return "rerun_from_link"
+            elif cmd == "run_single_step":
+                # Run a single step in isolation, then re-pause
+                step_id = data.get("step_id")
+                self._run_single_step_inline(step_id)
+                # Don't return — stay paused
+            elif cmd == "set_step_by_step":
+                with self._lock:
+                    self._debug_state["step_by_step_mode"] = data.get("enabled", False)
+                # Don't return — stay paused (or continue running)
 
     def _drain_commands(self):
-        """Clear any pending commands from the queue."""
+        """Process any pending commands from the queue (non-blocking)."""
         while not self._cmd_queue.empty():
             try:
-                self._cmd_queue.get_nowait()
+                cmd, data = self._cmd_queue.get_nowait()
+                # Handle set_breakpoints while running (non-blocking)
+                if cmd == "set_breakpoints":
+                    with self._lock:
+                        self._debug_state["breakpoint_step_ids"] = set(data.get("step_ids", []))
+                elif cmd == "set_step_by_step":
+                    with self._lock:
+                        self._debug_state["step_by_step_mode"] = data.get("enabled", False)
+                elif cmd == "stop":
+                    self.should_stop = True
             except queue.Empty:
                 break
+
+    def _run_single_step_inline(self, step_id):
+        """Execute a single step against the live browser page (inline, stays paused).
+
+        Runs the step and reports back via state update (success/failure info),
+        then returns without unpausing the main loop.
+        """
+        from ..models import WorkflowStep
+
+        try:
+            step = WorkflowStep.objects.select_related("locator").get(pk=step_id)
+            row_data = self._debug_state.get("row_data", {})
+
+            # Refresh locator strategies from DB
+            if step.locator:
+                step.locator.refresh_from_db()
+
+            self._update_state(
+                status="running",
+                error=None,
+                screenshot_base64=None,
+            )
+
+            result = self._execute_step(step, row_data)
+            screenshot_b64 = self._take_screenshot_base64()
+
+            if result["success"]:
+                self._update_state(
+                    status="paused",
+                    error={
+                        "message": f"Step {step.order} ({step.name}) executed successfully!",
+                        "step_name": step.name,
+                        "is_test_result": True,
+                        "test_success": True,
+                    },
+                    screenshot_base64=screenshot_b64,
+                )
+                logger.info(f"[DebugExec] Single-step run: step {step.order} succeeded")
+            else:
+                self._update_state(
+                    status="paused",
+                    error={
+                        "message": f"Step {step.order} failed: {result.get('message', 'unknown error')}",
+                        "step_name": step.name,
+                        "is_test_result": True,
+                        "test_success": False,
+                        "locator_name": step.locator.name if step.locator else None,
+                        "locator_id": step.locator.pk if step.locator else None,
+                    },
+                    screenshot_base64=screenshot_b64,
+                )
+                logger.warning(f"[DebugExec] Single-step run: step {step.order} failed: {result.get('message')}")
+
+        except Exception as e:
+            logger.exception(f"[DebugExec] Error running single step {step_id}: {e}")
+            self._update_state(
+                status="paused",
+                error={"message": f"Error running step: {e}", "is_test_result": True, "test_success": False},
+            )
 
     # ── Auto-heal ─────────────────────────────────────────────────────
 

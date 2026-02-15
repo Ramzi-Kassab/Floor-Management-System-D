@@ -38,6 +38,8 @@ from .models import (
 _recorder_instance = None
 _executor_instance = None
 _debug_executor = None
+_debug_start_lock = threading.Lock()       # Prevents duplicate debug starts
+_debug_last_start_time = 0                 # Timestamp of last debug start
 
 # Live execution progress tracking (per-execution)
 # Maps execution_id -> progress dict
@@ -2227,13 +2229,16 @@ def api_start_debug_execution(request, pk):
                     "message": "No active workflow found"
                 }, status=400)
 
-        # Stop any existing debug executor
+        # Stop any existing debug executor and wait for cleanup
         if _debug_executor is not None:
             try:
                 _debug_executor.stop()
                 _debug_executor.stop_browser()
             except Exception:
                 pass
+            _debug_executor = None
+            import time as _time
+            _time.sleep(1)
 
         # Build row_data
         row_data = job_data.get_row_data()
@@ -2283,6 +2288,14 @@ def api_start_debug_execution(request, pk):
 
     except Exception as e:
         logger.exception(f"Failed to start debug execution: {e}")
+        # Cleanup on error so stale executor doesn't block future runs
+        if _debug_executor is not None:
+            try:
+                _debug_executor.stop()
+                _debug_executor.stop_browser()
+            except Exception:
+                pass
+            _debug_executor = None
         return JsonResponse({
             "success": False,
             "message": str(e)
@@ -2464,7 +2477,29 @@ def api_start_debug_chain(request, pk):
 
     POST JSON: { "chain_id": int }
     """
-    global _debug_executor
+    global _debug_executor, _debug_last_start_time
+    import time as _time
+
+    # Dedup guard: reject duplicate calls within 5 seconds (e.g., from Django
+    # auto-reloader spawning two processes or double-click race)
+    now = _time.time()
+    if not _debug_start_lock.acquire(blocking=False):
+        return JsonResponse({
+            "success": False,
+            "message": "Debug session start already in progress, please wait."
+        }, status=429)
+    try:
+        if now - _debug_last_start_time < 5:
+            _debug_start_lock.release()
+            return JsonResponse({
+                "success": False,
+                "message": "Debug session was just started. Please wait a few seconds."
+            }, status=429)
+        _debug_last_start_time = now
+    except Exception:
+        _debug_start_lock.release()
+        raise
+    _debug_start_lock.release()
 
     try:
         job_data = get_object_or_404(ERPJobData, pk=pk)
@@ -2499,13 +2534,17 @@ def api_start_debug_chain(request, pk):
         if not active_links.exists():
             return JsonResponse({"success": False, "message": "Chain has no active links."}, status=400)
 
-        # Stop any existing debug executor
+        # Stop any existing debug executor and wait for cleanup
         if _debug_executor is not None:
             try:
                 _debug_executor.stop()
                 _debug_executor.stop_browser()
             except Exception:
                 pass
+            _debug_executor = None
+            # Brief sleep to let old Playwright processes fully terminate
+            import time as _time
+            _time.sleep(1)
 
         # Create chain execution record
         chain_execution = ChainExecution.objects.create(
@@ -2550,11 +2589,19 @@ def api_start_debug_chain(request, pk):
         return JsonResponse({
             "success": True,
             "chain_execution_id": chain_execution.pk,
-            "redirect": f"/erp-automation/debug-chain/{chain_execution.pk}/",
+            "redirect": f"/erp-automation/chains/{chain.pk}/?debug={chain_execution.pk}",
         })
 
     except Exception as e:
         logger.exception(f"Failed to start debug chain execution: {e}")
+        # Cleanup on error so stale executor doesn't block future runs
+        if _debug_executor is not None:
+            try:
+                _debug_executor.stop()
+                _debug_executor.stop_browser()
+            except Exception:
+                pass
+            _debug_executor = None
         return JsonResponse({"success": False, "message": str(e)}, status=500)
 
 
@@ -2610,19 +2657,110 @@ class ChainListView(LoginRequiredMixin, ListView):
 
 
 class ChainDetailView(LoginRequiredMixin, DetailView):
-    """Chain detail: links, recent executions."""
+    """Chain detail / editor: segments with steps, inline editing, debug panel."""
     model = WorkflowChain
     template_name = "erp_automation/chain_detail.html"
     context_object_name = "chain"
 
+    def _serialize_step(self, s):
+        """Serialize a WorkflowStep for JSON."""
+        loc_data = None
+        if s.locator:
+            loc_data = {
+                "id": s.locator.pk,
+                "name": s.locator.name,
+                "strategies": [
+                    {"type": st.strategy_type, "value": st.value, "priority": st.priority,
+                     "success": st.success_count, "fail": st.failure_count}
+                    for st in s.locator.strategies.all().order_by("priority")
+                ],
+            }
+        return {
+            "id": s.pk,
+            "order": s.order,
+            "name": s.name,
+            "action_type": s.action_type,
+            "locator": loc_data,
+            "value_static": s.value_static,
+            "value_field": s.value_field,
+            "value_template": s.value_template,
+            "condition_value": s.condition_value,
+            "wait_after": s.wait_after,
+            "timeout": s.timeout,
+            "continue_on_error": s.continue_on_error,
+            "check_for_errors": s.check_for_errors,
+            "press_key_after": s.press_key_after,
+            "clear_before_fill": s.clear_before_fill,
+            "interaction_mode": s.interaction_mode or "auto",
+        }
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         chain = self.object
-        ctx["links"] = chain.links.filter(is_active=True).select_related("workflow").order_by("order")
+        links = chain.links.filter(is_active=True).select_related("workflow").order_by("order")
+        ctx["links"] = links
         ctx["recent_executions"] = chain.executions.order_by("-started_at")[:20]
         ctx["available_workflows"] = Workflow.objects.filter(
             status=WorkflowStatus.ACTIVE
         ).order_by("name")
+
+        # Build segments JSON with steps for chainEditor()
+        segments = []
+        for link in links:
+            steps = list(
+                link.workflow.steps
+                .filter(is_active=True)
+                .order_by("order")
+                .select_related("locator")
+                .prefetch_related("locator__strategies")
+            )
+            segments.append({
+                "link_id": link.pk,
+                "link_order": link.order,
+                "workflow_id": link.workflow_id,
+                "workflow_name": link.workflow.name,
+                "link_name": link.name,
+                "condition_field": link.condition_field,
+                "condition_value": link.condition_value,
+                "wait_before_ms": link.wait_before_ms,
+                "navigate_url": link.navigate_url or "",
+                "is_active": link.is_active,
+                "steps": [self._serialize_step(s) for s in steps],
+            })
+        ctx["segments_json"] = json.dumps(segments)
+        ctx["chain_json"] = json.dumps({
+            "id": chain.pk,
+            "name": chain.name,
+            "status": chain.status,
+            "description": chain.description,
+            "condition_field": chain.condition_field,
+            "stop_on_failure": chain.stop_on_failure,
+            "keep_browser_open": chain.keep_browser_open,
+        })
+
+        # Debug mode: ?debug=<execution_id> activates live debug panel
+        debug_exec_id = self.request.GET.get("debug")
+        if debug_exec_id:
+            try:
+                debug_exec = ChainExecution.objects.select_related("job_data").get(pk=int(debug_exec_id))
+                ctx["debug_execution_id"] = debug_exec.pk
+                if debug_exec.job_data:
+                    ctx["debug_job_data_pk"] = debug_exec.job_data.pk
+            except (ChainExecution.DoesNotExist, ValueError):
+                pass
+
+        # Start debug mode: ?start_debug=<job_data_pk> — page will fire API call to start debug
+        start_debug_job_pk = self.request.GET.get("start_debug")
+        if start_debug_job_pk:
+            try:
+                job_pk = int(start_debug_job_pk)
+                ctx["start_debug_job_pk"] = job_pk
+                # Also set debug_job_data_pk for "Back to Job" link
+                if "debug_job_data_pk" not in ctx:
+                    ctx["debug_job_data_pk"] = job_pk
+            except (ValueError, TypeError):
+                pass
+
         return ctx
 
 
@@ -3088,8 +3226,9 @@ def api_step_create(request, wf_pk):
     workflow = get_object_or_404(Workflow, pk=wf_pk)
     order = data.get("order")
     if not order:
+        # Append after last step
         last = workflow.steps.order_by("-order").first()
-        order = (last.order + 1) if last else 10
+        order = (last.order + 1) if last else 1
 
     # Resolve or create locator
     locator = None
@@ -3120,6 +3259,17 @@ def api_step_create(request, wf_pk):
         clear_before_fill=data.get("clear_before_fill", False),
         interaction_mode=data.get("interaction_mode", "auto"),
     )
+
+    # Renumber all steps sequentially (1, 2, 3, ...)
+    all_steps = WorkflowStep.objects.filter(workflow_id=wf_pk).order_by('order', 'pk')
+    for idx, s in enumerate(all_steps, start=1):
+        if s.order != idx:
+            s.order = idx
+            s.save(update_fields=['order'])
+
+    # Refresh step to get final order
+    step.refresh_from_db()
+
     return JsonResponse({
         "success": True,
         "step_id": step.pk,
@@ -3165,11 +3315,19 @@ def api_step_update(request, wf_pk, step_pk):
 @login_required
 @require_POST
 def api_step_delete(request, wf_pk, step_pk):
-    """Delete a workflow step."""
+    """Delete a workflow step and renumber remaining steps sequentially."""
     step = get_object_or_404(WorkflowStep, pk=step_pk, workflow_id=wf_pk)
-    order = step.order
+    old_order = step.order
     step.delete()
-    return JsonResponse({"success": True, "message": f"Step {order} deleted"})
+
+    # Renumber remaining steps sequentially (1, 2, 3, ...)
+    remaining = WorkflowStep.objects.filter(workflow_id=wf_pk).order_by('order')
+    for idx, s in enumerate(remaining, start=1):
+        if s.order != idx:
+            s.order = idx
+            s.save(update_fields=['order'])
+
+    return JsonResponse({"success": True, "message": f"Step {old_order} deleted, steps renumbered"})
 
 
 @login_required
@@ -3428,3 +3586,430 @@ def api_environment_set_default(request, pk):
     env.is_default = True
     env.save(update_fields=["is_default", "updated_at"])
     return JsonResponse({"success": True, "env": _env_to_dict(env)})
+
+
+# =============================================================================
+# CHAIN EDITOR APIs (all-steps, move-step, split, merge)
+# =============================================================================
+
+@login_required
+@require_GET
+def api_chain_all_steps(request, pk):
+    """Get all segments with their steps for a chain."""
+    chain = get_object_or_404(WorkflowChain, pk=pk)
+    links = chain.links.filter(is_active=True).select_related("workflow").order_by("order")
+
+    segments = []
+    for link in links:
+        steps = list(
+            link.workflow.steps
+            .filter(is_active=True)
+            .order_by("order")
+            .select_related("locator")
+            .prefetch_related("locator__strategies")
+        )
+        seg_steps = []
+        for s in steps:
+            loc_data = None
+            if s.locator:
+                loc_data = {
+                    "id": s.locator.pk,
+                    "name": s.locator.name,
+                    "strategies": [
+                        {"type": st.strategy_type, "value": st.value, "priority": st.priority,
+                         "success": st.success_count, "fail": st.failure_count}
+                        for st in s.locator.strategies.all().order_by("priority")
+                    ],
+                }
+            seg_steps.append({
+                "id": s.pk,
+                "order": s.order,
+                "name": s.name,
+                "action_type": s.action_type,
+                "locator": loc_data,
+                "value_static": s.value_static,
+                "value_field": s.value_field,
+                "value_template": s.value_template,
+                "condition_value": s.condition_value,
+                "wait_after": s.wait_after,
+                "timeout": s.timeout,
+                "continue_on_error": s.continue_on_error,
+                "check_for_errors": s.check_for_errors,
+                "press_key_after": s.press_key_after,
+                "clear_before_fill": s.clear_before_fill,
+                "interaction_mode": s.interaction_mode or "auto",
+            })
+        segments.append({
+            "link_id": link.pk,
+            "link_order": link.order,
+            "workflow_id": link.workflow_id,
+            "workflow_name": link.workflow.name,
+            "link_name": link.name,
+            "condition_field": link.condition_field,
+            "condition_value": link.condition_value,
+            "wait_before_ms": link.wait_before_ms,
+            "navigate_url": link.navigate_url or "",
+            "is_active": link.is_active,
+            "steps": seg_steps,
+        })
+
+    return JsonResponse({"chain_id": chain.pk, "segments": segments})
+
+
+@login_required
+@require_POST
+def api_chain_move_step(request):
+    """Move a step from one workflow (segment) to another.
+
+    POST JSON: {
+        "step_id": int,
+        "target_workflow_id": int,
+        "target_order": int  (position in the target workflow)
+    }
+    """
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    step_id = data.get("step_id")
+    target_wf_id = data.get("target_workflow_id")
+    target_order = data.get("target_order")
+
+    if not all([step_id, target_wf_id, target_order is not None]):
+        return JsonResponse({"success": False, "message": "step_id, target_workflow_id, target_order required"}, status=400)
+
+    step = get_object_or_404(WorkflowStep, pk=step_id)
+    target_wf = get_object_or_404(Workflow, pk=target_wf_id)
+    source_wf = step.workflow
+
+    # Move step to target workflow
+    step.workflow = target_wf
+    step.order = int(target_order)
+    step.save()
+
+    # Renumber steps in source workflow (close the gap)
+    for i, s in enumerate(source_wf.steps.filter(is_active=True).order_by("order")):
+        new_order = (i + 1) * 10
+        if s.order != new_order:
+            WorkflowStep.objects.filter(pk=s.pk).update(order=new_order)
+
+    # Renumber steps in target workflow (make room, ensure no conflicts)
+    target_steps = list(target_wf.steps.filter(is_active=True).order_by("order"))
+    for i, s in enumerate(target_steps):
+        new_order = (i + 1) * 10
+        if s.order != new_order:
+            WorkflowStep.objects.filter(pk=s.pk).update(order=new_order)
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Step '{step.name}' moved to {target_wf.name}"
+    })
+
+
+@login_required
+@require_POST
+def api_chain_split_segment(request):
+    """Split a workflow (segment) into two at a given step.
+
+    Creates a new workflow containing steps from split_at_step_order onwards,
+    then creates a new chain link for the new workflow.
+
+    POST JSON: {
+        "chain_id": int,
+        "link_id": int,      (the chain link to split)
+        "split_at_step_id": int  (this step and all after go to new segment)
+    }
+    """
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    chain_id = data.get("chain_id")
+    link_id = data.get("link_id")
+    split_step_id = data.get("split_at_step_id")
+
+    if not all([chain_id, link_id, split_step_id]):
+        return JsonResponse({"success": False, "message": "chain_id, link_id, split_at_step_id required"}, status=400)
+
+    chain = get_object_or_404(WorkflowChain, pk=chain_id)
+    link = get_object_or_404(WorkflowChainLink, pk=link_id, chain=chain)
+    split_step = get_object_or_404(WorkflowStep, pk=split_step_id, workflow=link.workflow)
+
+    source_wf = link.workflow
+    steps_to_move = list(
+        source_wf.steps.filter(is_active=True, order__gte=split_step.order).order_by("order")
+    )
+
+    if not steps_to_move:
+        return JsonResponse({"success": False, "message": "No steps to split"}, status=400)
+
+    remaining_steps = source_wf.steps.filter(is_active=True, order__lt=split_step.order).count()
+    if remaining_steps == 0:
+        return JsonResponse({"success": False, "message": "Cannot split — no steps would remain in original segment"}, status=400)
+
+    # Create new workflow for the split-off steps
+    new_wf_name = f"{source_wf.name} (split)"
+    counter = 1
+    while Workflow.objects.filter(name=new_wf_name).exists():
+        counter += 1
+        new_wf_name = f"{source_wf.name} (split {counter})"
+
+    new_wf = Workflow.objects.create(
+        name=new_wf_name,
+        description=f"Split from {source_wf.name}",
+        application=source_wf.application,
+        status=source_wf.status,
+    )
+
+    # Move steps to new workflow
+    for i, s in enumerate(steps_to_move):
+        s.workflow = new_wf
+        s.order = (i + 1) * 10
+        s.save()
+
+    # Renumber remaining steps in source
+    for i, s in enumerate(source_wf.steps.filter(is_active=True).order_by("order")):
+        new_order = (i + 1) * 10
+        if s.order != new_order:
+            WorkflowStep.objects.filter(pk=s.pk).update(order=new_order)
+
+    # Shift all links after the split point to make room
+    links_after = chain.links.filter(order__gt=link.order).order_by("-order")
+    for lnk in links_after:
+        WorkflowChainLink.objects.filter(pk=lnk.pk).update(order=lnk.order + 10)
+
+    # Create new chain link right after the original
+    new_link = WorkflowChainLink.objects.create(
+        chain=chain,
+        workflow=new_wf,
+        order=link.order + 5,
+        name="",
+        wait_before_ms=link.wait_before_ms,
+        is_active=True,
+    )
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Split into new segment '{new_wf_name}' with {len(steps_to_move)} steps",
+        "new_link_id": new_link.pk,
+        "new_workflow_id": new_wf.pk,
+    })
+
+
+@login_required
+@require_POST
+def api_chain_merge_segments(request):
+    """Merge two adjacent segments (chain links) into one.
+
+    Moves all steps from the second segment's workflow into the first,
+    then removes the second link.
+
+    POST JSON: {
+        "chain_id": int,
+        "link_id_1": int,  (first/earlier link — steps merge INTO this one)
+        "link_id_2": int,  (second/later link — absorbed, then removed)
+    }
+    """
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    chain_id = data.get("chain_id")
+    link1_id = data.get("link_id_1")
+    link2_id = data.get("link_id_2")
+
+    if not all([chain_id, link1_id, link2_id]):
+        return JsonResponse({"success": False, "message": "chain_id, link_id_1, link_id_2 required"}, status=400)
+
+    chain = get_object_or_404(WorkflowChain, pk=chain_id)
+    link1 = get_object_or_404(WorkflowChainLink, pk=link1_id, chain=chain)
+    link2 = get_object_or_404(WorkflowChainLink, pk=link2_id, chain=chain)
+
+    wf1 = link1.workflow
+    wf2 = link2.workflow
+
+    if wf1.pk == wf2.pk:
+        return JsonResponse({"success": False, "message": "Both links point to the same workflow"}, status=400)
+
+    # Get the current max order in wf1
+    max_order = wf1.steps.filter(is_active=True).aggregate(m=models.Max("order"))["m"] or 0
+
+    # Move all steps from wf2 into wf1
+    steps_to_move = list(wf2.steps.filter(is_active=True).order_by("order"))
+    for i, s in enumerate(steps_to_move):
+        s.workflow = wf1
+        s.order = max_order + (i + 1) * 10
+        s.save()
+
+    # Remove the second chain link
+    link2.delete()
+
+    # Delete the empty workflow if no other chain links reference it
+    if not WorkflowChainLink.objects.filter(workflow=wf2).exists():
+        wf2.delete()
+
+    # Renumber remaining links
+    for i, lnk in enumerate(chain.links.filter(is_active=True).order_by("order")):
+        new_order = (i + 1) * 10
+        if lnk.order != new_order:
+            WorkflowChainLink.objects.filter(pk=lnk.pk).update(order=new_order)
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Merged {len(steps_to_move)} steps into '{wf1.name}'",
+        "merged_step_count": len(steps_to_move),
+    })
+
+
+@login_required
+@require_POST
+def api_debug_rerun_from_step(request, pk):
+    """Set the debug executor to rerun from a specific step.
+
+    POST JSON: {
+        "step_id": int
+    }
+    """
+    global _debug_executor
+
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No active debug session"}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    step_id = data.get("step_id")
+    if not step_id:
+        return JsonResponse({"success": False, "message": "step_id required"}, status=400)
+
+    step = get_object_or_404(WorkflowStep, pk=step_id)
+
+    # Send rerun command to the debug executor
+    _debug_executor.send_command("rerun_from_step", {"step_id": step_id, "step_order": step.order})
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Will rerun from step {step.order}: {step.name}",
+    })
+
+
+@login_required
+@require_POST
+def api_debug_run_single_step(request, pk):
+    """Run a single step in isolation (without advancing the chain).
+
+    POST JSON: { "step_id": int }
+    """
+    global _debug_executor
+
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No active debug session"}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    step_id = data.get("step_id")
+    if not step_id:
+        return JsonResponse({"success": False, "message": "step_id required"}, status=400)
+
+    step = get_object_or_404(WorkflowStep, pk=step_id)
+
+    # Send run-single-step command to the debug executor
+    _debug_executor.send_command("run_single_step", {"step_id": step_id, "step_order": step.order})
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Running single step {step.order}: {step.name}",
+    })
+
+
+@login_required
+@require_POST
+def api_debug_rerun_from_link(request, pk):
+    """Jump to a specific chain link (segment) during debug.
+
+    POST JSON: { "link_order": int }
+    """
+    global _debug_executor
+
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No active debug session"}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    link_order = data.get("link_order")
+    if link_order is None:
+        return JsonResponse({"success": False, "message": "link_order required"}, status=400)
+
+    _debug_executor.send_command("rerun_from_link", {"link_order": link_order})
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Jumping to segment with link_order={link_order}",
+    })
+
+
+@login_required
+@require_POST
+def api_debug_set_step_mode(request, pk):
+    """Toggle step-by-step execution mode.
+
+    POST JSON: { "enabled": bool }
+    """
+    global _debug_executor
+
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No active debug session"}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    enabled = data.get("enabled", False)
+    _debug_executor.send_command("set_step_by_step", {"enabled": enabled})
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Step-by-step mode {'enabled' if enabled else 'disabled'}",
+    })
+
+
+@login_required
+@require_POST
+def api_debug_set_breakpoints(request, pk):
+    """Set breakpoint step IDs for the debug executor.
+
+    POST JSON: { "breakpoint_step_ids": [1400, 1415, 1420] }
+    """
+    global _debug_executor
+
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No active debug session"}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    bp_ids = data.get("breakpoint_step_ids", [])
+    if not isinstance(bp_ids, list):
+        return JsonResponse({"success": False, "message": "breakpoint_step_ids must be a list"}, status=400)
+
+    _debug_executor.send_command("set_breakpoints", {"step_ids": bp_ids})
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Set {len(bp_ids)} breakpoint(s)",
+        "breakpoint_count": len(bp_ids),
+    })

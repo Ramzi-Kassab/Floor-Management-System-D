@@ -1,10 +1,11 @@
 {% extends "base.html" %}
-{% block title %}{{ chain.name }} - Workflow Chain{% endblock %}
+{% block title %}{{ chain.name }} - Chain Editor{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+{% csrf_token %}
+<div x-data="chainEditor()" x-init="init()" class="space-y-4" :class="{'pb-64': debugState.active}">
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
             <div class="flex items-center gap-3 mb-1">
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ chain.name }}</h1>
@@ -15,213 +16,1866 @@
                 {% else %}
                 <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300">Archived</span>
                 {% endif %}
+                <!-- Debug badge -->
+                <template x-if="debugState.active">
+                    <span class="px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1"
+                          :class="{
+                              'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400': debugState.status === 'running',
+                              'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400': (debugState.status === 'paused' && debugState.errorInfo?.is_step_pause) || debugState.status === 'completed',
+                              'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400': (debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause) || debugState.status === 'auto_healing',
+                              'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': debugState.status === 'failed',
+                              'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300': debugState.status === 'idle' || debugState.status === 'stopped' || debugState.status === 'starting',
+                          }">
+                        <i data-lucide="bug" class="w-3 h-3"></i>
+                        <span x-text="debugStatusLabel"></span>
+                    </span>
+                </template>
             </div>
             {% if chain.description %}
-            <p class="text-gray-600 dark:text-gray-400">{{ chain.description }}</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">{{ chain.description }}</p>
             {% endif %}
         </div>
-        <div class="flex items-center gap-3">
-            <a href="{% url 'erp_automation:chain_list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
-                Back
+        <div class="flex items-center gap-2">
+            {% if debug_job_data_pk %}
+            <a href="{% url 'erp_automation:job_data_detail' debug_job_data_pk %}" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Back to Job
             </a>
-            <a href="{% url 'erp_automation:chain_edit' chain.pk %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
-                Edit
+            {% else %}
+            <a href="{% url 'erp_automation:chain_list' %}" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Back
             </a>
+            {% endif %}
+            <a href="{% url 'erp_automation:chain_edit' chain.pk %}" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="settings" class="w-4 h-4 mr-1"></i> Chain Settings
+            </a>
+            <button @click="collapseAll()" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="minimize-2" class="w-4 h-4 mr-1"></i> Collapse All
+            </button>
+            <button @click="expandAll()" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="maximize-2" class="w-4 h-4 mr-1"></i> Expand All
+            </button>
         </div>
     </div>
 
-    <!-- Chain Info Card -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
-            <div class="text-sm text-gray-500 dark:text-gray-400">Links</div>
-            <div class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ links|length }}</div>
+    <!-- Chain Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Segments</div>
+            <div class="text-xl font-bold text-indigo-600 dark:text-indigo-400" x-text="segments.length"></div>
         </div>
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
-            <div class="text-sm text-gray-500 dark:text-gray-400">Browser Mode</div>
-            <div class="text-lg font-semibold text-gray-900 dark:text-white">
-                {% if chain.keep_browser_open %}
-                <span class="text-green-600 dark:text-green-400">Keep Open</span>
-                {% else %}
-                <span class="text-gray-600 dark:text-gray-400">Restart Each</span>
-                {% endif %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Total Steps</div>
+            <div class="text-xl font-bold text-blue-600 dark:text-blue-400" x-text="totalSteps()"></div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Browser</div>
+            <div class="text-sm font-semibold mt-0.5 {% if chain.keep_browser_open %}text-green-600 dark:text-green-400{% else %}text-gray-500{% endif %}">
+                {% if chain.keep_browser_open %}Keep Open{% else %}Restart{% endif %}
             </div>
         </div>
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
-            <div class="text-sm text-gray-500 dark:text-gray-400">On Failure</div>
-            <div class="text-lg font-semibold text-gray-900 dark:text-white">
-                {% if chain.stop_on_failure %}
-                <span class="text-red-600 dark:text-red-400">Stop</span>
-                {% else %}
-                <span class="text-yellow-600 dark:text-yellow-400">Continue</span>
-                {% endif %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+            <div class="text-xs text-gray-500 dark:text-gray-400">On Failure</div>
+            <div class="text-sm font-semibold mt-0.5 {% if chain.stop_on_failure %}text-red-600 dark:text-red-400{% else %}text-yellow-600 dark:text-yellow-400{% endif %}">
+                {% if chain.stop_on_failure %}Stop{% else %}Continue{% endif %}
             </div>
         </div>
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
-            <div class="text-sm text-gray-500 dark:text-gray-400">Condition Field</div>
-            <div class="text-lg font-semibold text-gray-900 dark:text-white">
-                {% if chain.condition_field %}
-                <code class="text-sm">{{ chain.condition_field }}</code>
-                {% else %}
-                <span class="text-gray-400">None</span>
-                {% endif %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm" x-show="debugState.active">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Progress</div>
+            <div class="text-xl font-bold" :class="{
+                'text-blue-600': debugState.status === 'running',
+                'text-green-600': debugState.status === 'completed',
+                'text-red-600': debugState.status === 'failed',
+                'text-amber-600': debugState.status === 'paused',
+                'text-gray-500': !debugState.active || debugState.status === 'idle',
+            }" x-text="debugOverallPct + '%'"></div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm" x-show="!debugState.active">
+            <div class="text-xs text-gray-500 dark:text-gray-400">Condition</div>
+            <div class="text-sm font-semibold mt-0.5 text-gray-900 dark:text-white">
+                {% if chain.condition_field %}<code class="text-xs">{{ chain.condition_field }}</code>{% else %}<span class="text-gray-400">None</span>{% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Chain Links -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Chain Links (Execution Order)</h2>
+    <!-- Debug progress bar (shown during debug) -->
+    <template x-if="debugState.active">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3">
+            <div class="flex items-center justify-between text-xs mb-1.5">
+                <span class="font-medium" :class="{
+                    'text-blue-600': debugState.status === 'running' || debugState.status === 'auto_healing',
+                    'text-green-600': (debugState.status === 'paused' && debugState.errorInfo?.is_step_pause) || debugState.status === 'completed',
+                    'text-amber-600': debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause,
+                    'text-red-600': debugState.status === 'failed',
+                    'text-gray-500': debugState.status === 'idle' || debugState.status === 'stopped',
+                }">
+                    <span x-text="debugStatusLabel"></span>
+                    <template x-if="debugState.currentLink">
+                        <span class="ml-2 text-gray-400" x-text="'— ' + debugState.currentLink.name"></span>
+                    </template>
+                    <template x-if="debugState.currentStep">
+                        <span class="ml-1 text-gray-400" x-text="'→ Step ' + debugState.currentStep.order + ': ' + debugState.currentStep.name"></span>
+                    </template>
+                </span>
+                <span class="text-gray-400">
+                    <span x-text="debugState.completedLinks.length + '/' + debugState.totalLinks + ' links'"></span>
+                    <span class="mx-1">·</span>
+                    <span x-text="debugOverallPct + '%'"></span>
+                </span>
+            </div>
+            <div class="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-500"
+                     :class="{
+                         'bg-blue-500': debugState.status === 'running' || debugState.status === 'auto_healing',
+                         'bg-green-500': (debugState.status === 'paused' && debugState.errorInfo?.is_step_pause) || debugState.status === 'completed',
+                         'bg-amber-500': debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause,
+                         'bg-red-500': debugState.status === 'failed',
+                         'bg-gray-400': debugState.status === 'idle' || debugState.status === 'stopped',
+                     }"
+                     :style="`width: ${debugOverallPct}%`"></div>
+            </div>
         </div>
+    </template>
 
-        {% if links %}
-        <div class="divide-y divide-gray-200 dark:divide-gray-700">
-            {% for link in links %}
-            <div class="px-6 py-4 flex items-center gap-4">
-                <!-- Order badge -->
-                <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-bold text-sm">
-                    {{ link.order }}
-                </div>
-
-                <!-- Link info -->
+    <!-- ============ SEGMENTS ACCORDION ============ -->
+    <template x-for="(seg, segIdx) in segments" :key="seg.link_id">
+        <div :id="'segment-' + segIdx"
+             class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden transition-all duration-200"
+             :class="{
+                 'ring-2 ring-indigo-400 dark:ring-indigo-500': dragOverSegment === segIdx,
+                 'ring-2 ring-blue-400': debugState.active && getSegmentDebugStatus(seg) === 'running',
+                 'ring-2 ring-green-400': debugState.active && getSegmentDebugStatus(seg) === 'success',
+                 'ring-2 ring-red-400': debugState.active && getSegmentDebugStatus(seg) === 'failed',
+                 'ring-2 ring-amber-400': debugState.active && getSegmentDebugStatus(seg) === 'skipped',
+             }">
+            <!-- Segment Header -->
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3 cursor-pointer select-none hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                 @click="toggleSegment(segIdx)"
+                 :class="{
+                     'bg-green-50 dark:bg-green-900/10': debugState.active && getSegmentDebugStatus(seg) === 'success',
+                     'bg-blue-50 dark:bg-blue-900/10': debugState.active && getSegmentDebugStatus(seg) === 'running',
+                     'bg-red-50 dark:bg-red-900/10': debugState.active && getSegmentDebugStatus(seg) === 'failed',
+                     'bg-amber-50 dark:bg-amber-900/10': debugState.active && getSegmentDebugStatus(seg) === 'skipped',
+                 }">
+                <!-- Debug Status Icon -->
+                <template x-if="debugState.active">
+                    <div class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full"
+                         :class="{
+                             'bg-green-500 text-white': getSegmentDebugStatus(seg) === 'success',
+                             'bg-blue-500 text-white': getSegmentDebugStatus(seg) === 'running',
+                             'bg-red-500 text-white': getSegmentDebugStatus(seg) === 'failed',
+                             'bg-amber-500 text-white': getSegmentDebugStatus(seg) === 'skipped',
+                             'bg-gray-200 dark:bg-gray-600 text-gray-500': getSegmentDebugStatus(seg) === 'pending',
+                         }">
+                        <template x-if="getSegmentDebugStatus(seg) === 'success'">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                        </template>
+                        <template x-if="getSegmentDebugStatus(seg) === 'running'">
+                            <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+                        </template>
+                        <template x-if="getSegmentDebugStatus(seg) === 'failed'">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </template>
+                        <template x-if="getSegmentDebugStatus(seg) === 'skipped'">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m5 4 10 8-10 8V4z"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                        </template>
+                        <template x-if="getSegmentDebugStatus(seg) === 'pending'">
+                            <span class="text-xs font-bold" x-text="segIdx + 1"></span>
+                        </template>
+                    </div>
+                </template>
+                <!-- Normal order badge (non-debug) -->
+                <template x-if="!debugState.active">
+                    <div class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-bold text-xs"
+                         x-text="seg.link_order"></div>
+                </template>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
-                        <a href="{% url 'erp_automation:workflow_detail' link.workflow.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">
-                            {{ link.get_display_name }}
-                        </a>
-                        {% if link.name and link.name != link.workflow.name %}
-                        <span class="text-xs text-gray-400">({{ link.workflow.name }})</span>
-                        {% endif %}
+                        <span class="font-medium text-sm text-gray-900 dark:text-white" x-text="seg.link_name || seg.workflow_name"></span>
+                        <template x-if="seg.link_name && seg.link_name !== seg.workflow_name">
+                            <span class="text-xs text-gray-400" x-text="'(' + seg.workflow_name + ')'"></span>
+                        </template>
                     </div>
-                    <div class="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span>{{ link.workflow.steps.count }} steps</span>
-                        {% if link.wait_before_ms > 0 %}
-                        <span>Wait: {{ link.wait_before_ms }}ms</span>
-                        {% endif %}
-                        {% if link.navigate_url %}
-                        <span class="truncate max-w-xs" title="{{ link.navigate_url }}">URL: {{ link.navigate_url|truncatechars:40 }}</span>
-                        {% endif %}
-                        {% if link.condition_value %}
-                        <span class="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded">
-                            {{ link.condition_field }}={{ link.condition_value }}
-                        </span>
-                        {% endif %}
+                    <div class="flex items-center gap-2 mt-0.5">
+                        <span class="text-xs text-gray-500" x-text="seg.steps.length + ' steps'"></span>
+                        <template x-if="seg.condition_value">
+                            <span class="text-xs px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded"
+                                  x-text="(seg.condition_field || '') + '=' + seg.condition_value"></span>
+                        </template>
+                        <template x-if="seg.wait_before_ms > 0">
+                            <span class="text-xs text-gray-400" x-text="'wait ' + seg.wait_before_ms + 'ms'"></span>
+                        </template>
+                        <!-- Debug step progress -->
+                        <template x-if="debugState.active && getSegmentDebugStatus(seg) === 'running'">
+                            <span class="text-xs text-blue-600 dark:text-blue-400 font-medium" x-text="debugState.completedSteps.length + '/' + debugState.totalSteps + ' steps done'"></span>
+                        </template>
                     </div>
                 </div>
-
-                <!-- Workflow status -->
-                <div class="flex-shrink-0">
-                    {% if link.workflow.status == 'active' %}
-                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Active</span>
-                    {% elif link.workflow.status == 'draft' %}
-                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Draft</span>
-                    {% endif %}
+                <div class="flex items-center gap-1">
+                    <!-- Debug: Run Segment button (when paused) -->
+                    <template x-if="debugState.active && debugState.status === 'paused'">
+                        <button @click.stop="debugRunSegment(seg)"
+                                class="p-1.5 text-green-500 hover:text-green-700 rounded" title="Run this entire segment">
+                            <i data-lucide="play-circle" class="w-4 h-4"></i>
+                        </button>
+                    </template>
+                    <!-- Split/Merge buttons (hide during debug) -->
+                    <template x-if="!debugState.active">
+                        <button @click.stop="promptMerge(segIdx)" x-show="segIdx < segments.length - 1"
+                                class="p-1.5 text-gray-400 hover:text-orange-600 rounded" title="Merge with next segment">
+                            <i data-lucide="git-merge" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </template>
+                    <!-- Collapse toggle -->
+                    <div class="transform transition-transform duration-200" :class="expandedSegments.has(segIdx) ? 'rotate-180' : ''">
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400"></i>
+                    </div>
                 </div>
-
-                <!-- Arrow connector (except last) -->
-                {% if not forloop.last %}
-                <div class="flex-shrink-0 text-gray-300 dark:text-gray-600">
-                    <i data-lucide="arrow-down" class="w-4 h-4"></i>
-                </div>
-                {% endif %}
             </div>
-            {% endfor %}
+
+            <!-- Segment Body (Steps Table) -->
+            <div x-show="expandedSegments.has(segIdx)" x-collapse>
+                <!-- Steps Drop Zone -->
+                <div @dragover.prevent="onDragOver($event, segIdx)"
+                     @drop.prevent="onDrop($event, segIdx)"
+                     @dragleave="dragOverSegment = null"
+                     class="min-h-[40px]">
+                    <table class="min-w-full text-sm" x-show="seg.steps.length > 0">
+                        <thead class="bg-gray-50 dark:bg-gray-700 text-xs uppercase text-gray-500 dark:text-gray-400">
+                            <tr>
+                                <th class="px-1 py-1.5 text-center w-6" x-show="debugState.active" title="Breakpoint">BP</th>
+                                <th class="px-2 py-1.5 text-left w-8"></th>
+                                <th class="px-2 py-1.5 text-left w-10">#</th>
+                                <th class="px-2 py-1.5 text-left">Name</th>
+                                <th class="px-2 py-1.5 text-left w-16">Action</th>
+                                <th class="px-2 py-1.5 text-left w-24">Mode</th>
+                                <th class="px-2 py-1.5 text-left">Locator</th>
+                                <th class="px-2 py-1.5 text-left">Value</th>
+                                <th class="px-2 py-1.5 text-left w-14">Wait</th>
+                                <th class="px-2 py-1.5 text-center w-28">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            <template x-for="(step, stIdx) in seg.steps" :key="step.id">
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 group transition-colors duration-200"
+                                    :class="getStepRowClass(seg, step)"
+                                    draggable="true"
+                                    @dragstart="onDragStart($event, segIdx, stIdx, step)"
+                                    @dragend="onDragEnd()">
+                                    <!-- Breakpoint column -->
+                                    <td class="px-1 py-1.5 text-center" x-show="debugState.active">
+                                        <button @click.stop="toggleBreakpoint(step.id)"
+                                                class="w-4 h-4 rounded-full border-2 transition-colors mx-auto flex items-center justify-center"
+                                                :class="debugState.breakpointStepIds.has(step.id) ? 'bg-red-500 border-red-600' : 'border-gray-300 dark:border-gray-600 hover:border-red-400'"
+                                                :title="debugState.breakpointStepIds.has(step.id) ? 'Remove breakpoint' : 'Set breakpoint'">
+                                        </button>
+                                    </td>
+                                    <!-- Drag Handle -->
+                                    <td class="px-2 py-1.5 cursor-grab text-gray-300 dark:text-gray-600 hover:text-gray-500">
+                                        <i data-lucide="grip-vertical" class="w-3 h-3"></i>
+                                    </td>
+                                    <!-- Order -->
+                                    <td class="px-2 py-1.5">
+                                        <template x-if="editingStep !== step.id">
+                                            <div class="flex items-center gap-1">
+                                                <span class="w-5 h-5 flex items-center justify-center rounded-full text-xs font-medium"
+                                                      :class="getStepOrderClass(seg, step)"
+                                                      x-text="debugState.active ? getChainStepNumber(segIdx, stIdx) : step.order"></span>
+                                                <!-- Per-workflow order badge during debug -->
+                                                <template x-if="debugState.active">
+                                                    <span class="text-[9px] text-gray-400 font-mono" x-text="'#' + step.order"></span>
+                                                </template>
+                                                <!-- Debug duration -->
+                                                <template x-if="debugState.active && getStepDebugDuration(seg, step)">
+                                                    <span class="text-[9px] text-gray-400" x-text="getStepDebugDuration(seg, step)"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="editingStep === step.id">
+                                            <input type="number" x-model.number="editForm.order"
+                                                   class="w-12 px-1 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                        </template>
+                                    </td>
+                                    <!-- Name -->
+                                    <td class="px-2 py-1.5">
+                                        <template x-if="editingStep !== step.id">
+                                            <div>
+                                                <span class="text-gray-900 dark:text-white text-xs" x-text="step.name"></span>
+                                                <template x-if="step.condition_value">
+                                                    <span class="ml-1 text-xs px-1 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400" x-text="'if: ' + step.condition_value"></span>
+                                                </template>
+                                                <template x-if="step.continue_on_error">
+                                                    <span class="ml-1 text-xs px-1 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400" title="Continues on error">COE</span>
+                                                </template>
+                                                <template x-if="step.check_for_errors">
+                                                    <span class="ml-1 text-xs px-1 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" title="Checks for D365 errors">ERR</span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="editingStep === step.id">
+                                            <div class="space-y-1">
+                                                <input type="text" x-model="editForm.name" placeholder="Step name"
+                                                       class="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                                <input type="text" x-model="editForm.condition_value" placeholder="Condition (blank=always)"
+                                                       class="w-full px-1 py-0.5 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-indigo-600">
+                                                <div class="flex gap-2">
+                                                    <label class="flex items-center gap-1 text-xs text-gray-500"><input type="checkbox" x-model="editForm.continue_on_error" class="rounded w-3 h-3"> COE</label>
+                                                    <label class="flex items-center gap-1 text-xs text-gray-500"><input type="checkbox" x-model="editForm.check_for_errors" class="rounded w-3 h-3"> ERR</label>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </td>
+                                    <!-- Action Type -->
+                                    <td class="px-2 py-1.5">
+                                        <template x-if="editingStep !== step.id">
+                                            <span class="px-1 py-0.5 rounded text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400" x-text="step.action_type"></span>
+                                        </template>
+                                        <template x-if="editingStep === step.id">
+                                            <select x-model="editForm.action_type" class="px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                                <option value="click">click</option><option value="fill">fill</option><option value="select">select</option>
+                                                <option value="check">check</option><option value="navigate">navigate</option><option value="wait_time">wait_time</option>
+                                                <option value="press_key">press_key</option><option value="hover">hover</option><option value="goto_url">goto_url</option>
+                                            </select>
+                                        </template>
+                                    </td>
+                                    <!-- Mode -->
+                                    <td class="px-2 py-1.5">
+                                        <template x-if="editingStep !== step.id">
+                                            <span class="px-1 py-0.5 rounded text-xs font-medium whitespace-nowrap"
+                                                  :class="getModeStyle(step.interaction_mode || 'auto')"
+                                                  x-text="getModeLabel(step.interaction_mode || 'auto')"></span>
+                                        </template>
+                                        <template x-if="editingStep === step.id">
+                                            <select x-model="editForm.interaction_mode" class="px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                                <option value="auto">Auto</option><option value="standard_input">Standard</option><option value="combobox">Combobox</option>
+                                                <option value="lookup_button">Lookup</option><option value="custom_dropdown">Dropdown</option><option value="segmented_entry">Segmented</option>
+                                                <option value="checkbox_toggle">Checkbox</option><option value="dialog_button">Dialog</option><option value="nav_button">Nav</option><option value="tab_header">Tab</option>
+                                            </select>
+                                        </template>
+                                    </td>
+                                    <!-- Locator -->
+                                    <td class="px-2 py-1.5">
+                                        <template x-if="editingStep !== step.id">
+                                            <div>
+                                                <template x-if="step.locator">
+                                                    <button @click="openLocatorModal(step.locator)"
+                                                            class="text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1">
+                                                        <span x-text="'#' + step.locator.id + ' ' + step.locator.name.substring(0, 20)"></span>
+                                                        <span class="text-gray-400" x-text="'(' + step.locator.strategies.length + ')'"></span>
+                                                    </button>
+                                                </template>
+                                                <template x-if="!step.locator"><span class="text-xs text-gray-400">-</span></template>
+                                            </div>
+                                        </template>
+                                        <template x-if="editingStep === step.id">
+                                            <div class="relative">
+                                                <div x-show="editForm.locator_id" class="flex items-center gap-1 mb-1 px-1 py-0.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs">
+                                                    <span class="text-blue-700 dark:text-blue-300 truncate" x-text="'#' + editForm.locator_id + ' ' + (editForm._locator_name || '')"></span>
+                                                    <button @click="editForm.locator_id = null; editForm._locator_name = ''" class="text-blue-400 hover:text-blue-600 flex-shrink-0">&times;</button>
+                                                </div>
+                                                <input type="text" x-model="locatorSearch.query"
+                                                       @input.debounce.200ms="searchLocators()"
+                                                       @focus="searchLocators()"
+                                                       placeholder="Search..."
+                                                       class="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                                <div x-show="locatorSearch.results.length > 0 && locatorSearch.open" x-cloak
+                                                     @click.away="locatorSearch.open = false"
+                                                     class="absolute z-[60] left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto w-64">
+                                                    <template x-for="loc in locatorSearch.results" :key="loc.id">
+                                                        <button @click="selectLocator(loc, 'edit')"
+                                                                class="w-full text-left px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                                                            <span class="text-xs font-mono text-gray-400" x-text="'#' + loc.id"></span>
+                                                            <span class="ml-1 text-xs text-gray-900 dark:text-white" x-text="loc.name"></span>
+                                                        </button>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </td>
+                                    <!-- Value -->
+                                    <td class="px-2 py-1.5">
+                                        <template x-if="editingStep !== step.id">
+                                            <div class="text-xs">
+                                                <template x-if="step.value_template">
+                                                    <span class="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400" x-text="step.value_template"></span>
+                                                </template>
+                                                <template x-if="!step.value_template && step.value_static">
+                                                    <span class="px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400" x-text="step.value_static.substring(0, 20)"></span>
+                                                </template>
+                                                <template x-if="!step.value_template && !step.value_static && step.value_field">
+                                                    <span class="px-1 py-0.5 rounded bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-400" x-text="'F:' + step.value_field"></span>
+                                                </template>
+                                                <template x-if="!step.value_template && !step.value_static && !step.value_field">
+                                                    <span class="text-gray-400">-</span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="editingStep === step.id">
+                                            <div class="space-y-1">
+                                                <input type="text" x-model="editForm.value_static" placeholder="Static"
+                                                       class="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                                <input type="text" x-model="editForm.value_template" placeholder="Template {% templatetag openvariable %}FIELD{% templatetag closevariable %}"
+                                                       class="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono">
+                                                <input type="text" x-model="editForm.value_field" placeholder="Field name"
+                                                       class="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                                <div class="flex items-center gap-2">
+                                                    <label class="flex items-center gap-1 text-xs text-gray-500"><input type="checkbox" x-model="editForm.clear_before_fill" class="rounded w-3 h-3"> Clr</label>
+                                                    <input type="text" x-model="editForm.press_key_after" placeholder="Key after"
+                                                           class="flex-1 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </td>
+                                    <!-- Wait -->
+                                    <td class="px-2 py-1.5">
+                                        <template x-if="editingStep !== step.id">
+                                            <div>
+                                                <span class="text-xs text-gray-500" x-text="step.wait_after + 'ms'"></span>
+                                                <template x-if="step.press_key_after">
+                                                    <span class="ml-0.5 text-xs px-1 py-0.5 rounded bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400" x-text="step.press_key_after"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="editingStep === step.id">
+                                            <input type="number" x-model.number="editForm.wait_after" step="100"
+                                                   class="w-14 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                        </template>
+                                    </td>
+                                    <!-- Actions -->
+                                    <td class="px-2 py-1.5 text-center">
+                                        <template x-if="editingStep !== step.id">
+                                            <div class="flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <!-- Debug actions: Test Locator & Run From Here -->
+                                                <template x-if="debugState.active && step.locator">
+                                                    <button @click="debugQuickTestLocator(step)" class="p-1 text-cyan-500 hover:text-cyan-700"
+                                                            :title="'Test locator: ' + (step.locator.name || '')">
+                                                        <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="debugState.active && debugState.status === 'paused'">
+                                                    <span class="flex items-center gap-0.5">
+                                                        <button @click="debugRunStepOnly(step)" class="p-1 text-purple-500 hover:text-purple-700"
+                                                                title="Run only this step (test in isolation)">
+                                                            <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+                                                        </button>
+                                                        <!-- Run from step: only available for steps in the currently running segment -->
+                                                        <template x-if="debugState._runningLinkOrder === seg.link_order">
+                                                            <button @click="debugRunFromStep(step)" class="p-1 text-amber-500 hover:text-amber-700"
+                                                                    title="Resume execution starting from this step">
+                                                                <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                                                            </button>
+                                                        </template>
+                                                    </span>
+                                                </template>
+                                                <template x-if="debugState.active && (debugState.status === 'running' || debugState.status === 'auto_healing') && debugState.currentStep && debugState.currentStep.id === step.id && debugState._runningLinkOrder === seg.link_order">
+                                                    <span class="p-1 text-yellow-500" title="Currently executing">
+                                                        <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
+                                                    </span>
+                                                </template>
+                                                <!-- Standard edit actions -->
+                                                <button @click="addStepBefore(seg, step)" class="p-1 text-green-500 hover:text-green-700" title="Add before">
+                                                    <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                                <button @click="startEdit(step, seg)" class="p-1 text-blue-500 hover:text-blue-700" title="Edit">
+                                                    <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                                <button @click="duplicateStep(step, seg)" class="p-1 text-gray-400 hover:text-gray-600" title="Duplicate">
+                                                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                                <button @click="splitAtStep(seg, step)" class="p-1 text-orange-400 hover:text-orange-600" title="Split segment here" x-show="!debugState.active">
+                                                    <i data-lucide="scissors" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                                <button @click="deleteStep(step, seg)" class="p-1 text-red-400 hover:text-red-600" title="Delete">
+                                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            </div>
+                                        </template>
+                                        <template x-if="editingStep === step.id">
+                                            <div class="flex items-center justify-center gap-1">
+                                                <button @click="saveEdit(step, seg)" class="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+                                                <button @click="cancelEdit()" class="px-2 py-0.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                                            </div>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+
+                    <!-- Empty segment -->
+                    <div x-show="seg.steps.length === 0" class="px-4 py-6 text-center text-gray-400 text-sm">
+                        No steps. Drag steps here or add new ones.
+                    </div>
+
+                    <!-- Add step at bottom -->
+                    <div class="px-4 py-2 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+                        <button @click="addStepToSegment(seg)" class="text-xs text-green-600 hover:text-green-800 flex items-center gap-1">
+                            <i data-lucide="plus" class="w-3 h-3"></i> Add Step
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Arrow connector between segments -->
+            <template x-if="segIdx < segments.length - 1 && expandedSegments.has(segIdx)">
+                <div class="flex justify-center -mb-2 relative z-10">
+                    <div class="text-gray-300 dark:text-gray-600">
+                        <i data-lucide="arrow-down" class="w-5 h-5"></i>
+                    </div>
+                </div>
+            </template>
         </div>
-        {% else %}
-        <div class="px-6 py-12 text-center">
+    </template>
+
+    <!-- Empty State -->
+    <template x-if="segments.length === 0">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center">
             <i data-lucide="link-2" class="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3"></i>
-            <p class="text-gray-500 dark:text-gray-400">No links configured.</p>
-            <a href="{% url 'erp_automation:chain_edit' chain.pk %}" class="inline-flex items-center mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm">
-                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-                Add Segments
+            <p class="text-gray-500 dark:text-gray-400">No segments configured.</p>
+            <a href="{% url 'erp_automation:chain_edit' chain.pk %}" class="inline-flex items-center mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i> Add Segments
             </a>
         </div>
-        {% endif %}
-    </div>
+    </template>
 
-    <!-- Recent Executions -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Executions</h2>
+    <!-- ============ RECENT EXECUTIONS (hidden during debug) ============ -->
+    <template x-if="!debugState.active">
+        <div>
+            {% if recent_executions %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Recent Executions</h2>
+                </div>
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Job Data</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Progress</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Started</th>
+                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for exec in recent_executions %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <td class="px-4 py-2 text-gray-900 dark:text-white">
+                                {% if exec.job_data %}
+                                <a href="{% url 'erp_automation:job_data_detail' exec.job_data.pk %}" class="hover:text-indigo-600">{{ exec.job_data.get_display_name }}</a>
+                                {% else %}-{% endif %}
+                            </td>
+                            <td class="px-4 py-2">
+                                {% if exec.status == 'success' %}
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Success</span>
+                                {% elif exec.status == 'running' %}
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Running</span>
+                                {% elif exec.status == 'failed' %}
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Failed</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ exec.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                                        <div class="h-1.5 rounded-full {% if exec.status == 'success' %}bg-green-500{% elif exec.status == 'failed' %}bg-red-500{% else %}bg-blue-500{% endif %}" style="width: {{ exec.progress_percent }}%"></div>
+                                    </div>
+                                    <span class="text-xs text-gray-500">{{ exec.completed_links }}/{{ exec.total_links }}</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-2 text-xs text-gray-500">{{ exec.started_at|date:"M d, H:i"|default:"-" }}</td>
+                            <td class="px-4 py-2 text-right">
+                                <a href="{% url 'erp_automation:chain_execution_detail' exec.pk %}" class="p-1 text-indigo-600 hover:bg-indigo-50 rounded" title="View">
+                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
         </div>
+    </template>
 
-        {% if recent_executions %}
-        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead class="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Job Data</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Progress</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Started</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Duration</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                {% for exec in recent_executions %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td class="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                        {% if exec.job_data %}
-                        <a href="{% url 'erp_automation:job_data_detail' exec.job_data.pk %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
-                            {{ exec.job_data.get_display_name }}
-                        </a>
-                        {% else %}
-                        -
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4">
-                        {% if exec.status == 'success' %}
-                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Success</span>
-                        {% elif exec.status == 'running' %}
-                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Running</span>
-                        {% elif exec.status == 'failed' %}
-                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Failed</span>
-                        {% elif exec.status == 'pending' %}
-                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300">Pending</span>
-                        {% else %}
-                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ exec.status }}</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4">
-                        <div class="flex items-center gap-2">
-                            <div class="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                <div class="h-2 rounded-full {% if exec.status == 'success' %}bg-green-500{% elif exec.status == 'failed' %}bg-red-500{% else %}bg-blue-500{% endif %}" style="width: {{ exec.progress_percent }}%"></div>
+    <!-- ============ LOCATOR MODAL ============ -->
+    <div x-show="locatorModal.open" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+         @keydown.escape.window="locatorModal.open = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto m-4"
+             @click.away="locatorModal.open = false">
+            <div class="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    <span x-show="!locatorModal.creating">Edit Locator</span>
+                    <span x-show="locatorModal.creating">Create Locator</span>
+                    <span class="text-sm text-gray-400 ml-2" x-show="locatorModal.data.id" x-text="'#' + locatorModal.data.id"></span>
+                </h3>
+                <button @click="locatorModal.open = false" class="text-gray-400 hover:text-gray-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Name</label>
+                        <input type="text" x-model="locatorModal.data.name" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Page Context</label>
+                        <input type="text" x-model="locatorModal.data.page_context" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-medium text-gray-500 uppercase">Strategies</label>
+                        <button @click="locatorModal.data.strategies.push({strategy_type: 'xpath', value: '', priority: locatorModal.data.strategies.length})"
+                                class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                            <i data-lucide="plus" class="w-3 h-3"></i> Add Strategy
+                        </button>
+                    </div>
+                    <div class="space-y-2">
+                        <template x-for="(strat, si) in locatorModal.data.strategies" :key="si">
+                            <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
+                                <span class="text-xs text-gray-400 font-mono w-6" x-text="'p' + strat.priority"></span>
+                                <select x-model="strat.strategy_type" class="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-24">
+                                    <option value="xpath">xpath</option><option value="css">css</option><option value="name">name</option>
+                                    <option value="id">id</option><option value="text">text</option><option value="aria-label">aria-label</option>
+                                    <option value="role">role</option><option value="data-testid">data-testid</option>
+                                </select>
+                                <input type="text" x-model="strat.value" placeholder="Locator value..."
+                                       class="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono">
+                                <template x-if="strat.success !== undefined || strat.success_count !== undefined">
+                                    <span class="text-xs whitespace-nowrap"
+                                          :class="(strat.success ?? strat.success_count ?? 0) > 0 ? 'text-green-600' : (strat.fail ?? strat.failure_count ?? 0) > 0 ? 'text-red-500' : 'text-gray-400'"
+                                          x-text="'S:' + (strat.success ?? strat.success_count ?? 0) + ' F:' + (strat.fail ?? strat.failure_count ?? 0)"></span>
+                                </template>
+                                <button @click="locatorModal.data.strategies.splice(si, 1)" class="text-red-400 hover:text-red-600 p-1">
+                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                </button>
                             </div>
-                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ exec.completed_links }}/{{ exec.total_links }}</span>
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                        {{ exec.started_at|date:"M d, H:i"|default:"-" }}
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                        {% if exec.duration_seconds %}
-                        {{ exec.duration_seconds|floatformat:0 }}s
-                        {% else %}
-                        -
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4 text-right">
-                        <a href="{% url 'erp_automation:chain_execution_detail' exec.pk %}" class="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors" title="View Details">
-                            <i data-lucide="eye" class="w-4 h-4"></i>
-                        </a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <div class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-            No executions yet. Execute this chain from a Job Data record.
+                        </template>
+                    </div>
+                </div>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-700/30">
+                <span class="text-xs text-gray-400" x-show="locatorModal.saving">Saving...</span>
+                <div class="flex gap-2 ml-auto">
+                    <button @click="locatorModal.open = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+                    <button @click="saveLocator()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700" :disabled="locatorModal.saving">
+                        <span x-text="locatorModal.creating ? 'Create Locator' : 'Save Changes'"></span>
+                    </button>
+                </div>
+            </div>
         </div>
-        {% endif %}
     </div>
+
+    <!-- ============ ADD STEP MODAL ============ -->
+    <div x-show="addModal.open" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+         @keydown.escape.window="addModal.open = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg m-4"
+             @click.away="addModal.open = false">
+            <div class="px-5 py-3 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Add Step
+                    <span class="text-sm text-gray-400 ml-2" x-text="'to ' + (addModal.segmentName || '')"></span>
+                </h3>
+            </div>
+            <div class="p-5 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Order</label>
+                        <input type="number" x-model.number="addModal.data.order" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Action Type</label>
+                        <select x-model="addModal.data.action_type" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <option value="click">click</option><option value="fill">fill</option><option value="select">select</option>
+                            <option value="check">check</option><option value="navigate">navigate</option><option value="wait_time">wait_time</option>
+                            <option value="press_key">press_key</option><option value="hover">hover</option><option value="goto_url">goto_url</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Interaction Mode</label>
+                    <select x-model="addModal.data.interaction_mode" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option value="auto">Auto-detect</option><option value="standard_input">Standard Input</option><option value="combobox">Combobox</option>
+                        <option value="lookup_button">Lookup Button</option><option value="custom_dropdown">Custom Dropdown</option><option value="segmented_entry">Segmented Entry</option>
+                        <option value="checkbox_toggle">Checkbox Toggle</option><option value="dialog_button">Dialog Button</option><option value="nav_button">Nav Button</option><option value="tab_header">Tab Header</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Step Name</label>
+                    <input type="text" x-model="addModal.data.name" placeholder="e.g. Click Save button" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Locator</label>
+                    <div class="relative">
+                        <div x-show="addModal.data.locator_id" class="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                            <span class="text-sm text-blue-800 dark:text-blue-300 flex-1" x-text="'#' + addModal.data.locator_id + ' — ' + (addModal.data._locator_name || '')"></span>
+                            <button @click="addModal.data.locator_id = null; addModal.data._locator_name = ''" class="text-blue-400 hover:text-blue-600">&times;</button>
+                        </div>
+                        <div class="flex gap-1">
+                            <div class="relative flex-1">
+                                <input type="text" x-model="locatorSearch.query"
+                                       @input.debounce.200ms="searchLocators()"
+                                       @focus="searchLocators()"
+                                       placeholder="Search locators..."
+                                       class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                <div x-show="locatorSearch.results.length > 0 && locatorSearch.open" x-cloak
+                                     @click.away="locatorSearch.open = false"
+                                     class="absolute z-[60] left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                    <template x-for="loc in locatorSearch.results" :key="loc.id">
+                                        <button @click="selectLocator(loc, 'add')"
+                                                class="w-full text-left px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                                            <span class="text-xs font-mono text-gray-400" x-text="'#' + loc.id"></span>
+                                            <span class="ml-1 text-sm text-gray-900 dark:text-white" x-text="loc.name"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            <button @click="openNewLocatorModal()" class="px-2.5 py-2 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 whitespace-nowrap font-medium">+ New</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Wait After (ms)</label>
+                        <input type="number" x-model.number="addModal.data.wait_after" step="100" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Press Key After</label>
+                        <input type="text" x-model="addModal.data.press_key_after" placeholder="Tab, Enter..." class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Value (static)</label>
+                    <input type="text" x-model="addModal.data.value_static" placeholder="Fixed value" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Value (template)</label>
+                    <input type="text" x-model="addModal.data.value_template" placeholder="e.g. {% templatetag openvariable %}BODY_MATERIAL{% templatetag closevariable %}" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono">
+                </div>
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="addModal.data.continue_on_error" class="rounded"> Continue on error</label>
+                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="addModal.data.check_for_errors" class="rounded text-red-600"> Check D365 errors</label>
+                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="addModal.data.clear_before_fill" class="rounded"> Clear first</label>
+                </div>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+                <button @click="addModal.open = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+                <button @click="saveNewStep()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create Step</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ DEBUG CONTROL PANEL (fixed bottom) ============ -->
+    <template x-if="debugState.active">
+        <div class="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t-2 shadow-2xl"
+             :class="{
+                 'border-blue-500': debugState.status === 'running' || debugState.status === 'auto_healing',
+                 'border-amber-500': debugState.status === 'paused',
+                 'border-green-500': debugState.status === 'completed',
+                 'border-red-500': debugState.status === 'failed',
+                 'border-gray-300': debugState.status === 'idle' || debugState.status === 'stopped',
+             }">
+            <!-- Session expired banner -->
+            <template x-if="debugState.sessionExpired">
+                <div class="px-4 py-2 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 flex items-center gap-3">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-red-500 flex-shrink-0"></i>
+                    <span class="text-sm text-red-700 dark:text-red-400">Session expired — polling stopped. Please
+                        <a href="/accounts/login/?next={{ request.get_full_path|urlencode }}" target="_blank" class="underline font-medium">re-login</a>
+                        and then <button @click="debugState.sessionExpired=false; startDebugPolling()" class="underline font-medium">resume polling</button>.
+                    </span>
+                </div>
+            </template>
+            <!-- Compact status bar -->
+            <div class="px-4 py-2 flex items-center gap-3 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <i data-lucide="bug" class="w-4 h-4 text-amber-500 flex-shrink-0"></i>
+                    <span class="text-sm font-medium truncate" x-text="debugStatusLabel"></span>
+                    <template x-if="debugState.currentLink && debugState.status === 'running'">
+                        <span class="text-xs text-gray-400 truncate" x-text="debugState.currentLink.name + ' → ' + (debugState.currentStep ? 'Step ' + debugState.currentStep.order : '...')"></span>
+                    </template>
+                </div>
+                <!-- Running controls -->
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <template x-if="debugState.status === 'running' || debugState.status === 'auto_healing'">
+                        <div class="flex items-center gap-1.5">
+                            <!-- Step-by-step toggle (available while running) -->
+                            <button @click="debugToggleStepMode()"
+                                    class="px-2.5 py-1.5 text-xs rounded-lg flex items-center gap-1 font-medium transition-colors"
+                                    :class="debugState.stepByStepMode ? 'bg-indigo-600 text-white hover:bg-indigo-700 ring-2 ring-indigo-300' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-300'"
+                                    :title="debugState.stepByStepMode ? 'Step-by-step mode ON — click to disable' : 'Enable step-by-step mode (pause after each step)'">
+                                <i data-lucide="footprints" class="w-3 h-3"></i>
+                                <span x-text="debugState.stepByStepMode ? 'Step Mode ON' : 'Step Mode'"></span>
+                            </button>
+                            <button @click="debugStopExecution()"
+                                    class="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
+                                <i data-lucide="square" class="w-3 h-3"></i> Stop
+                            </button>
+                        </div>
+                    </template>
+                    <template x-if="debugState.status === 'paused'">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <!-- Step-pause mode: show prominent Go button -->
+                            <template x-if="debugState.errorInfo?.is_step_pause">
+                                <button @click="debugResumeExecution()"
+                                        class="px-4 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1 font-bold shadow-md ring-2 ring-green-300 animate-pulse"
+                                        title="Continue to next step">
+                                    <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i> Go
+                                </button>
+                            </template>
+                            <!-- Normal pause: Retry / Resume -->
+                            <template x-if="!debugState.errorInfo?.is_step_pause && !debugState.errorInfo?.is_breakpoint">
+                                <button @click="debugRetryStep()"
+                                        class="px-3 py-1.5 text-xs bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-1 font-semibold shadow-sm"
+                                        title="Retry the current failing step again">
+                                    <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Retry Step
+                                </button>
+                            </template>
+                            <!-- Resume: shown for breakpoint and normal error -->
+                            <template x-if="!debugState.errorInfo?.is_step_pause">
+                                <button @click="debugResumeExecution()"
+                                        class="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1"
+                                        title="Continue execution from this step (after fixing locator)">
+                                    <i data-lucide="play" class="w-3 h-3"></i> Resume
+                                </button>
+                            </template>
+                            <!-- Skip -->
+                            <button @click="debugSkipStep()"
+                                    class="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center gap-1"
+                                    title="Skip this step and move to the next one">
+                                <i data-lucide="skip-forward" class="w-3 h-3"></i> Skip
+                            </button>
+                            <div class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-0.5"></div>
+                            <!-- Step-by-step toggle -->
+                            <button @click="debugToggleStepMode()"
+                                    class="px-2.5 py-1.5 text-xs rounded-lg flex items-center gap-1 font-medium transition-colors"
+                                    :class="debugState.stepByStepMode ? 'bg-indigo-600 text-white hover:bg-indigo-700 ring-2 ring-indigo-300' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-300'"
+                                    :title="debugState.stepByStepMode ? 'Step-by-step mode ON — click to disable' : 'Enable step-by-step mode (pause after each step)'">
+                                <i data-lucide="footprints" class="w-3 h-3"></i>
+                            </button>
+                            <!-- Screenshot -->
+                            <button @click="debugRefreshScreenshot()"
+                                    class="px-2.5 py-1.5 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 flex items-center gap-1"
+                                    :disabled="debugState.refreshingScreenshot"
+                                    title="Take a fresh screenshot of the browser">
+                                <i data-lucide="camera" class="w-3 h-3"></i>
+                            </button>
+                            <!-- Stop -->
+                            <button @click="debugStopExecution()"
+                                    class="px-2.5 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1"
+                                    title="Stop execution completely">
+                                <i data-lucide="square" class="w-3 h-3"></i>
+                            </button>
+                        </div>
+                    </template>
+                    <template x-if="debugState.status === 'completed' || debugState.status === 'failed' || debugState.status === 'stopped'">
+                        {% if debug_job_data_pk %}
+                        <a href="{% url 'erp_automation:job_data_detail' debug_job_data_pk %}"
+                           class="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-1">
+                            <i data-lucide="arrow-left" class="w-3 h-3"></i> Back to Job
+                        </a>
+                        {% endif %}
+                    </template>
+                </div>
+            </div>
+
+            <!-- Paused panel: error info + locator tester + screenshot -->
+            <div x-show="debugState.status === 'paused'" x-collapse class="px-4 py-3">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Error info -->
+                    <div>
+                        <h4 class="text-xs font-semibold uppercase mb-2 flex items-center gap-1"
+                            :class="{
+                                'text-green-600 dark:text-green-400': debugState.errorInfo?.is_step_pause || (debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success),
+                                'text-amber-600 dark:text-amber-400': debugState.errorInfo?.is_breakpoint,
+                                'text-red-600 dark:text-red-400': !debugState.errorInfo?.is_step_pause && !debugState.errorInfo?.is_breakpoint && !(debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success),
+                            }">
+                            <i :data-lucide="debugState.errorInfo?.is_step_pause ? 'check-circle' : (debugState.errorInfo?.is_breakpoint ? 'circle-pause' : (debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success ? 'check-circle' : 'alert-triangle'))" class="w-3 h-3"></i>
+                            <span x-text="debugState.errorInfo?.is_step_pause ? 'Step Completed' : (debugState.errorInfo?.is_breakpoint ? 'Breakpoint Hit' : (debugState.errorInfo?.is_test_result ? (debugState.errorInfo?.test_success ? 'Step Test: Success' : 'Step Test: Failed') : 'Step Failed'))"></span>
+                        </h4>
+                        <template x-if="debugState.errorInfo">
+                            <div class="space-y-1.5 text-xs">
+                                <!-- Step name & order -->
+                                <div class="flex items-center gap-1.5">
+                                    <span class="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-mono text-[10px]"
+                                          x-text="'#' + (debugState.currentStep?.order || '?')"></span>
+                                    <span class="text-gray-900 dark:text-white font-medium" x-text="debugState.errorInfo.step_name || 'Unknown step'"></span>
+                                </div>
+                                <!-- Step-pause message (green) -->
+                                <template x-if="debugState.errorInfo.is_step_pause">
+                                    <div class="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded font-medium"
+                                         x-text="debugState.errorInfo.message"></div>
+                                </template>
+                                <!-- Error message -->
+                                <div class="text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded"
+                                     x-text="debugState.errorInfo.message" x-show="!debugState.errorInfo.is_breakpoint && !debugState.errorInfo.is_step_pause"></div>
+                                <!-- Locator info -->
+                                <template x-if="debugState.errorInfo.locator_name">
+                                    <div class="flex items-center gap-1">
+                                        <i data-lucide="target" class="w-3 h-3 text-blue-500"></i>
+                                        <span class="text-gray-400">Locator:</span>
+                                        <span class="text-blue-600 dark:text-blue-400 font-medium" x-text="debugState.errorInfo.locator_name"></span>
+                                    </div>
+                                </template>
+                                <!-- Strategies tried -->
+                                <template x-if="debugState.errorInfo.strategies_tried && debugState.errorInfo.strategies_tried.length > 0">
+                                    <div class="mt-1 space-y-0.5">
+                                        <div class="text-[10px] text-gray-400 uppercase">Strategies tried:</div>
+                                        <template x-for="st in debugState.errorInfo.strategies_tried" :key="st.type + st.value">
+                                            <div class="flex items-center gap-1">
+                                                <span class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-mono text-[10px]" x-text="st.type"></span>
+                                                <span class="text-gray-400 truncate flex-1 font-mono text-[10px]" x-text="st.value" style="max-width: 200px;"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Locator tester -->
+                    <div>
+                        <h4 class="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase mb-2 flex items-center gap-1">
+                            <i data-lucide="crosshair" class="w-3 h-3"></i> Test & Fix Locator
+                        </h4>
+                        <div class="space-y-2">
+                            <div class="flex gap-1">
+                                <select x-model="debugState.testStrategyType" class="px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-24">
+                                    <option value="xpath">xpath</option><option value="css">css</option><option value="name">name</option>
+                                    <option value="id">id</option><option value="text">text</option><option value="aria-label">aria-label</option>
+                                </select>
+                                <input type="text" x-model="debugState.testLocatorValue" placeholder="Enter XPath, CSS, name..."
+                                       class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono">
+                            </div>
+                            <div class="flex gap-1 flex-wrap">
+                                <button @click="debugTestLocator()"
+                                        class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+                                        :disabled="debugState.testingLocator || !debugState.testLocatorValue"
+                                        title="Test if this locator finds the element on the page">
+                                    <i data-lucide="search" class="w-3 h-3"></i>
+                                    <span x-text="debugState.testingLocator ? 'Testing...' : 'Test'"></span>
+                                </button>
+                                <button @click="debugSaveAndResume()"
+                                        class="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-1"
+                                        :disabled="debugState.savingLocator || !debugState.testLocatorValue"
+                                        x-show="debugState.errorInfo && !debugState.errorInfo.is_breakpoint"
+                                        title="Save this new locator and retry the step">
+                                    <i data-lucide="save" class="w-3 h-3"></i>
+                                    <span x-text="debugState.savingLocator ? 'Saving...' : 'Save & Retry'"></span>
+                                </button>
+                            </div>
+                            <!-- Test result -->
+                            <template x-if="debugState.testResult">
+                                <div class="p-2 rounded text-xs flex items-center gap-2"
+                                     :class="debugState.testResult.result?.found ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400 border border-red-200 dark:border-red-800'">
+                                    <i :data-lucide="debugState.testResult.result?.found ? 'check-circle' : 'x-circle'" class="w-3.5 h-3.5 flex-shrink-0"></i>
+                                    <div>
+                                        <span x-text="debugState.testResult.result?.found ? 'Element found!' : 'Not found'"></span>
+                                        <template x-if="debugState.testResult.result?.tag_name">
+                                            <span class="ml-1 text-gray-500" x-text="'<' + debugState.testResult.result.tag_name + '>'"></span>
+                                        </template>
+                                        <template x-if="debugState.testResult.result?.text_content">
+                                            <span class="ml-1 text-gray-400 truncate" x-text="debugState.testResult.result.text_content.substring(0, 40)"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Screenshot -->
+                    <div>
+                        <h4 class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-2 flex items-center gap-1">
+                            <i data-lucide="monitor" class="w-3 h-3"></i> Browser State
+                        </h4>
+                        <template x-if="debugState.screenshotBase64">
+                            <img :src="'data:image/png;base64,' + debugState.screenshotBase64"
+                                 class="rounded border-2 border-gray-200 dark:border-gray-600 cursor-pointer hover:opacity-80 transition-opacity max-h-32 w-full object-contain shadow-sm"
+                                 @click="openScreenshotFullscreen()"
+                                 title="Click for fullscreen view">
+                        </template>
+                        <template x-if="!debugState.screenshotBase64">
+                            <div class="h-20 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center text-xs text-gray-400">
+                                No screenshot
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Screenshot fullscreen modal -->
+    <div id="screenshotModal" class="hidden fixed inset-0 z-[70] bg-black/90 items-center justify-center cursor-pointer"
+         onclick="this.classList.add('hidden'); this.classList.remove('flex');">
+        <img id="screenshotFullImg" class="max-w-[95vw] max-h-[95vh] object-contain rounded-lg shadow-2xl" src="">
+    </div>
+
+    <!-- Status Toast -->
+    <div x-show="statusMsg" x-transition x-cloak
+         class="fixed z-50 px-4 py-3 rounded-lg shadow-lg text-sm text-white"
+         :class="statusType === 'error' ? 'bg-red-600' : 'bg-green-600'"
+         :style="debugState.active ? 'bottom: 200px; right: 24px;' : 'bottom: 24px; right: 24px;'"
+         x-text="statusMsg"></div>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        lucide.createIcons();
-    });
+function chainEditor() {
+    const CHAIN_PK = {{ chain.pk }};
+    const CSRF = '{{ csrf_token }}';
+
+    return {
+        segments: [],
+        expandedSegments: new Set(),
+        editingStep: null,
+        editForm: {},
+        editingSegWfId: null,
+        statusMsg: '',
+        statusType: 'success',
+
+        // Drag & Drop
+        dragData: null,
+        dragOverSegment: null,
+
+        // Debug state
+        debugState: {
+            active: false,
+            executionId: null,
+            status: 'idle',
+            // Chain-level
+            totalLinks: 0,
+            currentLinkIndex: 0,
+            currentLink: null,
+            completedLinks: [],
+            skippedLinks: [],
+            // Step-level (current link)
+            totalSteps: 0,
+            currentStepIndex: 0,
+            currentStep: null,
+            completedSteps: [],
+            // Error & screenshot
+            errorInfo: null,
+            screenshotBase64: null,
+            autoHealAttempts: [],
+            // Locator tester
+            testStrategyType: 'xpath',
+            testLocatorValue: '',
+            testResult: null,
+            testingLocator: false,
+            savingLocator: false,
+            refreshingScreenshot: false,
+            // Polling
+            pollInterval: null,
+            sessionExpired: false,
+            // Breakpoints
+            breakpointStepIds: new Set(),
+            // Step-by-step mode
+            stepByStepMode: false,
+            // Track which segments have been completed (by link_order — unique per chain)
+            _completedLinkOrders: new Set(),
+            _skippedLinkOrders: new Set(),
+            _failedLinkOrder: null,
+            _runningLinkOrder: null,
+        },
+
+        // Locator search
+        locatorSearch: { query: '', results: [], open: false },
+
+        // Add Step Modal
+        addModal: { open: false, data: {}, workflowId: null, segmentName: '' },
+
+        // Locator Modal
+        locatorModal: {
+            open: false, creating: false, saving: false,
+            data: { name: '', page_context: '', strategies: [] }
+        },
+
+        // --- COMPUTED ---
+        get debugStatusLabel() {
+            if (this.debugState.status === 'paused' && this.debugState.errorInfo?.is_step_pause) {
+                return 'Step Done — Waiting for Go';
+            }
+            if (this.debugState.status === 'paused' && this.debugState.errorInfo?.is_breakpoint) {
+                return 'Breakpoint Hit';
+            }
+            const labels = {
+                'starting': 'Starting browser...', 'idle': 'Initializing...',
+                'running': 'Running', 'auto_healing': 'Auto-Healing...',
+                'paused': 'Paused — Step Failed', 'completed': 'Completed', 'failed': 'Failed', 'stopped': 'Stopped',
+            };
+            return labels[this.debugState.status] || this.debugState.status;
+        },
+        get debugOverallPct() {
+            if (!this.debugState.active || this.debugState.totalLinks === 0) return 0;
+            const doneFraction = this.debugState.completedLinks.length / this.debugState.totalLinks;
+            if (this.debugState.currentLink && this.debugState.totalSteps > 0) {
+                const stepProgress = this.debugState.completedSteps.length / this.debugState.totalSteps / this.debugState.totalLinks;
+                return Math.round((doneFraction + stepProgress) * 100);
+            }
+            return Math.round(doneFraction * 100);
+        },
+
+        init() {
+            try {
+                this.segments = JSON.parse('{{ segments_json|escapejs }}');
+            } catch(e) {
+                this.segments = [];
+            }
+            // Expand all segments by default
+            this.segments.forEach((_, i) => this.expandedSegments.add(i));
+
+            // Check for debug mode (?debug=<execution_id>) — resume existing session
+            {% if debug_execution_id %}
+            this.debugState.active = true;
+            this.debugState.executionId = {{ debug_execution_id }};
+            this.startDebugPolling();
+            {% endif %}
+
+            // Start debug mode (?start_debug=<job_pk>) — fire API to start, then poll
+            {% if start_debug_job_pk %}
+            this.debugState.active = true;
+            this.debugState.status = 'starting';
+            this.startDebugSession({{ start_debug_job_pk }});
+            {% endif %}
+
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        totalSteps() {
+            return this.segments.reduce((sum, seg) => sum + seg.steps.length, 0);
+        },
+
+        // ================ DEBUG METHODS ================
+
+        async startDebugSession(jobPk) {
+            // Guard against double invocation (e.g., double-click, page reload race)
+            if (this._debugStarting) {
+                console.warn('[Debug] startDebugSession already in progress, ignoring duplicate call');
+                return;
+            }
+            this._debugStarting = true;
+
+            // Fire API to start debug chain session, then switch to polling
+            try {
+                const chainId = {{ chain.pk }};
+                const resp = await fetch(`/erp-automation/api/job-data/${jobPk}/debug-chain/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ chain_id: chainId }),
+                });
+                const data = await resp.json();
+                if (data.success && data.chain_execution_id) {
+                    this.debugState.executionId = data.chain_execution_id;
+                    this.debugState.status = 'running';
+                    this.startDebugPolling();
+                    // Update URL to include debug param (without reloading page)
+                    const url = new URL(window.location);
+                    url.searchParams.delete('start_debug');
+                    url.searchParams.set('debug', data.chain_execution_id);
+                    window.history.replaceState({}, '', url);
+                } else {
+                    this.debugState.status = 'failed';
+                    this.debugState.errorInfo = { message: data.message || 'Failed to start debug session' };
+                    if (data.redirect && !data.success) {
+                        // Credentials needed — redirect to credentials page
+                        window.location.href = data.redirect;
+                    }
+                }
+            } catch(e) {
+                console.error('Failed to start debug session:', e);
+                this.debugState.status = 'failed';
+                this.debugState.errorInfo = { message: e.message || 'Network error starting debug session' };
+            } finally {
+                this._debugStarting = false;
+            }
+        },
+
+        startDebugPolling() {
+            this.debugState.pollInterval = setInterval(() => this.debugPoll(), 500);
+        },
+        stopDebugPolling() {
+            if (this.debugState.pollInterval) {
+                clearInterval(this.debugState.pollInterval);
+                this.debugState.pollInterval = null;
+            }
+        },
+
+        async debugPoll() {
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/poll/`);
+                if (!resp.ok) return;
+                // Detect login redirect: fetch follows 302 → login page returns HTML 200
+                const ct = resp.headers.get('content-type') || '';
+                if (!ct.includes('application/json')) {
+                    // Session expired — stop polling and show re-login banner
+                    this.stopDebugPolling();
+                    this.debugState.sessionExpired = true;
+                    this.toast('Session expired — please re-login and refresh', 'error');
+                    return;
+                }
+                const data = await resp.json();
+
+                const prevStatus = this.debugState.status;
+                const prevLinkOrder = this.debugState.currentLink?.order;
+
+                this.debugState.status = data.status || 'idle';
+
+                // Chain-level
+                this.debugState.totalLinks = data.total_links || this.segments.length;
+                this.debugState.currentLinkIndex = data.current_link_index || 0;
+                this.debugState.currentLink = data.current_link || null;
+                this.debugState.completedLinks = data.completed_links || [];
+                this.debugState.skippedLinks = data.skipped_links || [];
+
+                // Step-level
+                this.debugState.totalSteps = data.total_steps || 0;
+                this.debugState.currentStepIndex = data.current_step_index || 0;
+                this.debugState.currentStep = data.current_step || null;
+                this.debugState.completedSteps = data.completed_steps || [];
+                this.debugState.errorInfo = data.error || null;
+                this.debugState.autoHealAttempts = data.auto_heal_attempts || [];
+
+                // Build lookup sets for segment/step status (by link_order — unique per chain)
+                this.debugState._completedLinkOrders = new Set();
+                this.debugState._skippedLinkOrders = new Set();
+                this.debugState._failedLinkOrder = null;
+                // Backend sends _running_link_order explicitly; fallback to currentLink.order
+                this.debugState._runningLinkOrder = data._running_link_order || this.debugState.currentLink?.order || null;
+
+                for (const cl of this.debugState.completedLinks) {
+                    if (cl.order && cl.status === 'success') {
+                        this.debugState._completedLinkOrders.add(cl.order);
+                    } else if (cl.order && cl.status === 'failed') {
+                        this.debugState._failedLinkOrder = cl.order;
+                    }
+                }
+                for (const sl of this.debugState.skippedLinks) {
+                    if (sl.order) this.debugState._skippedLinkOrders.add(sl.order);
+                }
+                // Also mark current link as failed if overall chain status is failed
+                if (['failed'].includes(this.debugState.status) && this.debugState.currentLink && !this.debugState._failedLinkOrder) {
+                    this.debugState._failedLinkOrder = this.debugState.currentLink.order;
+                }
+
+                // Screenshot
+                if (data.screenshot_base64 && this.debugState.status === 'paused') {
+                    this.debugState.screenshotBase64 = data.screenshot_base64;
+                }
+
+                // Pre-fill tester when newly paused
+                if (this.debugState.status === 'paused' && prevStatus !== 'paused') {
+                    this.debugState.testStrategyType = data.error?.failing_strategy_type || 'xpath';
+                    this.debugState.testLocatorValue = data.error?.failing_value || '';
+                    this.debugState.testResult = null;
+                    // Re-render dynamic icons after pause panel appears
+                    this.$nextTick(() => lucide.createIcons());
+                }
+
+                // Auto-expand current segment
+                if (this.debugState.currentLink && this.debugState.currentLink.order !== prevLinkOrder) {
+                    const segIdx = this.segments.findIndex(s => s.link_order === this.debugState.currentLink.order);
+                    if (segIdx >= 0 && !this.expandedSegments.has(segIdx)) {
+                        this.expandedSegments.add(segIdx);
+                        this.expandedSegments = new Set(this.expandedSegments);
+                        this.$nextTick(() => {
+                            const el = document.getElementById('segment-' + segIdx);
+                            if (el) el.scrollIntoView({behavior: 'smooth', block: 'center'});
+                            lucide.createIcons();
+                        });
+                    }
+                }
+
+                // Stop polling on terminal states
+                if (['completed', 'failed', 'stopped'].includes(this.debugState.status)) {
+                    this.stopDebugPolling();
+                    this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+                }
+            } catch (e) {
+                console.error('Debug poll error:', e);
+            }
+        },
+
+        // Debug actions — inline step actions
+        async debugQuickTestLocator(step) {
+            // Test the step's locator using its first strategy
+            if (!step.locator || !this.debugState.executionId) return;
+            const strategies = step.locator.strategies || [];
+            if (!strategies.length) {
+                this.flash('No locator strategies', 'error');
+                return;
+            }
+            // Use the highest priority strategy
+            const strat = strategies.sort((a, b) => a.priority - b.priority)[0];
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/test-locator/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ strategy_type: strat.strategy_type, value: strat.value }),
+                });
+                const data = await resp.json();
+                if (data.success && data.result && data.result.found) {
+                    this.flash(`✓ Found: ${step.locator.name} (${strat.strategy_type})`, 'success');
+                } else {
+                    this.flash(`✗ Not found: ${step.locator.name} (${strat.strategy_type})`, 'error');
+                }
+            } catch(e) {
+                this.flash('Test failed: ' + e.message, 'error');
+            }
+        },
+
+        async debugRunFromStep(step) {
+            if (!this.debugState.executionId || this.debugState.status !== 'paused') return;
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/rerun-from-step/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ step_id: step.id }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.flash('Rerunning from step ' + step.order, 'success');
+                } else {
+                    this.flash(data.message || 'Failed', 'error');
+                }
+            } catch(e) {
+                this.flash('Error: ' + e.message, 'error');
+            }
+        },
+
+        async debugTestLocator() {
+            if (!this.debugState.testLocatorValue || this.debugState.testingLocator) return;
+            this.debugState.testingLocator = true;
+            this.debugState.testResult = null;
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/test-locator/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ strategy_type: this.debugState.testStrategyType, value: this.debugState.testLocatorValue }),
+                });
+                this.debugState.testResult = await resp.json();
+            } catch (e) {
+                this.debugState.testResult = { success: false, result: { found: false, error: e.message } };
+            } finally {
+                this.debugState.testingLocator = false;
+            }
+        },
+
+        async debugSaveAndResume() {
+            if (!this.debugState.testLocatorValue || this.debugState.savingLocator) return;
+            if (!this.debugState.errorInfo?.locator_id) {
+                alert('No locator ID found. Cannot save.');
+                return;
+            }
+            this.debugState.savingLocator = true;
+            try {
+                const saveResp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/update-locator/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({
+                        locator_id: this.debugState.errorInfo.locator_id,
+                        strategy_type: this.debugState.testStrategyType,
+                        value: this.debugState.testLocatorValue,
+                        priority: 0,
+                    }),
+                });
+                const saveData = await saveResp.json();
+                if (!saveData.success) {
+                    alert('Failed to save: ' + saveData.message);
+                    return;
+                }
+                await this.debugResumeExecution();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                this.debugState.savingLocator = false;
+            }
+        },
+
+        async debugRetryStep() {
+            // Retry the current failing step without modifying locators
+            try {
+                await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/resume/`, {
+                    method: 'POST', headers: { 'X-CSRFToken': CSRF },
+                });
+                this.debugState.testResult = null;
+                this.flash('Retrying current step...', 'info');
+                if (!this.debugState.pollInterval) this.startDebugPolling();
+            } catch (e) { console.error('Retry error:', e); }
+        },
+
+        async debugToggleStepMode() {
+            if (!this.debugState.executionId) return;
+            const newMode = !this.debugState.stepByStepMode;
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/step-mode/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ enabled: newMode }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.debugState.stepByStepMode = newMode;
+                    this.flash(`Step-by-step mode ${newMode ? 'ON' : 'OFF'}`, 'success');
+                }
+            } catch(e) {
+                this.flash('Error: ' + e.message, 'error');
+            }
+        },
+
+        async debugResumeExecution() {
+            try {
+                await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/resume/`, {
+                    method: 'POST', headers: { 'X-CSRFToken': CSRF },
+                });
+                this.debugState.testResult = null;
+                if (!this.debugState.pollInterval) this.startDebugPolling();
+            } catch (e) { console.error('Resume error:', e); }
+        },
+
+        async debugSkipStep() {
+            try {
+                await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/skip/`, {
+                    method: 'POST', headers: { 'X-CSRFToken': CSRF },
+                });
+                this.debugState.testResult = null;
+                if (!this.debugState.pollInterval) this.startDebugPolling();
+            } catch (e) { console.error('Skip error:', e); }
+        },
+
+        async debugRunStepOnly(step) {
+            // Run a single step in isolation (test it without affecting chain flow)
+            if (!this.debugState.executionId) return;
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/run-single-step/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ step_id: step.id }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.flash(`Running step ${step.order}: ${step.name}`, 'success');
+                } else {
+                    this.flash(data.message || 'Failed', 'error');
+                }
+            } catch(e) { this.flash('Error: ' + e.message, 'error'); }
+        },
+
+        async debugRunSegment(seg) {
+            // Jump to a specific segment (link) via rerun-from-link API
+            if (!this.debugState.executionId || this.debugState.status !== 'paused') return;
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/rerun-from-link/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ link_order: seg.link_order }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.flash(`Jumping to segment: ${seg.workflow_name}`, 'success');
+                } else {
+                    this.flash(data.message || 'Failed', 'error');
+                }
+            } catch(e) {
+                this.flash('Error: ' + e.message, 'error');
+            }
+        },
+
+        async debugStopExecution() {
+            try {
+                await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/stop/`, {
+                    method: 'POST', headers: { 'X-CSRFToken': CSRF },
+                });
+            } catch (e) { console.error('Stop error:', e); }
+        },
+
+        async debugRefreshScreenshot() {
+            this.debugState.refreshingScreenshot = true;
+            try { await this.debugPoll(); } catch(e) {}
+            finally { this.debugState.refreshingScreenshot = false; }
+        },
+
+        openScreenshotFullscreen() {
+            if (!this.debugState.screenshotBase64) return;
+            const modal = document.getElementById('screenshotModal');
+            const img = document.getElementById('screenshotFullImg');
+            img.src = 'data:image/png;base64,' + this.debugState.screenshotBase64;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        },
+
+        // Breakpoints
+        async toggleBreakpoint(stepId) {
+            if (this.debugState.breakpointStepIds.has(stepId)) {
+                this.debugState.breakpointStepIds.delete(stepId);
+            } else {
+                this.debugState.breakpointStepIds.add(stepId);
+            }
+            // Force reactivity
+            this.debugState.breakpointStepIds = new Set(this.debugState.breakpointStepIds);
+            // Send to backend
+            if (this.debugState.executionId) {
+                try {
+                    await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/breakpoints/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify({ breakpoint_step_ids: Array.from(this.debugState.breakpointStepIds) }),
+                    });
+                } catch(e) { console.error('Set breakpoints error:', e); }
+            }
+        },
+
+        // Debug status helpers for segments
+        getSegmentDebugStatus(seg) {
+            if (!this.debugState.active) return 'pending';
+            if (this.debugState._completedLinkOrders.has(seg.link_order)) return 'success';
+            if (this.debugState._skippedLinkOrders.has(seg.link_order)) return 'skipped';
+            if (this.debugState._failedLinkOrder === seg.link_order) return 'failed';
+            if (this.debugState._runningLinkOrder === seg.link_order) return 'running';
+            return 'pending';
+        },
+
+        // Debug status helpers for steps
+        getStepDebugStatus(seg, step) {
+            if (!this.debugState.active) return null;
+            // Only show step status for the currently running or completed segment
+            if (this.debugState._runningLinkOrder !== seg.link_order &&
+                !this.debugState._completedLinkOrders.has(seg.link_order) &&
+                this.debugState._failedLinkOrder !== seg.link_order) {
+                return null;
+            }
+            // For completed segments, all steps are "success"
+            if (this.debugState._completedLinkOrders.has(seg.link_order)) return 'completed_segment';
+
+            // For current/failed segment: check completedSteps by step ID (globally unique)
+            const completed = this.debugState.completedSteps.find(c => c.id === step.id);
+            if (completed) return completed.status; // 'success', 'auto_healed', 'skipped'
+
+            // Current step (match by ID to avoid cross-segment false positives)
+            if (this.debugState.currentStep && this.debugState.currentStep.id === step.id) {
+                if (this.debugState.status === 'paused') return 'paused';
+                if (this.debugState.status === 'auto_healing') return 'auto_healing';
+                if (this.debugState.status === 'running') return 'running';
+                if (this.debugState.status === 'failed') return 'failed';
+            }
+            return null;
+        },
+
+        getStepRowClass(seg, step) {
+            if (this.editingStep === step.id) return 'bg-blue-50 dark:bg-blue-900/10';
+            const status = this.getStepDebugStatus(seg, step);
+            if (!status) return '';
+            const classes = {
+                'success': 'bg-green-50 dark:bg-green-900/10',
+                'auto_healed': 'bg-cyan-50 dark:bg-cyan-900/10',
+                'completed_segment': 'bg-green-50/50 dark:bg-green-900/5',
+                'running': 'bg-yellow-50 dark:bg-yellow-900/10',
+                'auto_healing': 'bg-yellow-50 dark:bg-yellow-900/10',
+                'paused': 'bg-red-50 dark:bg-red-900/10',
+                'failed': 'bg-red-50 dark:bg-red-900/10',
+                'skipped': 'bg-amber-50 dark:bg-amber-900/10',
+            };
+            return classes[status] || '';
+        },
+
+        getStepOrderClass(seg, step) {
+            const status = this.getStepDebugStatus(seg, step);
+            if (!status) return 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
+            const classes = {
+                'success': 'bg-green-500 text-white',
+                'auto_healed': 'bg-cyan-500 text-white',
+                'completed_segment': 'bg-green-400 text-white',
+                'running': 'bg-yellow-500 text-white animate-pulse',
+                'auto_healing': 'bg-yellow-500 text-white animate-pulse',
+                'paused': 'bg-red-500 text-white',
+                'failed': 'bg-red-500 text-white',
+                'skipped': 'bg-amber-500 text-white',
+            };
+            return classes[status] || 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
+        },
+
+        getChainStepNumber(segIdx, stepIdx) {
+            // Return a chain-scoped running step number across all segments
+            let count = 0;
+            for (let i = 0; i < segIdx; i++) {
+                count += (this.segments[i]?.steps?.length || 0);
+            }
+            return count + stepIdx + 1;
+        },
+
+        getStepDebugDuration(seg, step) {
+            if (!this.debugState.active) return null;
+            if (this.debugState._runningLinkOrder !== seg.link_order &&
+                this.debugState._failedLinkOrder !== seg.link_order) return null;
+            const completed = this.debugState.completedSteps.find(c => c.id === step.id);
+            if (!completed || !completed.duration_ms) return null;
+            if (completed.duration_ms < 1000) return completed.duration_ms + 'ms';
+            return (completed.duration_ms / 1000).toFixed(1) + 's';
+        },
+
+        // --- SEGMENT TOGGLE ---
+        toggleSegment(idx) {
+            if (this.expandedSegments.has(idx)) {
+                this.expandedSegments.delete(idx);
+            } else {
+                this.expandedSegments.add(idx);
+            }
+            this.expandedSegments = new Set(this.expandedSegments);
+            this.$nextTick(() => lucide.createIcons());
+        },
+        collapseAll() {
+            this.expandedSegments = new Set();
+        },
+        expandAll() {
+            this.segments.forEach((_, i) => this.expandedSegments.add(i));
+            this.expandedSegments = new Set(this.expandedSegments);
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        // --- RELOAD ---
+        async reloadSegments() {
+            try {
+                const r = await fetch(`/erp-automation/api/chains/${CHAIN_PK}/all-steps/`);
+                const d = await r.json();
+                this.segments = d.segments || [];
+                this.$nextTick(() => lucide.createIcons());
+            } catch(e) {
+                this.flash('Failed to reload: ' + e.message, 'error');
+            }
+        },
+
+        // --- EDIT STEP ---
+        startEdit(step, seg) {
+            this.editingStep = step.id;
+            this.editingSegWfId = seg.workflow_id;
+            this.editForm = {
+                name: step.name, action_type: step.action_type,
+                interaction_mode: step.interaction_mode || 'auto',
+                locator_id: step.locator ? step.locator.id : null,
+                _locator_name: step.locator ? step.locator.name : '',
+                value_static: step.value_static || '', value_template: step.value_template || '',
+                value_field: step.value_field || '', condition_value: step.condition_value || '',
+                press_key_after: step.press_key_after || '', wait_after: step.wait_after,
+                order: step.order, continue_on_error: step.continue_on_error,
+                check_for_errors: step.check_for_errors || false,
+                clear_before_fill: step.clear_before_fill || false,
+            };
+            this.locatorSearch = { query: '', results: [], open: false };
+        },
+        cancelEdit() { this.editingStep = null; this.editForm = {}; this.editingSegWfId = null; },
+        async saveEdit(step, seg) {
+            try {
+                const r = await fetch(`/erp-automation/api/workflows/${seg.workflow_id}/steps/${step.id}/update/`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify(this.editForm)
+                });
+                const d = await r.json();
+                if (d.success) { this.editingStep = null; this.reloadSegments(); this.flash('Step updated'); }
+                else { this.flash(d.message, 'error'); }
+            } catch(e) { this.flash('Save failed: ' + e.message, 'error'); }
+        },
+
+        // --- ADD STEP ---
+        addStepToSegment(seg) {
+            const lastOrder = seg.steps.length > 0 ? Math.max(...seg.steps.map(s => s.order)) : 9;
+            this._openAddModal(seg, lastOrder + 1);
+        },
+        addStepBefore(seg, step) { this._openAddModal(seg, step.order); },
+        _openAddModal(seg, order) {
+            this.addModal.workflowId = seg.workflow_id;
+            this.addModal.segmentName = seg.link_name || seg.workflow_name;
+            this.addModal.data = {
+                order, name: '', action_type: 'click', interaction_mode: 'auto',
+                locator_id: null, _locator_name: '', value_static: '', value_template: '',
+                value_field: '', condition_value: '', press_key_after: '', wait_after: 500,
+                continue_on_error: false, check_for_errors: false, clear_before_fill: false,
+            };
+            this.locatorSearch = { query: '', results: [], open: false };
+            this.addModal.open = true;
+            this.$nextTick(() => lucide.createIcons());
+        },
+        async saveNewStep() {
+            try {
+                const r = await fetch(`/erp-automation/api/workflows/${this.addModal.workflowId}/steps/create/`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify(this.addModal.data)
+                });
+                const d = await r.json();
+                if (d.success) { this.addModal.open = false; this.reloadSegments(); this.flash('Step created'); }
+                else { this.flash(d.message, 'error'); }
+            } catch(e) { this.flash('Create failed: ' + e.message, 'error'); }
+        },
+
+        // --- DELETE STEP ---
+        async deleteStep(step, seg) {
+            if (!confirm(`Delete step ${step.order}: "${step.name}"?`)) return;
+            try {
+                const r = await fetch(`/erp-automation/api/workflows/${seg.workflow_id}/steps/${step.id}/delete/`, {
+                    method: 'POST', headers: { 'X-CSRFToken': CSRF }
+                });
+                const d = await r.json();
+                if (d.success) { this.reloadSegments(); this.flash('Step deleted'); }
+                else { this.flash(d.message, 'error'); }
+            } catch(e) { this.flash('Delete failed: ' + e.message, 'error'); }
+        },
+
+        // --- DUPLICATE STEP ---
+        async duplicateStep(step, seg) {
+            const newData = {
+                order: step.order + 1, name: step.name + ' (copy)', action_type: step.action_type,
+                interaction_mode: step.interaction_mode || 'auto',
+                locator_id: step.locator ? step.locator.id : null,
+                value_static: step.value_static, value_template: step.value_template,
+                value_field: step.value_field, wait_after: step.wait_after,
+                continue_on_error: step.continue_on_error, check_for_errors: step.check_for_errors || false,
+            };
+            try {
+                const r = await fetch(`/erp-automation/api/workflows/${seg.workflow_id}/steps/create/`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify(newData)
+                });
+                const d = await r.json();
+                if (d.success) { this.reloadSegments(); this.flash('Step duplicated'); }
+            } catch(e) { this.flash('Duplicate failed: ' + e.message, 'error'); }
+        },
+
+        // --- SPLIT SEGMENT ---
+        async splitAtStep(seg, step) {
+            if (!confirm(`Split segment "${seg.link_name || seg.workflow_name}" at step ${step.order}: "${step.name}"?\n\nThis step and all following steps will move to a new segment.`)) return;
+            try {
+                const r = await fetch('/erp-automation/api/chains/split-segment/', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ chain_id: CHAIN_PK, link_id: seg.link_id, split_at_step_id: step.id })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    this.reloadSegments();
+                    this.$nextTick(() => { this.segments.forEach((_, i) => this.expandedSegments.add(i)); this.expandedSegments = new Set(this.expandedSegments); });
+                    this.flash(d.message);
+                } else { this.flash(d.message, 'error'); }
+            } catch(e) { this.flash('Split failed: ' + e.message, 'error'); }
+        },
+
+        // --- MERGE SEGMENTS ---
+        async promptMerge(segIdx) {
+            const seg1 = this.segments[segIdx]; const seg2 = this.segments[segIdx + 1];
+            if (!seg2) return;
+            if (!confirm(`Merge "${seg1.link_name || seg1.workflow_name}" with "${seg2.link_name || seg2.workflow_name}"?\n\nAll steps from the second segment will be moved into the first.`)) return;
+            try {
+                const r = await fetch('/erp-automation/api/chains/merge-segments/', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ chain_id: CHAIN_PK, link_id_1: seg1.link_id, link_id_2: seg2.link_id })
+                });
+                const d = await r.json();
+                if (d.success) { this.reloadSegments(); this.flash(d.message); }
+                else { this.flash(d.message, 'error'); }
+            } catch(e) { this.flash('Merge failed: ' + e.message, 'error'); }
+        },
+
+        // --- DRAG & DROP ---
+        onDragStart(e, segIdx, stepIdx, step) {
+            this.dragData = { segIdx, stepIdx, stepId: step.id, stepName: step.name };
+            e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', step.id);
+        },
+        onDragEnd() { this.dragData = null; this.dragOverSegment = null; },
+        onDragOver(e, segIdx) { if (!this.dragData) return; e.dataTransfer.dropEffect = 'move'; this.dragOverSegment = segIdx; },
+        async onDrop(e, targetSegIdx) {
+            if (!this.dragData) return;
+            const srcSegIdx = this.dragData.segIdx; const targetSeg = this.segments[targetSegIdx];
+            this.dragOverSegment = null;
+            if (srcSegIdx === targetSegIdx) { this.dragData = null; return; }
+            const lastOrder = targetSeg.steps.length > 0 ? Math.max(...targetSeg.steps.map(s => s.order)) + 1 : 10;
+            try {
+                const r = await fetch('/erp-automation/api/chains/move-step/', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ step_id: this.dragData.stepId, target_workflow_id: targetSeg.workflow_id, target_order: lastOrder })
+                });
+                const d = await r.json();
+                if (d.success) { this.reloadSegments(); this.flash(d.message); }
+                else { this.flash(d.message, 'error'); }
+            } catch(e) { this.flash('Move failed: ' + e.message, 'error'); }
+            this.dragData = null;
+        },
+
+        // --- LOCATOR MODAL ---
+        async openLocatorModal(locator) {
+            try {
+                const r = await fetch(`/erp-automation/api/locators/${locator.id}/detail/`);
+                const d = await r.json();
+                this.locatorModal.data = d; this.locatorModal.creating = false; this.locatorModal.open = true;
+                this.$nextTick(() => lucide.createIcons());
+            } catch(e) { this.flash('Failed to load locator: ' + e.message, 'error'); }
+        },
+        openNewLocatorModal() {
+            this.locatorModal.data = { name: '', application: 'dynamics365', page_context: '', is_dynamic: true, strategies: [{ strategy_type: 'xpath', value: '', priority: 0 }] };
+            this.locatorModal.creating = true; this.locatorModal.open = true;
+            this.$nextTick(() => lucide.createIcons());
+        },
+        async saveLocator() {
+            this.locatorModal.saving = true;
+            try {
+                const isNew = this.locatorModal.creating;
+                const url = isNew ? '/erp-automation/api/locators/create/' : `/erp-automation/api/locators/${this.locatorModal.data.id}/update/`;
+                const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }, body: JSON.stringify(this.locatorModal.data) });
+                const d = await r.json();
+                if (d.success) {
+                    const locName = this.locatorModal.data.name; this.locatorModal.open = false;
+                    if (isNew && d.locator_id) {
+                        if (this.addModal.open) { this.addModal.data.locator_id = d.locator_id; this.addModal.data._locator_name = locName; }
+                        if (this.editingStep) { this.editForm.locator_id = d.locator_id; this.editForm._locator_name = locName; }
+                    }
+                    this.reloadSegments(); this.flash(d.message);
+                } else { this.flash(d.message, 'error'); }
+            } catch(e) { this.flash('Save failed: ' + e.message, 'error'); }
+            finally { this.locatorModal.saving = false; }
+        },
+
+        // --- LOCATOR SEARCH ---
+        async searchLocators() {
+            const q = this.locatorSearch.query.trim();
+            try {
+                const r = await fetch(`/erp-automation/api/locators/search/?q=${encodeURIComponent(q)}`);
+                const d = await r.json(); this.locatorSearch.results = d.results || []; this.locatorSearch.open = true;
+            } catch(e) { this.locatorSearch.results = []; }
+        },
+        selectLocator(loc, mode) {
+            if (mode === 'add') { this.addModal.data.locator_id = loc.id; this.addModal.data._locator_name = loc.name; }
+            else if (mode === 'edit') { this.editForm.locator_id = loc.id; this.editForm._locator_name = loc.name; }
+            this.locatorSearch = { query: '', results: [], open: false };
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        // --- MODE HELPERS ---
+        getModeLabel(mode) {
+            const labels = { 'auto':'Auto','standard_input':'Standard','combobox':'Combobox','lookup_button':'Lookup',
+                'custom_dropdown':'Dropdown','segmented_entry':'Segmented','checkbox_toggle':'Checkbox',
+                'dialog_button':'Dialog','nav_button':'Nav','tab_header':'Tab' };
+            return labels[mode] || mode;
+        },
+        getModeStyle(mode) {
+            const styles = {
+                'auto':'bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-300',
+                'standard_input':'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+                'combobox':'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+                'lookup_button':'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+                'custom_dropdown':'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+                'segmented_entry':'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400',
+                'checkbox_toggle':'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400',
+                'dialog_button':'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+                'nav_button':'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
+                'tab_header':'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
+            };
+            return styles[mode] || styles['auto'];
+        },
+
+        // --- UTILS ---
+        flash(msg, type = 'success') {
+            this.statusMsg = msg; this.statusType = type;
+            setTimeout(() => { this.statusMsg = ''; }, 3000);
+        },
+
+        destroy() { this.stopDebugPolling(); }
+    };
+}
 </script>
 {% endblock %}
