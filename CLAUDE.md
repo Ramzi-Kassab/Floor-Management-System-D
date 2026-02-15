@@ -825,6 +825,16 @@ python manage.py check
 - **Seed Commands**: `seed_erp_chain` (2,062 lines, seeds ARAMCO 13-segment chain with 162 steps), `seed_erp_environments` (Sandbox/Production URLs), `seed_flask_workflow` (Flask port workflow).
 - **Clean startDebugChain() in job_data_detail.html**: Removed orphaned `.catch()` blocks from old modal-based approach that caused SyntaxError preventing all JS on the page from loading.
 
+### Recent Enhancements (Feb 15, 2026 — Session 2) — Chain Debug UX Improvements
+- **Step Coloring Fix (ID-based tracking)**: `completed_steps` entries in executor.py now include `"id": step.pk` (added to all 8 append calls + 2 current_step dicts). Frontend `getStepDebugStatus()`, spinner check, and `getStepDebugDuration()` all match by `step.id` instead of `step.order`, preventing cross-segment false positive coloring when workflows share step order numbers.
+- **Chain-Scoped Display Numbering**: New `getChainStepNumber(segIdx, stepIdx)` helper returns running counter across all segments (segment 0 has N steps, segment 1 starts at N+1, etc.). During debug mode, step `#` column shows chain-scoped number with small `#order` badge for per-workflow reference.
+- **Run Segment (Jump-to-Link)**: `debugRunSegment(seg)` rewritten to call new `/api/debug/<pk>/rerun-from-link/` API instead of trying to reuse `debugRunFromStep` (which can't cross segment boundaries). Backend: `rerun_from_link` command in `_pause_and_process_commands()` stores target `link_order` in state, returns `"JUMP_LINK"` from `_debug_step_loop()`, chain while-loop jumps to target link index.
+- **Run from Step Restricted**: Per-step play button (▶) now only shown for steps in the currently-running segment (`debugState._runningLinkOrder === seg.link_order`). Prevents attempting cross-segment step jumps which would fail.
+- **Step-by-Step "Go" Mode**: New toggle button in debug toolbar ("Step Mode") sends `set_step_by_step` command to executor. When enabled, executor pauses after every successful step with `is_step_pause: true` error info. Pause panel shows green "Step Completed" header with prominent animated "Go →" button. Toggle works both while running and while paused. Status label shows "Step Done — Waiting for Go" during step pause.
+- **Chain Link Loop Converted to While**: `start_debug_chain()` link iteration converted from `for` to `while link_idx < len(links)` for jump support. All `continue` statements preceded by `link_idx += 1`.
+- **New API Endpoints**: `api_debug_rerun_from_link(request, pk)` — jump to specific chain link; `api_debug_set_step_mode(request, pk)` — toggle step-by-step mode.
+- **New URL Patterns**: `api/debug/<int:pk>/rerun-from-link/` and `api/debug/<int:pk>/step-mode/`.
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 

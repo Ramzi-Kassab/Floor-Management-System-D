@@ -3932,6 +3932,61 @@ def api_debug_run_single_step(request, pk):
 
 @login_required
 @require_POST
+def api_debug_rerun_from_link(request, pk):
+    """Jump to a specific chain link (segment) during debug.
+
+    POST JSON: { "link_order": int }
+    """
+    global _debug_executor
+
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No active debug session"}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    link_order = data.get("link_order")
+    if link_order is None:
+        return JsonResponse({"success": False, "message": "link_order required"}, status=400)
+
+    _debug_executor.send_command("rerun_from_link", {"link_order": link_order})
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Jumping to segment with link_order={link_order}",
+    })
+
+
+@login_required
+@require_POST
+def api_debug_set_step_mode(request, pk):
+    """Toggle step-by-step execution mode.
+
+    POST JSON: { "enabled": bool }
+    """
+    global _debug_executor
+
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No active debug session"}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    enabled = data.get("enabled", False)
+    _debug_executor.send_command("set_step_by_step", {"enabled": enabled})
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Step-by-step mode {'enabled' if enabled else 'disabled'}",
+    })
+
+
+@login_required
+@require_POST
 def api_debug_set_breakpoints(request, pk):
     """Set breakpoint step IDs for the debug executor.
 

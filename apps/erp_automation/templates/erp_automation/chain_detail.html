@@ -21,8 +21,8 @@
                     <span class="px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1"
                           :class="{
                               'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400': debugState.status === 'running',
-                              'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400': debugState.status === 'paused' || debugState.status === 'auto_healing',
-                              'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400': debugState.status === 'completed',
+                              'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400': (debugState.status === 'paused' && debugState.errorInfo?.is_step_pause) || debugState.status === 'completed',
+                              'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400': (debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause) || debugState.status === 'auto_healing',
                               'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': debugState.status === 'failed',
                               'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300': debugState.status === 'idle' || debugState.status === 'stopped' || debugState.status === 'starting',
                           }">
@@ -103,8 +103,8 @@
             <div class="flex items-center justify-between text-xs mb-1.5">
                 <span class="font-medium" :class="{
                     'text-blue-600': debugState.status === 'running' || debugState.status === 'auto_healing',
-                    'text-amber-600': debugState.status === 'paused',
-                    'text-green-600': debugState.status === 'completed',
+                    'text-green-600': (debugState.status === 'paused' && debugState.errorInfo?.is_step_pause) || debugState.status === 'completed',
+                    'text-amber-600': debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause,
                     'text-red-600': debugState.status === 'failed',
                     'text-gray-500': debugState.status === 'idle' || debugState.status === 'stopped',
                 }">
@@ -126,8 +126,8 @@
                 <div class="h-full rounded-full transition-all duration-500"
                      :class="{
                          'bg-blue-500': debugState.status === 'running' || debugState.status === 'auto_healing',
-                         'bg-amber-500': debugState.status === 'paused',
-                         'bg-green-500': debugState.status === 'completed',
+                         'bg-green-500': (debugState.status === 'paused' && debugState.errorInfo?.is_step_pause) || debugState.status === 'completed',
+                         'bg-amber-500': debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause,
                          'bg-red-500': debugState.status === 'failed',
                          'bg-gray-400': debugState.status === 'idle' || debugState.status === 'stopped',
                      }"
@@ -279,7 +279,11 @@
                                             <div class="flex items-center gap-1">
                                                 <span class="w-5 h-5 flex items-center justify-center rounded-full text-xs font-medium"
                                                       :class="getStepOrderClass(seg, step)"
-                                                      x-text="step.order"></span>
+                                                      x-text="debugState.active ? getChainStepNumber(segIdx, stIdx) : step.order"></span>
+                                                <!-- Per-workflow order badge during debug -->
+                                                <template x-if="debugState.active">
+                                                    <span class="text-[9px] text-gray-400 font-mono" x-text="'#' + step.order"></span>
+                                                </template>
                                                 <!-- Debug duration -->
                                                 <template x-if="debugState.active && getStepDebugDuration(seg, step)">
                                                     <span class="text-[9px] text-gray-400" x-text="getStepDebugDuration(seg, step)"></span>
@@ -453,13 +457,16 @@
                                                                 title="Run only this step (test in isolation)">
                                                             <i data-lucide="zap" class="w-3.5 h-3.5"></i>
                                                         </button>
-                                                        <button @click="debugRunFromStep(step)" class="p-1 text-amber-500 hover:text-amber-700"
-                                                                title="Resume execution starting from this step">
-                                                            <i data-lucide="play" class="w-3.5 h-3.5"></i>
-                                                        </button>
+                                                        <!-- Run from step: only available for steps in the currently running segment -->
+                                                        <template x-if="debugState._runningLinkOrder === seg.link_order">
+                                                            <button @click="debugRunFromStep(step)" class="p-1 text-amber-500 hover:text-amber-700"
+                                                                    title="Resume execution starting from this step">
+                                                                <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                                                            </button>
+                                                        </template>
                                                     </span>
                                                 </template>
-                                                <template x-if="debugState.active && (debugState.status === 'running' || debugState.status === 'auto_healing') && debugState.currentStep && debugState.currentStep.order === step.order && debugState._runningLinkOrder === seg.link_order">
+                                                <template x-if="debugState.active && (debugState.status === 'running' || debugState.status === 'auto_healing') && debugState.currentStep && debugState.currentStep.id === step.id && debugState._runningLinkOrder === seg.link_order">
                                                     <span class="p-1 text-yellow-500" title="Currently executing">
                                                         <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
                                                     </span>
@@ -793,32 +800,61 @@
                 <!-- Running controls -->
                 <div class="flex items-center gap-2 flex-shrink-0">
                     <template x-if="debugState.status === 'running' || debugState.status === 'auto_healing'">
-                        <button @click="debugStopExecution()"
-                                class="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
-                            <i data-lucide="square" class="w-3 h-3"></i> Stop
-                        </button>
+                        <div class="flex items-center gap-1.5">
+                            <!-- Step-by-step toggle (available while running) -->
+                            <button @click="debugToggleStepMode()"
+                                    class="px-2.5 py-1.5 text-xs rounded-lg flex items-center gap-1 font-medium transition-colors"
+                                    :class="debugState.stepByStepMode ? 'bg-indigo-600 text-white hover:bg-indigo-700 ring-2 ring-indigo-300' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-300'"
+                                    :title="debugState.stepByStepMode ? 'Step-by-step mode ON — click to disable' : 'Enable step-by-step mode (pause after each step)'">
+                                <i data-lucide="footprints" class="w-3 h-3"></i>
+                                <span x-text="debugState.stepByStepMode ? 'Step Mode ON' : 'Step Mode'"></span>
+                            </button>
+                            <button @click="debugStopExecution()"
+                                    class="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
+                                <i data-lucide="square" class="w-3 h-3"></i> Stop
+                            </button>
+                        </div>
                     </template>
                     <template x-if="debugState.status === 'paused'">
                         <div class="flex items-center gap-1.5 flex-wrap">
-                            <!-- Retry current step (most common action) -->
-                            <button @click="debugRetryStep()"
-                                    class="px-3 py-1.5 text-xs bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-1 font-semibold shadow-sm"
-                                    title="Retry the current failing step again">
-                                <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Retry Step
-                            </button>
-                            <!-- Resume: continue from next step -->
-                            <button @click="debugResumeExecution()"
-                                    class="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1"
-                                    title="Continue execution from this step (after fixing locator)">
-                                <i data-lucide="play" class="w-3 h-3"></i> Resume
-                            </button>
-                            <!-- Skip: skip this step, move to next -->
+                            <!-- Step-pause mode: show prominent Go button -->
+                            <template x-if="debugState.errorInfo?.is_step_pause">
+                                <button @click="debugResumeExecution()"
+                                        class="px-4 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1 font-bold shadow-md ring-2 ring-green-300 animate-pulse"
+                                        title="Continue to next step">
+                                    <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i> Go
+                                </button>
+                            </template>
+                            <!-- Normal pause: Retry / Resume -->
+                            <template x-if="!debugState.errorInfo?.is_step_pause && !debugState.errorInfo?.is_breakpoint">
+                                <button @click="debugRetryStep()"
+                                        class="px-3 py-1.5 text-xs bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-1 font-semibold shadow-sm"
+                                        title="Retry the current failing step again">
+                                    <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Retry Step
+                                </button>
+                            </template>
+                            <!-- Resume: shown for breakpoint and normal error -->
+                            <template x-if="!debugState.errorInfo?.is_step_pause">
+                                <button @click="debugResumeExecution()"
+                                        class="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1"
+                                        title="Continue execution from this step (after fixing locator)">
+                                    <i data-lucide="play" class="w-3 h-3"></i> Resume
+                                </button>
+                            </template>
+                            <!-- Skip -->
                             <button @click="debugSkipStep()"
                                     class="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center gap-1"
                                     title="Skip this step and move to the next one">
                                 <i data-lucide="skip-forward" class="w-3 h-3"></i> Skip
                             </button>
                             <div class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-0.5"></div>
+                            <!-- Step-by-step toggle -->
+                            <button @click="debugToggleStepMode()"
+                                    class="px-2.5 py-1.5 text-xs rounded-lg flex items-center gap-1 font-medium transition-colors"
+                                    :class="debugState.stepByStepMode ? 'bg-indigo-600 text-white hover:bg-indigo-700 ring-2 ring-indigo-300' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-300'"
+                                    :title="debugState.stepByStepMode ? 'Step-by-step mode ON — click to disable' : 'Enable step-by-step mode (pause after each step)'">
+                                <i data-lucide="footprints" class="w-3 h-3"></i>
+                            </button>
                             <!-- Screenshot -->
                             <button @click="debugRefreshScreenshot()"
                                     class="px-2.5 py-1.5 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 flex items-center gap-1"
@@ -852,12 +888,12 @@
                     <div>
                         <h4 class="text-xs font-semibold uppercase mb-2 flex items-center gap-1"
                             :class="{
+                                'text-green-600 dark:text-green-400': debugState.errorInfo?.is_step_pause || (debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success),
                                 'text-amber-600 dark:text-amber-400': debugState.errorInfo?.is_breakpoint,
-                                'text-green-600 dark:text-green-400': debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success,
-                                'text-red-600 dark:text-red-400': !debugState.errorInfo?.is_breakpoint && !(debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success),
+                                'text-red-600 dark:text-red-400': !debugState.errorInfo?.is_step_pause && !debugState.errorInfo?.is_breakpoint && !(debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success),
                             }">
-                            <i :data-lucide="debugState.errorInfo?.is_breakpoint ? 'circle-pause' : (debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success ? 'check-circle' : 'alert-triangle')" class="w-3 h-3"></i>
-                            <span x-text="debugState.errorInfo?.is_breakpoint ? 'Breakpoint Hit' : (debugState.errorInfo?.is_test_result ? (debugState.errorInfo?.test_success ? 'Step Test: Success' : 'Step Test: Failed') : 'Step Failed')"></span>
+                            <i :data-lucide="debugState.errorInfo?.is_step_pause ? 'check-circle' : (debugState.errorInfo?.is_breakpoint ? 'circle-pause' : (debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success ? 'check-circle' : 'alert-triangle'))" class="w-3 h-3"></i>
+                            <span x-text="debugState.errorInfo?.is_step_pause ? 'Step Completed' : (debugState.errorInfo?.is_breakpoint ? 'Breakpoint Hit' : (debugState.errorInfo?.is_test_result ? (debugState.errorInfo?.test_success ? 'Step Test: Success' : 'Step Test: Failed') : 'Step Failed'))"></span>
                         </h4>
                         <template x-if="debugState.errorInfo">
                             <div class="space-y-1.5 text-xs">
@@ -867,9 +903,14 @@
                                           x-text="'#' + (debugState.currentStep?.order || '?')"></span>
                                     <span class="text-gray-900 dark:text-white font-medium" x-text="debugState.errorInfo.step_name || 'Unknown step'"></span>
                                 </div>
+                                <!-- Step-pause message (green) -->
+                                <template x-if="debugState.errorInfo.is_step_pause">
+                                    <div class="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded font-medium"
+                                         x-text="debugState.errorInfo.message"></div>
+                                </template>
                                 <!-- Error message -->
                                 <div class="text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded"
-                                     x-text="debugState.errorInfo.message" x-show="!debugState.errorInfo.is_breakpoint"></div>
+                                     x-text="debugState.errorInfo.message" x-show="!debugState.errorInfo.is_breakpoint && !debugState.errorInfo.is_step_pause"></div>
                                 <!-- Locator info -->
                                 <template x-if="debugState.errorInfo.locator_name">
                                     <div class="flex items-center gap-1">
@@ -1029,6 +1070,8 @@ function chainEditor() {
             sessionExpired: false,
             // Breakpoints
             breakpointStepIds: new Set(),
+            // Step-by-step mode
+            stepByStepMode: false,
             // Track which segments have been completed (by link_order — unique per chain)
             _completedLinkOrders: new Set(),
             _skippedLinkOrders: new Set(),
@@ -1050,10 +1093,16 @@ function chainEditor() {
 
         // --- COMPUTED ---
         get debugStatusLabel() {
+            if (this.debugState.status === 'paused' && this.debugState.errorInfo?.is_step_pause) {
+                return 'Step Done — Waiting for Go';
+            }
+            if (this.debugState.status === 'paused' && this.debugState.errorInfo?.is_breakpoint) {
+                return 'Breakpoint Hit';
+            }
             const labels = {
                 'starting': 'Starting browser...', 'idle': 'Initializing...',
                 'running': 'Running', 'auto_healing': 'Auto-Healing...',
-                'paused': 'Paused', 'completed': 'Completed', 'failed': 'Failed', 'stopped': 'Stopped',
+                'paused': 'Paused — Step Failed', 'completed': 'Completed', 'failed': 'Failed', 'stopped': 'Stopped',
             };
             return labels[this.debugState.status] || this.debugState.status;
         },
@@ -1191,7 +1240,8 @@ function chainEditor() {
                 this.debugState._completedLinkOrders = new Set();
                 this.debugState._skippedLinkOrders = new Set();
                 this.debugState._failedLinkOrder = null;
-                this.debugState._runningLinkOrder = this.debugState.currentLink?.order || null;
+                // Backend sends _running_link_order explicitly; fallback to currentLink.order
+                this.debugState._runningLinkOrder = data._running_link_order || this.debugState.currentLink?.order || null;
 
                 for (const cl of this.debugState.completedLinks) {
                     if (cl.order && cl.status === 'success') {
@@ -1354,6 +1404,25 @@ function chainEditor() {
             } catch (e) { console.error('Retry error:', e); }
         },
 
+        async debugToggleStepMode() {
+            if (!this.debugState.executionId) return;
+            const newMode = !this.debugState.stepByStepMode;
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/step-mode/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ enabled: newMode }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.debugState.stepByStepMode = newMode;
+                    this.flash(`Step-by-step mode ${newMode ? 'ON' : 'OFF'}`, 'success');
+                }
+            } catch(e) {
+                this.flash('Error: ' + e.message, 'error');
+            }
+        },
+
         async debugResumeExecution() {
             try {
                 await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/resume/`, {
@@ -1393,11 +1462,23 @@ function chainEditor() {
         },
 
         async debugRunSegment(seg) {
-            // Run all steps in a segment from step 1
+            // Jump to a specific segment (link) via rerun-from-link API
             if (!this.debugState.executionId || this.debugState.status !== 'paused') return;
-            const firstStep = seg.steps.length > 0 ? seg.steps.sort((a, b) => a.order - b.order)[0] : null;
-            if (!firstStep) { this.flash('Segment has no steps', 'error'); return; }
-            this.debugRunFromStep(firstStep);
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/rerun-from-link/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ link_order: seg.link_order }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.flash(`Jumping to segment: ${seg.workflow_name}`, 'success');
+                } else {
+                    this.flash(data.message || 'Failed', 'error');
+                }
+            } catch(e) {
+                this.flash('Error: ' + e.message, 'error');
+            }
         },
 
         async debugStopExecution() {
@@ -1466,12 +1547,12 @@ function chainEditor() {
             // For completed segments, all steps are "success"
             if (this.debugState._completedLinkOrders.has(seg.link_order)) return 'completed_segment';
 
-            // For current/failed segment: check completedSteps
-            const completed = this.debugState.completedSteps.find(c => c.order === step.order);
+            // For current/failed segment: check completedSteps by step ID (globally unique)
+            const completed = this.debugState.completedSteps.find(c => c.id === step.id);
             if (completed) return completed.status; // 'success', 'auto_healed', 'skipped'
 
-            // Current step
-            if (this.debugState.currentStep && this.debugState.currentStep.order === step.order) {
+            // Current step (match by ID to avoid cross-segment false positives)
+            if (this.debugState.currentStep && this.debugState.currentStep.id === step.id) {
                 if (this.debugState.status === 'paused') return 'paused';
                 if (this.debugState.status === 'auto_healing') return 'auto_healing';
                 if (this.debugState.status === 'running') return 'running';
@@ -1513,11 +1594,20 @@ function chainEditor() {
             return classes[status] || 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
         },
 
+        getChainStepNumber(segIdx, stepIdx) {
+            // Return a chain-scoped running step number across all segments
+            let count = 0;
+            for (let i = 0; i < segIdx; i++) {
+                count += (this.segments[i]?.steps?.length || 0);
+            }
+            return count + stepIdx + 1;
+        },
+
         getStepDebugDuration(seg, step) {
             if (!this.debugState.active) return null;
             if (this.debugState._runningLinkOrder !== seg.link_order &&
                 this.debugState._failedLinkOrder !== seg.link_order) return null;
-            const completed = this.debugState.completedSteps.find(c => c.order === step.order);
+            const completed = this.debugState.completedSteps.find(c => c.id === step.id);
             if (!completed || !completed.duration_ms) return null;
             if (completed.duration_ms < 1000) return completed.duration_ms + 'ms';
             return (completed.duration_ms / 1000).toFixed(1) + 's';

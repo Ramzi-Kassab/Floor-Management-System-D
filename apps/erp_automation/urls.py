@@ -127,6 +127,8 @@ urlpatterns = [
     path("api/debug/<int:pk>/rerun-from-step/", views.api_debug_rerun_from_step, name="api_debug_rerun_from_step"),
     path("api/debug/<int:pk>/run-single-step/", views.api_debug_run_single_step, name="api_debug_run_single_step"),
     path("api/debug/<int:pk>/breakpoints/", views.api_debug_set_breakpoints, name="api_debug_breakpoints"),
+    path("api/debug/<int:pk>/rerun-from-link/", views.api_debug_rerun_from_link, name="api_debug_rerun_from_link"),
+    path("api/debug/<int:pk>/step-mode/", views.api_debug_set_step_mode, name="api_debug_step_mode"),
 
     # ERP Environments CRUD
     path("api/environments/", views.api_environment_list, name="api_environment_list"),
