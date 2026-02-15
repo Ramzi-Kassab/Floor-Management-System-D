@@ -777,18 +777,6 @@ def parse_job_card(file_path):
     # --- Extract evaluation summaries ---
     evaluations = _extract_evaluations(wb)
 
-    # Method 4: Check evaluation summaries for build-up actions (P, V, I codes)
-    if not has_hardfacing:
-        for eval_info in evaluations:
-            action_counts = eval_info.get('action_counts', {})
-            # P = Pocket Build Up, V = Fin Build Up, I = Impact Arrestor BU
-            for build_code in ('P', 'V', 'I'):
-                if action_counts.get(build_code, 0) > 0:
-                    has_hardfacing = True
-                    break
-            if has_hardfacing:
-                break
-
     wb.close()
 
     # --- Handle date_received ---
