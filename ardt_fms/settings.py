@@ -194,6 +194,10 @@ LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'dashboard:home'
 LOGOUT_REDIRECT_URL = 'accounts:login'
 
+# Keep sessions alive for 24 hours (debug runs can be long)
+SESSION_COOKIE_AGE = 86400
+SESSION_SAVE_EVERY_REQUEST = True
+
 # =============================================================================
 # INTERNATIONALIZATION
 # =============================================================================
